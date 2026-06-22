@@ -1,6 +1,7 @@
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { MarkdownRenderer } from "../../lib/markdown";
 import type { Spec } from "../../types";
+import { buildHandoffPrompt } from "../../lib/handoffPrompt";
 
 export function SpecDetail() {
   const { state, navigateTo } = useWorkspace();
@@ -335,7 +336,7 @@ function LifecycleRail({ status }: { status: string }) {
 
 function HandoffCTA({ spec }: { spec: Spec }) {
   const handleCopy = async () => {
-    const prompt = `You are the ${spec.recommended_agent || "specialist"}. Read \`.lmbrain/specs/${spec.status}/${spec.id}.md\` in full, then implement the complete production-grade scope exactly as specified. Preserve the repository's existing work.`;
+    const prompt = buildHandoffPrompt(spec.recommended_agent, spec.id, spec.status);
     try {
       await navigator.clipboard.writeText(prompt);
     } catch {

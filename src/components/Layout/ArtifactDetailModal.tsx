@@ -46,12 +46,14 @@ export function ArtifactDetailModal() {
   const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [reloadVersion, setReloadVersion] = useState(0);
 
   const [prevPath, setPrevPath] = useState<string>("");
 
   const artifact = state.detailArtifact;
   const path = artifact?.path;
-  const loading = path ? path !== loadedPath && !error : false;
+  const activeError = loadedPath === path ? error : null;
+  const loading = path ? path !== loadedPath && !activeError : false;
 
   if (path !== prevPath) {
     setPrevPath(path || "");
@@ -70,12 +72,15 @@ export function ArtifactDetailModal() {
     };
   }, []);
 
-  // Fetch the artifact content on mount/path change
+  // Fetch the artifact content on mount, path change, or a successful write.
   useEffect(() => {
     if (!path) return;
 
+    let cancelled = false;
     parseMarkdown(path)
       .then((parsedDoc) => {
+        if (cancelled) return;
+        setError(null);
         setDoc(parsedDoc);
         setContent(parsedDoc.body);
         setLoadedPath(path);
@@ -84,10 +89,14 @@ export function ArtifactDetailModal() {
         }
       })
       .catch((err) => {
+        if (cancelled) return;
         setError(typeof err === "string" ? err : "Failed to load artifact content");
         setLoadedPath(path);
       });
-  }, [path]);
+    return () => {
+      cancelled = true;
+    };
+  }, [path, reloadVersion]);
 
   // Handle ESC and Tab trap
   useEffect(() => {
@@ -128,8 +137,9 @@ export function ArtifactDetailModal() {
 
   if (!artifact || !path) return null;
 
-  const id = doc?.frontmatter?.id as string | undefined;
-  const status = doc?.frontmatter?.status as string | undefined;
+  const loadedDoc = loadedPath === path ? doc : null;
+  const id = loadedDoc?.frontmatter?.id as string | undefined;
+  const status = loadedDoc?.frontmatter?.status as string | undefined;
   const eligibleTransitions = id && status === "proposed" ? getTargetStatuses(id) : null;
 
   const handleAction = async (targetStatus: string) => {
@@ -140,6 +150,11 @@ export function ArtifactDetailModal() {
       const newPath = await setArtifactStatus(artifact.path, targetStatus);
       await loadAllData();
       setConfirmAction(null);
+      setDoc(null);
+      setContent("");
+      setError(null);
+      setLoadedPath("");
+      setReloadVersion((version) => version + 1);
       dispatch({
         type: "SET_DETAIL_ARTIFACT",
         artifact: { title: artifact.title, path: newPath },
@@ -243,8 +258,8 @@ export function ArtifactDetailModal() {
             <div style={{ textAlign: "center", padding: 40, color: "var(--text-tertiary)" }}>
               Loading content...
             </div>
-          ) : error ? (
-            <div style={{ color: "#e0584a", padding: 20, textAlign: "center" }}>{error}</div>
+          ) : activeError ? (
+            <div style={{ color: "#e0584a", padding: 20, textAlign: "center" }}>{activeError}</div>
           ) : (
             <>
               <MarkdownRenderer content={content} />

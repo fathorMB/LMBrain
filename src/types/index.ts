@@ -218,7 +218,6 @@ export interface Milestone {
   id: string;
   title: string;
   status: string;
-  target: string;
   outcome: string;
   specs: string[];
   decisions: string[];

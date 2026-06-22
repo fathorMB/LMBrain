@@ -164,11 +164,6 @@ export function RoadmapView() {
                         {m.title}
                       </span>
                     </div>
-                    {m.target && (
-                      <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
-                        Target: {m.target}
-                      </span>
-                    )}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span

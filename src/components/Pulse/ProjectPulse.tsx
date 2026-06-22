@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { getPulseData, getAdrs, getHandoffs, getAgents, getDiagnostics } from "../../lib/commands";
+import { buildHandoffPrompt } from "../../lib/handoffPrompt";
 import type { PulseData, Handoff, Adr, KitDiagnostic } from "../../types";
 
 function generateFixPrompt(d: KitDiagnostic): string {
@@ -701,8 +702,8 @@ export function ProjectPulse() {
               Quick links
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <QuickLink icon="description" label="STATUS.md" />
-              <QuickLink icon="description" label="ROADMAP.md" />
+              <QuickLink icon="description" label="STATUS.md" documentPath=".lmbrain/STATUS.md" />
+              <QuickLink icon="description" label="ROADMAP.md" documentPath=".lmbrain/ROADMAP.md" />
               {state.handoffs.filter((h) => h.status === "ready").length >
                 0 && (
                 <QuickLink
@@ -869,6 +870,23 @@ function MetricCard({
 }
 
 function ActionCard({ action }: { action: PulseData["actions"][0] }) {
+  const [expanded, setExpanded] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const isHandoff = action.action_type === "handoff" && action.spec_id;
+  const prompt = isHandoff
+    ? buildHandoffPrompt(action.agent, action.spec_id ?? "", "ready")
+    : null;
+
+  const copyPrompt = async () => {
+    if (!prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopyState("copied");
+    } catch {
+      setCopyState("error");
+    }
+  };
+
   return (
     <div
       style={{
@@ -919,7 +937,45 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
         >
           {action.description}
         </div>
+        {expanded && prompt && (
+          <div style={{ marginTop: 10 }}>
+            <textarea
+              aria-label={`Handoff prompt for ${action.spec_id}`}
+              readOnly
+              value={prompt}
+              onClick={(event) => event.currentTarget.select()}
+              style={{
+                width: "100%",
+                minHeight: 76,
+                resize: "vertical",
+                background: "var(--bg-primary)",
+                border: "1px solid var(--border-primary)",
+                borderRadius: 6,
+                padding: 8,
+                color: "var(--text-secondary)",
+                fontFamily: "var(--font-mono)",
+                fontSize: 11.5,
+              }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+              <button type="button" onClick={copyPrompt}>
+                Copy prompt
+              </button>
+              {copyState === "copied" && <span role="status">Copied to clipboard.</span>}
+              {copyState === "error" && <span role="alert">Could not copy the prompt. Select and copy it manually.</span>}
+            </div>
+          </div>
+        )}
       </div>
+      {isHandoff && (
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
+        >
+          {expanded ? "Hide prompt" : "View prompt"}
+        </button>
+      )}
     </div>
   );
 }
@@ -1106,12 +1162,30 @@ function MetaRow({
 function QuickLink({
   icon,
   label,
+  documentPath,
 }: {
   icon: string;
   label: string;
+  documentPath?: string;
 }) {
+  const { state, dispatch } = useWorkspace();
+  const openDocument = () => {
+    if (!state.currentWorkspace || !documentPath) return;
+    dispatch({
+      type: "SET_DETAIL_ARTIFACT",
+      artifact: {
+        title: label,
+        path: `${state.currentWorkspace.path}/${documentPath}`,
+      },
+    });
+  };
+
   return (
-    <div
+    <button
+      type="button"
+      onClick={openDocument}
+      disabled={!documentPath}
+      aria-label={`Open ${label}`}
       style={{
         display: "flex",
         alignItems: "center",
@@ -1121,6 +1195,7 @@ function QuickLink({
         border: "1px solid #221f29",
         borderRadius: 9,
         cursor: "pointer",
+        textAlign: "left",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = "#36303f";
@@ -1153,6 +1228,6 @@ function QuickLink({
       >
         north_east
       </i>
-    </div>
+    </button>
   );
 }

@@ -7,7 +7,7 @@ updated: 2026-06-22
 
 ## Current focus
 
-M-02 core **accepted**: the in-app approve/reject write workflow ([[SPEC-014-operator-approval-workflow]], [[REVIEW-013-spec-014-operator-approval-workflow]]) is in. Ready to cut the coordinated **1.1.0** release (round-2 fixes + Contract v0.2/reject + approval workflow).
+**1.1.0 released** (commit `3868818`, pushed to `main`; `build-installers.yml` in progress): bundles M-02 approve/reject workflow ([[SPEC-014-operator-approval-workflow]]), Contract v0.2 reject status ([[ADR-003-reject-as-first-class-status]]), and the test round 2 fixes ([[SPEC-013-remediate-test-round-2-findings]]). 1.0.6 CI previously completed successfully.
 
 ## Current milestone
 

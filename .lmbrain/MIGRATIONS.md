@@ -4,7 +4,7 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `1.1.0`.
+The current released kit is `1.1.1`.
 
 ### 1.1.0 (Contract v0.2 — additive)
 

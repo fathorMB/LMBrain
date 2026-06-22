@@ -22,7 +22,13 @@ vi.mock("../hooks/useWorkspace", () => ({
         milestone_progress: 50,
         milestone_due: "2026-09-30",
         metrics: [],
-        actions: [],
+        actions: [{
+          title: "Start AGENT-FULLSTACK-DESKTOP on SPEC-016",
+          description: "Spec is ready — copy the handoff prompt and launch the agent manually.",
+          action_type: "handoff",
+          spec_id: "SPEC-016",
+          agent: "AGENT-FULLSTACK-DESKTOP",
+        }],
         blockers: [],
         recent_activity: [],
         ready_handoffs: [],
@@ -31,6 +37,7 @@ vi.mock("../hooks/useWorkspace", () => ({
       handoffs: [],
       adrs: [],
       agents: [],
+      currentWorkspace: { path: "E:/workspace" },
     },
     dispatch: mockDispatch,
   }),
@@ -94,5 +101,57 @@ describe("ProjectPulse Diagnostics Fix Prompt", () => {
 
     expect(writeTextMock).toHaveBeenCalled();
     expect(writeTextMock.mock.calls[0][0]).toContain("Please fix the malformed frontmatter");
+  });
+
+  it("reveals and copies a manual handoff prompt without writing project state", async () => {
+    vi.mocked(commands.getPulseData).mockResolvedValue({
+      focus: "M-02",
+      milestone: "M-02",
+      milestone_progress: 0,
+      milestone_due: null,
+      metrics: [],
+      actions: [{
+        title: "Start AGENT-FULLSTACK-DESKTOP on SPEC-016",
+        description: "Spec is ready — copy the handoff prompt and launch the agent manually.",
+        action_type: "handoff",
+        spec_id: "SPEC-016",
+        agent: "AGENT-FULLSTACK-DESKTOP",
+      }],
+      blockers: [],
+      recent_activity: [],
+      ready_handoffs: [],
+      active_handoff: null,
+    });
+    vi.mocked(commands.getDiagnostics).mockResolvedValue([]);
+
+    render(<ProjectPulse />);
+
+    await waitFor(() => expect(screen.getByText("View prompt")).toBeDefined());
+    fireEvent.click(screen.getByText("View prompt"));
+    expect((screen.getByLabelText("Handoff prompt for SPEC-016") as HTMLTextAreaElement).value)
+      .toContain(".lmbrain/specs/ready/SPEC-016.md");
+
+    fireEvent.click(screen.getByText("Copy prompt"));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Copied to clipboard."));
+    expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining("AGENT-FULLSTACK-DESKTOP"));
+  });
+
+  it("opens STATUS.md and ROADMAP.md in the detail modal", async () => {
+    vi.mocked(commands.getDiagnostics).mockResolvedValue([]);
+    render(<ProjectPulse />);
+
+    await waitFor(() => expect(screen.getByLabelText("Open STATUS.md")).toBeDefined());
+    mockDispatch.mockClear();
+    fireEvent.click(screen.getByLabelText("Open STATUS.md"));
+    expect(mockDispatch).toHaveBeenCalledWith({
+      type: "SET_DETAIL_ARTIFACT",
+      artifact: { title: "STATUS.md", path: "E:/workspace/.lmbrain/STATUS.md" },
+    });
+
+    fireEvent.click(screen.getByLabelText("Open ROADMAP.md"));
+    expect(mockDispatch).toHaveBeenCalledWith({
+      type: "SET_DETAIL_ARTIFACT",
+      artifact: { title: "ROADMAP.md", path: "E:/workspace/.lmbrain/ROADMAP.md" },
+    });
   });
 });

@@ -1040,7 +1040,6 @@ fn parse_roadmap_content(content: &str) -> Roadmap {
                 id,
                 title: m_title,
                 status: String::new(),
-                target: String::new(),
                 outcome: String::new(),
                 specs: Vec::new(),
                 decisions: Vec::new(),
@@ -1056,7 +1055,6 @@ fn parse_roadmap_content(content: &str) -> Roadmap {
                     let val = parts[1].trim();
                     match key {
                         "status" => m.status = val.to_string(),
-                        "target" => m.target = val.to_string(),
                         "outcome" => m.outcome = val.to_string(),
                         "depends_on" => m.depends_on = Some(val.to_string()),
                         "specs" => m.specs = parse_list_items(val),

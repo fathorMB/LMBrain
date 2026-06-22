@@ -133,4 +133,38 @@ describe("ArtifactDetailModal", () => {
       expect(screen.getByText(/Please revise the/)).toBeDefined();
     });
   });
+
+  it.each([
+    ["Approve", "accepted"],
+    ["Reject", "rejected"],
+  ])("refreshes the modal after ADR %s", async (action, resultingStatus) => {
+    vi.mocked(commands.parseMarkdown)
+      .mockResolvedValueOnce({
+        path: "E:/workspace/.lmbrain/decisions/ADR-001.md",
+        frontmatter: { id: "ADR-001", status: "proposed" },
+        body: "Proposed ADR content",
+        wikilinks: [],
+        diagnostics: [],
+      })
+      .mockResolvedValueOnce({
+        path: "E:/workspace/.lmbrain/decisions/ADR-001.md",
+        frontmatter: { id: "ADR-001", status: resultingStatus },
+        body: "Updated ADR content",
+        wikilinks: [],
+        diagnostics: [],
+      });
+    vi.mocked(commands.setArtifactStatus).mockResolvedValue("E:/workspace/.lmbrain/decisions/ADR-001.md");
+
+    render(<ArtifactDetailModal />);
+
+    await waitFor(() => expect(screen.getByText(action)).toBeDefined());
+    fireEvent.click(screen.getByText(action));
+    fireEvent.click(screen.getByText("Yes, Confirm"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Approve")).toBeNull();
+      expect(screen.queryByText("Reject")).toBeNull();
+      expect(screen.getByText("Updated ADR content")).toBeDefined();
+    });
+  });
 });

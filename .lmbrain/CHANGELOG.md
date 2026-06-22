@@ -4,6 +4,15 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 1.1.1 — 2026-06-23
+
+### Fixed
+
+- Recommended manual-handoff cards now expose a viewable, copyable prompt without launching an agent.
+- `STATUS.md` and `ROADMAP.md` Quick Links now open their Markdown source in the read-only detail modal.
+- Artifact-detail actions refresh after an approve/reject transition, including flat ADR files.
+- Roadmaps no longer model or display temporal targets.
+
 ## 1.1.0 — 2026-06-23
 
 ### Added

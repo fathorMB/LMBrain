@@ -279,7 +279,7 @@ updated: 2026-06-22
 ## M-01 — Read-only desktop workspace
 
 - `status`: active
-- `target`: 2026-Q3
+- `target`: obsolete legacy schedule
 - `outcome`: Operators can select an LMBrain repository.
 - `specs`: [SPEC-001, SPEC-009]
 - `risks`: [filesystem boundaries, watcher reliability]
@@ -287,7 +287,7 @@ updated: 2026-06-22
 ## M-02 — Operator workflow
 
 - `status`: planned
-- `target`: 2026-Q4
+- `target`: obsolete legacy schedule
 - `outcome`: Write support.
 - `decisions`: [ADR-002]
 - `depends_on`: M-01
@@ -303,7 +303,6 @@ updated: 2026-06-22
     assert_eq!(m1.id, "M-01");
     assert_eq!(m1.title, "Read-only desktop workspace");
     assert_eq!(m1.status, "active");
-    assert_eq!(m1.target, "2026-Q3");
     assert_eq!(m1.outcome, "Operators can select an LMBrain repository.");
     assert_eq!(m1.specs, vec!["SPEC-001", "SPEC-009"]);
     assert_eq!(
@@ -315,7 +314,6 @@ updated: 2026-06-22
     assert_eq!(m2.id, "M-02");
     assert_eq!(m2.title, "Operator workflow");
     assert_eq!(m2.status, "planned");
-    assert_eq!(m2.target, "2026-Q4");
     assert_eq!(m2.outcome, "Write support.");
     assert_eq!(m2.decisions, vec!["ADR-002"]);
     assert_eq!(m2.depends_on, Some("M-01".to_string()));
