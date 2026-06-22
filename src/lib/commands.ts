@@ -1,0 +1,131 @@
+import { invoke } from "@tauri-apps/api/core";
+import type {
+  Adr,
+  AgentProfile,
+  DirEntry,
+  FileContent,
+  GitInfo,
+  Handoff,
+  McpProposal,
+  McpRecord,
+  ParsedDocument,
+  PulseData,
+  Review,
+  Spec,
+  Task,
+  WikiPage,
+  WikiTree,
+  WorkspaceInfo,
+  WorkspaceSummary,
+} from "../types";
+
+// ─── Workspace Commands ──────────────────────────────────────────
+
+export async function openWorkspace(path: string): Promise<WorkspaceInfo> {
+  return invoke("open_workspace", { path });
+}
+
+export async function listRecentWorkspaces(): Promise<WorkspaceSummary[]> {
+  return invoke("list_recent_workspaces");
+}
+
+export async function removeRecentWorkspace(path: string): Promise<void> {
+  return invoke("remove_recent_workspace", { path });
+}
+
+// ─── Filesystem Commands ─────────────────────────────────────────
+
+export async function readFile(path: string): Promise<FileContent> {
+  return invoke("read_file", { path });
+}
+
+export async function listDirectory(path: string): Promise<DirEntry[]> {
+  return invoke("list_directory", { path });
+}
+
+// ─── Parse Commands ──────────────────────────────────────────────
+
+export async function parseMarkdown(path: string): Promise<ParsedDocument> {
+  return invoke("parse_markdown", { path });
+}
+
+// ─── Data Commands ───────────────────────────────────────────────
+
+export async function getPulseData(): Promise<PulseData> {
+  return invoke("get_pulse_data");
+}
+
+export async function getTasks(): Promise<Task[]> {
+  return invoke("get_tasks");
+}
+
+export async function getSpecs(): Promise<Spec[]> {
+  return invoke("get_specs");
+}
+
+export async function getReviews(): Promise<Review[]> {
+  return invoke("get_reviews");
+}
+
+export async function getAdrs(): Promise<Adr[]> {
+  return invoke("get_adrs");
+}
+
+export async function getAgents(): Promise<AgentProfile[]> {
+  return invoke("get_agents");
+}
+
+export async function getMcpRecords(): Promise<McpRecord[]> {
+  return invoke("get_mcp_records");
+}
+
+export async function getMcpProposals(): Promise<McpProposal[]> {
+  return invoke("get_mcp_proposals");
+}
+
+export async function getHandoffs(): Promise<Handoff[]> {
+  return invoke("get_handoffs");
+}
+
+export async function getWikilinkIndex(): Promise<Record<string, string[]>> {
+  return invoke("get_wikilink_index");
+}
+
+export async function getDiagnostics(): Promise<import("../types").KitDiagnostic[]> {
+  return invoke("get_diagnostics");
+}
+
+export interface SearchResult {
+  path: string;
+  snippet: string;
+}
+
+export async function searchContent(query: string): Promise<SearchResult[]> {
+  return invoke("search_content", { query });
+}
+
+export async function getWikiTree(): Promise<WikiTree> {
+  return invoke("get_wiki_tree");
+}
+
+export async function getWikiPage(path: string): Promise<WikiPage> {
+  return invoke("get_wiki_page", { path });
+}
+
+export async function getGitInfo(): Promise<GitInfo> {
+  return invoke("get_git_info");
+}
+
+// ─── Watcher Commands ────────────────────────────────────────────
+
+export async function startWatcher(): Promise<void> {
+  return invoke("start_watcher");
+}
+
+export async function stopWatcher(): Promise<void> {
+  return invoke("stop_watcher");
+}
+
+export async function watcherStatus(): Promise<boolean> {
+  return invoke("watcher_status");
+}

@@ -1,0 +1,84 @@
+# LMBrain Markdown Contract v0.1
+
+**Kit version:** `1.0.0` (read from `VERSION`)
+
+The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable kit version. Use semantic versioning: breaking contract changes increment the major version; backward-compatible additions increment the minor version; clarifications and fixes increment the patch version. Read `CHANGELOG.md` for released changes and `MIGRATIONS.md` before upgrading a released kit.
+
+## General rules
+
+- Every operational artifact has an immutable, unique ID.
+- Frontmatter holds queryable metadata; the Markdown body holds human context and evidence.
+- Dates use `YYYY-MM-DD`.
+- References use IDs in frontmatter and `[[wikilinks]]` in prose.
+- The filesystem and `status` frontmatter must agree where a status directory exists.
+
+## IDs and locations
+
+| Artifact | Prefix | Location |
+| --- | --- | --- |
+| Task | `TASK-` | `tasks/<status>/` |
+| Specification | `SPEC-` | `specs/<status>/` |
+| Review | `REVIEW-` | `reviews/<status>/` |
+| Decision | `ADR-` | `decisions/` |
+| Agent profile | `AGENT-` | `agents/profiles/` |
+| Agent proposal | `AGENT-PROP-` | `agents/proposals/` |
+| MCP specification | `MCP-` | `mcp/specs/` |
+| MCP proposal | `MCP-PROP-` | `mcp/proposals/` |
+| Session handoff | `HANDOFF-` | `handoffs/active/` |
+
+## Shared frontmatter
+
+```yaml
+id: SPEC-012
+title: Concise human title
+status: ready
+created: 2026-06-22
+updated: 2026-06-22
+tags: []
+links: []
+```
+
+Required fields are `id`, `title`, `status`, `created`, `updated`, `tags`, and `links`.
+
+Optional shared fields: `area`, `milestone`, `priority`, `owner`.
+
+Priority values: `critical`, `high`, `medium`, `low`.
+
+## Allowed statuses
+
+| Artifact | Values |
+| --- | --- |
+| Task | `backlog`, `planned`, `in-progress`, `review`, `done`, `blocked`, `cancelled` |
+| Spec | `proposed`, `ready`, `in-progress`, `review`, `accepted`, `changes-requested`, `archived` |
+| Review | `pending`, `accepted`, `changes-requested`, `blocked`, `superseded` |
+| ADR | `proposed`, `accepted`, `superseded`, `deprecated` |
+| Agent profile | `proposed`, `active`, `inactive`, `retired` |
+| MCP proposal | `proposed`, `approved`, `rejected`, `implemented`, `blocked` |
+| MCP | `specified`, `active`, `inactive`, `deprecated` |
+| Session handoff | `ready`, `consumed`, `superseded`, `archived` |
+
+## Invariants
+
+- A spec can be `accepted` only when an associated review is `accepted`.
+- A `done` task must contain evidence and completed acceptance criteria.
+- An `active` MCP needs a documented spec, permissions, and verification evidence.
+- An agent profile always has `activation: manual`; LMBrain never spawns agents.
+- An ADR is not rewritten to change history: create a replacement ADR and mark the old one `superseded`.
+- The Project Lead may write only inside `.lmbrain/` during ordinary work. It may alter application code only through the narrowly scoped, operator-authorized escalation process in `AGENT.md`.
+- All implementation and review work complies with `QUALITY.md` unless a human-approved exception is recorded.
+- A session handoff is a context snapshot and must be validated by the receiving Project Lead before it drives project decisions or status changes.
+- At most one `ready` session handoff may exist in `handoffs/active/`.
+- The application should warn about duplicate IDs, broken links, directory/status mismatches, missing references, and circular dependencies.
+
+## Authority
+
+| Artifact | Project Lead | Specialist | User |
+| --- | --- | --- | --- |
+| Project, roadmap, status | maintain | no | approve/edit |
+| Specs | create/maintain | implementation evidence only | approve/edit |
+| Tasks | maintain | own status/evidence | edit |
+| Reviews | create on request | no | request/edit |
+| ADRs | propose/maintain | propose only | approve/edit |
+| Agent and MCP registries | maintain proposals | no | approve/edit |
+| Session handoffs | create/consume | no | request/edit |
+| Application code and configuration | no, except qualified escalated corrective work | only when manually assigned by user | edit |

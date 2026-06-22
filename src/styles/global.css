@@ -1,0 +1,170 @@
+/* ─── LMBrain Global Styles ──────────────────────────────────────── */
+/* Dark theme matching app-design/LMBrain.dc.html */
+
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-primary: #0b0a0d;
+  --bg-secondary: #100e14;
+  --bg-tertiary: #141118;
+  --bg-hover: #1a1722;
+  --bg-active: #221e2b;
+  --border-primary: #1f1c25;
+  --border-secondary: #242029;
+  --border-hover: #36303f;
+  --text-primary: #ece9ef;
+  --text-secondary: #9a949f;
+  --text-tertiary: #6c6671;
+  --text-muted: #56525b;
+  --accent: #7c6cf6;
+  --accent-light: #a596f5;
+  --accent-gradient: linear-gradient(180deg, #8676f7, #6e5bf2);
+  --green: #46b07d;
+  --blue: #5b8def;
+  --yellow: #e0a23a;
+  --red: #e0584a;
+  --red-light: #f0a89f;
+  --font-sans: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg-primary);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+::-webkit-scrollbar-thumb {
+  background: #29262f;
+  border-radius: 7px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3543;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::selection {
+  background: rgba(124, 108, 246, 0.34);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+a {
+  color: var(--accent-light);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* Animations */
+@keyframes lmfade {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes lmdrawer {
+  from {
+    transform: translateX(26px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes lmpop {
+  from {
+    transform: translateY(-10px) scale(0.985);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes lmscrim {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes lmpulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Utility classes */
+.flex {
+  display: flex;
+}
+.flex-col {
+  flex-direction: column;
+}
+.flex-1 {
+  flex: 1;
+}
+.items-center {
+  align-items: center;
+}
+.justify-between {
+  justify-content: space-between;
+}
+.gap-8 {
+  gap: 8px;
+}
+.gap-12 {
+  gap: 12px;
+}
+.text-mono {
+  font-family: var(--font-mono);
+}
+.text-sm {
+  font-size: 12px;
+}
+.text-tertiary {
+  color: var(--text-tertiary);
+}
+.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

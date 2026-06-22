@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div onClick="{{ task.onClick }}" style="background:#141118;border:1px solid #262330;border-radius:11px;padding:12px 13px;cursor:pointer;display:flex;flex-direction:column;gap:8px" style-hover="border-color:#3a3446;background:#181520;transform:translateY(-1px)">
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a858f">{{ task.id }}</span>
+    <span style="{{ task.priPillStyle }}">{{ task.priority }}</span>
+  </div>
+  <div style="font-size:13px;font-weight:600;line-height:1.35;color:#ece9ef">{{ task.title }}</div>
+  <sc-if value="{{ task.blocked }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#f0a89f;background:rgba(224,88,74,0.1);border:1px solid rgba(224,88,74,0.22);border-radius:6px;padding:4px 8px;width:max-content"><i style="font-family:'Material Symbols Outlined';font-size:13px">link_off</i>{{ task.blockReason }}</div>
+  </sc-if>
+  <div style="display:flex;align-items:center;gap:8px;margin-top:1px">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#9a949f;background:#1a1722;border-radius:5px;padding:2px 6px">{{ task.area }}</span>
+    <sc-if value="{{ task.spec }}" hint-placeholder-val="{{ true }}"><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#bcaef6">{{ task.spec }}</span></sc-if>
+    <span style="flex:1"></span>
+    <span style="font-size:10.5px;color:#56525b;white-space:nowrap">{{ task.upd }}</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:262,&quot;height&quot;:118},&quot;task&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;any&quot;}}"></script>
+</body>
+</html>
