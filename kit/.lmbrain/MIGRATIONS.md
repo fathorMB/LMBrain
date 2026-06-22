@@ -4,7 +4,7 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `1.0.2`. This patch release is backward-compatible with `1.0.1` and requires no migration.
+The current kit is `1.0.3`. This patch release is backward-compatible with `1.0.2` and requires no migration.
 
 When the first released version is published, this document will state:
 

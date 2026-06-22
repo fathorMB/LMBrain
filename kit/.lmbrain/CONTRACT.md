@@ -1,6 +1,6 @@
 # LMBrain Markdown Contract v0.1
 
-**Kit version:** `1.0.2` (read from `VERSION`)
+**Kit version:** `1.0.3` (read from `VERSION`)
 
 The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable kit version. Use semantic versioning: breaking contract changes increment the major version; backward-compatible additions increment the minor version; clarifications and fixes increment the patch version. Read `CHANGELOG.md` for released changes and `MIGRATIONS.md` before upgrading a released kit.
 
