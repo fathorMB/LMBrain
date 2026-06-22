@@ -23,6 +23,7 @@ import type {
   WikiPage,
   GitInfo,
   FileEvent,
+  DetailArtifact,
 } from "../types";
 import * as commands from "../lib/commands";
 
@@ -51,6 +52,7 @@ export interface WorkspaceState {
   watcherActive: boolean;
   loading: boolean;
   error: string | null;
+  detailArtifact: DetailArtifact | null;
 }
 
 export type Action =
@@ -75,7 +77,8 @@ export type Action =
   | { type: "SET_CMDK"; open: boolean }
   | { type: "SET_WATCHER"; active: boolean }
   | { type: "SET_LOADING"; loading: boolean }
-  | { type: "SET_ERROR"; error: string | null };
+  | { type: "SET_ERROR"; error: string | null }
+  | { type: "SET_DETAIL_ARTIFACT"; artifact: DetailArtifact | null };
 
 const initialState: WorkspaceState = {
   screen: "picker",
@@ -100,6 +103,7 @@ const initialState: WorkspaceState = {
   watcherActive: false,
   loading: false,
   error: null,
+  detailArtifact: null,
 };
 
 function reducer(state: WorkspaceState, action: Action): WorkspaceState {
@@ -148,6 +152,8 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, loading: action.loading };
     case "SET_ERROR":
       return { ...state, error: action.error };
+    case "SET_DETAIL_ARTIFACT":
+      return { ...state, detailArtifact: action.artifact };
     default:
       return state;
   }
@@ -168,6 +174,7 @@ export interface WorkspaceContextValue {
   toggleCmdk: () => void;
   closeCmdk: () => void;
   goToPicker: () => void;
+  openDetailArtifact: (artifact: DetailArtifact | null) => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -326,6 +333,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_SCREEN", screen: "picker" });
   }, []);
 
+  const openDetailArtifact = useCallback((artifact: DetailArtifact | null) => {
+    dispatch({ type: "SET_DETAIL_ARTIFACT", artifact });
+  }, []);
+
   return (
     <WorkspaceContext.Provider
       value={{
@@ -341,6 +352,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         toggleCmdk,
         closeCmdk,
         goToPicker,
+        openDetailArtifact,
       }}
     >
       {children}

@@ -47,4 +47,5 @@ pub struct ParsedDocument {
     pub body: String,
     pub wikilinks: Vec<String>,
     pub diagnostics: Vec<String>,
+    pub malformed: bool,
 }

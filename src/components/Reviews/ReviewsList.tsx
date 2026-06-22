@@ -57,26 +57,28 @@ export function ReviewsList() {
           )}
           {state.reviews.map((review) => {
             const cfg = statusConfig[review.status] || statusConfig.pending;
+            const isMalformed = !!review.malformed;
             return (
               <div
                 key={review.id}
+                onClick={() => dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: { title: review.title, path: review.path } })}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 14,
                   background: "var(--bg-tertiary)",
-                  border: "1px solid #2a2731",
+                  border: isMalformed ? "1px solid #e0584a" : "1px solid #2a2731",
                   borderRadius: 12,
                   padding: "15px 16px",
                   cursor: "pointer",
-                  borderLeft: `3px solid ${cfg.border}`,
+                  borderLeft: isMalformed ? "3px solid #e0584a" : `3px solid ${cfg.border}`,
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#3a3446";
+                  e.currentTarget.style.borderColor = isMalformed ? "#f06f60" : "#3a3446";
                   e.currentTarget.style.background = "#171420";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#2a2731";
+                  e.currentTarget.style.borderColor = isMalformed ? "#e0584a" : "#2a2731";
                   e.currentTarget.style.background = "var(--bg-tertiary)";
                 }}
               >
@@ -87,6 +89,7 @@ export function ReviewsList() {
                       alignItems: "center",
                       gap: 9,
                       marginBottom: 4,
+                      flexWrap: "wrap",
                     }}
                   >
                     <span
@@ -107,6 +110,24 @@ export function ReviewsList() {
                     >
                       {review.title}
                     </span>
+                    {isMalformed && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: "#e0584a",
+                          background: "rgba(224,88,74,0.13)",
+                          borderRadius: 5,
+                          padding: "2px 6px",
+                        }}
+                      >
+                        <i className="material-symbols-outlined" style={{ fontSize: 11 }}>warning</i>
+                        MALFORMED
+                      </span>
+                    )}
                   </div>
                   <div
                     style={{

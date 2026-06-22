@@ -65,23 +65,26 @@ export function DecisionsList() {
           )}
           {state.adrs.map((adr) => {
             const sc = statusColors[adr.status] || statusColors.proposed;
+            const isMalformed = !!adr.malformed;
             return (
               <div
                 key={adr.id}
+                onClick={() => dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: { title: adr.title, path: adr.path } })}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 14,
                   background: "var(--bg-tertiary)",
-                  border: "1px solid var(--border-secondary)",
+                  border: isMalformed ? "1px solid #e0584a" : "1px solid var(--border-secondary)",
                   borderRadius: 11,
                   padding: "14px 16px",
+                  cursor: "pointer",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#36303f";
+                  e.currentTarget.style.borderColor = isMalformed ? "#f06f60" : "#36303f";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border-secondary)";
+                  e.currentTarget.style.borderColor = isMalformed ? "#e0584a" : "var(--border-secondary)";
                 }}
               >
                 <span
@@ -101,9 +104,30 @@ export function DecisionsList() {
                       fontSize: 14,
                       fontWeight: 600,
                       color: "var(--text-primary)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
                     }}
                   >
                     {adr.title}
+                    {isMalformed && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: "#e0584a",
+                          background: "rgba(224,88,74,0.13)",
+                          borderRadius: 5,
+                          padding: "2px 6px",
+                        }}
+                      >
+                        <i className="material-symbols-outlined" style={{ fontSize: 11 }}>warning</i>
+                        MALFORMED
+                      </span>
+                    )}
                   </div>
                   <div
                     style={{

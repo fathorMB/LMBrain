@@ -1,6 +1,7 @@
 ---
 id: AGENT-XXX
-title: Specialist title
+# Note: Quote the title if it contains a colon
+title: "Specialist title"
 status: proposed
 role: specialist-role
 activation: manual

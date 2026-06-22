@@ -68,6 +68,7 @@ export interface Task {
   updated: string;
   tags: string[];
   links: string[];
+  malformed?: boolean;
 }
 
 export type SpecStatus =
@@ -77,6 +78,7 @@ export type SpecStatus =
   | "review"
   | "accepted"
   | "changes-requested"
+  | "rejected"
   | "archived";
 
 export interface Spec {
@@ -95,6 +97,7 @@ export interface Spec {
   links: string[];
   related_tasks: string[];
   related_decisions: string[];
+  malformed?: boolean;
 }
 
 export type ReviewStatus =
@@ -123,9 +126,10 @@ export interface Review {
   updated: string;
   tags: string[];
   links: string[];
+  malformed?: boolean;
 }
 
-export type AdrStatus = "proposed" | "accepted" | "superseded" | "deprecated";
+export type AdrStatus = "proposed" | "accepted" | "rejected" | "superseded" | "deprecated";
 
 export interface Adr {
   id: string;
@@ -139,6 +143,7 @@ export interface Adr {
   updated: string;
   tags: string[];
   links: string[];
+  malformed?: boolean;
 }
 
 export type AgentStatus = "proposed" | "active" | "inactive" | "retired";
@@ -157,6 +162,7 @@ export interface AgentProfile {
   updated: string;
   tags: string[];
   links: string[];
+  malformed?: boolean;
 }
 
 export type McpStatus = "specified" | "active" | "inactive" | "deprecated";
@@ -177,6 +183,7 @@ export interface McpRecord {
   updated: string;
   tags: string[];
   links: string[];
+  malformed?: boolean;
 }
 
 export interface McpProposal {
@@ -189,6 +196,7 @@ export interface McpProposal {
   updated: string;
   tags: string[];
   links: string[];
+  malformed?: boolean;
 }
 
 export type HandoffStatus = "ready" | "consumed" | "superseded" | "archived";
@@ -203,6 +211,24 @@ export interface Handoff {
   updated: string;
   tags: string[];
   links: string[];
+  malformed?: boolean;
+}
+
+export interface Milestone {
+  id: string;
+  title: string;
+  status: string;
+  target: string;
+  outcome: string;
+  specs: string[];
+  decisions: string[];
+  risks: string[];
+  depends_on: string | null;
+}
+
+export interface Roadmap {
+  title: string;
+  milestones: Milestone[];
 }
 
 export interface MetricCard {
@@ -266,6 +292,7 @@ export interface ParsedDocument {
   body: string;
   wikilinks: string[];
   diagnostics: string[];
+  malformed?: boolean;
 }
 
 export type WikiNodeKind =
@@ -319,5 +346,10 @@ export type AppView =
 
 export interface FileEvent {
   kind: "created" | "modified" | "removed";
+  path: string;
+}
+
+export interface DetailArtifact {
+  title: string;
   path: string;
 }

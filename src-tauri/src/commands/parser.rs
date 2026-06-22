@@ -11,6 +11,7 @@ pub struct FrontmatterResult {
     pub body: String,
     pub wikilinks: Vec<String>,
     pub diagnostics: Vec<String>,
+    pub malformed: bool,
 }
 
 /// Parse YAML frontmatter and Markdown body from a string.
@@ -18,6 +19,7 @@ pub struct FrontmatterResult {
 pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
     let content = content.trim_start();
     let mut diagnostics = Vec::new();
+    let mut malformed = false;
 
     if !content.starts_with("---") {
         return FrontmatterResult {
@@ -25,6 +27,7 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
             body: content.to_string(),
             wikilinks: Vec::new(),
             diagnostics,
+            malformed: false,
         };
     }
 
@@ -42,6 +45,7 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
                 body: content.to_string(),
                 wikilinks: Vec::new(),
                 diagnostics,
+                malformed: true,
             };
         }
     };
@@ -55,6 +59,7 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
         Ok(fm) => fm,
         Err(e) => {
             diagnostics.push(format!("Malformed YAML frontmatter: {}", e));
+            malformed = true;
             HashMap::new()
         }
     };
@@ -66,6 +71,7 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
         body,
         wikilinks,
         diagnostics,
+        malformed,
     }
 }
 
@@ -97,6 +103,7 @@ pub fn parse_markdown_file(path: &str, content: &str) -> ParsedDocument {
         body: result.body,
         wikilinks: result.wikilinks,
         diagnostics,
+        malformed: result.malformed,
     }
 }
 

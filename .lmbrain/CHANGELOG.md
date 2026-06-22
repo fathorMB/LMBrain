@@ -4,6 +4,13 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 1.1.0 — 2026-06-23
+
+### Added
+
+- Contract v0.2: `rejected` is now a first-class terminal status on all proposable artifacts (Spec, ADR, Agent proposal, MCP proposal), and Agent proposals have an explicit status set (`proposed`/`approved`/`rejected`). See [[ADR-003-reject-as-first-class-status]].
+- `specs/rejected/` directory for rejected specifications.
+
 ## 1.0.6 — 2026-06-22
 
 ### Added

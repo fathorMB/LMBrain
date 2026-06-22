@@ -210,13 +210,14 @@ function TaskCard({
     Low: { color: "#7d7886", bg: "rgba(125,120,134,0.12)" },
   };
   const pc = priorityColors[task.priority || ""] || priorityColors.Med;
+  const isMalformed = !!task.malformed;
 
   return (
     <div
       onClick={onClick}
       style={{
         background: "var(--bg-tertiary)",
-        border: "1px solid #262330",
+        border: isMalformed ? "1px solid #e0584a" : "1px solid #262330",
         borderRadius: 11,
         padding: "12px 13px",
         cursor: "pointer",
@@ -225,11 +226,11 @@ function TaskCard({
         gap: 8,
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "#3a3446";
+        e.currentTarget.style.borderColor = isMalformed ? "#f06f60" : "#3a3446";
         e.currentTarget.style.background = "#181520";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "#262330";
+        e.currentTarget.style.borderColor = isMalformed ? "#e0584a" : "#262330";
         e.currentTarget.style.background = "var(--bg-tertiary)";
       }}
     >
@@ -249,20 +250,40 @@ function TaskCard({
         >
           {task.id}
         </span>
-        {task.priority && (
+        {isMalformed ? (
           <span
             style={{
               fontSize: 10,
               fontWeight: 700,
-              color: pc.color,
-              background: pc.bg,
+              color: "#e0584a",
+              background: "rgba(224,88,74,0.13)",
               borderRadius: 5,
               padding: "2px 7px",
               letterSpacing: "0.03em",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 3,
             }}
           >
-            {task.priority}
+            <i className="material-symbols-outlined" style={{ fontSize: 11 }}>warning</i>
+            MALFORMED
           </span>
+        ) : (
+          task.priority && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: pc.color,
+                background: pc.bg,
+                borderRadius: 5,
+                padding: "2px 7px",
+                letterSpacing: "0.03em",
+              }}
+            >
+              {task.priority}
+            </span>
+          )
         )}
       </div>
       <div

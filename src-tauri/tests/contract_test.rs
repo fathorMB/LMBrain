@@ -262,3 +262,265 @@ fn test_build_adrs_excludes_readme_and_non_genuine_artifacts() {
     assert_eq!(adrs.len(), 1);
     assert_eq!(adrs[0].id, "ADR-001");
 }
+
+#[test]
+fn test_build_roadmap_success() {
+    let dir = tempfile::tempdir().unwrap();
+    let lmbrain = dir.path().join(".lmbrain");
+    fs::create_dir_all(&lmbrain).unwrap();
+
+    let roadmap_content = r#"---
+title: Custom Roadmap
+updated: 2026-06-22
+---
+
+# Roadmap
+
+## M-01 — Read-only desktop workspace
+
+- `status`: active
+- `target`: 2026-Q3
+- `outcome`: Operators can select an LMBrain repository.
+- `specs`: [SPEC-001, SPEC-009]
+- `risks`: [filesystem boundaries, watcher reliability]
+
+## M-02 — Operator workflow
+
+- `status`: planned
+- `target`: 2026-Q4
+- `outcome`: Write support.
+- `decisions`: [ADR-002]
+- `depends_on`: M-01
+"#;
+
+    fs::write(lmbrain.join("ROADMAP.md"), roadmap_content).unwrap();
+
+    let roadmap = contract::build_roadmap(dir.path()).unwrap();
+    assert_eq!(roadmap.title, "Custom Roadmap");
+    assert_eq!(roadmap.milestones.len(), 2);
+
+    let m1 = &roadmap.milestones[0];
+    assert_eq!(m1.id, "M-01");
+    assert_eq!(m1.title, "Read-only desktop workspace");
+    assert_eq!(m1.status, "active");
+    assert_eq!(m1.target, "2026-Q3");
+    assert_eq!(m1.outcome, "Operators can select an LMBrain repository.");
+    assert_eq!(m1.specs, vec!["SPEC-001", "SPEC-009"]);
+    assert_eq!(
+        m1.risks,
+        vec!["filesystem boundaries", "watcher reliability"]
+    );
+
+    let m2 = &roadmap.milestones[1];
+    assert_eq!(m2.id, "M-02");
+    assert_eq!(m2.title, "Operator workflow");
+    assert_eq!(m2.status, "planned");
+    assert_eq!(m2.target, "2026-Q4");
+    assert_eq!(m2.outcome, "Write support.");
+    assert_eq!(m2.decisions, vec!["ADR-002"]);
+    assert_eq!(m2.depends_on, Some("M-01".to_string()));
+}
+
+#[test]
+fn test_set_artifact_status_and_rejected_diagnostics() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let path_guard = lmbrain_lib::commands::filesystem::PathGuard::new();
+    path_guard.set_root(dir.path());
+
+    // Create directories
+    let specs_proposed_dir = dir.path().join(".lmbrain").join("specs").join("proposed");
+    let specs_ready_dir = dir.path().join(".lmbrain").join("specs").join("ready");
+    let specs_rejected_dir = dir.path().join(".lmbrain").join("specs").join("rejected");
+    let decisions_dir = dir.path().join(".lmbrain").join("decisions");
+    let agent_prop_dir = dir.path().join(".lmbrain").join("agents").join("proposals");
+    let mcp_prop_dir = dir.path().join(".lmbrain").join("mcp").join("proposals");
+    let agent_profiles_dir = dir.path().join(".lmbrain").join("agents").join("profiles");
+
+    fs::create_dir_all(&specs_proposed_dir).unwrap();
+    fs::create_dir_all(&specs_ready_dir).unwrap();
+    fs::create_dir_all(&specs_rejected_dir).unwrap();
+    fs::create_dir_all(&decisions_dir).unwrap();
+    fs::create_dir_all(&agent_prop_dir).unwrap();
+    fs::create_dir_all(&mcp_prop_dir).unwrap();
+    fs::create_dir_all(&agent_profiles_dir).unwrap();
+
+    // 1. SPEC - proposed -> ready (Approve)
+    let spec_path = specs_proposed_dir.join("SPEC-001.md");
+    let spec_content = r#"---
+id: SPEC-001
+title: Test Spec
+status: proposed
+created: 2026-06-22
+updated: 2026-06-22
+---
+Spec Body"#;
+    fs::write(&spec_path, spec_content).unwrap();
+
+    let new_path =
+        contract::set_artifact_status(&path_guard, &spec_path.to_string_lossy(), "ready").unwrap();
+    assert_eq!(new_path, specs_ready_dir.join("SPEC-001.md"));
+    assert!(!spec_path.exists());
+    assert!(new_path.exists());
+
+    let updated_content = fs::read_to_string(&new_path).unwrap();
+    assert!(updated_content.contains("status: ready"));
+    assert!(updated_content.contains("Spec Body"));
+
+    // 2. SPEC - proposed -> accepted (Should fail)
+    let spec_path2 = specs_proposed_dir.join("SPEC-002.md");
+    let spec_content2 = r#"---
+id: SPEC-002
+title: Test Spec 2
+status: proposed
+created: 2026-06-22
+updated: 2026-06-22
+---
+Spec Body 2"#;
+    fs::write(&spec_path2, spec_content2).unwrap();
+
+    let res = contract::set_artifact_status(&path_guard, &spec_path2.to_string_lossy(), "accepted");
+    assert!(res.is_err());
+    assert!(spec_path2.exists()); // Original still exists
+
+    // 3. SPEC - proposed -> rejected (Reject)
+    let new_path2 =
+        contract::set_artifact_status(&path_guard, &spec_path2.to_string_lossy(), "rejected")
+            .unwrap();
+    assert_eq!(new_path2, specs_rejected_dir.join("SPEC-002.md"));
+    assert!(!spec_path2.exists());
+    assert!(new_path2.exists());
+
+    let updated_content2 = fs::read_to_string(&new_path2).unwrap();
+    assert!(updated_content2.contains("status: rejected"));
+
+    // 4. ADR - proposed -> accepted (Approve)
+    let adr_path = decisions_dir.join("ADR-001.md");
+    let adr_content = r#"---
+id: ADR-001
+title: Test ADR
+status: proposed
+created: 2026-06-22
+updated: 2026-06-22
+---
+ADR Body"#;
+    fs::write(&adr_path, adr_content).unwrap();
+
+    let new_adr_path =
+        contract::set_artifact_status(&path_guard, &adr_path.to_string_lossy(), "accepted")
+            .unwrap();
+    assert_eq!(new_adr_path, adr_path);
+    assert!(new_adr_path.exists());
+    let updated_adr = fs::read_to_string(&new_adr_path).unwrap();
+    assert!(updated_adr.contains("status: accepted"));
+
+    // 5. ADR - proposed -> rejected (Reject)
+    let adr_path2 = decisions_dir.join("ADR-002.md");
+    let adr_content2 = r#"---
+id: ADR-002
+title: Test ADR 2
+status: proposed
+created: 2026-06-22
+updated: 2026-06-22
+---
+ADR Body 2"#;
+    fs::write(&adr_path2, adr_content2).unwrap();
+
+    let new_adr_path2 =
+        contract::set_artifact_status(&path_guard, &adr_path2.to_string_lossy(), "rejected")
+            .unwrap();
+    assert_eq!(new_adr_path2, adr_path2);
+    assert!(new_adr_path2.exists());
+    let updated_adr2 = fs::read_to_string(&new_adr_path2).unwrap();
+    assert!(updated_adr2.contains("status: rejected"));
+
+    // 6. Agent proposal - proposed -> approved (Approve)
+    let ap_path = agent_prop_dir.join("AGENT-PROP-001.md");
+    let ap_content = r#"---
+id: AGENT-PROP-001
+title: Test Agent Proposal
+status: proposed
+created: 2026-06-22
+updated: 2026-06-22
+---
+Agent Proposal Body"#;
+    fs::write(&ap_path, ap_content).unwrap();
+
+    let new_ap_path =
+        contract::set_artifact_status(&path_guard, &ap_path.to_string_lossy(), "approved").unwrap();
+    assert_eq!(new_ap_path, ap_path);
+    assert!(new_ap_path.exists());
+    let updated_ap = fs::read_to_string(&new_ap_path).unwrap();
+    assert!(updated_ap.contains("status: approved"));
+
+    // 7. MCP proposal - proposed -> rejected (Reject)
+    let mp_path = mcp_prop_dir.join("MCP-PROP-001.md");
+    let mp_content = r#"---
+id: MCP-PROP-001
+title: Test MCP Proposal
+status: proposed
+created: 2026-06-22
+updated: 2026-06-22
+---
+MCP Proposal Body"#;
+    fs::write(&mp_path, mp_content).unwrap();
+
+    let new_mp_path =
+        contract::set_artifact_status(&path_guard, &mp_path.to_string_lossy(), "rejected").unwrap();
+    assert_eq!(new_mp_path, mp_path);
+    assert!(new_mp_path.exists());
+    let updated_mp = fs::read_to_string(&new_mp_path).unwrap();
+    assert!(updated_mp.contains("status: rejected"));
+
+    // 8. Agent profile - proposed -> active (Approve)
+    let profile_path = agent_profiles_dir.join("AGENT-001.md");
+    let profile_content = r#"---
+id: AGENT-001
+title: Test Agent Profile
+status: proposed
+created: 2026-06-22
+updated: 2026-06-22
+---
+Agent Profile Body"#;
+    fs::write(&profile_path, profile_content).unwrap();
+
+    let new_profile_path =
+        contract::set_artifact_status(&path_guard, &profile_path.to_string_lossy(), "active")
+            .unwrap();
+    assert_eq!(new_profile_path, profile_path);
+    assert!(new_profile_path.exists());
+    let updated_profile = fs::read_to_string(&new_profile_path).unwrap();
+    assert!(updated_profile.contains("status: active"));
+
+    // 9. Non-proposed source status (Should fail)
+    let res =
+        contract::set_artifact_status(&path_guard, &new_profile_path.to_string_lossy(), "inactive");
+    assert!(res.is_err());
+
+    // 10. Illegal target status (Should fail)
+    let adr_path3 = decisions_dir.join("ADR-003.md");
+    let adr_content3 = r#"---
+id: ADR-003
+title: Test ADR 3
+status: proposed
+created: 2026-06-22
+updated: 2026-06-22
+---
+ADR Body 3"#;
+    fs::write(&adr_path3, adr_content3).unwrap();
+
+    let res = contract::set_artifact_status(&path_guard, &adr_path3.to_string_lossy(), "active");
+    assert!(res.is_err());
+
+    // 11. Check diagnostics for rejected Spec (no status mismatch diagnostic should exist)
+    let diags = contract::build_diagnostics(dir.path());
+    let mismatches: Vec<_> = diags
+        .iter()
+        .filter(|d| d.message.contains("Status mismatch"))
+        .collect();
+    assert!(
+        mismatches.is_empty(),
+        "Expected no status mismatches (e.g. for rejected spec), got: {:?}",
+        mismatches
+    );
+}

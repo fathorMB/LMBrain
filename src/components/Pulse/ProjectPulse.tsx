@@ -3,9 +3,48 @@ import { useWorkspace } from "../../hooks/useWorkspace";
 import { getPulseData, getAdrs, getHandoffs, getAgents, getDiagnostics } from "../../lib/commands";
 import type { PulseData, Handoff, Adr, KitDiagnostic } from "../../types";
 
+function generateFixPrompt(d: KitDiagnostic): string {
+  const path = d.path || "unknown file";
+  const msg = d.message;
+  
+  if (msg.toLowerCase().includes("malformed") || msg.toLowerCase().includes("yaml") || msg.toLowerCase().includes("frontmatter")) {
+    return `Please fix the malformed frontmatter in the file: ${path}
+The parser error message is: ${msg}
+
+Instructions:
+1. Fix the frontmatter block at the top of the file so that it is valid YAML.
+2. Make sure any values containing a colon are enclosed in quotes (e.g. title: "React UI: list").
+3. Ensure that references use bare IDs rather than [[wikilinks]].
+4. Do not modify the body content of the file or any other files.
+5. Preserve all intended field values.`;
+  }
+  
+  if (msg.toLowerCase().includes("mismatch") || msg.toLowerCase().includes("status")) {
+    return `There is a status mismatch in the file: ${path}
+The status in the frontmatter does not match its directory location.
+Conflict details: ${msg}
+
+Instructions:
+Please align the status:
+Either:
+- Update the status field in the frontmatter to match the folder the file resides in.
+Or:
+- Move the file to the folder corresponding to its frontmatter status.
+Do not make any other changes to the file or its body.`;
+  }
+
+  return `Please fix the issue in the file: ${path}
+Error details: ${msg}
+
+Instructions:
+Resolve the reported error while preserving the rest of the file content and structure.`;
+}
+
 export function ProjectPulse() {
   const { state, dispatch } = useWorkspace();
   const [diagnostics, setDiagnostics] = useState<KitDiagnostic[]>([]);
+  const [expandedDiagnostic, setExpandedDiagnostic] = useState<number | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -288,7 +327,7 @@ export function ProjectPulse() {
                     >
                       {d.severity === "error" ? "error" : "warning"}
                     </i>
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div>{d.message}</div>
                       {d.path && (
                         <div
@@ -302,7 +341,85 @@ export function ProjectPulse() {
                           {d.path}
                         </div>
                       )}
+                      {expandedDiagnostic === i && (
+                        <div
+                          style={{
+                            marginTop: 10,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 8,
+                            width: "100%",
+                          }}
+                        >
+                          <textarea
+                            readOnly
+                            value={generateFixPrompt(d)}
+                            style={{
+                              width: "100%",
+                              height: 120,
+                              background: "#16131c",
+                              border: "1px solid #2e2838",
+                              borderRadius: 6,
+                              padding: 8,
+                              color: "#c2bdc8",
+                              fontFamily: "var(--font-mono)",
+                              fontSize: 11,
+                              resize: "none",
+                            }}
+                            onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                          />
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(generateFixPrompt(d));
+                              setCopiedIndex(i);
+                              setTimeout(() => setCopiedIndex(null), 2000);
+                            }}
+                            style={{
+                              background: "var(--accent-light)",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: 6,
+                              padding: "6px 12px",
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                              alignSelf: "flex-start",
+                            }}
+                          >
+                            <i className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                              {copiedIndex === i ? "check" : "content_copy"}
+                            </i>
+                            {copiedIndex === i ? "Copied!" : "Copy fix prompt"}
+                          </button>
+                        </div>
+                      )}
                     </div>
+                    <button
+                      onClick={() => setExpandedDiagnostic(expandedDiagnostic === i ? null : i)}
+                      style={{
+                        background: "rgba(255,255,255,0.06)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: 6,
+                        padding: "3px 8px",
+                        fontSize: 11,
+                        color: "#fff",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        marginLeft: "auto",
+                        flexShrink: 0,
+                        marginTop: 2,
+                      }}
+                    >
+                      <i className="material-symbols-outlined" style={{ fontSize: 13 }}>
+                        build
+                      </i>
+                      {expandedDiagnostic === i ? "Hide" : "Fix"}
+                    </button>
                   </div>
                 ))}
               </div>
@@ -808,6 +925,7 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
 }
 
 function HandoffCard({ handoff }: { handoff: Handoff }) {
+  const { dispatch } = useWorkspace();
   return (
     <div
       style={{
@@ -848,6 +966,7 @@ function HandoffCard({ handoff }: { handoff: Handoff }) {
         {handoff.title}
       </div>
       <button
+        onClick={() => dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: { title: handoff.title, path: handoff.path } })}
         style={{
           width: "100%",
           display: "flex",
@@ -874,6 +993,7 @@ function HandoffCard({ handoff }: { handoff: Handoff }) {
 }
 
 function AdrRow({ adr }: { adr: Adr }) {
+  const { dispatch } = useWorkspace();
   const statusColors: Record<string, { color: string; bg: string }> = {
     accepted: { color: "#46b07d", bg: "rgba(70,176,125,.12)" },
     proposed: { color: "#8a8d99", bg: "rgba(139,141,152,.12)" },
@@ -884,6 +1004,7 @@ function AdrRow({ adr }: { adr: Adr }) {
 
   return (
     <div
+      onClick={() => dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: { title: adr.title, path: adr.path } })}
       style={{
         display: "flex",
         alignItems: "center",

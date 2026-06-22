@@ -11,6 +11,7 @@ import type {
   ParsedDocument,
   PulseData,
   Review,
+  Roadmap,
   Spec,
   Task,
   WikiPage,
@@ -91,6 +92,10 @@ export async function getHandoffs(): Promise<Handoff[]> {
   return invoke("get_handoffs");
 }
 
+export async function getRoadmap(): Promise<Roadmap> {
+  return invoke("get_roadmap");
+}
+
 export async function getWikilinkIndex(): Promise<Record<string, string[]>> {
   return invoke("get_wikilink_index");
 }
@@ -132,4 +137,8 @@ export async function stopWatcher(): Promise<void> {
 
 export async function watcherStatus(): Promise<boolean> {
   return invoke("watcher_status");
+}
+
+export async function setArtifactStatus(path: string, targetStatus: string): Promise<string> {
+  return invoke("set_artifact_status", { path, targetStatus });
 }

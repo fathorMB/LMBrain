@@ -13,6 +13,7 @@ import { SettingsView } from "../Settings/SettingsView";
 import { RoadmapView } from "../Roadmap/RoadmapView";
 import { CommandPalette } from "../CommandPalette";
 import { TaskDrawer } from "../Taskboard/TaskDrawer";
+import { ArtifactDetailModal } from "./ArtifactDetailModal";
 
 export function AppShell() {
   const { state } = useWorkspace();
@@ -76,6 +77,9 @@ export function AppShell() {
 
       {/* Command Palette */}
       {state.cmdkOpen && <CommandPalette />}
+
+      {/* Artifact Detail Modal */}
+      {state.detailArtifact && <ArtifactDetailModal key={state.detailArtifact.path} />}
     </div>
   );
 }

@@ -204,6 +204,15 @@ fn get_handoffs(state: State<'_, AppState>) -> Result<Vec<models::handoff::Hando
 }
 
 #[tauri::command]
+fn get_roadmap(state: State<'_, AppState>) -> Result<models::roadmap::Roadmap, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    contract::build_roadmap(&root).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn get_wikilink_index(
     state: State<'_, AppState>,
 ) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
@@ -311,6 +320,17 @@ fn watcher_status(state: State<'_, AppState>) -> bool {
     state.watcher.is_active()
 }
 
+#[tauri::command]
+fn set_artifact_status(
+    state: State<'_, AppState>,
+    path: String,
+    target_status: String,
+) -> Result<String, String> {
+    contract::set_artifact_status(&state.path_guard, &path, &target_status)
+        .map(|new_path| new_path.to_string_lossy().to_string())
+        .map_err(|e| e.to_string())
+}
+
 // ─── Application Entry Point ─────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -363,6 +383,7 @@ pub fn run() {
             get_mcp_records,
             get_mcp_proposals,
             get_handoffs,
+            get_roadmap,
             get_wikilink_index,
             get_diagnostics,
             search_content,
@@ -372,6 +393,7 @@ pub fn run() {
             start_watcher,
             stop_watcher,
             watcher_status,
+            set_artifact_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

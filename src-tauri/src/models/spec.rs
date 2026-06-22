@@ -14,6 +14,8 @@ pub enum SpecStatus {
     Accepted,
     #[serde(rename = "changes-requested")]
     ChangesRequested,
+    #[serde(rename = "rejected")]
+    Rejected,
     #[serde(rename = "archived")]
     Archived,
 }
@@ -27,6 +29,7 @@ impl SpecStatus {
             SpecStatus::Review,
             SpecStatus::Accepted,
             SpecStatus::ChangesRequested,
+            SpecStatus::Rejected,
             SpecStatus::Archived,
         ]
     }
@@ -39,6 +42,7 @@ impl SpecStatus {
             SpecStatus::Review => "review",
             SpecStatus::Accepted => "accepted",
             SpecStatus::ChangesRequested => "changes-requested",
+            SpecStatus::Rejected => "rejected",
             SpecStatus::Archived => "archived",
         }
     }
@@ -61,4 +65,5 @@ pub struct Spec {
     pub links: Vec<String>,
     pub related_tasks: Vec<String>,
     pub related_decisions: Vec<String>,
+    pub malformed: Option<bool>,
 }

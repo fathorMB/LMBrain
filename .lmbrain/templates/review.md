@@ -1,6 +1,7 @@
 ---
 id: REVIEW-XXX
-title: Review of SPEC-XXX
+# Note: Quote the title if it contains a colon
+title: "Review of SPEC-XXX"
 status: pending
 # References use IDs only (e.g. [SPEC-001]); use [[wikilinks]] in prose
 spec: SPEC-XXX

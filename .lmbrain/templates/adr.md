@@ -1,6 +1,7 @@
 ---
 id: ADR-XXX
-title: Decision title
+# Note: Quote the title if it contains a colon
+title: "Decision title"
 status: proposed
 decision_date: YYYY-MM-DD
 decider: AGENT-LEAD

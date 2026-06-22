@@ -1,6 +1,7 @@
 ---
 id: TASK-XXX
-title: Concise task title
+# Note: Quote the title if it contains a colon
+title: "Concise task title"
 status: planned
 type: implementation
 priority: medium

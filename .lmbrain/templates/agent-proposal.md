@@ -1,6 +1,7 @@
 ---
 id: AGENT-PROP-XXX
-title: Proposal for a specialist profile
+# Note: Quote the title if it contains a colon
+title: "Proposal for a specialist profile"
 status: proposed
 requested_by: AGENT-LEAD
 reason: recurring-specialized-work

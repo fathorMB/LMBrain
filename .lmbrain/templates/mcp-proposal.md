@@ -1,6 +1,7 @@
 ---
 id: MCP-PROP-XXX
-title: MCP capability proposal
+# Note: Quote the title if it contains a colon
+title: "MCP capability proposal"
 status: proposed
 requested_by: AGENT-LEAD
 risk: low

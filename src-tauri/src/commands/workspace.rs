@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use crate::commands::filesystem::clean_path;
 use crate::errors::AppError;
 use crate::models::workspace::{
     DiagnosticSeverity, KitDiagnostic, KitHealth, WorkspaceInfo, WorkspaceRegistry,
@@ -98,15 +99,16 @@ impl WorkspaceService {
             )));
         }
 
-        let lmbrain_dir = root.join(".lmbrain");
+        let root_clean = clean_path(root);
+        let lmbrain_dir = root_clean.join(".lmbrain");
         let mut diagnostics = Vec::new();
         let mut health = KitHealth::Ok;
 
         // Check .lmbrain directory exists
         if !lmbrain_dir.exists() || !lmbrain_dir.is_dir() {
             return Ok(WorkspaceInfo {
-                path: root.to_string_lossy().to_string(),
-                name: root
+                path: root_clean.to_string_lossy().to_string(),
+                name: root_clean
                     .file_name()
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_else(|| "unknown".into()),
@@ -170,13 +172,13 @@ impl WorkspaceService {
         let decision_count = count_files_in_dirs(&lmbrain_dir.join("decisions"), &["md"]);
         let agent_count = count_files_in_dirs(&lmbrain_dir.join("agents"), &["md"]);
 
-        let name = root
+        let name = root_clean
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "unknown".into());
 
         Ok(WorkspaceInfo {
-            path: root.to_string_lossy().to_string(),
+            path: root_clean.to_string_lossy().to_string(),
             name,
             kit_version,
             health,
@@ -196,6 +198,7 @@ impl WorkspaceService {
         let root = root.canonicalize().map_err(|_| {
             AppError::WorkspaceNotFound(format!("Path does not exist: {}", root.display()))
         })?;
+        let root = clean_path(&root);
         if !root.is_dir() {
             return Err(AppError::WorkspaceNotFound(format!(
                 "Path is not a directory: {}",

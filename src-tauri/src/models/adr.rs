@@ -6,6 +6,8 @@ pub enum AdrStatus {
     Proposed,
     #[serde(rename = "accepted")]
     Accepted,
+    #[serde(rename = "rejected")]
+    Rejected,
     #[serde(rename = "superseded")]
     Superseded,
     #[serde(rename = "deprecated")]
@@ -17,6 +19,7 @@ impl AdrStatus {
         match self {
             AdrStatus::Proposed => "proposed",
             AdrStatus::Accepted => "accepted",
+            AdrStatus::Rejected => "rejected",
             AdrStatus::Superseded => "superseded",
             AdrStatus::Deprecated => "deprecated",
         }
@@ -36,4 +39,5 @@ pub struct Adr {
     pub updated: String,
     pub tags: Vec<String>,
     pub links: Vec<String>,
+    pub malformed: Option<bool>,
 }

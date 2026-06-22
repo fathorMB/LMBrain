@@ -1,4 +1,4 @@
-use lmbrain_lib::commands::filesystem::PathGuard;
+use lmbrain_lib::commands::filesystem::{clean_path, PathGuard};
 use std::fs;
 
 fn setup_test_dir() -> tempfile::TempDir {
@@ -30,7 +30,7 @@ fn test_path_guard_resolve_within_root() {
 
     guard.set_root(dir.path());
     let resolved = guard.resolve("test.md").unwrap();
-    assert_eq!(resolved, file_path.canonicalize().unwrap());
+    assert_eq!(resolved, clean_path(&file_path.canonicalize().unwrap()));
 }
 
 #[test]
@@ -43,7 +43,7 @@ fn test_path_guard_resolve_absolute_within_root() {
 
     guard.set_root(dir.path());
     let resolved = guard.resolve(&file_path.to_string_lossy()).unwrap();
-    assert_eq!(resolved, file_path.canonicalize().unwrap());
+    assert_eq!(resolved, clean_path(&file_path.canonicalize().unwrap()));
 }
 
 #[test]

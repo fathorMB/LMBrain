@@ -4,6 +4,18 @@ use std::sync::Mutex;
 use crate::errors::AppError;
 use crate::models::file::{DirEntry, FileContent};
 
+/// Helper to strip Windows verbatim path prefixes (\\?\ and \\?\UNC\).
+pub fn clean_path(path: &Path) -> PathBuf {
+    let path_str = path.to_string_lossy();
+    if let Some(stripped) = path_str.strip_prefix(r"\\?\UNC\") {
+        PathBuf::from(format!(r"\\{}", stripped))
+    } else if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
+        PathBuf::from(stripped)
+    } else {
+        path.to_path_buf()
+    }
+}
+
 /// Thread-safe path safety guard that ensures all file operations
 /// stay within an approved workspace root.
 pub struct PathGuard {
@@ -25,7 +37,8 @@ impl PathGuard {
 
     pub fn set_root(&self, root: &Path) {
         let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
-        *self.approved_root.lock().unwrap() = Some(canonical);
+        let clean = clean_path(&canonical);
+        *self.approved_root.lock().unwrap() = Some(clean);
     }
 
     pub fn clear_root(&self) {
@@ -55,14 +68,16 @@ impl PathGuard {
             .canonicalize()
             .map_err(|_| AppError::PathSafety(format!("Path does not exist: {}", path)))?;
 
-        if !canonical.starts_with(&root) {
+        let clean = clean_path(&canonical);
+
+        if !clean.starts_with(&root) {
             return Err(AppError::PathSafety(format!(
                 "Path traversal detected: {} is outside the workspace root",
                 path
             )));
         }
 
-        Ok(canonical)
+        Ok(clean)
     }
 
     /// Read a file, validating it's within the approved root.

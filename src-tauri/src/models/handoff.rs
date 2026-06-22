@@ -23,4 +23,5 @@ pub struct Handoff {
     pub updated: String,
     pub tags: Vec<String>,
     pub links: Vec<String>,
+    pub malformed: Option<bool>,
 }

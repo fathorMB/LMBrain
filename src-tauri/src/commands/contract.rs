@@ -9,6 +9,7 @@ use crate::models::handoff::{Handoff, HandoffStatus};
 use crate::models::mcp::{McpProposal, McpProposalStatus, McpRecord, McpStatus};
 use crate::models::pulse::{ActionItem, MetricCard, PulseData};
 use crate::models::review::{Review, ReviewStatus};
+use crate::models::roadmap::{Milestone, Roadmap};
 use crate::models::spec::{Spec, SpecStatus};
 use crate::models::task::{Task, TaskCriteria, TaskStatus};
 use crate::models::wiki::{WikiNode, WikiNodeKind, WikiTree};
@@ -84,6 +85,7 @@ pub fn build_tasks(root: &Path) -> Result<Vec<Task>, AppError> {
                         updated,
                         tags,
                         links,
+                        malformed: Some(parsed.malformed),
                     });
                 }
             }
@@ -149,6 +151,7 @@ pub fn build_specs(root: &Path) -> Result<Vec<Spec>, AppError> {
                         links,
                         related_tasks,
                         related_decisions,
+                        malformed: Some(parsed.malformed),
                     });
                 }
             }
@@ -212,6 +215,7 @@ pub fn build_reviews(root: &Path) -> Result<Vec<Review>, AppError> {
                         updated,
                         tags,
                         links,
+                        malformed: Some(parsed.malformed),
                     });
                 }
             }
@@ -249,6 +253,7 @@ pub fn build_adrs(root: &Path) -> Result<Vec<Adr>, AppError> {
                     fm_string(&parsed.frontmatter, "status").unwrap_or_else(|| "proposed".into());
                 let status = match status_str.as_str() {
                     "accepted" => AdrStatus::Accepted,
+                    "rejected" => AdrStatus::Rejected,
                     "superseded" => AdrStatus::Superseded,
                     "deprecated" => AdrStatus::Deprecated,
                     _ => AdrStatus::Proposed,
@@ -272,6 +277,7 @@ pub fn build_adrs(root: &Path) -> Result<Vec<Adr>, AppError> {
                     updated,
                     tags,
                     links,
+                    malformed: Some(parsed.malformed),
                 });
             }
         }
@@ -336,6 +342,7 @@ pub fn build_agents(root: &Path) -> Result<Vec<AgentProfile>, AppError> {
                     updated,
                     tags,
                     links,
+                    malformed: Some(parsed.malformed),
                 });
             }
         }
@@ -391,6 +398,7 @@ pub fn build_mcp_records(root: &Path) -> Result<Vec<McpRecord>, AppError> {
                     updated,
                     tags,
                     links,
+                    malformed: Some(parsed.malformed),
                 });
             }
         }
@@ -447,6 +455,7 @@ pub fn build_mcp_proposals(root: &Path) -> Result<Vec<McpProposal>, AppError> {
                     updated,
                     tags,
                     links,
+                    malformed: Some(parsed.malformed),
                 });
             }
         }
@@ -502,6 +511,7 @@ pub fn build_handoffs(root: &Path) -> Result<Vec<Handoff>, AppError> {
                     updated,
                     tags,
                     links,
+                    malformed: Some(parsed.malformed),
                 });
             }
         }
@@ -967,4 +977,260 @@ fn truncate(s: &str, max: usize) -> String {
 pub struct SearchResult {
     pub path: String,
     pub snippet: String,
+}
+
+pub fn build_roadmap(root: &Path) -> Result<Roadmap, AppError> {
+    let roadmap_path = root.join(".lmbrain").join("ROADMAP.md");
+    if !roadmap_path.exists() {
+        return Err(AppError::FileNotFound("ROADMAP.md not found".into()));
+    }
+    let content = std::fs::read_to_string(&roadmap_path)?;
+    Ok(parse_roadmap_content(&content))
+}
+
+fn parse_roadmap_content(content: &str) -> Roadmap {
+    let mut title = "Roadmap".to_string();
+    let mut milestones = Vec::new();
+
+    // Try to extract title from frontmatter
+    if let Some(stripped) = content.strip_prefix("---") {
+        if let Some(fm_end) = stripped.find("---") {
+            let fm_content = &stripped[..fm_end];
+            for line in fm_content.lines() {
+                let parts: Vec<&str> = line.splitn(2, ':').collect();
+                if parts.len() == 2 && parts[0].trim() == "title" {
+                    title = parts[1]
+                        .trim()
+                        .trim_matches('"')
+                        .trim_matches('\'')
+                        .to_string();
+                }
+            }
+        }
+    }
+
+    let mut current_milestone: Option<Milestone> = None;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if let Some(heading_content) = trimmed.strip_prefix("## ") {
+            if let Some(m) = current_milestone.take() {
+                milestones.push(m);
+            }
+            // Parse heading: ## M-01 — Read-only desktop workspace
+            // Check for various dashes (em-dash, en-dash, hyphen)
+            let delimiter = if heading_content.contains("—") {
+                "—"
+            } else if heading_content.contains("–") {
+                "–"
+            } else if heading_content.contains("-") {
+                "-"
+            } else {
+                ""
+            };
+
+            let (id, m_title) = if !delimiter.is_empty() {
+                let parts: Vec<&str> = heading_content.splitn(2, delimiter).collect();
+                (parts[0].trim().to_string(), parts[1].trim().to_string())
+            } else {
+                (heading_content.trim().to_string(), String::new())
+            };
+
+            current_milestone = Some(Milestone {
+                id,
+                title: m_title,
+                status: String::new(),
+                target: String::new(),
+                outcome: String::new(),
+                specs: Vec::new(),
+                decisions: Vec::new(),
+                risks: Vec::new(),
+                depends_on: None,
+            });
+        } else if trimmed.starts_with("- ") || trimmed.starts_with("* ") {
+            if let Some(ref mut m) = current_milestone {
+                let list_content = &trimmed[2..];
+                let parts: Vec<&str> = list_content.splitn(2, ':').collect();
+                if parts.len() == 2 {
+                    let key = parts[0].trim().trim_matches('`').trim();
+                    let val = parts[1].trim();
+                    match key {
+                        "status" => m.status = val.to_string(),
+                        "target" => m.target = val.to_string(),
+                        "outcome" => m.outcome = val.to_string(),
+                        "depends_on" => m.depends_on = Some(val.to_string()),
+                        "specs" => m.specs = parse_list_items(val),
+                        "decisions" => m.decisions = parse_list_items(val),
+                        "risks" => m.risks = parse_list_items(val),
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(m) = current_milestone {
+        milestones.push(m);
+    }
+
+    Roadmap { title, milestones }
+}
+
+fn parse_list_items(val: &str) -> Vec<String> {
+    let trimmed = val.trim();
+    if trimmed.starts_with('[') && trimmed.ends_with(']') {
+        let inside = &trimmed[1..trimmed.len() - 1];
+        inside
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    } else if !trimmed.is_empty() {
+        vec![trimmed.to_string()]
+    } else {
+        Vec::new()
+    }
+}
+
+/// Write a status transition back to the Markdown source of truth atomically and safely.
+pub fn set_artifact_status(
+    path_guard: &super::filesystem::PathGuard,
+    path: &str,
+    target_status: &str,
+) -> Result<PathBuf, AppError> {
+    // 1. Resolve path using PathGuard
+    let resolved_path = path_guard.resolve(path)?;
+
+    // 2. Read the file
+    let content = std::fs::read_to_string(&resolved_path)?;
+    let parsed = parser::parse_markdown_file(&resolved_path.to_string_lossy(), &content);
+
+    // 3. Extract id and status from frontmatter
+    let id = fm_string(&parsed.frontmatter, "id")
+        .ok_or_else(|| AppError::ParseError("Artifact missing 'id' in frontmatter".into()))?;
+    let current_status = fm_string(&parsed.frontmatter, "status")
+        .ok_or_else(|| AppError::ParseError("Artifact missing 'status' in frontmatter".into()))?;
+
+    // 4. Validate that the source status is 'proposed'
+    if current_status != "proposed" {
+        return Err(AppError::ParseError(format!(
+            "Only artifacts in 'proposed' status can be approved or rejected. Current status: '{}'",
+            current_status
+        )));
+    }
+
+    // 5. Determine artifact type by ID prefix and validate transition
+    let is_spec = id.starts_with("SPEC-");
+    let is_adr = id.starts_with("ADR-");
+    let is_agent_prop = id.starts_with("AGENT-PROP-");
+    let is_agent_profile = id.starts_with("AGENT-") && !is_agent_prop;
+    let is_mcp_prop = id.starts_with("MCP-PROP-");
+
+    let is_legal = if is_spec {
+        if target_status == "accepted" {
+            return Err(AppError::ParseError(
+                "Spec approval must go to 'ready', not 'accepted' (review-gated)".into(),
+            ));
+        }
+        target_status == "ready" || target_status == "rejected"
+    } else if is_adr {
+        target_status == "accepted" || target_status == "rejected"
+    } else if is_agent_prop || is_mcp_prop {
+        target_status == "approved" || target_status == "rejected"
+    } else if is_agent_profile {
+        target_status == "active" || target_status == "inactive"
+    } else {
+        false
+    };
+
+    if !is_legal {
+        return Err(AppError::ParseError(format!(
+            "Invalid status transition from 'proposed' to '{}' for artifact type of '{}'",
+            target_status, id
+        )));
+    }
+
+    // 6. Split the file content into frontmatter and body, then rewrite frontmatter
+    let lines: Vec<&str> = content.split('\n').collect();
+    let mut closing_line_idx = None;
+    for (i, line) in lines.iter().enumerate().skip(1) {
+        if line.trim() == "---" {
+            closing_line_idx = Some(i);
+            break;
+        }
+    }
+    let closing_line_idx = closing_line_idx
+        .ok_or_else(|| AppError::ParseError("Closing '---' delimiter not found".into()))?;
+
+    let mut fm_lines: Vec<String> = lines[1..closing_line_idx]
+        .iter()
+        .map(|s| s.replace('\r', ""))
+        .collect();
+    let mut status_found = false;
+    let mut updated_found = false;
+    let current_date = chrono::Local::now().format("%Y-%m-%d").to_string();
+
+    for line in fm_lines.iter_mut() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("status:") {
+            let indent = line.len() - line.trim_start().len();
+            *line = format!("{}status: {}", &line[..indent], target_status);
+            status_found = true;
+        } else if trimmed.starts_with("updated:") {
+            let indent = line.len() - line.trim_start().len();
+            *line = format!("{}updated: {}", &line[..indent], current_date);
+            updated_found = true;
+        }
+    }
+
+    if !status_found {
+        fm_lines.push(format!("status: {}", target_status));
+    }
+    if !updated_found {
+        fm_lines.push(format!("updated: {}", current_date));
+    }
+
+    let mut new_content = String::new();
+    new_content.push_str("---\n");
+    for line in fm_lines {
+        new_content.push_str(&line);
+        new_content.push('\n');
+    }
+    new_content.push_str("---\n");
+    for line in &lines[closing_line_idx + 1..] {
+        new_content.push_str(&line.replace('\r', ""));
+        new_content.push('\n');
+    }
+
+    if new_content.ends_with("\n\n") {
+        new_content.pop();
+    }
+
+    // 7. Write to temp file and rename (atomic update)
+    let target_path = if is_spec {
+        let filename = resolved_path
+            .file_name()
+            .ok_or_else(|| AppError::Io("Invalid file name".into()))?;
+        let root_dir = resolved_path
+            .parent()
+            .and_then(|p| p.parent())
+            .ok_or_else(|| AppError::Io("Invalid parent structure".into()))?;
+        let dest_dir = root_dir.join(target_status);
+        std::fs::create_dir_all(&dest_dir)?;
+        dest_dir.join(filename)
+    } else {
+        resolved_path.clone()
+    };
+
+    let tmp_path = target_path.with_extension("tmp");
+
+    std::fs::write(&tmp_path, new_content)?;
+
+    std::fs::rename(&tmp_path, &target_path)?;
+
+    if target_path != resolved_path {
+        std::fs::remove_file(&resolved_path)?;
+    }
+
+    Ok(target_path)
 }

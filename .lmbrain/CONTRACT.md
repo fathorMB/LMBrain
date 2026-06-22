@@ -1,6 +1,6 @@
-# LMBrain Markdown Contract v0.1
+# LMBrain Markdown Contract v0.2
 
-**Kit version:** `1.0.5` (read from `VERSION`)
+**Kit version:** read from `VERSION` (canonical), currently `1.1.0` (adds the `rejected` status across proposable artifacts).
 
 The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable kit version. Use semantic versioning: breaking contract changes increment the major version; backward-compatible additions increment the minor version; clarifications and fixes increment the patch version. Read `CHANGELOG.md` for released changes and `MIGRATIONS.md` before upgrading a released kit.
 
@@ -49,10 +49,11 @@ Priority values: `critical`, `high`, `medium`, `low`.
 | Artifact | Values |
 | --- | --- |
 | Task | `backlog`, `planned`, `in-progress`, `review`, `done`, `blocked`, `cancelled` |
-| Spec | `proposed`, `ready`, `in-progress`, `review`, `accepted`, `changes-requested`, `archived` |
+| Spec | `proposed`, `ready`, `in-progress`, `review`, `accepted`, `changes-requested`, `rejected`, `archived` |
 | Review | `pending`, `accepted`, `changes-requested`, `blocked`, `superseded` |
-| ADR | `proposed`, `accepted`, `superseded`, `deprecated` |
+| ADR | `proposed`, `accepted`, `rejected`, `superseded`, `deprecated` |
 | Agent profile | `proposed`, `active`, `inactive`, `retired` |
+| Agent proposal | `proposed`, `approved`, `rejected` |
 | MCP proposal | `proposed`, `approved`, `rejected`, `implemented`, `blocked` |
 | MCP | `specified`, `active`, `inactive`, `deprecated` |
 | Session handoff | `ready`, `consumed`, `superseded`, `archived` |
@@ -60,6 +61,7 @@ Priority values: `critical`, `high`, `medium`, `low`.
 ## Invariants
 
 - A spec can be `accepted` only when an associated review is `accepted`.
+- `rejected` is a terminal "declined at proposal/decision time" status available on every proposable artifact (Spec, ADR, Agent proposal, MCP proposal). It is distinct from `changes-requested` (a review asking for revision and resubmission) and from `archived`/`superseded`/`deprecated` (retiring something that was once active). A rejected artifact records the rejection rationale in its body and is not silently reopened.
 - A `done` task must contain evidence and completed acceptance criteria.
 - An `active` MCP needs a documented spec, permissions, and verification evidence.
 - An agent profile always has `activation: manual`; LMBrain never spawns agents.

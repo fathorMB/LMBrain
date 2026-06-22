@@ -1,6 +1,7 @@
 ---
 id: MCP-XXX
-title: MCP name
+# Note: Quote the title if it contains a colon
+title: "MCP name"
 status: specified
 transport: stdio
 permissions: []

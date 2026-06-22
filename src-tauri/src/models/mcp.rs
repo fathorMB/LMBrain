@@ -37,6 +37,7 @@ pub struct McpRecord {
     pub updated: String,
     pub tags: Vec<String>,
     pub links: Vec<String>,
+    pub malformed: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,4 +51,5 @@ pub struct McpProposal {
     pub updated: String,
     pub tags: Vec<String>,
     pub links: Vec<String>,
+    pub malformed: Option<bool>,
 }

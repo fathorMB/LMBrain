@@ -1,7 +1,7 @@
 ---
 id: SPEC-010
 title: Test round 1 findings catalog
-status: proposed
+status: archived
 kind: bug
 priority: medium
 area: desktop-app, kit
@@ -9,7 +9,7 @@ milestone: M-01
 recommended_agent: AGENT-FULLSTACK-DESKTOP
 related_tasks: []
 related_decisions: []
-links: [ADR-001]
+links: [ADR-001, SPEC-011]
 created: 2026-06-22
 updated: 2026-06-22
 tags: [bootstrap, scaffolding, line-endings, wiki, ux, testing]
@@ -19,7 +19,7 @@ tags: [bootstrap, scaffolding, line-endings, wiki, ux, testing]
 
 ## Objective
 
-> Round 1 closed. The actionable findings (F-1, F-3, F-4, F-5) are handed off for implementation in [[SPEC-011-remediate-test-round-1-findings]]. This document remains the evidence/analysis record; F-2 passed and needs no work.
+> **Closed/archived (2026-06-22).** All findings remediated via [[SPEC-011-remediate-test-round-1-findings]] (accepted). F-1 (CRLF) end-to-end verification is now confirmed by the operator — a scaffold from the 1.0.6 installer produces an LF `.lmbrain/`. F-2 passed with no work. This document is retained as the evidence/analysis record for round 1.
 
 Capture and remediate the defects found while validating LMBrain during manual test round 1. This spec is the **findings catalog** for round 1: each confirmed finding is recorded as a numbered entry below and carried into the acceptance criteria. Findings may be appended until the operator approves the catalog. Findings are heterogeneous; at approval time each remediation finding is expected to be **split into a focused follow-up spec** for a clean specialist handoff (one cohesive change per handoff per [[QUALITY]] and the LMBrain workflow). This document tracks the round, not a single cohesive change.
 

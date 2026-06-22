@@ -5,6 +5,7 @@ pub mod handoff;
 pub mod mcp;
 pub mod pulse;
 pub mod review;
+pub mod roadmap;
 pub mod spec;
 pub mod task;
 pub mod wiki;
