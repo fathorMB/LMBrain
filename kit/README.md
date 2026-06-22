@@ -1,6 +1,6 @@
 # LMBrain Kit
 
-`kit/.lmbrain/` is the clean, reusable LMBrain kit at version `1.0.4`.
+`kit/.lmbrain/` is the clean, reusable LMBrain kit at version `1.0.5`.
 
 Copy its `.lmbrain/` directory into the root of a new software repository, then begin with `OPERATOR.md` and `templates/project-lead-bootstrap-prompt.md`.
 

@@ -2,7 +2,7 @@
 
 This directory is the active project brain for the LMBrain desktop application. It records this repository's actual planning, handoffs, reviews, decisions, and current status.
 
-**Kit version:** `1.0.4` (read from `VERSION`)
+**Kit version:** `1.0.5` (read from `VERSION`)
 
 ## Template source
 
