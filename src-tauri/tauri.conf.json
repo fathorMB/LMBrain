@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "LMBrain",
-  "version": "0.1.0",
+  "version": "../package.json",
   "identifier": "com.lmbrain.app",
   "build": {
     "frontendDist": "../dist",
@@ -28,6 +28,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": {
+      "../kit/.lmbrain/": "kit/.lmbrain/"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

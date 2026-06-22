@@ -159,6 +159,7 @@ export interface WorkspaceContextValue {
   state: WorkspaceState;
   dispatch: React.Dispatch<Action>;
   openWorkspace: (path: string) => Promise<void>;
+  initializeWorkspaceKit: (path: string) => Promise<void>;
   loadAllData: () => Promise<void>;
   navigateTo: (view: AppView) => void;
   openSpec: (spec: Spec) => void;
@@ -232,6 +233,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const info = await commands.openWorkspace(path);
       dispatch({ type: "SET_WORKSPACE", info });
 
+      // A folder without a kit stays in the picker so the operator can explicitly
+      // choose whether to initialize it. No project data is loaded beforehand.
+      if (info.health === "none") {
+        return;
+      }
+
       // Get git info
       try {
         const gitInfo = await commands.getGitInfo();
@@ -265,6 +272,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       dispatch({ type: "SET_LOADING", loading: false });
     }
   }, [loadAllDataInternal]);
+
+  const initializeWorkspaceKit = useCallback(async (path: string) => {
+    dispatch({ type: "SET_LOADING", loading: true });
+    dispatch({ type: "SET_ERROR", error: null });
+    try {
+      await commands.initializeWorkspaceKit(path);
+      await openWorkspace(path);
+    } catch (err) {
+      dispatch({
+        type: "SET_ERROR",
+        error: typeof err === "string" ? err : "Failed to initialize LMBrain kit",
+      });
+    } finally {
+      dispatch({ type: "SET_LOADING", loading: false });
+    }
+  }, [openWorkspace]);
 
   const navigateTo = useCallback(
     (view: AppView) => {
@@ -309,6 +332,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         state,
         dispatch,
         openWorkspace,
+        initializeWorkspaceKit,
         loadAllData,
         navigateTo,
         openSpec,
@@ -323,4 +347,3 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     </WorkspaceContext.Provider>
   );
 }
-

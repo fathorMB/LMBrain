@@ -1,0 +1,59 @@
+name: Build installers
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }} installer
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            args: --bundles nsis,msi
+            artifact: src-tauri/target/release/bundle/{nsis,msi}/**/*
+          - name: Linux
+            os: ubuntu-22.04
+            args: --bundles appimage,deb
+            artifact: src-tauri/target/release/bundle/{appimage,deb}/**/*
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify app and kit version alignment
+        run: node scripts/check-version.mjs
+      - name: Lint and test
+        run: |
+          pnpm lint
+          pnpm test
+      - name: Build installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: ${{ matrix.args }}
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: LMBrain-${{ matrix.name }}-${{ github.sha }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error

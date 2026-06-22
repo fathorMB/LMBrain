@@ -25,6 +25,10 @@ export async function openWorkspace(path: string): Promise<WorkspaceInfo> {
   return invoke("open_workspace", { path });
 }
 
+export async function initializeWorkspaceKit(path: string): Promise<WorkspaceInfo> {
+  return invoke("initialize_workspace_kit", { path });
+}
+
 export async function listRecentWorkspaces(): Promise<WorkspaceSummary[]> {
   return invoke("list_recent_workspaces");
 }

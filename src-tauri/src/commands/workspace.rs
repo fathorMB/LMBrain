@@ -188,6 +188,64 @@ impl WorkspaceService {
             agent_count,
         })
     }
+
+    /// Copy the bundled clean kit into a selected repository. This operation is
+    /// intentionally refused when a `.lmbrain` directory already exists.
+    pub fn initialize_kit(&self, root: &Path, template: &Path) -> Result<WorkspaceInfo, AppError> {
+        let root = root.canonicalize().map_err(|_| {
+            AppError::WorkspaceNotFound(format!("Path does not exist: {}", root.display()))
+        })?;
+        if !root.is_dir() {
+            return Err(AppError::WorkspaceNotFound(format!(
+                "Path is not a directory: {}",
+                root.display()
+            )));
+        }
+
+        let destination = root.join(".lmbrain");
+        if destination.exists() {
+            return Err(AppError::InvalidKit(
+                "Refusing to initialize because .lmbrain already exists".into(),
+            ));
+        }
+        if !template.is_dir() {
+            return Err(AppError::InvalidKit(format!(
+                "Bundled kit is unavailable: {}",
+                template.display()
+            )));
+        }
+
+        let temporary = root.join(format!(".lmbrain.bootstrap-{}", uuid::Uuid::new_v4()));
+        let result = copy_directory(template, &temporary).and_then(|_| {
+            std::fs::rename(&temporary, &destination).map_err(AppError::from)
+        });
+        if result.is_err() {
+            let _ = std::fs::remove_dir_all(&temporary);
+        }
+        result?;
+
+        self.validate_workspace(&root.to_string_lossy())
+    }
+}
+
+fn copy_directory(source: &Path, destination: &Path) -> Result<(), AppError> {
+    std::fs::create_dir_all(destination)?;
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let target = destination.join(entry.file_name());
+        if file_type.is_dir() {
+            copy_directory(&entry.path(), &target)?;
+        } else if file_type.is_file() {
+            std::fs::copy(entry.path(), target)?;
+        } else {
+            return Err(AppError::InvalidKit(format!(
+                "Bundled kit contains an unsupported entry: {}",
+                entry.path().display()
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn count_files_in_dirs(dir: &Path, extensions: &[&str]) -> usize {

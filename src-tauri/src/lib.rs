@@ -3,7 +3,7 @@ pub mod commands;
 mod errors;
 pub mod models;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use commands::contract;
 use commands::filesystem::PathGuard;
@@ -56,6 +56,26 @@ fn open_workspace(
     let _ = state.workspace_service.add_recent(summary);
 
     Ok(info)
+}
+
+#[tauri::command]
+fn initialize_workspace_kit(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<WorkspaceInfo, String> {
+    let template = bundled_kit_path(&app).map_err(|e| e.to_string())?;
+    state
+        .workspace_service
+        .initialize_kit(Path::new(&path), &template)
+        .map_err(|e| e.to_string())
+}
+
+fn bundled_kit_path(app: &AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    if cfg!(debug_assertions) {
+        return Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../kit/.lmbrain"));
+    }
+    Ok(app.path().resource_dir()?.join("kit/.lmbrain"))
 }
 
 #[tauri::command]
@@ -338,6 +358,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             open_workspace,
+            initialize_workspace_kit,
             list_recent_workspaces,
             remove_recent_workspace,
             read_file,

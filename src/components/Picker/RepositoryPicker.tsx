@@ -383,9 +383,58 @@ export function RepositoryPicker() {
 }
 
 function WorkspacePreview() {
-  const { state } = useWorkspace();
+  const { state, initializeWorkspaceKit } = useWorkspace();
   const ws = state.currentWorkspace;
   if (!ws) return null;
+
+  if (ws.health === "none") {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", justifyContent: "center" }}>
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 13,
+            background: "rgba(224,162,58,.12)",
+            border: "1px solid rgba(224,162,58,.28)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 15,
+          }}
+        >
+          <i className="material-symbols-outlined" style={{ fontSize: 24, color: "#e0a23a" }}>neurology</i>
+        </div>
+        <h2 style={{ fontSize: 17, fontWeight: 700, margin: "0 0 7px", color: "var(--text-primary)" }}>
+          Initialize this project brain?
+        </h2>
+        <p style={{ fontSize: 13, lineHeight: 1.55, color: "#9a949f", margin: "0 0 18px", maxWidth: 350 }}>
+          <span style={{ fontFamily: "var(--font-mono)", color: "#bcaef6" }}>{ws.path}</span> does not contain an LMBrain kit. Initializing creates a new <span style={{ fontFamily: "var(--font-mono)", color: "#bcaef6" }}>.lmbrain/</span> directory in this repository; existing files are not changed.
+        </p>
+        <button
+          type="button"
+          onClick={() => initializeWorkspaceKit(ws.path)}
+          style={{
+            alignSelf: "flex-start",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "linear-gradient(180deg,#8676f7,#6e5bf2)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 10,
+            padding: "11px 14px",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          <i className="material-symbols-outlined" style={{ fontSize: 18 }}>add_circle</i>
+          Initialize LMBrain kit
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
