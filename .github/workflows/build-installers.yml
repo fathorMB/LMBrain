@@ -9,7 +9,44 @@ permissions:
   contents: read
 
 jobs:
+  version:
+    name: Release gate
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      changed: ${{ steps.version.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify version alignment and detect a release
+        id: version
+        shell: bash
+        run: |
+          node scripts/check-version.mjs
+          current_version="$(node -p "require('./package.json').version")"
+          previous_version=""
+          if git show HEAD^:package.json > "$RUNNER_TEMP/previous-package.json" 2>/dev/null; then
+            previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/previous-package.json')).version")"
+          fi
+          echo "version=$current_version" >> "$GITHUB_OUTPUT"
+          if [ "$current_version" != "$previous_version" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Preparing LMBrain v$current_version (previous: ${previous_version:-none})."
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "LMBrain remains at v$current_version; skipping installer build and release."
+          fi
+
   build:
+    needs: version
+    if: needs.version.outputs.changed == 'true'
     name: ${{ matrix.name }} installer
     strategy:
       fail-fast: false
@@ -58,6 +95,33 @@ jobs:
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
-          name: LMBrain-${{ matrix.name }}-${{ github.sha }}
+          name: LMBrain-v${{ needs.version.outputs.version }}-${{ matrix.name }}
           path: ${{ matrix.artifact }}
           if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: [version, build]
+    if: needs.version.outputs.changed == 'true' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download installers
+        uses: actions/download-artifact@v4
+        with:
+          pattern: LMBrain-v${{ needs.version.outputs.version }}-*
+          path: release-assets
+          merge-multiple: true
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        shell: bash
+        run: |
+          tag="v$VERSION"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release-assets/* --clobber
+          else
+            gh release create "$tag" release-assets/* --title "LMBrain v$VERSION" --generate-notes
+          fi

@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 1.0.2 — Unreleased
+
+### Added
+
+- Version-gated installer builds and GitHub Release publishing, with versioned artifact names and release assets.
+
 ## 1.0.1 — Unreleased
 
 ### Added
