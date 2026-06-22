@@ -8,11 +8,11 @@ use crate::models::agent::{AgentProfile, AgentStatus};
 use crate::models::handoff::{Handoff, HandoffStatus};
 use crate::models::mcp::{McpProposal, McpProposalStatus, McpRecord, McpStatus};
 use crate::models::pulse::{ActionItem, MetricCard, PulseData};
-use crate::models::workspace::{DiagnosticSeverity, KitDiagnostic};
 use crate::models::review::{Review, ReviewStatus};
 use crate::models::spec::{Spec, SpecStatus};
 use crate::models::task::{Task, TaskCriteria, TaskStatus};
 use crate::models::wiki::{WikiNode, WikiNodeKind, WikiTree};
+use crate::models::workspace::{DiagnosticSeverity, KitDiagnostic};
 
 /// Build the full task list by reading all task status directories.
 pub fn build_tasks(root: &Path) -> Result<Vec<Task>, AppError> {
@@ -37,15 +37,16 @@ pub fn build_tasks(root: &Path) -> Result<Vec<Task>, AppError> {
                 }
 
                 if let Ok(content) = std::fs::read_to_string(&path) {
-                    let parsed = parser::parse_markdown_file(
-                        &path.to_string_lossy(),
-                        &content,
-                    );
+                    let parsed = parser::parse_markdown_file(&path.to_string_lossy(), &content);
 
-                    let id = fm_string(&parsed.frontmatter, "id")
-                        .unwrap_or_else(|| "UNKNOWN".into());
-                    let title = fm_string(&parsed.frontmatter, "title")
-                        .unwrap_or_else(|| path.file_stem().unwrap_or_default().to_string_lossy().to_string());
+                    let id =
+                        fm_string(&parsed.frontmatter, "id").unwrap_or_else(|| "UNKNOWN".into());
+                    let title = fm_string(&parsed.frontmatter, "title").unwrap_or_else(|| {
+                        path.file_stem()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string()
+                    });
                     let priority = fm_string(&parsed.frontmatter, "priority");
                     let area = fm_string(&parsed.frontmatter, "area");
                     let milestone = fm_string(&parsed.frontmatter, "milestone");
@@ -115,15 +116,11 @@ pub fn build_specs(root: &Path) -> Result<Vec<Spec>, AppError> {
                 }
 
                 if let Ok(content) = std::fs::read_to_string(&path) {
-                    let parsed = parser::parse_markdown_file(
-                        &path.to_string_lossy(),
-                        &content,
-                    );
+                    let parsed = parser::parse_markdown_file(&path.to_string_lossy(), &content);
 
-                    let id = fm_string(&parsed.frontmatter, "id")
-                        .unwrap_or_else(|| "UNKNOWN".into());
-                    let title = fm_string(&parsed.frontmatter, "title")
-                        .unwrap_or_default();
+                    let id =
+                        fm_string(&parsed.frontmatter, "id").unwrap_or_else(|| "UNKNOWN".into());
+                    let title = fm_string(&parsed.frontmatter, "title").unwrap_or_default();
                     let priority = fm_string(&parsed.frontmatter, "priority");
                     let area = fm_string(&parsed.frontmatter, "area");
                     let milestone = fm_string(&parsed.frontmatter, "milestone");
@@ -133,7 +130,8 @@ pub fn build_specs(root: &Path) -> Result<Vec<Spec>, AppError> {
                     let tags = fm_string_array(&parsed.frontmatter, "tags");
                     let links = fm_string_array(&parsed.frontmatter, "links");
                     let related_tasks = fm_string_array(&parsed.frontmatter, "related_tasks");
-                    let related_decisions = fm_string_array(&parsed.frontmatter, "related_decisions");
+                    let related_decisions =
+                        fm_string_array(&parsed.frontmatter, "related_decisions");
 
                     specs.push(Spec {
                         id,
@@ -189,15 +187,11 @@ pub fn build_reviews(root: &Path) -> Result<Vec<Review>, AppError> {
                 }
 
                 if let Ok(content) = std::fs::read_to_string(&path) {
-                    let parsed = parser::parse_markdown_file(
-                        &path.to_string_lossy(),
-                        &content,
-                    );
+                    let parsed = parser::parse_markdown_file(&path.to_string_lossy(), &content);
 
-                    let id = fm_string(&parsed.frontmatter, "id")
-                        .unwrap_or_else(|| "UNKNOWN".into());
-                    let title = fm_string(&parsed.frontmatter, "title")
-                        .unwrap_or_default();
+                    let id =
+                        fm_string(&parsed.frontmatter, "id").unwrap_or_else(|| "UNKNOWN".into());
+                    let title = fm_string(&parsed.frontmatter, "title").unwrap_or_default();
                     let spec_id = fm_string(&parsed.frontmatter, "spec");
                     let reviewer = fm_string(&parsed.frontmatter, "reviewer");
                     let created = fm_string(&parsed.frontmatter, "created").unwrap_or_default();
@@ -244,17 +238,15 @@ pub fn build_adrs(root: &Path) -> Result<Vec<Adr>, AppError> {
             }
 
             if let Ok(content) = std::fs::read_to_string(&path) {
-                let parsed = parser::parse_markdown_file(
-                    &path.to_string_lossy(),
-                    &content,
-                );
+                let parsed = parser::parse_markdown_file(&path.to_string_lossy(), &content);
 
-                let id = fm_string(&parsed.frontmatter, "id")
-                    .unwrap_or_else(|| "UNKNOWN".into());
-                let title = fm_string(&parsed.frontmatter, "title")
-                    .unwrap_or_default();
-                let status_str = fm_string(&parsed.frontmatter, "status")
-                    .unwrap_or_else(|| "proposed".into());
+                let id = match fm_string(&parsed.frontmatter, "id") {
+                    Some(val) if val.starts_with("ADR-") => val,
+                    _ => continue,
+                };
+                let title = fm_string(&parsed.frontmatter, "title").unwrap_or_default();
+                let status_str =
+                    fm_string(&parsed.frontmatter, "status").unwrap_or_else(|| "proposed".into());
                 let status = match status_str.as_str() {
                     "accepted" => AdrStatus::Accepted,
                     "superseded" => AdrStatus::Superseded,
@@ -306,17 +298,15 @@ pub fn build_agents(root: &Path) -> Result<Vec<AgentProfile>, AppError> {
             }
 
             if let Ok(content) = std::fs::read_to_string(&path) {
-                let parsed = parser::parse_markdown_file(
-                    &path.to_string_lossy(),
-                    &content,
-                );
+                let parsed = parser::parse_markdown_file(&path.to_string_lossy(), &content);
 
-                let id = fm_string(&parsed.frontmatter, "id")
-                    .unwrap_or_else(|| "UNKNOWN".into());
-                let title = fm_string(&parsed.frontmatter, "title")
-                    .unwrap_or_default();
-                let status_str = fm_string(&parsed.frontmatter, "status")
-                    .unwrap_or_else(|| "proposed".into());
+                let id = match fm_string(&parsed.frontmatter, "id") {
+                    Some(val) if val.starts_with("AGENT-") => val,
+                    _ => continue,
+                };
+                let title = fm_string(&parsed.frontmatter, "title").unwrap_or_default();
+                let status_str =
+                    fm_string(&parsed.frontmatter, "status").unwrap_or_else(|| "proposed".into());
                 let status = match status_str.as_str() {
                     "active" => AgentStatus::Active,
                     "inactive" => AgentStatus::Inactive,
@@ -371,17 +361,15 @@ pub fn build_mcp_records(root: &Path) -> Result<Vec<McpRecord>, AppError> {
             }
 
             if let Ok(content) = std::fs::read_to_string(&path) {
-                let parsed = parser::parse_markdown_file(
-                    &path.to_string_lossy(),
-                    &content,
-                );
+                let parsed = parser::parse_markdown_file(&path.to_string_lossy(), &content);
 
-                let id = fm_string(&parsed.frontmatter, "id")
-                    .unwrap_or_else(|| "UNKNOWN".into());
-                let title = fm_string(&parsed.frontmatter, "title")
-                    .unwrap_or_default();
-                let status_str = fm_string(&parsed.frontmatter, "status")
-                    .unwrap_or_else(|| "specified".into());
+                let id = match fm_string(&parsed.frontmatter, "id") {
+                    Some(val) if val.starts_with("MCP-") => val,
+                    _ => continue,
+                };
+                let title = fm_string(&parsed.frontmatter, "title").unwrap_or_default();
+                let status_str =
+                    fm_string(&parsed.frontmatter, "status").unwrap_or_else(|| "specified".into());
                 let status = match status_str.as_str() {
                     "active" => McpStatus::Active,
                     "inactive" => McpStatus::Inactive,
@@ -428,17 +416,15 @@ pub fn build_mcp_proposals(root: &Path) -> Result<Vec<McpProposal>, AppError> {
             }
 
             if let Ok(content) = std::fs::read_to_string(&path) {
-                let parsed = parser::parse_markdown_file(
-                    &path.to_string_lossy(),
-                    &content,
-                );
+                let parsed = parser::parse_markdown_file(&path.to_string_lossy(), &content);
 
-                let id = fm_string(&parsed.frontmatter, "id")
-                    .unwrap_or_else(|| "UNKNOWN".into());
-                let title = fm_string(&parsed.frontmatter, "title")
-                    .unwrap_or_default();
-                let status_str = fm_string(&parsed.frontmatter, "status")
-                    .unwrap_or_else(|| "proposed".into());
+                let id = match fm_string(&parsed.frontmatter, "id") {
+                    Some(val) if val.starts_with("MCP-PROP-") => val,
+                    _ => continue,
+                };
+                let title = fm_string(&parsed.frontmatter, "title").unwrap_or_default();
+                let status_str =
+                    fm_string(&parsed.frontmatter, "status").unwrap_or_else(|| "proposed".into());
                 let status = match status_str.as_str() {
                     "approved" => McpProposalStatus::Approved,
                     "rejected" => McpProposalStatus::Rejected,
@@ -486,17 +472,15 @@ pub fn build_handoffs(root: &Path) -> Result<Vec<Handoff>, AppError> {
             }
 
             if let Ok(content) = std::fs::read_to_string(&path) {
-                let parsed = parser::parse_markdown_file(
-                    &path.to_string_lossy(),
-                    &content,
-                );
+                let parsed = parser::parse_markdown_file(&path.to_string_lossy(), &content);
 
-                let id = fm_string(&parsed.frontmatter, "id")
-                    .unwrap_or_else(|| "UNKNOWN".into());
-                let title = fm_string(&parsed.frontmatter, "title")
-                    .unwrap_or_default();
-                let status_str = fm_string(&parsed.frontmatter, "status")
-                    .unwrap_or_else(|| "ready".into());
+                let id = match fm_string(&parsed.frontmatter, "id") {
+                    Some(val) if val.starts_with("HANDOFF-") => val,
+                    _ => continue,
+                };
+                let title = fm_string(&parsed.frontmatter, "title").unwrap_or_default();
+                let status_str =
+                    fm_string(&parsed.frontmatter, "status").unwrap_or_else(|| "ready".into());
                 let status = match status_str.as_str() {
                     "consumed" => HandoffStatus::Consumed,
                     "superseded" => HandoffStatus::Superseded,
@@ -628,11 +612,26 @@ pub fn build_pulse_data(
         (None, None)
     };
 
-    let ready_specs = specs.iter().filter(|s| s.status == SpecStatus::Ready).count();
-    let in_progress = tasks.iter().filter(|t| t.status == TaskStatus::InProgress).count();
-    let in_review = tasks.iter().filter(|t| t.status == TaskStatus::Review).count();
-    let blocked = tasks.iter().filter(|t| t.status == TaskStatus::Blocked).count();
-    let _ready_handoff_count = handoffs.iter().filter(|h| h.status == HandoffStatus::Ready).count();
+    let ready_specs = specs
+        .iter()
+        .filter(|s| s.status == SpecStatus::Ready)
+        .count();
+    let in_progress = tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::InProgress)
+        .count();
+    let in_review = tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Review)
+        .count();
+    let blocked = tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Blocked)
+        .count();
+    let _ready_handoff_count = handoffs
+        .iter()
+        .filter(|h| h.status == HandoffStatus::Ready)
+        .count();
 
     let metrics = vec![
         MetricCard {
@@ -662,8 +661,13 @@ pub fn build_pulse_data(
         .filter(|s| s.status == SpecStatus::Ready)
         .take(3)
         .map(|s| ActionItem {
-            title: format!("Start {} on {}", s.recommended_agent.as_deref().unwrap_or("specialist"), s.id),
-            description: "Spec is ready — copy the handoff prompt and launch the agent manually.".to_string(),
+            title: format!(
+                "Start {} on {}",
+                s.recommended_agent.as_deref().unwrap_or("specialist"),
+                s.id
+            ),
+            description: "Spec is ready — copy the handoff prompt and launch the agent manually."
+                .to_string(),
             action_type: "handoff".into(),
             spec_id: Some(s.id.clone()),
             agent: s.recommended_agent.clone(),
@@ -769,7 +773,9 @@ fn parse_criteria(body: &str) -> Vec<TaskCriteria> {
 fn extract_block_reason(body: &str) -> Option<String> {
     for line in body.lines() {
         let trimmed = line.trim();
-        if trimmed.to_lowercase().starts_with("blocked") || trimmed.to_lowercase().starts_with("blocker") {
+        if trimmed.to_lowercase().starts_with("blocked")
+            || trimmed.to_lowercase().starts_with("blocker")
+        {
             return Some(trimmed.to_string());
         }
     }
@@ -791,10 +797,7 @@ pub fn build_wikilink_index(root: &Path) -> HashMap<String, Vec<String>> {
     if let Ok(entries) = walk_md_files(&lmbrain) {
         for file_path in entries {
             if let Ok(content) = std::fs::read_to_string(&file_path) {
-                let parsed = parser::parse_markdown_file(
-                    &file_path.to_string_lossy(),
-                    &content,
-                );
+                let parsed = parser::parse_markdown_file(&file_path.to_string_lossy(), &content);
                 let source = file_path
                     .strip_prefix(&lmbrain)
                     .ok()
@@ -826,10 +829,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
     if let Ok(entries) = walk_md_files(&lmbrain) {
         for file_path in entries {
             if let Ok(content) = std::fs::read_to_string(&file_path) {
-                let parsed = parser::parse_markdown_file(
-                    &file_path.to_string_lossy(),
-                    &content,
-                );
+                let parsed = parser::parse_markdown_file(&file_path.to_string_lossy(), &content);
 
                 // Report parse diagnostics
                 for d in &parsed.diagnostics {

@@ -4,6 +4,7 @@ title: Proposal for a specialist profile
 status: proposed
 requested_by: AGENT-LEAD
 reason: recurring-specialized-work
+# References use IDs only (e.g. [SPEC-001]); use [[wikilinks]] in prose
 recommended_for: []
 links: []
 created: YYYY-MM-DD

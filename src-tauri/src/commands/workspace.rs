@@ -3,7 +3,8 @@ use std::sync::Mutex;
 
 use crate::errors::AppError;
 use crate::models::workspace::{
-    DiagnosticSeverity, KitDiagnostic, KitHealth, WorkspaceInfo, WorkspaceRegistry, WorkspaceSummary,
+    DiagnosticSeverity, KitDiagnostic, KitHealth, WorkspaceInfo, WorkspaceRegistry,
+    WorkspaceSummary,
 };
 
 /// Manages the workspace registry (recent/pinned workspaces) and kit validation.
@@ -216,9 +217,8 @@ impl WorkspaceService {
         }
 
         let temporary = root.join(format!(".lmbrain.bootstrap-{}", uuid::Uuid::new_v4()));
-        let result = copy_directory(template, &temporary).and_then(|_| {
-            std::fs::rename(&temporary, &destination).map_err(AppError::from)
-        });
+        let result = copy_directory(template, &temporary)
+            .and_then(|_| std::fs::rename(&temporary, &destination).map_err(AppError::from));
         if result.is_err() {
             let _ = std::fs::remove_dir_all(&temporary);
         }

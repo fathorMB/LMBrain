@@ -375,32 +375,76 @@ function TreeNode({
   depth: number;
 }) {
   const isFile = node.kind === "file";
+  const [expanded, setExpanded] = useState(depth <= 1);
   const icon = isFile
     ? "article"
     : node.kind === "knowledge"
       ? "folder_open"
       : "folder";
 
+  const handleToggle = (e: React.MouseEvent) => {
+    if (isFile) {
+      onSelect(node);
+    } else {
+      e.stopPropagation();
+      setExpanded(!expanded);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!isFile && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      setExpanded(!expanded);
+    }
+  };
+
   return (
     <div>
       <div
-        onClick={() => !isFile || onSelect(node)}
+        role={isFile ? undefined : "button"}
+        tabIndex={isFile ? undefined : 0}
+        aria-expanded={isFile ? undefined : expanded}
+        onClick={handleToggle}
+        onKeyDown={handleKeyDown}
         style={{
           display: "flex",
           alignItems: "center",
           gap: 8,
           padding: `6px 8px 6px ${16 + depth * 20}px`,
           color: isFile ? "#9a949f" : "#b6b1bb",
-          cursor: isFile ? "pointer" : "default",
+          cursor: "pointer",
           borderRadius: 7,
+          outline: "none",
         }}
         onMouseEnter={(e) => {
-          if (isFile) e.currentTarget.style.color = "var(--text-primary)";
+          e.currentTarget.style.color = "var(--text-primary)";
         }}
         onMouseLeave={(e) => {
-          if (isFile) e.currentTarget.style.color = "#9a949f";
+          e.currentTarget.style.color = isFile ? "#9a949f" : "#b6b1bb";
+        }}
+        onFocus={(e) => {
+          if (!isFile) e.currentTarget.style.background = "#ffffff0c";
+        }}
+        onBlur={(e) => {
+          if (!isFile) e.currentTarget.style.background = "transparent";
         }}
       >
+        {/* Chevron for folders */}
+        {!isFile && (
+          <i
+            className="material-symbols-outlined"
+            style={{
+              fontSize: 16,
+              color: "#6c6671",
+              userSelect: "none",
+              marginRight: -4,
+            }}
+          >
+            {expanded ? "expand_more" : "chevron_right"}
+          </i>
+        )}
+        {/* Spacer for files to align them with folders having chevrons */}
+        {isFile && <div style={{ width: 12 }} />}
         <i
           className="material-symbols-outlined"
           style={{
@@ -423,7 +467,7 @@ function TreeNode({
           </span>
         )}
       </div>
-      {node.children.map((child, i) => (
+      {expanded && node.children.map((child, i) => (
         <TreeNode
           key={i}
           node={child}

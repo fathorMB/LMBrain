@@ -1,0 +1,10 @@
+# Set default behavior to LF for text files, keeping binary files untouched
+* text=auto eol=lf
+
+# Force binary files to remain binary
+*.png binary
+*.ico binary
+*.icns binary
+*.jpg binary
+*.jpeg binary
+*.gif binary

@@ -34,7 +34,9 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
     let close_pos = match end {
         Some(pos) => pos + 3,
         None => {
-            diagnostics.push("Unclosed YAML frontmatter: opening `---` has no matching closing `---`".into());
+            diagnostics.push(
+                "Unclosed YAML frontmatter: opening `---` has no matching closing `---`".into(),
+            );
             return FrontmatterResult {
                 frontmatter: HashMap::new(),
                 body: content.to_string(),
@@ -45,7 +47,9 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
     };
 
     let yaml_str = &content[3..close_pos].trim();
-    let body = content[(close_pos + 3).min(content.len())..].trim().to_string();
+    let body = content[(close_pos + 3).min(content.len())..]
+        .trim()
+        .to_string();
 
     let frontmatter: HashMap<String, Value> = match serde_yaml::from_str(yaml_str) {
         Ok(fm) => fm,

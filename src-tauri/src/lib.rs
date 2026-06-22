@@ -26,10 +26,7 @@ pub struct AppState {
 // ─── Tauri Commands ───────────────────────────────────────────────
 
 #[tauri::command]
-fn open_workspace(
-    state: State<'_, AppState>,
-    path: String,
-) -> Result<WorkspaceInfo, String> {
+fn open_workspace(state: State<'_, AppState>, path: String) -> Result<WorkspaceInfo, String> {
     let root = Path::new(&path);
     if !root.exists() {
         return Err(format!("Path does not exist: {}", path));
@@ -84,10 +81,7 @@ fn list_recent_workspaces(state: State<'_, AppState>) -> Vec<WorkspaceSummary> {
 }
 
 #[tauri::command]
-fn remove_recent_workspace(
-    state: State<'_, AppState>,
-    path: String,
-) -> Result<(), String> {
+fn remove_recent_workspace(state: State<'_, AppState>, path: String) -> Result<(), String> {
     state
         .workspace_service
         .remove_recent(&path)
@@ -111,11 +105,11 @@ fn list_directory(
 }
 
 #[tauri::command]
-fn parse_markdown(
-    state: State<'_, AppState>,
-    path: String,
-) -> Result<ParsedDocument, String> {
-    let content = state.path_guard.read_file(&path).map_err(|e| e.to_string())?;
+fn parse_markdown(state: State<'_, AppState>, path: String) -> Result<ParsedDocument, String> {
+    let content = state
+        .path_guard
+        .read_file(&path)
+        .map_err(|e| e.to_string())?;
     let parsed = commands::parser::parse_markdown_file(&path, &content.content);
     Ok(parsed)
 }
@@ -183,9 +177,7 @@ fn get_agents(state: State<'_, AppState>) -> Result<Vec<models::agent::AgentProf
 }
 
 #[tauri::command]
-fn get_mcp_records(
-    state: State<'_, AppState>,
-) -> Result<Vec<models::mcp::McpRecord>, String> {
+fn get_mcp_records(state: State<'_, AppState>) -> Result<Vec<models::mcp::McpRecord>, String> {
     let root = state
         .path_guard
         .get_root()
@@ -194,9 +186,7 @@ fn get_mcp_records(
 }
 
 #[tauri::command]
-fn get_mcp_proposals(
-    state: State<'_, AppState>,
-) -> Result<Vec<models::mcp::McpProposal>, String> {
+fn get_mcp_proposals(state: State<'_, AppState>) -> Result<Vec<models::mcp::McpProposal>, String> {
     let root = state
         .path_guard
         .get_root()
@@ -261,7 +251,10 @@ fn get_wiki_page(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<models::wiki::WikiPage, String> {
-    let content = state.path_guard.read_file(&path).map_err(|e| e.to_string())?;
+    let content = state
+        .path_guard
+        .read_file(&path)
+        .map_err(|e| e.to_string())?;
     let parsed = commands::parser::parse_markdown_file(&path, &content.content);
 
     // Convert frontmatter to string map
@@ -296,10 +289,7 @@ fn get_git_info(state: State<'_, AppState>) -> Result<GitInfo, String> {
 }
 
 #[tauri::command]
-fn start_watcher(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+fn start_watcher(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let root = state
         .path_guard
         .get_root()

@@ -7,7 +7,7 @@ updated: 2026-06-22
 
 ## Current focus
 
-SPEC-009's real WikiView integration-test correction has been accepted.
+Test round 1 remediation ([[SPEC-011-remediate-test-round-1-findings]]) accepted; cutting the **1.0.6** GitHub release.
 
 ## Current milestone
 
@@ -15,20 +15,21 @@ M-01 — Read-only desktop workspace.
 
 ## Awaiting remediation
 
-None for the SPEC-009 regression-test correction.
+None. WI-1 (phantom `UNKNOWN` artifacts), WI-3 (collapsible wiki tree), WI-2 (LF line endings), and WI-4 (template hardening) are accepted via [[REVIEW-011-spec-011-escalation-verification]]; the earlier WI-4 scope/version regressions from [[REVIEW-010-spec-011-remediate-test-round-1]] are resolved.
 
 ## In progress
 
-The component-boundary coverage requested by [[REVIEW-008-spec-008-real-wiki-view-test]] is now implemented and independently verified through [[REVIEW-009-spec-009-project-lead-escalation]].
+1.0.6 release: versions aligned across `package.json`, `Cargo.toml`, `Cargo.lock`, kit and live `VERSION`; `check-version.mjs` green. Pending the `build-installers.yml` CI run (native Rust build/tests + installer artifacts).
 
 ## Blockers and risks
 
-- Native Rust verification still cannot run in the current review environment because `cargo` is unavailable.
+- Native Rust verification and the clean-build LF scaffold check (SPEC-010 F-1 end-to-end) cannot run in the Project Lead environment; they are gated by the release CI. Confirm the green CI run and an LF scaffold from the published 1.0.6 installer before closing F-1.
 
 ## Next recommended actions
 
-1. Run native Rust verification (`cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`) in an environment with the Rust toolchain.
-2. Request a consolidated release-readiness review before accepting the earlier historical specifications as a complete M-01 delivery.
+1. Push to `main`; confirm `build-installers.yml` passes and publishes the 1.0.6 release.
+2. After release, scaffold from the 1.0.6 installer and byte-check the brain is LF to close SPEC-010 F-1.
+3. Plan test round 2.
 
 ## Recent decisions
 

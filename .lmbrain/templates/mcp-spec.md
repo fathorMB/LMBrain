@@ -4,6 +4,7 @@ title: MCP name
 status: specified
 transport: stdio
 permissions: []
+# References use IDs only (e.g. [MCP-PROP-001]); use [[wikilinks]] in prose
 proposal: MCP-PROP-XXX
 consumers: []
 links: []

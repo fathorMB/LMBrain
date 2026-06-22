@@ -229,6 +229,36 @@ fn test_initialize_kit_copies_template_and_refuses_overwrite() {
     assert_eq!(info.kit_version, "1.0.0");
     assert!(repository.path().join(".lmbrain/STATUS.md").is_file());
 
-    let overwrite = service.initialize_kit(repository.path(), &template_root.path().join(".lmbrain"));
+    let overwrite =
+        service.initialize_kit(repository.path(), &template_root.path().join(".lmbrain"));
     assert!(overwrite.is_err());
+}
+
+#[test]
+fn test_build_adrs_excludes_readme_and_non_genuine_artifacts() {
+    let dir = tempfile::tempdir().unwrap();
+    let lmbrain = dir.path().join(".lmbrain");
+    let decisions_dir = lmbrain.join("decisions");
+    fs::create_dir_all(&decisions_dir).unwrap();
+
+    // Write README.md (no frontmatter)
+    fs::write(
+        decisions_dir.join("README.md"),
+        "# Decisions\nThis is a README.",
+    )
+    .unwrap();
+
+    // Write a stray file with non-ADR ID or invalid format
+    fs::write(
+        decisions_dir.join("STRAY.md"),
+        "---\nid: STRAY-001\ntitle: Stray\nstatus: proposed\n---\nBody",
+    )
+    .unwrap();
+
+    // Write a valid ADR
+    fs::write(decisions_dir.join("ADR-001.md"), "---\nid: ADR-001\ntitle: Valid ADR\nstatus: accepted\ncreated: 2026-06-22\nupdated: 2026-06-22\ntags: []\nlinks: []\n---\nBody").unwrap();
+
+    let adrs = contract::build_adrs(dir.path()).unwrap();
+    assert_eq!(adrs.len(), 1);
+    assert_eq!(adrs[0].id, "ADR-001");
 }

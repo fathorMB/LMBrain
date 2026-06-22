@@ -6,6 +6,7 @@ kind: feature
 priority: medium
 area: 
 milestone: 
+# References use IDs only (e.g. [TASK-001]); use [[wikilinks]] in prose
 recommended_agent: AGENT-XXX
 related_tasks: []
 related_decisions: []

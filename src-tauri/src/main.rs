@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-  lmbrain_lib::run();
+    lmbrain_lib::run();
 }

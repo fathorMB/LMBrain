@@ -5,6 +5,7 @@ status: proposed
 requested_by: AGENT-LEAD
 risk: low
 required_permissions: []
+# References use IDs only (e.g. [AGENT-001]); use [[wikilinks]] in prose
 consumers: []
 links: []
 created: YYYY-MM-DD

@@ -42,9 +42,7 @@ fn test_path_guard_resolve_absolute_within_root() {
     fs::write(&file_path, "hello").unwrap();
 
     guard.set_root(dir.path());
-    let resolved = guard
-        .resolve(&file_path.to_string_lossy())
-        .unwrap();
+    let resolved = guard.resolve(&file_path.to_string_lossy()).unwrap();
     assert_eq!(resolved, file_path.canonicalize().unwrap());
 }
 

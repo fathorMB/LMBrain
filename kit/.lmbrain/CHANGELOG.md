@@ -4,6 +4,13 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 1.0.6 — 2026-06-22
+
+### Added
+
+- Inline reminders in templates to clarify that frontmatter reference fields take bare IDs, not `[[wikilinks]]`.
+- `.gitattributes` shipped in the kit to enforce LF line endings in scaffolded repositories.
+
 ## 1.0.5 — Unreleased
 
 ### Fixed

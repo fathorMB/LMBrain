@@ -92,8 +92,8 @@ fn test_extract_wikilinks_multiple_same_line() {
 
 #[test]
 fn test_fm_string() {
-    use std::collections::HashMap;
     use serde_json::json;
+    use std::collections::HashMap;
 
     let mut fm = HashMap::new();
     fm.insert("title".to_string(), json!("Test"));
@@ -106,8 +106,8 @@ fn test_fm_string() {
 
 #[test]
 fn test_fm_string_array() {
-    use std::collections::HashMap;
     use serde_json::json;
+    use std::collections::HashMap;
 
     let mut fm = HashMap::new();
     fm.insert("tags".to_string(), json!(["a", "b", "c"]));
@@ -125,8 +125,8 @@ fn test_fm_string_array() {
 
 #[test]
 fn test_fm_bool() {
-    use std::collections::HashMap;
     use serde_json::json;
+    use std::collections::HashMap;
 
     let mut fm = HashMap::new();
     fm.insert("active".to_string(), json!(true));
@@ -139,8 +139,8 @@ fn test_fm_bool() {
 
 #[test]
 fn test_fm_depends_on() {
-    use std::collections::HashMap;
     use serde_json::json;
+    use std::collections::HashMap;
 
     let mut fm = HashMap::new();
     fm.insert("depends_on".to_string(), json!(["TASK-001", "TASK-002"]));
@@ -151,8 +151,8 @@ fn test_fm_depends_on() {
 
 #[test]
 fn test_fm_spec() {
-    use std::collections::HashMap;
     use serde_json::json;
+    use std::collections::HashMap;
 
     let mut fm = HashMap::new();
     fm.insert("spec".to_string(), json!("SPEC-001"));
@@ -207,4 +207,21 @@ See [[SPEC-001]] for details."#;
     );
     assert!(parsed.body.contains("Description"));
     assert_eq!(parsed.wikilinks, vec!["SPEC-001"]);
+}
+
+#[test]
+fn test_parse_frontmatter_crlf_lf_equivalence() {
+    let lf_content =
+        "---\nid: SPEC-001\ntitle: Test Spec\nstatus: ready\n---\n# Body content\nLine 2";
+    let crlf_content = "---\r\nid: SPEC-001\r\ntitle: Test Spec\r\nstatus: ready\r\n---\r\n# Body content\r\nLine 2";
+
+    let lf_result = parser::parse_frontmatter(lf_content);
+    let crlf_result = parser::parse_frontmatter(crlf_content);
+
+    assert_eq!(lf_result.frontmatter, crlf_result.frontmatter);
+    assert_eq!(lf_result.wikilinks, crlf_result.wikilinks);
+    assert_eq!(lf_result.diagnostics, crlf_result.diagnostics);
+
+    // Normalize body lines to verify equivalence
+    assert_eq!(lf_result.body, crlf_result.body.replace("\r", ""));
 }

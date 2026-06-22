@@ -178,3 +178,96 @@ describe("WikiView link-resolution integration", () => {
     );
   });
 });
+
+describe("WikiView collapsible folders", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getWikiTree.mockResolvedValue(wikiTree);
+    mocks.getWikilinkIndex.mockResolvedValue({});
+    mocks.getWikiPage.mockResolvedValue(sourcePage);
+  });
+
+  it("handles folder collapse and expand", async () => {
+    const customWikiTree: WikiTree = {
+      root: {
+        name: ".lmbrain",
+        path: ".lmbrain",
+        kind: "folder",
+        count: 1,
+        children: [
+          {
+            name: "knowledge",
+            path: ".lmbrain/knowledge",
+            kind: "knowledge",
+            count: 1,
+            children: [
+              {
+                name: "deep_folder",
+                path: ".lmbrain/knowledge/deep_folder",
+                kind: "folder",
+                count: 1,
+                children: [
+                  {
+                    name: "deep_file",
+                    path: ".lmbrain/knowledge/deep_folder/deep_file.md",
+                    kind: "file",
+                    count: null,
+                    children: [],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    };
+    mocks.getWikiTree.mockResolvedValue(customWikiTree);
+
+    const context: WorkspaceContextValue = {
+      state: {
+        ...createWorkspaceState(),
+        wikiTree: customWikiTree,
+      },
+      dispatch: vi.fn(),
+      openWorkspace: vi.fn(),
+      loadAllData: vi.fn(),
+      navigateTo: vi.fn(),
+      openSpec: vi.fn(),
+      openTaskDrawer: vi.fn(),
+      closeTaskDrawer: vi.fn(),
+      toggleCmdk: vi.fn(),
+      closeCmdk: vi.fn(),
+      goToPicker: vi.fn(),
+    };
+
+    render(
+      <WorkspaceContext.Provider value={context}>
+        <WikiView />
+      </WorkspaceContext.Provider>
+    );
+
+    await waitFor(() => expect(mocks.getWikiTree).toHaveBeenCalledTimes(1));
+
+    // 'deep_folder' has depth 2, so it is collapsed by default. 'deep_file' should not be visible.
+    expect(screen.queryByText("deep_file")).toBeNull();
+
+    // Verify accessibility attributes on 'deep_folder'
+    const deepFolderRow = screen.getByText("deep_folder").closest("[role='button']");
+    expect(deepFolderRow).not.toBeNull();
+    expect(deepFolderRow?.getAttribute("aria-expanded")).toBe("false");
+    expect(deepFolderRow?.getAttribute("tabindex")).toBe("0");
+
+    // Click to expand
+    fireEvent.click(screen.getByText("deep_folder"));
+    expect(deepFolderRow?.getAttribute("aria-expanded")).toBe("true");
+
+    // 'deep_file' should now be visible
+    expect(screen.getByText("deep_file")).not.toBeNull();
+
+    // Click to collapse again
+    fireEvent.click(screen.getByText("deep_folder"));
+    expect(deepFolderRow?.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("deep_file")).toBeNull();
+  });
+});
+

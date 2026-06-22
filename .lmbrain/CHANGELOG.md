@@ -4,6 +4,19 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 1.0.6 — 2026-06-22
+
+### Added
+
+- Inline reminders in templates to clarify that frontmatter reference fields take bare IDs, not `[[wikilinks]]`.
+- `.gitattributes` shipped in the kit to enforce LF line endings in scaffolded repositories.
+
+### Fixed
+
+- Flat artifact loaders (ADRs, agents, MCP records/proposals, handoffs) no longer ingest `README.md` as a phantom `UNKNOWN` artifact.
+- Wiki tree folders can now be collapsed and expanded.
+- Line endings are normalized to LF across the repository and kit via `.gitattributes`.
+
 ## 1.0.5 — Unreleased
 
 ### Fixed

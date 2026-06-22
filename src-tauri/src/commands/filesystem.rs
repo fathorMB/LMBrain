@@ -24,9 +24,7 @@ impl PathGuard {
     }
 
     pub fn set_root(&self, root: &Path) {
-        let canonical = root
-            .canonicalize()
-            .unwrap_or_else(|_| root.to_path_buf());
+        let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
         *self.approved_root.lock().unwrap() = Some(canonical);
     }
 
@@ -130,11 +128,7 @@ impl PathGuard {
             });
         }
 
-        entries.sort_by(|a, b| {
-            b.is_dir
-                .cmp(&a.is_dir)
-                .then_with(|| a.name.cmp(&b.name))
-        });
+        entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then_with(|| a.name.cmp(&b.name)));
 
         Ok(entries)
     }
