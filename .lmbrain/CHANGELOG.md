@@ -2,7 +2,15 @@
 
 All notable changes to the LMBrain kit are recorded here.
 
-The kit remains at `1.0.0` during pre-release development. The version is incremented only for the first real release of the kit and desktop application, or for a subsequently released compatible/incompatible kit change.
+The `VERSION` file is the canonical, machine-readable kit version.
+
+## 1.0.1 — Unreleased
+
+### Added
+
+- Desktop bootstrap support: the application can initialize the clean kit in a selected repository after explicit operator confirmation.
+- Version-alignment guard for the desktop application, Rust package, and distributable kit.
+- Windows and Linux installer build workflow.
 
 ## 1.0.0 — Unreleased
 

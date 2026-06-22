@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use lmbrain_lib::commands::contract;
-use lmbrain_lib::commands::parser;
+use lmbrain_lib::commands::workspace::WorkspaceService;
 
 fn setup_test_kit(dir: &Path) {
     // Create .lmbrain directory structure
@@ -213,4 +213,22 @@ fn test_status_md_heading_parsing_fallback() {
 
     let milestone = contract::extract_milestone_for_test(content);
     assert!(milestone.is_none());
+}
+
+#[test]
+fn test_initialize_kit_copies_template_and_refuses_overwrite() {
+    let repository = tempfile::tempdir().unwrap();
+    let template_root = tempfile::tempdir().unwrap();
+    setup_test_kit(template_root.path());
+
+    let service = WorkspaceService::new();
+    let info = service
+        .initialize_kit(repository.path(), &template_root.path().join(".lmbrain"))
+        .unwrap();
+
+    assert_eq!(info.kit_version, "1.0.0");
+    assert!(repository.path().join(".lmbrain/STATUS.md").is_file());
+
+    let overwrite = service.initialize_kit(repository.path(), &template_root.path().join(".lmbrain"));
+    assert!(overwrite.is_err());
 }

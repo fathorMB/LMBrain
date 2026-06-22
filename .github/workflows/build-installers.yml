@@ -18,11 +18,15 @@ jobs:
           - name: Windows
             os: windows-latest
             args: --bundles nsis,msi
-            artifact: src-tauri/target/release/bundle/{nsis,msi}/**/*
+            artifact: |
+              src-tauri/target/release/bundle/nsis/**/*
+              src-tauri/target/release/bundle/msi/**/*
           - name: Linux
             os: ubuntu-22.04
             args: --bundles appimage,deb
-            artifact: src-tauri/target/release/bundle/{appimage,deb}/**/*
+            artifact: |
+              src-tauri/target/release/bundle/appimage/**/*
+              src-tauri/target/release/bundle/deb/**/*
     runs-on: ${{ matrix.os }}
 
     steps:
