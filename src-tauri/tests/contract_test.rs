@@ -462,6 +462,13 @@ fn test_set_artifact_status_and_rejected_diagnostics() {
     let path_guard = lmbrain_lib::commands::filesystem::PathGuard::new();
     path_guard.set_root(dir.path());
 
+    // On Windows the temp dir is exposed via its 8.3 short path (RUNNER~1) while
+    // `set_artifact_status` returns a canonicalized (long) path, so compare
+    // canonicalized forms to keep these assertions platform-independent.
+    fn canon(p: impl AsRef<std::path::Path>) -> std::path::PathBuf {
+        std::fs::canonicalize(p).unwrap()
+    }
+
     // Create directories
     let specs_proposed_dir = dir.path().join(".lmbrain").join("specs").join("proposed");
     let specs_ready_dir = dir.path().join(".lmbrain").join("specs").join("ready");
@@ -493,7 +500,7 @@ Spec Body"#;
 
     let new_path =
         contract::set_artifact_status(&path_guard, &spec_path.to_string_lossy(), "ready").unwrap();
-    assert_eq!(new_path, specs_ready_dir.join("SPEC-001.md"));
+    assert_eq!(canon(&new_path), canon(specs_ready_dir.join("SPEC-001.md")));
     assert!(!spec_path.exists());
     assert!(new_path.exists());
 
@@ -521,7 +528,7 @@ Spec Body 2"#;
     let new_path2 =
         contract::set_artifact_status(&path_guard, &spec_path2.to_string_lossy(), "rejected")
             .unwrap();
-    assert_eq!(new_path2, specs_rejected_dir.join("SPEC-002.md"));
+    assert_eq!(canon(&new_path2), canon(specs_rejected_dir.join("SPEC-002.md")));
     assert!(!spec_path2.exists());
     assert!(new_path2.exists());
 
@@ -543,7 +550,7 @@ ADR Body"#;
     let new_adr_path =
         contract::set_artifact_status(&path_guard, &adr_path.to_string_lossy(), "accepted")
             .unwrap();
-    assert_eq!(new_adr_path, adr_path);
+    assert_eq!(canon(&new_adr_path), canon(&adr_path));
     assert!(new_adr_path.exists());
     let updated_adr = fs::read_to_string(&new_adr_path).unwrap();
     assert!(updated_adr.contains("status: accepted"));
@@ -563,7 +570,7 @@ ADR Body 2"#;
     let new_adr_path2 =
         contract::set_artifact_status(&path_guard, &adr_path2.to_string_lossy(), "rejected")
             .unwrap();
-    assert_eq!(new_adr_path2, adr_path2);
+    assert_eq!(canon(&new_adr_path2), canon(&adr_path2));
     assert!(new_adr_path2.exists());
     let updated_adr2 = fs::read_to_string(&new_adr_path2).unwrap();
     assert!(updated_adr2.contains("status: rejected"));
@@ -582,7 +589,7 @@ Agent Proposal Body"#;
 
     let new_ap_path =
         contract::set_artifact_status(&path_guard, &ap_path.to_string_lossy(), "approved").unwrap();
-    assert_eq!(new_ap_path, ap_path);
+    assert_eq!(canon(&new_ap_path), canon(&ap_path));
     assert!(new_ap_path.exists());
     let updated_ap = fs::read_to_string(&new_ap_path).unwrap();
     assert!(updated_ap.contains("status: approved"));
@@ -601,7 +608,7 @@ MCP Proposal Body"#;
 
     let new_mp_path =
         contract::set_artifact_status(&path_guard, &mp_path.to_string_lossy(), "rejected").unwrap();
-    assert_eq!(new_mp_path, mp_path);
+    assert_eq!(canon(&new_mp_path), canon(&mp_path));
     assert!(new_mp_path.exists());
     let updated_mp = fs::read_to_string(&new_mp_path).unwrap();
     assert!(updated_mp.contains("status: rejected"));
@@ -621,7 +628,7 @@ Agent Profile Body"#;
     let new_profile_path =
         contract::set_artifact_status(&path_guard, &profile_path.to_string_lossy(), "active")
             .unwrap();
-    assert_eq!(new_profile_path, profile_path);
+    assert_eq!(canon(&new_profile_path), canon(&profile_path));
     assert!(new_profile_path.exists());
     let updated_profile = fs::read_to_string(&new_profile_path).unwrap();
     assert!(updated_profile.contains("status: active"));
