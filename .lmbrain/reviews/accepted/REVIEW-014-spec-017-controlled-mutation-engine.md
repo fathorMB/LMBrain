@@ -1,7 +1,7 @@
 ---
 id: REVIEW-014
 title: "Review of SPEC-017 — controlled-mutation engine (lmbrain-core + MCP)"
-status: changes-requested
+status: accepted
 spec: SPEC-017
 reviewer: AGENT-LEAD
 review_requested_by: user
@@ -83,4 +83,6 @@ The implementer addressed the findings. Status after the second pass:
 
 ## Final decision
 
-**Changes requested (final, minor).** One small code change plus CI-green evidence remain. Once the `recommended_agent` diagnostic is routed through the core and CI passes on both platforms, this can move to `accepted`.
+**Accepted (2026-06-23).** All findings R-1 through R-8 are resolved: the implementer addressed R-2..R-8, and R-1 was closed by routing the `recommended_agent` diagnostic through `core::invariants::recommended_agent_resolves`. Verifiable evidence: release **1.3.1** is green in CI on both Linux and Windows — `pnpm lint`/`pnpm test`, `cargo test` (lmbrain-core + lmbrain-mcp), the per-OS installer builds, and the MCP-binary build all pass, and the release published. SPEC-017 moves to `accepted`.
+
+Two workspace-refactor side effects surfaced only once `cargo test`/build ran on this code and were fixed in 1.3.1 (CI artifact paths pointing at the relocated workspace `target/`, and a Windows short-path assertion in the `create` test).

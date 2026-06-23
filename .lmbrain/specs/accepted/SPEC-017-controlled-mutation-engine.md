@@ -1,7 +1,7 @@
 ---
 id: SPEC-017
 title: "Controlled-mutation engine (lmbrain-core) with MCP delivery"
-status: ready
+status: accepted
 kind: feature
 priority: high
 area: core-tooling
@@ -10,7 +10,7 @@ milestone:
 recommended_agent: AGENT-FULLSTACK-DESKTOP
 related_tasks: []
 related_decisions: [ADR-004, ADR-001, ADR-002]
-links: [ADR-004]
+links: [ADR-004, REVIEW-014]
 created: 2026-06-23
 updated: 2026-06-23
 tags: [mcp, transitions, core, refactor, rust]
