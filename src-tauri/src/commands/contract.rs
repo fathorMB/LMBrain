@@ -60,7 +60,17 @@ pub fn build_tasks(root: &Path) -> Result<Vec<Task>, AppError> {
 
                     // Parse criteria from body (simple checkbox detection)
                     let criteria = parse_criteria(&parsed.body);
-                    let block_reason = if *status == TaskStatus::Blocked {
+
+                    // The board column follows the frontmatter `status:` (source of
+                    // truth) so a status change moves the card; the folder is
+                    // expected to agree, and a divergence is reported separately as
+                    // a "Status mismatch" diagnostic. Fall back to the folder when
+                    // the frontmatter status is missing or unrecognized.
+                    let effective_status = fm_string(&parsed.frontmatter, "status")
+                        .and_then(|s| TaskStatus::from_str(s.as_str()))
+                        .unwrap_or_else(|| status.clone());
+
+                    let block_reason = if effective_status == TaskStatus::Blocked {
                         fm_string(&parsed.frontmatter, "block_reason")
                             .or_else(|| extract_block_reason(&parsed.body))
                     } else {
@@ -70,7 +80,7 @@ pub fn build_tasks(root: &Path) -> Result<Vec<Task>, AppError> {
                     tasks.push(Task {
                         id,
                         title,
-                        status: status.clone(),
+                        status: effective_status,
                         priority,
                         area,
                         milestone,

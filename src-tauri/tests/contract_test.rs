@@ -3,6 +3,7 @@ use std::path::Path;
 
 use lmbrain_lib::commands::contract;
 use lmbrain_lib::commands::workspace::WorkspaceService;
+use lmbrain_lib::models::task::TaskStatus;
 
 fn setup_test_kit(dir: &Path) {
     // Create .lmbrain directory structure
@@ -99,6 +100,60 @@ Task body"#;
     );
     assert!(mismatches[0].message.contains("planned"));
     assert!(mismatches[0].message.contains("done"));
+}
+
+#[test]
+fn test_build_tasks_status_follows_frontmatter() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+
+    // Task lives in planned/ but its frontmatter declares in-progress. The board
+    // column must follow the frontmatter status so a status change moves the card.
+    let task_content = r#"---
+id: TASK-100
+title: Frontmatter-driven Task
+status: in-progress
+---
+Task body"#;
+    fs::write(
+        dir.path()
+            .join(".lmbrain")
+            .join("tasks")
+            .join("planned")
+            .join("TASK-100.md"),
+        task_content,
+    )
+    .unwrap();
+
+    let tasks = contract::build_tasks(dir.path()).unwrap();
+    let task = tasks.iter().find(|t| t.id == "TASK-100").unwrap();
+    assert_eq!(task.status, TaskStatus::InProgress);
+}
+
+#[test]
+fn test_build_tasks_status_falls_back_to_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+
+    // Frontmatter status is missing — the column falls back to the folder.
+    let task_content = r#"---
+id: TASK-101
+title: Folder-fallback Task
+---
+Task body"#;
+    fs::write(
+        dir.path()
+            .join(".lmbrain")
+            .join("tasks")
+            .join("done")
+            .join("TASK-101.md"),
+        task_content,
+    )
+    .unwrap();
+
+    let tasks = contract::build_tasks(dir.path()).unwrap();
+    let task = tasks.iter().find(|t| t.id == "TASK-101").unwrap();
+    assert_eq!(task.status, TaskStatus::Done);
 }
 
 #[test]

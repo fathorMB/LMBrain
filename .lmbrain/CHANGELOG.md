@@ -4,6 +4,17 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 1.2.0 — 2026-06-23
+
+### Changed
+
+- The Taskboard column now follows the task's frontmatter `status:` (source of truth), so a status change moves the card; the folder is expected to agree and a divergence is surfaced as a warning badge on the card.
+
+### Fixed
+
+- Project Pulse "Copy prompt" / "View prompt" buttons now match the app's button styling.
+- Project Pulse breadcrumb, current focus, and milestone now render `**bold**` and `[[wikilinks]]` as formatted text / clickable links instead of raw markup.
+
 ## 1.1.1 — 2026-06-23
 
 ### Fixed

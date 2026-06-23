@@ -1,7 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { getTasks } from "../../lib/commands";
+import { getTasks, getDiagnostics } from "../../lib/commands";
 import type { Task, TaskStatus } from "../../types";
+
+/** Folder/frontmatter status mismatch surfaced on a card, keyed by task id. */
+interface StatusMismatch {
+  /** The status declared in the file's frontmatter (differs from its folder). */
+  declared: string;
+  /** The full diagnostic message, used as the tooltip. */
+  message: string;
+}
+
+const normalizePath = (p: string) => p.replace(/\\/g, "/").toLowerCase();
 
 const COLUMNS: { status: TaskStatus; label: string; color: string }[] = [
   { status: "backlog", label: "Backlog", color: "#6c6671" },
@@ -15,10 +25,35 @@ const COLUMNS: { status: TaskStatus; label: string; color: string }[] = [
 
 export function TaskboardView() {
   const { state, dispatch, openTaskDrawer } = useWorkspace();
+  const [mismatches, setMismatches] = useState<Record<string, StatusMismatch>>({});
 
   useEffect(() => {
-    getTasks()
-      .then((tasks) => dispatch({ type: "SET_TASKS", tasks }))
+    Promise.all([getTasks(), getDiagnostics()])
+      .then(([tasks, diagnostics]) => {
+        dispatch({ type: "SET_TASKS", tasks });
+
+        // A task's column is derived from its folder; the file's `status:`
+        // frontmatter must agree. When they diverge the backend already emits a
+        // "Status mismatch" warning — surface it on the card so a half-applied
+        // transition (field updated but file not moved, or vice versa) is visible
+        // instead of looking like the task silently never changed state.
+        const map: Record<string, StatusMismatch> = {};
+        for (const task of tasks) {
+          const diag = diagnostics.find(
+            (d) =>
+              d.severity === "warning" &&
+              d.message.includes("Status mismatch") &&
+              d.path != null &&
+              normalizePath(task.path).endsWith(normalizePath(d.path))
+          );
+          if (diag) {
+            const declared =
+              /frontmatter status is '([^']+)'/.exec(diag.message)?.[1] ?? "?";
+            map[task.id] = { declared, message: diag.message };
+          }
+        }
+        setMismatches(map);
+      })
       .catch(console.error);
   }, [dispatch]);
 
@@ -184,6 +219,7 @@ export function TaskboardView() {
                     <TaskCard
                       key={task.id}
                       task={task}
+                      mismatch={mismatches[task.id]}
                       onClick={() => openTaskDrawer(task)}
                     />
                   ))}
@@ -199,9 +235,11 @@ export function TaskboardView() {
 
 function TaskCard({
   task,
+  mismatch,
   onClick,
 }: {
   task: Task;
+  mismatch?: StatusMismatch;
   onClick: () => void;
 }) {
   const priorityColors: Record<string, { color: string; bg: string }> = {
@@ -315,6 +353,29 @@ function TaskCard({
             link_off
           </i>
           {task.block_reason}
+        </div>
+      )}
+      {mismatch && (
+        <div
+          title={mismatch.message}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 11,
+            color: "#e0a23a",
+            background: "rgba(224,162,58,0.1)",
+            border: "1px solid rgba(224,162,58,0.28)",
+            borderRadius: 6,
+            padding: "4px 8px",
+            width: "max-content",
+            maxWidth: "100%",
+          }}
+        >
+          <i className="material-symbols-outlined" style={{ fontSize: 13 }}>
+            sync_problem
+          </i>
+          status: {mismatch.declared} ≠ folder: {task.status}
         </div>
       )}
       <div

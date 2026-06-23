@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { getPulseData, getAdrs, getHandoffs, getAgents, getDiagnostics } from "../../lib/commands";
+import { getPulseData, getAdrs, getHandoffs, getAgents, getDiagnostics, getWikiTree, getWikiPage } from "../../lib/commands";
 import { buildHandoffPrompt } from "../../lib/handoffPrompt";
+import { InlineRichText } from "../../lib/inlineRichText";
+import { resolveWikilink } from "../../lib/wikilinks";
 import type { PulseData, Handoff, Adr, KitDiagnostic } from "../../types";
 
 function generateFixPrompt(d: KitDiagnostic): string {
@@ -69,6 +71,29 @@ export function ProjectPulse() {
     load();
   }, [dispatch]);
 
+  // Open a [[wikilink]] target in the Wiki view. The wiki tree/page are fetched
+  // lazily on click so the pulse's initial load stays lightweight.
+  const navigateToWiki = async (target: string) => {
+    try {
+      let tree = state.wikiTree;
+      if (!tree) {
+        tree = await getWikiTree();
+        dispatch({ type: "SET_WIKI_TREE", tree });
+      }
+      const resolved = resolveWikilink(target, tree.root);
+      if (resolved) {
+        const fullPath = state.currentWorkspace
+          ? `${state.currentWorkspace.path}/${resolved}`
+          : resolved;
+        const page = await getWikiPage(fullPath);
+        dispatch({ type: "SET_WIKI_PAGE", page });
+      }
+      dispatch({ type: "SET_VIEW", view: "wiki" });
+    } catch (err) {
+      console.error("Failed to open wiki target:", err);
+    }
+  };
+
   const pulse = state.pulseData;
   if (!pulse) {
     return (
@@ -119,7 +144,7 @@ export function ProjectPulse() {
                     marginBottom: 5,
                   }}
                 >
-                  {pulse.milestone}
+                  <InlineRichText text={pulse.milestone} onWikilinkClick={navigateToWiki} />
                 </div>
               )}
               <h1
@@ -147,7 +172,7 @@ export function ProjectPulse() {
             >
               Current focus:{" "}
               <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>
-                {pulse.focus}
+                <InlineRichText text={pulse.focus} onWikilinkClick={navigateToWiki} />
               </span>
             </p>
           )}
@@ -204,7 +229,7 @@ export function ProjectPulse() {
                     target
                   </i>
                   <span style={{ fontWeight: 700, fontSize: 14.5 }}>
-                    {pulse.milestone}
+                    <InlineRichText text={pulse.milestone} onWikilinkClick={navigateToWiki} />
                   </span>
                 </div>
                 {pulse.milestone_due && (
@@ -958,11 +983,38 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
               }}
             />
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-              <button type="button" onClick={copyPrompt}>
+              <button
+                type="button"
+                onClick={copyPrompt}
+                style={{
+                  background: "var(--accent-light)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "6px 12px",
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+              >
+                <i className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                  content_copy
+                </i>
                 Copy prompt
               </button>
-              {copyState === "copied" && <span role="status">Copied to clipboard.</span>}
-              {copyState === "error" && <span role="alert">Could not copy the prompt. Select and copy it manually.</span>}
+              {copyState === "copied" && (
+                <span role="status" style={{ fontSize: 11, color: "var(--green)" }}>
+                  Copied to clipboard.
+                </span>
+              )}
+              {copyState === "error" && (
+                <span role="alert" style={{ fontSize: 11, color: "#e0584a" }}>
+                  Could not copy the prompt. Select and copy it manually.
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -972,7 +1024,24 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
           type="button"
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={expanded}
+          style={{
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 6,
+            padding: "5px 10px",
+            fontSize: 11,
+            color: "#fff",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            flex: "none",
+            alignSelf: "flex-start",
+          }}
         >
+          <i className="material-symbols-outlined" style={{ fontSize: 13 }}>
+            {expanded ? "visibility_off" : "visibility"}
+          </i>
           {expanded ? "Hide prompt" : "View prompt"}
         </button>
       )}

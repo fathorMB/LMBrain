@@ -42,6 +42,21 @@ impl TaskStatus {
             TaskStatus::Cancelled => "cancelled",
         }
     }
+
+    /// Parse a status string (as found in frontmatter) into a `TaskStatus`.
+    /// Returns `None` for unrecognized values so callers can fall back.
+    pub fn from_str(s: &str) -> Option<TaskStatus> {
+        match s {
+            "backlog" => Some(TaskStatus::Backlog),
+            "planned" => Some(TaskStatus::Planned),
+            "in-progress" => Some(TaskStatus::InProgress),
+            "review" => Some(TaskStatus::Review),
+            "done" => Some(TaskStatus::Done),
+            "blocked" => Some(TaskStatus::Blocked),
+            "cancelled" => Some(TaskStatus::Cancelled),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

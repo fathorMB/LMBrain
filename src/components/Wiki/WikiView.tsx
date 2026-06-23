@@ -10,6 +10,14 @@ export function WikiView() {
   const [currentPage, setCurrentPage] = useState<WikiPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [wikilinkIndex, setWikilinkIndex] = useState<Record<string, string[]>>({});
+  const [syncedWikiPage, setSyncedWikiPage] = useState<WikiPage | null>(null);
+
+  // Honor a page selected elsewhere (e.g. a [[wikilink]] clicked in the Pulse).
+  // Adjusting state during render is the recommended pattern over a sync effect.
+  if (state.wikiPage && state.wikiPage !== syncedWikiPage) {
+    setSyncedWikiPage(state.wikiPage);
+    setCurrentPage(state.wikiPage);
+  }
 
   useEffect(() => {
     Promise.all([
