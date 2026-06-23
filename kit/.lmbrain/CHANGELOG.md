@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 1.3.1 — 2026-06-23
+
+### Fixed
+
+- CI: point the installer and MCP-binary artifact paths at the workspace-root `target/` (the cargo workspace relocated build output from `src-tauri/target/`), and make the `create` test's path assertion platform-independent so Rust tests pass on Windows.
+
 ## 1.3.0 — 2026-06-23
 
 ### Added

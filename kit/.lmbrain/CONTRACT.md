@@ -1,6 +1,6 @@
 # LMBrain Markdown Contract v0.2
 
-**Kit version:** read from `VERSION` (canonical), currently `1.3.0` (controlled-mutation engine: `lmbrain-core` + `lmbrain-mcp`; the app writes and the kit diagnostics run on one shared engine).
+**Kit version:** read from `VERSION` (canonical), currently `1.3.1` (controlled-mutation engine: `lmbrain-core` + `lmbrain-mcp`; the app writes and the kit diagnostics run on one shared engine).
 
 The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable kit version. Use semantic versioning: breaking contract changes increment the major version; backward-compatible additions increment the minor version; clarifications and fixes increment the patch version. Read `CHANGELOG.md` for released changes and `MIGRATIONS.md` before upgrading a released kit.
 
