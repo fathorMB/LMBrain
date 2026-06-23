@@ -21,3 +21,6 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Generated, machine-specific MCP host registration (written by the app on open)
+/.mcp.json

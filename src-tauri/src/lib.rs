@@ -41,6 +41,14 @@ fn open_workspace(state: State<'_, AppState>, path: String) -> Result<WorkspaceI
     // Set the path guard root after successful validation
     state.path_guard.set_root(root);
 
+    // Register the repository-scoped lmbrain-mcp server so agents working in this
+    // workspace receive the controlled-mutation tools. Best-effort: never block
+    // opening a workspace if registration cannot be written.
+    let _ = commands::mcp_registration::register_mcp_server(
+        root,
+        &commands::mcp_registration::resolve_mcp_command(),
+    );
+
     // Add to recent workspaces
     let summary = WorkspaceSummary {
         path: path.clone(),

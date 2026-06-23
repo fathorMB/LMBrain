@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 1.3.2 — 2026-06-23
+
+### Added
+
+- The app now auto-registers the controlled-mutation tools: on opening a workspace it writes a host-format `.mcp.json` at the root that launches `lmbrain-mcp --root <workspace>` (idempotent, preserves other servers). `lmbrain-mcp` accepts `--root`/`LMBRAIN_ROOT`, and the command resolves via `LMBRAIN_MCP_BIN` → a binary next to the app → `PATH`. (SPEC-018; addresses agents falling back to hand-editing because the server was never registered.)
+
 ## 1.3.1 — 2026-06-23
 
 ### Fixed

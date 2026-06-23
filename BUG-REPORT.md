@@ -37,6 +37,7 @@
 | [BUG-003](#bug-003--il-ciclo-di-vita-dei-task-non-è-supportato-default-planned-e-nessuna-transizione-in-progress-allavvio) | Il ciclo di vita dei task non è supportato: default `planned` e nessuna transizione a `in-progress` all'avvio | Kit (template/AGENT/handoff) | 🟠 Alta | Risolto in sessione · CI da validare |
 | [BUG-004](#bug-004--il-lead-dopo-lapprovazione-delle-adr-si-mette-a-implementare-lo-scaffolding) | Il lead, dopo l'approvazione delle ADR, si mette a implementare lo scaffolding | Kit (AGENT.md / bootstrap prompt) | 🟠 Alta | Risolto in sessione |
 | [BUG-005](#bug-005--il-prompt-di-handoff-genera-un-path-spec-senza-slug-che-non-esiste) | Il prompt di handoff genera un path spec senza slug (`SPEC-017.md`) che non esiste | Project Pulse / handoffPrompt | 🟡 Media | Risolto in sessione |
+| [BUG-006](#bug-006--lmcp-non-è-realmente-registrato-nellhost-gli-agenti-non-hanno-i-tool-e-editano-a-mano) | L'MCP non è realmente registrato nell'host: gli agenti non hanno i tool e editano a mano | Kit (bootstrap MCP registration) / distribuzione | 🟠 Alta | Aperto |
 | [FIX-001](#fix-001--button-copy-prompt--hide-prompt-fuori-stile-in-next-recommended-actions) | Button "Copy prompt" / "Hide prompt" fuori stile in Next Recommended Actions | Project Pulse | 🔵 Bassa | Risolto in sessione |
 | [FIX-002](#fix-002--markup-bold-e-wikilinks-mostrati-grezzi-nel-project-pulse-invece-di-essere-formattatilink) | Markup `**bold**` e `[[wikilink]]` mostrati grezzi nel Project Pulse invece di essere formattati/link | Project Pulse | 🟡 Media | Risolto in sessione |
 | [FIX-003](#fix-003--mismatch-cartellafrontmatter-dello-stato-task-reso-visibile-sulla-card-mitigazione-di-bug-001) | Mismatch cartella/frontmatter dello stato task reso visibile sulla card (mitigazione di BUG-001) | Taskboard | 🟠 Alta | Risolto in sessione |
@@ -297,6 +298,56 @@ solo se la spec non è caricata. Preservata la guida MCP aggiunta dall'implement
 → [`src/lib/handoffPrompt.ts`](src/lib/handoffPrompt.ts), [`src/components/Pulse/ProjectPulse.tsx`](src/components/Pulse/ProjectPulse.tsx)
 
 **Verifica:** `tsc` pulito; `ProjectPulse.test` 3/3 (il fallback mantiene verde il test).
+
+---
+
+### BUG-006 — L'MCP non è realmente registrato nell'host: gli agenti non hanno i tool e editano a mano
+
+- **Area / Schermata:** Kit (registrazione MCP nel bootstrap) + distribuzione del binario
+- **Severità:** 🟠 Alta
+- **Stato:** Aperto
+- **Data rilevamento:** 2026-06-23
+- **Versione:** 1.3.1
+
+**Descrizione**
+Gli agenti (es. Claude Code come Project Lead) **non ricevono i tool `lmbrain-mcp`**:
+il server non è effettivamente registrato nell'host. Di conseguenza il lead ripiega
+sull'editing manuale dei markdown, producendo stati incoerenti.
+
+**Come è emerso (Brewlog)**
+Dopo la rigenerazione di Brewlog col lead: `SPEC-001` ha `status: ready` nel
+frontmatter ma il file è in `specs/proposed/` (mismatch — il campo è stato cambiato a
+mano invece di usare `spec_ready`, che avrebbe spostato il file); nessun task creato
+(`tasks/*/` contiene solo `.gitkeep`); `recommended_agent: AGENT-001` non esiste. La
+taskboard è vuota perché non ci sono task.
+
+**Causa tecnica**
+- Brewlog non ha alcun `.mcp.json` alla radice (il file che Claude Code legge per i
+  server MCP di progetto).
+- Il template del kit `kit/.lmbrain/mcp/lmbrain-mcp.json` usa un formato **custom**
+  (`{name, transport, command, cwd, scope, …}`) che nessun host MCP interpreta;
+  Claude Code richiede `{"mcpServers": {"<name>": {"command": …, "args": []}}}`.
+- **Non esiste codice che registri il server** (nessuna scrittura di `.mcp.json` né
+  configurazione dell'host): il criterio di SPEC-017 *"the kit bootstrap registers
+  the MCP server"* è dichiarato ma non implementato.
+- Il binario `lmbrain-mcp` è solo un artefatto CI: **non è distribuito/installato**
+  sulla macchina né in PATH, quindi anche un `.mcp.json` corretto non risolverebbe il
+  comando.
+
+**Nota di processo**
+La review REVIEW-014 ha **mancato** questo punto: la CI valida engine + build del
+binario ma non il cablaggio end-to-end con l'host (lo smoke-test "an agent host
+connects the MCP server" non è mai stato eseguito). L'accettazione avrebbe dovuto
+escludere questo criterio.
+
+**Cosa serve (proposta)**
+1. **Registrazione reale**: durante il bootstrap/init, scrivere un `.mcp.json` nel
+   formato dell'host (Claude Code) alla radice del repo, con `command` verso il
+   binario installato.
+2. **Distribuzione**: installare/risolvere `lmbrain-mcp` (in PATH o percorso noto;
+   es. bundle con l'app o `cargo install`), così il `command` funziona.
+3. Aggiornare il template del kit al formato corretto (o rimuoverlo a favore della
+   scrittura programmatica).
 
 ---
 
