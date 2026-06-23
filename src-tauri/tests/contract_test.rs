@@ -238,6 +238,69 @@ Body"#;
 }
 
 #[test]
+fn test_build_diagnostics_flags_planned_task_without_ready_spec() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+
+    // Planned task with no linked spec — it should still be in backlog.
+    fs::write(
+        dir.path()
+            .join(".lmbrain")
+            .join("tasks")
+            .join("planned")
+            .join("TASK-200.md"),
+        "---\nid: TASK-200\ntitle: No spec yet\nstatus: planned\nspec:\n---\nBody",
+    )
+    .unwrap();
+
+    let diags = contract::build_diagnostics(dir.path());
+    let warns: Vec<_> = diags
+        .iter()
+        .filter(|d| d.message.contains("TASK-200") && d.message.contains("backlog"))
+        .collect();
+    assert!(
+        !warns.is_empty(),
+        "Expected a warning for a planned task without a spec"
+    );
+}
+
+#[test]
+fn test_build_diagnostics_planned_task_with_ready_spec_ok() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+
+    fs::write(
+        dir.path()
+            .join(".lmbrain")
+            .join("specs")
+            .join("ready")
+            .join("SPEC-200.md"),
+        "---\nid: SPEC-200\ntitle: Ready spec\nstatus: ready\n---\nBody",
+    )
+    .unwrap();
+    fs::write(
+        dir.path()
+            .join(".lmbrain")
+            .join("tasks")
+            .join("planned")
+            .join("TASK-201.md"),
+        "---\nid: TASK-201\ntitle: Has ready spec\nstatus: planned\nspec: SPEC-200\n---\nBody",
+    )
+    .unwrap();
+
+    let diags = contract::build_diagnostics(dir.path());
+    let warns: Vec<_> = diags
+        .iter()
+        .filter(|d| d.message.contains("TASK-201"))
+        .collect();
+    assert!(
+        warns.is_empty(),
+        "Did not expect a warning for a planned task with a ready spec, got: {:?}",
+        warns
+    );
+}
+
+#[test]
 fn test_build_diagnostics_spec_status_mismatch() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());

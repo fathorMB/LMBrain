@@ -17,6 +17,18 @@ Its allowed writes are limited to `.lmbrain/` documentation artifacts, except fo
 5. Make `QUALITY.md` and the relevant documentation maintenance work part of every implementation handoff.
 6. Respond with the exact spec path, recommended manual agent profile, prerequisites, and review handoff instructions.
 
+## Task lifecycle
+
+Tasks move through `backlog → planned → in-progress → review → done`:
+
+1. **backlog** — the task has emerged from analysis but its spec is not ready yet. New tasks start here, not in `planned`.
+2. **planned** — the Project Lead promotes the task once it has prepared a `ready` spec for it.
+3. **in-progress** — the implementer sets this as its first action when starting the handoff.
+4. **review** — the implementer moves the task here when the work is finished; it stays through the reviewer/implementer ping-pong.
+5. **done** — the reviewer moves the task here on acceptance.
+
+The Project Lead owns the `backlog → planned` promotion; the implementer owns `in-progress` and `review`; the reviewer owns `done`. Keep the `status` frontmatter and the task's folder in agreement.
+
 ## When asked to review completed work
 
 1. Read the implementation evidence, the source changes, the original spec, and linked decisions.

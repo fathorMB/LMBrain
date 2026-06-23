@@ -951,6 +951,65 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
         }
     }
 
+    // A task should only leave `backlog` once its spec is prepared by the lead.
+    // Warn when a task is `planned` but has no ready spec backing it (it should
+    // still be in `backlog`).
+    if let (Ok(tasks), Ok(specs)) = (build_tasks(root), build_specs(root)) {
+        let spec_prepared: std::collections::HashMap<String, bool> = specs
+            .iter()
+            .map(|s| {
+                let prepared = matches!(
+                    s.status,
+                    SpecStatus::Ready
+                        | SpecStatus::InProgress
+                        | SpecStatus::Review
+                        | SpecStatus::Accepted
+                );
+                (s.id.clone(), prepared)
+            })
+            .collect();
+
+        for task in &tasks {
+            if task.status != TaskStatus::Planned {
+                continue;
+            }
+            let spec = task
+                .spec
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            let message = match spec {
+                None => Some(format!(
+                    "Task {} is 'planned' but has no linked spec; it should stay in 'backlog' until a spec is ready",
+                    task.id
+                )),
+                Some(spec_id) => match spec_prepared.get(spec_id) {
+                    None => Some(format!(
+                        "Task {} references spec '{}', which does not exist",
+                        task.id, spec_id
+                    )),
+                    Some(false) => Some(format!(
+                        "Task {} is 'planned' but its spec '{}' is not ready yet",
+                        task.id, spec_id
+                    )),
+                    Some(true) => None,
+                },
+            };
+            if let Some(message) = message {
+                let rel_path = Path::new(&task.path)
+                    .strip_prefix(&lmbrain)
+                    .ok()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| task.path.clone());
+                diagnostics.push(KitDiagnostic {
+                    message,
+                    severity: DiagnosticSeverity::Warning,
+                    path: Some(rel_path),
+                });
+            }
+        }
+    }
+
     diagnostics
 }
 

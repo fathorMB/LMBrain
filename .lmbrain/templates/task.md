@@ -2,7 +2,7 @@
 id: TASK-XXX
 # Note: Quote the title if it contains a colon
 title: "Concise task title"
-status: planned
+status: backlog
 type: implementation
 priority: medium
 area: 

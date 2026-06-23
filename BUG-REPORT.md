@@ -34,6 +34,7 @@
 |------|--------|------|----------|-------|
 | [BUG-001](#bug-001--lo-stato-dei-task-nella-board-dipende-solo-dalla-cartella-il-campo-status-del-frontmatter-viene-ignorato) | Lo stato dei task nella board dipende solo dalla cartella; il campo `status:` del frontmatter viene ignorato | Taskboard | 🟠 Alta | Risolto in sessione (FIX-004; badge FIX-003). Modifica backend da validare in CI |
 | [BUG-002](#bug-002--lapp-non-segnala-quando-recommended_agent-di-una-spec-non-punta-a-un-profilo-agente-esistente) | L'app non segnala quando `recommended_agent` di una spec non punta a un profilo agente esistente | Diagnostics / Project Pulse | 🟡 Media | Risolto in sessione · CI da validare |
+| [BUG-003](#bug-003--il-ciclo-di-vita-dei-task-non-è-supportato-default-planned-e-nessuna-transizione-in-progress-allavvio) | Il ciclo di vita dei task non è supportato: default `planned` e nessuna transizione a `in-progress` all'avvio | Kit (template/AGENT/handoff) | 🟠 Alta | Risolto in sessione · CI da validare |
 | [FIX-001](#fix-001--button-copy-prompt--hide-prompt-fuori-stile-in-next-recommended-actions) | Button "Copy prompt" / "Hide prompt" fuori stile in Next Recommended Actions | Project Pulse | 🔵 Bassa | Risolto in sessione |
 | [FIX-002](#fix-002--markup-bold-e-wikilinks-mostrati-grezzi-nel-project-pulse-invece-di-essere-formattatilink) | Markup `**bold**` e `[[wikilink]]` mostrati grezzi nel Project Pulse invece di essere formattati/link | Project Pulse | 🟡 Media | Risolto in sessione |
 | [FIX-003](#fix-003--mismatch-cartellafrontmatter-dello-stato-task-reso-visibile-sulla-card-mitigazione-di-bug-001) | Mismatch cartella/frontmatter dello stato task reso visibile sulla card (mitigazione di BUG-001) | Taskboard | 🟠 Alta | Risolto in sessione |
@@ -177,6 +178,55 @@ Diagnostics del Pulse (con relativo fix-prompt).
 **⚠️ Verifica:** modifica backend Rust, **non compilabile in locale** → da validare
 in **CI** (`cargo test`). Nessuna modifica frontend necessaria (il Pulse mostra già i
 diagnostics).
+
+---
+
+### BUG-003 — Il ciclo di vita dei task non è supportato: default `planned` e nessuna transizione a `in-progress` all'avvio
+
+- **Area / Schermata:** Kit (template task, `AGENT.md`, prompt di handoff) + eventuale diagnostic app
+- **Severità:** 🟠 Alta
+- **Stato:** Risolto in sessione (tutti e 4 gli interventi) · diagnostic backend da validare in CI
+- **Data rilevamento:** 2026-06-23
+- **Versione:** 1.2.4
+
+**Ciclo di vita atteso (dall'operatore)**
+`backlog` (task emerso, spec non ancora pronta) → `planned` (il lead prepara la
+spec) → `in-progress` (l'esecutore inizia) → `review` (l'esecutore finisce) →
+`done` (il reviewer accetta).
+
+**Comportamento osservato**
+1. Quando il dev-agent inizia a lavorare, il task **non passa a `in-progress`**.
+2. I task risultano `planned` anche **senza una spec attiva** (dovrebbero essere
+   `backlog` e diventare `planned` solo quando il lead prepara la spec).
+
+**Causa tecnica (lacune di convenzione del kit)**
+- Il template task ha default `status: planned`, quindi ogni task nasce `planned`
+  a prescindere dallo stato della spec.
+  → [`kit/.lmbrain/templates/task.md:5`](kit/.lmbrain/templates/task.md:5)
+- `AGENT.md` non documenta il ciclo di vita né l'obbligo per l'esecutore di portare
+  il task a `in-progress` all'avvio e a `review` a fine lavoro.
+  → [`kit/.lmbrain/AGENT.md`](kit/.lmbrain/AGENT.md)
+- Il prompt di handoff generato non menziona alcuna transizione di stato del task.
+  → [`src/lib/handoffPrompt.ts`](src/lib/handoffPrompt.ts)
+- Conferma sui dati Brewlog: `TASK-002` ha `spec:` vuoto ma è in `planned`.
+
+**Interventi applicati (tutti e 4, scelti dall'operatore)**
+1. **Template task → `backlog`** (kit + live): un task nasce in backlog, non planned.
+   → [`kit/.lmbrain/templates/task.md`](kit/.lmbrain/templates/task.md), [`.lmbrain/templates/task.md`](.lmbrain/templates/task.md)
+2. **Prompt di handoff**: ora istruisce l'esecutore a portare il/i task `in-progress`
+   prima di iniziare e `review` a fine lavoro.
+   → [`src/lib/handoffPrompt.ts`](src/lib/handoffPrompt.ts)
+3. **Diagnostic** (backend Rust): warning quando un task è `planned` ma non ha una
+   spec collegata pronta (spec mancante, inesistente, o non `ready`/`in-progress`/
+   `review`/`accepted`). Appare nei Diagnostics del Pulse. Aggiunti 2 test.
+   → [`src-tauri/src/commands/contract.rs`](src-tauri/src/commands/contract.rs),
+     [`src-tauri/tests/contract_test.rs`](src-tauri/tests/contract_test.rs)
+4. **Documentazione del lifecycle** in `AGENT.md` e `tasks/README.md` (kit + live):
+   `backlog → planned → in-progress → review → done` con i rispettivi owner.
+
+**⚠️ Verifica:** frontend 43/43, `tsc`/`eslint` puliti. Il diagnostic Rust si valida
+in CI (`cargo test`). Nota: i dati esistenti di Brewlog (es. `TASK-002` planned senza
+spec) non sono toccati — il nuovo diagnostic te li segnalerà.
 
 ---
 

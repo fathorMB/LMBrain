@@ -1,6 +1,6 @@
 # LMBrain Markdown Contract v0.2
 
-**Kit version:** read from `VERSION` (canonical), currently `1.2.4` (CI release builds run the Rust integration tests; Windows path assertions stabilized).
+**Kit version:** read from `VERSION` (canonical), currently `1.2.5` (task lifecycle: new tasks start in `backlog`; diagnostics warn on a `planned` task without a ready spec).
 
 The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable kit version. Use semantic versioning: breaking contract changes increment the major version; backward-compatible additions increment the minor version; clarifications and fixes increment the patch version. Read `CHANGELOG.md` for released changes and `MIGRATIONS.md` before upgrading a released kit.
 
