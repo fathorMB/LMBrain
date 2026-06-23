@@ -4,6 +4,13 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 1.3.5 — 2026-06-23
+
+### Added
+
+- Diagnostics warn when a spec is `ready` / `in-progress` / `review` but has no implementation tasks, so a ready-for-handoff spec with an empty board is visible instead of silent. `AGENT.md` now requires the Project Lead to break a spec into its tasks before handoff.
+- The Agents & MCP view lists the built-in `lmbrain-mcp` per-verb tools (registered automatically via `.mcp.json`).
+
 ## 1.3.4 — 2026-06-23
 
 ### Changed

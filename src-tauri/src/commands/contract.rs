@@ -1004,6 +1004,36 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
                 });
             }
         }
+
+        // The mirror check: a spec that is ready or in active implementation should
+        // have implementation tasks. Warn when it has none, so a ready-for-handoff
+        // spec with an empty board is visible instead of silent.
+        for spec in &specs {
+            if !matches!(
+                spec.status,
+                SpecStatus::Ready | SpecStatus::InProgress | SpecStatus::Review
+            ) {
+                continue;
+            }
+            let has_task = tasks
+                .iter()
+                .any(|t| t.spec.as_deref().map(str::trim) == Some(spec.id.as_str()));
+            if !has_task {
+                let rel_path = Path::new(&spec.path)
+                    .strip_prefix(&lmbrain)
+                    .ok()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| spec.path.clone());
+                diagnostics.push(KitDiagnostic {
+                    message: format!(
+                        "Spec {} is '{}' but has no implementation tasks; the Project Lead should create its tasks before handoff",
+                        spec.id, spec.status.as_str()
+                    ),
+                    severity: DiagnosticSeverity::Warning,
+                    path: Some(rel_path),
+                });
+            }
+        }
     }
 
     diagnostics

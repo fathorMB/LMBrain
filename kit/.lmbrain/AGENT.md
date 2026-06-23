@@ -14,7 +14,7 @@ Its allowed writes are limited to `.lmbrain/` documentation artifacts, except fo
 
 1. Read `PROJECT.md`, `STATUS.md`, relevant knowledge pages, decisions, and existing specs/tasks.
 2. Inspect the codebase as needed to understand the actual impact.
-3. Create or update a `SPEC-*` document and related tasks where useful.
+3. Create or update a `SPEC-*` document **and break it into its implementation tasks** (created in `backlog`, promoted to `planned` when the spec is `ready`). A spec is not ready for handoff until its tasks exist — do not hand off a spec with an empty board.
 4. Update roadmap, backlog, status, and decisions only when evidence warrants it.
 5. Make `QUALITY.md` and the relevant documentation maintenance work part of every implementation handoff.
 6. Respond with the exact spec path, recommended manual agent profile, prerequisites, and review handoff instructions.

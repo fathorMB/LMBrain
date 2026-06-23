@@ -3,6 +3,28 @@ import { useWorkspace } from "../../hooks/useWorkspace";
 import { getAgents, getMcpRecords, getMcpProposals } from "../../lib/commands";
 import type { AgentProfile, McpRecord, McpProposal } from "../../types";
 
+// Built-in controlled-mutation tools exposed by the repository-scoped `lmbrain-mcp`
+// server. Keep in sync with `lmbrain-mcp/src/main.rs` (tools()).
+const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }[] = [
+  { name: "task_plan", category: "Task", description: "Promote a task to planned." },
+  { name: "task_start", category: "Task", description: "Start a planned task." },
+  { name: "task_submit", category: "Task", description: "Submit an in-progress task for review." },
+  { name: "task_complete", category: "Task", description: "Complete a reviewed task." },
+  { name: "task_block", category: "Task", description: "Block a task." },
+  { name: "task_cancel", category: "Task", description: "Cancel a task." },
+  { name: "spec_ready", category: "Spec", description: "Make a proposed spec ready." },
+  { name: "spec_start", category: "Spec", description: "Start a ready spec." },
+  { name: "spec_submit", category: "Spec", description: "Submit a spec for review." },
+  { name: "spec_accept", category: "Spec", description: "Accept a reviewed spec (on operator request)." },
+  { name: "review_accept", category: "Review", description: "Accept a review (on operator request)." },
+  { name: "lmbrain_create", category: "Create", description: "Create an artifact with an allocated ID." },
+  { name: "lmbrain_set_recommended_agent", category: "Setter", description: "Set a spec's recommended agent." },
+  { name: "lmbrain_set_task_evidence", category: "Setter", description: "Set task evidence." },
+  { name: "lmbrain_get_artifact", category: "Read", description: "Read a repository artifact." },
+  { name: "lmbrain_validate", category: "Read", description: "Validate controlled-mutation invariants." },
+  { name: "lmbrain_list_ready_handoffs", category: "Read", description: "List ready handoffs." },
+];
+
 export function AgentsMCPView() {
   const { state, dispatch } = useWorkspace();
 
@@ -116,6 +138,77 @@ export function AgentsMCPView() {
           {state.mcpRecords.map((mcp) => (
             <MCPCard key={mcp.id} mcp={mcp} />
           ))}
+        </div>
+
+        {/* Built-in lmbrain-mcp tools */}
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: ".09em",
+            textTransform: "uppercase",
+            color: "#6c6671",
+            fontWeight: 600,
+            marginBottom: 11,
+          }}
+        >
+          Built-in · lmbrain-mcp tools
+        </div>
+        <div
+          style={{
+            background: "var(--bg-tertiary)",
+            border: "1px solid var(--border-secondary)",
+            borderRadius: 11,
+            padding: "14px 16px",
+            marginBottom: 32,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12.5,
+              color: "var(--text-tertiary)",
+              lineHeight: 1.5,
+              marginBottom: 12,
+            }}
+          >
+            Repository-scoped controlled-mutation server, registered automatically via{" "}
+            <span style={{ fontFamily: "var(--font-mono)", color: "#9a949f" }}>.mcp.json</span>.
+            Agents call these per-verb tools instead of editing Markdown by hand.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {LMBRAIN_MCP_TOOLS.map((tool) => (
+              <div
+                key={tool.name}
+                style={{ display: "flex", alignItems: "center", gap: 10 }}
+              >
+                <span
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 11.5,
+                    color: "#bcaef6",
+                    minWidth: 220,
+                  }}
+                >
+                  {tool.name}
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "#7fa8f5",
+                    background: "rgba(91,141,239,.12)",
+                    borderRadius: 5,
+                    padding: "2px 7px",
+                    flex: "none",
+                  }}
+                >
+                  {tool.category}
+                </span>
+                <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+                  {tool.description}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* MCP Proposals */}

@@ -301,6 +301,47 @@ fn test_build_diagnostics_planned_task_with_ready_spec_ok() {
 }
 
 #[test]
+fn test_build_diagnostics_flags_ready_spec_without_tasks() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    fs::write(
+        dir.path()
+            .join(".lmbrain")
+            .join("specs")
+            .join("ready")
+            .join("SPEC-300.md"),
+        "---\nid: SPEC-300\ntitle: Ready, no tasks\nstatus: ready\n---\nBody",
+    )
+    .unwrap();
+
+    let diags = contract::build_diagnostics(dir.path());
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.message.contains("SPEC-300") && d.message.contains("no implementation tasks")),
+        "expected a 'no implementation tasks' warning for a ready spec"
+    );
+
+    // Once a task references the spec, the warning goes away.
+    fs::write(
+        dir.path()
+            .join(".lmbrain")
+            .join("tasks")
+            .join("planned")
+            .join("TASK-300.md"),
+        "---\nid: TASK-300\ntitle: t\nstatus: planned\nspec: SPEC-300\n---\nBody",
+    )
+    .unwrap();
+    let diags2 = contract::build_diagnostics(dir.path());
+    assert!(
+        !diags2
+            .iter()
+            .any(|d| d.message.contains("SPEC-300") && d.message.contains("no implementation tasks")),
+        "did not expect the warning once a task references the spec"
+    );
+}
+
+#[test]
 fn test_build_roadmap_parses_h3_milestones() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());

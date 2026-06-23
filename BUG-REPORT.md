@@ -40,11 +40,13 @@
 | [BUG-006](#bug-006--lmcp-non-è-realmente-registrato-nellhost-gli-agenti-non-hanno-i-tool-e-editano-a-mano) | L'MCP non è realmente registrato nell'host: gli agenti non hanno i tool e editano a mano | Kit (bootstrap MCP registration) / distribuzione | 🟠 Alta | Registrazione risolta (SPEC-018, 1.3.2). Binario su PATH + uso effettivo da verificare |
 | [BUG-007](#bug-007--la-roadmap-non-viene-mostrata-il-parser-cerca-le-milestone-in-h2-ma-il-template-usa-h3) | La roadmap non viene mostrata: il parser cerca le milestone in `##` (h2) ma il template usa `###` (h3) | Roadmap (parser) | 🟠 Alta | Risolto in sessione |
 | [BUG-008](#bug-008--i-tool-mcp-di-accettazione-non-applicano-il-modello-di-autorità-un-agente-può-auto-approvare-adrspec) | I tool MCP di accettazione non applicano il modello di autorità: un agente può auto-approvare ADR/spec | lmbrain-mcp / engine (authority) | 🟠 Alta | Risolto in sessione |
+| [BUG-009](#bug-009--board-vuota-dopo-spec-ready-il-lead-non-scompone-la-spec-in-task) | Board vuota dopo spec ready: il lead non scompone la spec in task | Kit (AGENT.md) + Diagnostics | 🟠 Alta | Mitigato in sessione (prompt + diagnostic) |
 | [FIX-001](#fix-001--button-copy-prompt--hide-prompt-fuori-stile-in-next-recommended-actions) | Button "Copy prompt" / "Hide prompt" fuori stile in Next Recommended Actions | Project Pulse | 🔵 Bassa | Risolto in sessione |
 | [FIX-002](#fix-002--markup-bold-e-wikilinks-mostrati-grezzi-nel-project-pulse-invece-di-essere-formattatilink) | Markup `**bold**` e `[[wikilink]]` mostrati grezzi nel Project Pulse invece di essere formattati/link | Project Pulse | 🟡 Media | Risolto in sessione |
 | [FIX-003](#fix-003--mismatch-cartellafrontmatter-dello-stato-task-reso-visibile-sulla-card-mitigazione-di-bug-001) | Mismatch cartella/frontmatter dello stato task reso visibile sulla card (mitigazione di BUG-001) | Taskboard | 🟠 Alta | Risolto in sessione |
 | [FIX-004](#fix-004--la-colonna-del-task-segue-il-campo-status-del-frontmatter-il-cambio-stato-muove-la-card) | La colonna del task segue il campo `status:` del frontmatter: il cambio stato muove la card | Taskboard (backend) | 🟠 Alta | Risolto in sessione · CI da validare |
 | [FIX-005](#fix-005--wikilink-grezzi-non-cliccabili-anche-in-roadmap-e-nei-blockerazioni-del-pulse) | Wikilink grezzi/non cliccabili anche in Roadmap e nei blocker/azioni del Pulse | Roadmap / Project Pulse | 🟡 Media | Risolto in sessione |
+| [FIX-006](#fix-006--mostra-i-tool-built-in-di-lmbrain-mcp-nella-view-agents--mcp) | Mostra i tool built-in di `lmbrain-mcp` nella view Agents & MCP | Agents & MCP | 🔵 Bassa | Risolto in sessione |
 
 ---
 
@@ -423,6 +425,40 @@ lead, ma solo su **richiesta esplicita** dell'operatore.
 
 ---
 
+### BUG-009 — Board vuota dopo spec ready: il lead non scompone la spec in task
+
+- **Area / Schermata:** Kit (`AGENT.md`) + Diagnostics / Taskboard
+- **Severità:** 🟠 Alta
+- **Stato:** Mitigato in sessione (prompt + diagnostic)
+- **Data rilevamento:** 2026-06-23
+- **Versione:** 1.3.4
+
+**Descrizione**
+Dopo che il lead produce e approva `SPEC-001` (ready), la board resta vuota: in
+Brewlog non esiste **nessun file task** — il lead crea la spec ma non la scompone in
+task. La board è quindi correttamente vuota, ma il workflow è incompleto (l'handoff
+assume task che non esistono).
+
+**Causa**
+`AGENT.md` diceva "create a SPEC and *related tasks where useful*" — troppo debole.
+Nessuna segnalazione app quando una spec `ready` non ha task.
+
+**Mitigazione applicata**
+- `AGENT.md` (kit + live): il lead deve **scomporre la spec nei suoi task** (in
+  `backlog`, promossi a `planned` quando la spec è `ready`); una spec non è pronta
+  per l'handoff finché i task non esistono.
+- **Diagnostic** simmetrico: warning quando una spec è `ready`/`in-progress`/`review`
+  ma non ha task collegati ("Spec X is '…' but has no implementation tasks").
+  Reso visibile nei Diagnostics del Pulse.
+  → [`src-tauri/src/commands/contract.rs`](src-tauri/src/commands/contract.rs) + test
+- Resta comportamentale: l'app non può creare i task; con gli MCP collegati il lead
+  li crea via `lmbrain_create`/`task_plan`.
+
+**Verifica:** `cargo test -p lmbrain --test contract_test` → 19/19 (incluso il nuovo
+`test_build_diagnostics_flags_ready_spec_without_tasks`).
+
+---
+
 ## Fix applicate durante il test
 
 > Interventi cosmetici/minori risolti direttamente in sessione (non in attesa dei
@@ -623,6 +659,30 @@ ecc.) senza passare per il renderer inline introdotto in FIX-002.
 
 **Verifica:** `pnpm vitest run` → 43/43; `tsc --noEmit` ed `eslint` puliti.
 Resta da confermare a video.
+
+---
+
+### FIX-006 — Mostra i tool built-in di `lmbrain-mcp` nella view Agents & MCP
+
+- **Area / Schermata:** Agents & MCP
+- **Severità:** 🔵 Bassa (feature)
+- **Stato:** Risolto in sessione (da verificare a video)
+- **Data rilevamento:** 2026-06-23
+- **Versione:** 1.3.4
+
+**Descrizione**
+La sezione "MCP Specifications" mostrava solo gli MCP di progetto; i tool del server
+built-in `lmbrain-mcp` non erano elencati da nessuna parte nell'app.
+
+**Fix applicata**
+Aggiunta una sezione **"Built-in · lmbrain-mcp tools"** nella view Agents & MCP che
+elenca i tool per-verbo (task_*/spec_*/review_accept/lmbrain_create/setter/read),
+raggruppati per categoria, con una nota che il server è registrato automaticamente
+via `.mcp.json`. Il catalogo è una costante allineata a `lmbrain-mcp/src/main.rs`
+(con commento di sync); `adr_accept` è correttamente escluso (operator-only).
+→ [`src/components/Agents/AgentsMCPView.tsx`](src/components/Agents/AgentsMCPView.tsx)
+
+**Verifica:** `tsc`/`eslint` puliti, `pnpm vitest run` verde. Da confermare a video.
 
 ---
 
