@@ -1114,11 +1114,12 @@ fn parse_roadmap_content(content: &str) -> Roadmap {
 
     for line in content.lines() {
         let trimmed = line.trim();
-        if let Some(heading_content) = trimmed.strip_prefix("## ") {
-            if let Some(m) = current_milestone.take() {
-                milestones.push(m);
-            }
-            // Parse heading: ## M-01 — Read-only desktop workspace
+        if trimmed.starts_with('#') {
+            // Heading line at any level. Milestones use h3 (`### M-01 — …`) in the
+            // kit template; accept any heading level but only start a milestone when
+            // the heading actually names one (so section headers like `## Milestones`
+            // or `# Roadmap` are ignored).
+            let heading_content = trimmed.trim_start_matches('#').trim();
             // Check for various dashes (em-dash, en-dash, hyphen)
             let delimiter = if heading_content.contains("—") {
                 "—"
@@ -1137,16 +1138,23 @@ fn parse_roadmap_content(content: &str) -> Roadmap {
                 (heading_content.trim().to_string(), String::new())
             };
 
-            current_milestone = Some(Milestone {
-                id,
-                title: m_title,
-                status: String::new(),
-                outcome: String::new(),
-                specs: Vec::new(),
-                decisions: Vec::new(),
-                risks: Vec::new(),
-                depends_on: None,
-            });
+            let is_milestone =
+                id.starts_with("M-") && id[2..].chars().next().is_some_and(|c| c.is_ascii_digit());
+            if is_milestone {
+                if let Some(m) = current_milestone.take() {
+                    milestones.push(m);
+                }
+                current_milestone = Some(Milestone {
+                    id,
+                    title: m_title,
+                    status: String::new(),
+                    outcome: String::new(),
+                    specs: Vec::new(),
+                    decisions: Vec::new(),
+                    risks: Vec::new(),
+                    depends_on: None,
+                });
+            }
         } else if trimmed.starts_with("- ") || trimmed.starts_with("* ") {
             if let Some(ref mut m) = current_milestone {
                 let list_content = &trimmed[2..];

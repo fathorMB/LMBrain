@@ -301,6 +301,42 @@ fn test_build_diagnostics_planned_task_with_ready_spec_ok() {
 }
 
 #[test]
+fn test_build_roadmap_parses_h3_milestones() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    // Milestones use h3 (`### M-01 — …`) per the kit template; section headers
+    // (`# Roadmap`) must be ignored.
+    let roadmap = r#"---
+title: Roadmap
+---
+
+# Roadmap
+
+### M-01 — Running scaffold
+
+- `status`: planned
+- `outcome`: The stack is wired end to end.
+- `specs`: [SPEC-001]
+- `risks`: [Tauri 2.x API stability]
+
+### M-02 — Core brew logging
+
+- `status`: proposed
+- `specs`: []
+"#;
+    fs::write(dir.path().join(".lmbrain").join("ROADMAP.md"), roadmap).unwrap();
+
+    let result = contract::build_roadmap(dir.path()).unwrap();
+    assert_eq!(result.milestones.len(), 2, "expected 2 milestones, got {:?}", result.milestones);
+    let m1 = &result.milestones[0];
+    assert_eq!(m1.id, "M-01");
+    assert_eq!(m1.title, "Running scaffold");
+    assert_eq!(m1.status, "planned");
+    assert_eq!(m1.specs, vec!["SPEC-001".to_string()]);
+    assert_eq!(result.milestones[1].id, "M-02");
+}
+
+#[test]
 fn test_build_diagnostics_spec_status_mismatch() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());

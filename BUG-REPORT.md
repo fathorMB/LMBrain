@@ -37,7 +37,9 @@
 | [BUG-003](#bug-003--il-ciclo-di-vita-dei-task-non-è-supportato-default-planned-e-nessuna-transizione-in-progress-allavvio) | Il ciclo di vita dei task non è supportato: default `planned` e nessuna transizione a `in-progress` all'avvio | Kit (template/AGENT/handoff) | 🟠 Alta | Risolto in sessione · CI da validare |
 | [BUG-004](#bug-004--il-lead-dopo-lapprovazione-delle-adr-si-mette-a-implementare-lo-scaffolding) | Il lead, dopo l'approvazione delle ADR, si mette a implementare lo scaffolding | Kit (AGENT.md / bootstrap prompt) | 🟠 Alta | Risolto in sessione |
 | [BUG-005](#bug-005--il-prompt-di-handoff-genera-un-path-spec-senza-slug-che-non-esiste) | Il prompt di handoff genera un path spec senza slug (`SPEC-017.md`) che non esiste | Project Pulse / handoffPrompt | 🟡 Media | Risolto in sessione |
-| [BUG-006](#bug-006--lmcp-non-è-realmente-registrato-nellhost-gli-agenti-non-hanno-i-tool-e-editano-a-mano) | L'MCP non è realmente registrato nell'host: gli agenti non hanno i tool e editano a mano | Kit (bootstrap MCP registration) / distribuzione | 🟠 Alta | Aperto |
+| [BUG-006](#bug-006--lmcp-non-è-realmente-registrato-nellhost-gli-agenti-non-hanno-i-tool-e-editano-a-mano) | L'MCP non è realmente registrato nell'host: gli agenti non hanno i tool e editano a mano | Kit (bootstrap MCP registration) / distribuzione | 🟠 Alta | Registrazione risolta (SPEC-018, 1.3.2). Binario su PATH + uso effettivo da verificare |
+| [BUG-007](#bug-007--la-roadmap-non-viene-mostrata-il-parser-cerca-le-milestone-in-h2-ma-il-template-usa-h3) | La roadmap non viene mostrata: il parser cerca le milestone in `##` (h2) ma il template usa `###` (h3) | Roadmap (parser) | 🟠 Alta | Risolto in sessione |
+| [BUG-008](#bug-008--i-tool-mcp-di-accettazione-non-applicano-il-modello-di-autorità-un-agente-può-auto-approvare-adrspec) | I tool MCP di accettazione non applicano il modello di autorità: un agente può auto-approvare ADR/spec | lmbrain-mcp / engine (authority) | 🟠 Alta | Aperto |
 | [FIX-001](#fix-001--button-copy-prompt--hide-prompt-fuori-stile-in-next-recommended-actions) | Button "Copy prompt" / "Hide prompt" fuori stile in Next Recommended Actions | Project Pulse | 🔵 Bassa | Risolto in sessione |
 | [FIX-002](#fix-002--markup-bold-e-wikilinks-mostrati-grezzi-nel-project-pulse-invece-di-essere-formattatilink) | Markup `**bold**` e `[[wikilink]]` mostrati grezzi nel Project Pulse invece di essere formattati/link | Project Pulse | 🟡 Media | Risolto in sessione |
 | [FIX-003](#fix-003--mismatch-cartellafrontmatter-dello-stato-task-reso-visibile-sulla-card-mitigazione-di-bug-001) | Mismatch cartella/frontmatter dello stato task reso visibile sulla card (mitigazione di BUG-001) | Taskboard | 🟠 Alta | Risolto in sessione |
@@ -348,6 +350,64 @@ escludere questo criterio.
    es. bundle con l'app o `cargo install`), così il `command` funziona.
 3. Aggiornare il template del kit al formato corretto (o rimuoverlo a favore della
    scrittura programmatica).
+
+---
+
+### BUG-007 — La roadmap non viene mostrata: il parser cerca le milestone in `##` (h2) ma il template usa `###` (h3)
+
+- **Area / Schermata:** Roadmap (parser `parse_roadmap_content`)
+- **Severità:** 🟠 Alta
+- **Stato:** Risolto in sessione
+- **Data rilevamento:** 2026-06-23
+- **Versione:** 1.3.2
+
+**Descrizione**
+La vista Roadmap è vuota anche con un `ROADMAP.md` valido. Le milestone nel template
+del kit (e nei roadmap generati dal lead) sono heading **h3** (`### M-01 — …`), ma il
+parser le cercava come **h2** (`## `), quindi non ne trovava nessuna.
+
+**Causa tecnica**
+`parse_roadmap_content` usava `trimmed.strip_prefix("## ")` per i titoli milestone.
+Per `### M-01` il prefisso `"## "` non combacia → zero milestone.
+→ [`src-tauri/src/commands/contract.rs`](src-tauri/src/commands/contract.rs) (`parse_roadmap_content`)
+
+**Fix applicata**
+Il parser ora riconosce un heading di qualunque livello e lo tratta come milestone
+solo se *nomina* una milestone (id `M-<cifra>`), così `### M-01` e `## M-01`
+funzionano entrambi e gli heading di sezione (`# Roadmap`, `## Milestones`) sono
+ignorati. Aggiunto test `test_build_roadmap_parses_h3_milestones`.
+
+**Verifica:** `cargo test -p lmbrain --test contract_test` → 18/18 (incluso il test
+roadmap esistente). Confermato in locale.
+
+---
+
+### BUG-008 — I tool MCP di accettazione non applicano il modello di autorità: un agente può auto-approvare ADR/spec
+
+- **Area / Schermata:** `lmbrain-mcp` / engine (modello di autorità)
+- **Severità:** 🟠 Alta
+- **Stato:** Aperto
+- **Data rilevamento:** 2026-06-23
+- **Versione:** 1.3.2
+
+**Descrizione**
+L'engine valida la **macchina a stati** e gli **invarianti**, ma non il **modello di
+autorità** del contratto (chi può fare cosa). I tool `adr_accept`, `spec_accept`,
+`review_accept` sono esposti agli agenti senza alcun controllo, quindi il Project
+Lead può **auto-approvare le proprie ADR** (transizione `proposed → accepted`), che
+per `CONTRACT.md` è prerogativa dell'**operatore** ("ADRs: approve/edit = User").
+
+**Come è emerso (Brewlog)**
+Nella nuova run il lead ha creato e portato `accepted` ADR-001/002/003 da sé
+(approvazione diretta, senza passare dall'operatore). *(Nota: in questa run gli
+artefatti risultano comunque hand-edited — vedi sotto — ma il rischio resta: anche
+usando i tool, nulla impedirebbe l'auto-approvazione.)*
+
+**Proposta (da decidere)**
+- Non esporre agli agenti i verbi di accettazione che spettano all'operatore
+  (`adr_accept`, `spec_accept`, e probabilmente `review_accept`), oppure
+- gating: quei verbi richiedono un flag/conferma operatore registrato nell'audit;
+- in alternativa, codificare una tabella di autorità per ruolo nell'engine.
 
 ---
 

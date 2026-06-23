@@ -1,6 +1,6 @@
 # LMBrain Markdown Contract v0.2
 
-**Kit version:** read from `VERSION` (canonical), currently `1.3.2` (the app auto-registers the `lmbrain-mcp` server by writing `.mcp.json` at the workspace root so agents get the tools).
+**Kit version:** read from `VERSION` (canonical), currently `1.3.3` (the Roadmap view parses h3 `### M-…` milestone headings).
 
 The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable kit version. Use semantic versioning: breaking contract changes increment the major version; backward-compatible additions increment the minor version; clarifications and fixes increment the patch version. Read `CHANGELOG.md` for released changes and `MIGRATIONS.md` before upgrading a released kit.
 

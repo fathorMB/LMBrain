@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 1.3.3 — 2026-06-23
+
+### Fixed
+
+- The Roadmap view was empty for valid roadmaps: the parser matched milestone headings at `##` (h2) while the kit template and generated roadmaps use `###` (h3). It now recognizes any heading that names a milestone (`M-<n>`), ignoring section headers.
+
 ## 1.3.2 — 2026-06-23
 
 ### Added
