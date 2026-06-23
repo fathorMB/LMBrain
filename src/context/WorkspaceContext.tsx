@@ -10,7 +10,6 @@ import type {
   AppView,
   WorkspaceInfo,
   WorkspaceSummary,
-  Task,
   Spec,
   Review,
   Adr,
@@ -36,7 +35,6 @@ export interface WorkspaceState {
   recentWorkspaces: WorkspaceSummary[];
   gitInfo: GitInfo | null;
   pulseData: PulseData | null;
-  tasks: Task[];
   specs: Spec[];
   reviews: Review[];
   adrs: Adr[];
@@ -47,7 +45,6 @@ export interface WorkspaceState {
   wikiTree: WikiTree | null;
   wikiPage: WikiPage | null;
   selectedSpec: Spec | null;
-  drawerTask: Task | null;
   cmdkOpen: boolean;
   watcherActive: boolean;
   loading: boolean;
@@ -62,7 +59,6 @@ export type Action =
   | { type: "SET_RECENT"; workspaces: WorkspaceSummary[] }
   | { type: "SET_GIT_INFO"; info: GitInfo }
   | { type: "SET_PULSE"; data: PulseData }
-  | { type: "SET_TASKS"; tasks: Task[] }
   | { type: "SET_SPECS"; specs: Spec[] }
   | { type: "SET_REVIEWS"; reviews: Review[] }
   | { type: "SET_ADRS"; adrs: Adr[] }
@@ -73,7 +69,6 @@ export type Action =
   | { type: "SET_WIKI_TREE"; tree: WikiTree }
   | { type: "SET_WIKI_PAGE"; page: WikiPage | null }
   | { type: "SET_SELECTED_SPEC"; spec: Spec | null }
-  | { type: "SET_DRAWER_TASK"; task: Task | null }
   | { type: "SET_CMDK"; open: boolean }
   | { type: "SET_WATCHER"; active: boolean }
   | { type: "SET_LOADING"; loading: boolean }
@@ -87,7 +82,6 @@ const initialState: WorkspaceState = {
   recentWorkspaces: [],
   gitInfo: null,
   pulseData: null,
-  tasks: [],
   specs: [],
   reviews: [],
   adrs: [],
@@ -98,7 +92,6 @@ const initialState: WorkspaceState = {
   wikiTree: null,
   wikiPage: null,
   selectedSpec: null,
-  drawerTask: null,
   cmdkOpen: false,
   watcherActive: false,
   loading: false,
@@ -120,8 +113,6 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, gitInfo: action.info };
     case "SET_PULSE":
       return { ...state, pulseData: action.data };
-    case "SET_TASKS":
-      return { ...state, tasks: action.tasks };
     case "SET_SPECS":
       return { ...state, specs: action.specs };
     case "SET_REVIEWS":
@@ -142,8 +133,6 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, wikiPage: action.page };
     case "SET_SELECTED_SPEC":
       return { ...state, selectedSpec: action.spec };
-    case "SET_DRAWER_TASK":
-      return { ...state, drawerTask: action.task };
     case "SET_CMDK":
       return { ...state, cmdkOpen: action.open };
     case "SET_WATCHER":
@@ -169,8 +158,6 @@ export interface WorkspaceContextValue {
   loadAllData: () => Promise<void>;
   navigateTo: (view: AppView) => void;
   openSpec: (spec: Spec) => void;
-  openTaskDrawer: (task: Task) => void;
-  closeTaskDrawer: () => void;
   toggleCmdk: () => void;
   closeCmdk: () => void;
   goToPicker: () => void;
@@ -185,10 +172,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const loadAllDataInternal = useCallback(async () => {
     try {
-      const [pulseData, tasks, specs, reviews, adrs, agents, mcpRecords, mcpProposals, handoffs] =
+      const [pulseData, specs, reviews, adrs, agents, mcpRecords, mcpProposals, handoffs] =
         await Promise.all([
           commands.getPulseData(),
-          commands.getTasks(),
           commands.getSpecs(),
           commands.getReviews(),
           commands.getAdrs(),
@@ -199,7 +185,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         ]);
 
       dispatch({ type: "SET_PULSE", data: pulseData });
-      dispatch({ type: "SET_TASKS", tasks });
       dispatch({ type: "SET_SPECS", specs });
       dispatch({ type: "SET_REVIEWS", reviews });
       dispatch({ type: "SET_ADRS", adrs });
@@ -300,7 +285,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     (view: AppView) => {
       dispatch({ type: "SET_VIEW", view });
       dispatch({ type: "SET_CMDK", open: false });
-      dispatch({ type: "SET_DRAWER_TASK", task: null });
     },
     []
   );
@@ -309,14 +293,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_SELECTED_SPEC", spec });
     dispatch({ type: "SET_VIEW", view: "spec" });
     dispatch({ type: "SET_CMDK", open: false });
-  }, []);
-
-  const openTaskDrawer = useCallback((task: Task) => {
-    dispatch({ type: "SET_DRAWER_TASK", task });
-  }, []);
-
-  const closeTaskDrawer = useCallback(() => {
-    dispatch({ type: "SET_DRAWER_TASK", task: null });
   }, []);
 
   const toggleCmdk = useCallback(() => {
@@ -347,8 +323,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         loadAllData,
         navigateTo,
         openSpec,
-        openTaskDrawer,
-        closeTaskDrawer,
         toggleCmdk,
         closeCmdk,
         goToPicker,

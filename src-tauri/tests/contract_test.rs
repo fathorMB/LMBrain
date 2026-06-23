@@ -3,7 +3,6 @@ use std::path::Path;
 
 use lmbrain_lib::commands::contract;
 use lmbrain_lib::commands::workspace::WorkspaceService;
-use lmbrain_lib::models::task::TaskStatus;
 
 fn setup_test_kit(dir: &Path) {
     // Create .lmbrain directory structure
@@ -20,14 +19,9 @@ fn setup_test_kit(dir: &Path) {
     )
     .unwrap();
 
-    // Create task directories
-    fs::create_dir_all(lmbrain.join("tasks").join("planned")).unwrap();
-    fs::create_dir_all(lmbrain.join("tasks").join("in-progress")).unwrap();
-    fs::create_dir_all(lmbrain.join("tasks").join("done")).unwrap();
-
-    // Create spec directories
+    // Create spec directories (board statuses)
+    fs::create_dir_all(lmbrain.join("specs").join("backlog")).unwrap();
     fs::create_dir_all(lmbrain.join("specs").join("ready")).unwrap();
-    fs::create_dir_all(lmbrain.join("specs").join("proposed")).unwrap();
 
     // Create review directories
     fs::create_dir_all(lmbrain.join("reviews").join("pending")).unwrap();
@@ -38,20 +32,14 @@ fn test_build_diagnostics_no_mismatch() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());
 
-    // Create a task with matching status
-    let task_content = r#"---
-id: TASK-001
-title: Test Task
-status: in-progress
----
-Task body"#;
+    // A spec whose folder matches its frontmatter status — no mismatch.
     fs::write(
         dir.path()
             .join(".lmbrain")
-            .join("tasks")
-            .join("in-progress")
-            .join("TASK-001.md"),
-        task_content,
+            .join("specs")
+            .join("ready")
+            .join("SPEC-050.md"),
+        "---\nid: SPEC-050\ntitle: Test Spec\nstatus: ready\n---\nBody",
     )
     .unwrap();
 
@@ -65,95 +53,6 @@ Task body"#;
         "Expected no status mismatches, got: {:?}",
         status_mismatches
     );
-}
-
-#[test]
-fn test_build_diagnostics_task_status_mismatch() {
-    let dir = tempfile::tempdir().unwrap();
-    setup_test_kit(dir.path());
-
-    // Create a task in planned/ with status: done — should produce a diagnostic
-    let task_content = r#"---
-id: TASK-002
-title: Mismatched Task
-status: done
----
-Task body"#;
-    fs::write(
-        dir.path()
-            .join(".lmbrain")
-            .join("tasks")
-            .join("planned")
-            .join("TASK-002.md"),
-        task_content,
-    )
-    .unwrap();
-
-    let diags = contract::build_diagnostics(dir.path());
-    let mismatches: Vec<_> = diags
-        .iter()
-        .filter(|d| d.message.contains("Status mismatch"))
-        .collect();
-    assert!(
-        !mismatches.is_empty(),
-        "Expected at least one status mismatch diagnostic"
-    );
-    assert!(mismatches[0].message.contains("planned"));
-    assert!(mismatches[0].message.contains("done"));
-}
-
-#[test]
-fn test_build_tasks_status_follows_frontmatter() {
-    let dir = tempfile::tempdir().unwrap();
-    setup_test_kit(dir.path());
-
-    // Task lives in planned/ but its frontmatter declares in-progress. The board
-    // column must follow the frontmatter status so a status change moves the card.
-    let task_content = r#"---
-id: TASK-100
-title: Frontmatter-driven Task
-status: in-progress
----
-Task body"#;
-    fs::write(
-        dir.path()
-            .join(".lmbrain")
-            .join("tasks")
-            .join("planned")
-            .join("TASK-100.md"),
-        task_content,
-    )
-    .unwrap();
-
-    let tasks = contract::build_tasks(dir.path()).unwrap();
-    let task = tasks.iter().find(|t| t.id == "TASK-100").unwrap();
-    assert_eq!(task.status, TaskStatus::InProgress);
-}
-
-#[test]
-fn test_build_tasks_status_falls_back_to_folder() {
-    let dir = tempfile::tempdir().unwrap();
-    setup_test_kit(dir.path());
-
-    // Frontmatter status is missing — the column falls back to the folder.
-    let task_content = r#"---
-id: TASK-101
-title: Folder-fallback Task
----
-Task body"#;
-    fs::write(
-        dir.path()
-            .join(".lmbrain")
-            .join("tasks")
-            .join("done")
-            .join("TASK-101.md"),
-        task_content,
-    )
-    .unwrap();
-
-    let tasks = contract::build_tasks(dir.path()).unwrap();
-    let task = tasks.iter().find(|t| t.id == "TASK-101").unwrap();
-    assert_eq!(task.status, TaskStatus::Done);
 }
 
 #[test]
@@ -238,110 +137,6 @@ Body"#;
 }
 
 #[test]
-fn test_build_diagnostics_flags_planned_task_without_ready_spec() {
-    let dir = tempfile::tempdir().unwrap();
-    setup_test_kit(dir.path());
-
-    // Planned task with no linked spec — it should still be in backlog.
-    fs::write(
-        dir.path()
-            .join(".lmbrain")
-            .join("tasks")
-            .join("planned")
-            .join("TASK-200.md"),
-        "---\nid: TASK-200\ntitle: No spec yet\nstatus: planned\nspec:\n---\nBody",
-    )
-    .unwrap();
-
-    let diags = contract::build_diagnostics(dir.path());
-    let warns: Vec<_> = diags
-        .iter()
-        .filter(|d| d.message.contains("TASK-200") && d.message.contains("backlog"))
-        .collect();
-    assert!(
-        !warns.is_empty(),
-        "Expected a warning for a planned task without a spec"
-    );
-}
-
-#[test]
-fn test_build_diagnostics_planned_task_with_ready_spec_ok() {
-    let dir = tempfile::tempdir().unwrap();
-    setup_test_kit(dir.path());
-
-    fs::write(
-        dir.path()
-            .join(".lmbrain")
-            .join("specs")
-            .join("ready")
-            .join("SPEC-200.md"),
-        "---\nid: SPEC-200\ntitle: Ready spec\nstatus: ready\n---\nBody",
-    )
-    .unwrap();
-    fs::write(
-        dir.path()
-            .join(".lmbrain")
-            .join("tasks")
-            .join("planned")
-            .join("TASK-201.md"),
-        "---\nid: TASK-201\ntitle: Has ready spec\nstatus: planned\nspec: SPEC-200\n---\nBody",
-    )
-    .unwrap();
-
-    let diags = contract::build_diagnostics(dir.path());
-    let warns: Vec<_> = diags
-        .iter()
-        .filter(|d| d.message.contains("TASK-201"))
-        .collect();
-    assert!(
-        warns.is_empty(),
-        "Did not expect a warning for a planned task with a ready spec, got: {:?}",
-        warns
-    );
-}
-
-#[test]
-fn test_build_diagnostics_flags_ready_spec_without_tasks() {
-    let dir = tempfile::tempdir().unwrap();
-    setup_test_kit(dir.path());
-    fs::write(
-        dir.path()
-            .join(".lmbrain")
-            .join("specs")
-            .join("ready")
-            .join("SPEC-300.md"),
-        "---\nid: SPEC-300\ntitle: Ready, no tasks\nstatus: ready\n---\nBody",
-    )
-    .unwrap();
-
-    let diags = contract::build_diagnostics(dir.path());
-    assert!(
-        diags
-            .iter()
-            .any(|d| d.message.contains("SPEC-300") && d.message.contains("no implementation tasks")),
-        "expected a 'no implementation tasks' warning for a ready spec"
-    );
-
-    // Once a task references the spec, the warning goes away.
-    fs::write(
-        dir.path()
-            .join(".lmbrain")
-            .join("tasks")
-            .join("planned")
-            .join("TASK-300.md"),
-        "---\nid: TASK-300\ntitle: t\nstatus: planned\nspec: SPEC-300\n---\nBody",
-    )
-    .unwrap();
-    let diags2 = contract::build_diagnostics(dir.path());
-    assert!(
-        !diags2
-            .iter()
-            .any(|d| d.message.contains("SPEC-300") && d.message.contains("no implementation tasks")),
-        "did not expect the warning once a task references the spec"
-    );
-}
-
-#[test]
 fn test_build_roadmap_parses_h3_milestones() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());
@@ -382,7 +177,7 @@ fn test_build_diagnostics_spec_status_mismatch() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());
 
-    // Create a spec in proposed/ with status: ready — should produce a diagnostic
+    // Create a spec in backlog/ with status: ready — should produce a diagnostic
     let spec_content = r#"---
 id: SPEC-001
 title: Mismatched Spec
@@ -393,7 +188,7 @@ Spec body"#;
         dir.path()
             .join(".lmbrain")
             .join("specs")
-            .join("proposed")
+            .join("backlog")
             .join("SPEC-001.md"),
         spec_content,
     )
@@ -425,7 +220,7 @@ Body"#;
         dir.path()
             .join(".lmbrain")
             .join("specs")
-            .join("proposed")
+            .join("backlog")
             .join("SPEC-002.md"),
         bad_content,
     )
@@ -436,10 +231,7 @@ Body"#;
         .iter()
         .filter(|d| d.message.contains("Malformed"))
         .collect();
-    assert!(
-        !parse_errors.is_empty(),
-        "Expected malformed YAML diagnostic"
-    );
+    assert!(!parse_errors.is_empty(), "Expected malformed YAML diagnostic");
 }
 
 #[test]
@@ -610,28 +402,28 @@ fn test_set_artifact_status_and_rejected_diagnostics() {
     }
 
     // Create directories
-    let specs_proposed_dir = dir.path().join(".lmbrain").join("specs").join("proposed");
+    let specs_backlog_dir = dir.path().join(".lmbrain").join("specs").join("backlog");
     let specs_ready_dir = dir.path().join(".lmbrain").join("specs").join("ready");
-    let specs_rejected_dir = dir.path().join(".lmbrain").join("specs").join("rejected");
+    let specs_discarded_dir = dir.path().join(".lmbrain").join("specs").join("discarded");
     let decisions_dir = dir.path().join(".lmbrain").join("decisions");
     let agent_prop_dir = dir.path().join(".lmbrain").join("agents").join("proposals");
     let mcp_prop_dir = dir.path().join(".lmbrain").join("mcp").join("proposals");
     let agent_profiles_dir = dir.path().join(".lmbrain").join("agents").join("profiles");
 
-    fs::create_dir_all(&specs_proposed_dir).unwrap();
+    fs::create_dir_all(&specs_backlog_dir).unwrap();
     fs::create_dir_all(&specs_ready_dir).unwrap();
-    fs::create_dir_all(&specs_rejected_dir).unwrap();
+    fs::create_dir_all(&specs_discarded_dir).unwrap();
     fs::create_dir_all(&decisions_dir).unwrap();
     fs::create_dir_all(&agent_prop_dir).unwrap();
     fs::create_dir_all(&mcp_prop_dir).unwrap();
     fs::create_dir_all(&agent_profiles_dir).unwrap();
 
-    // 1. SPEC - proposed -> ready (Approve)
-    let spec_path = specs_proposed_dir.join("SPEC-001.md");
+    // 1. SPEC - backlog -> ready (operator approval)
+    let spec_path = specs_backlog_dir.join("SPEC-001.md");
     let spec_content = r#"---
 id: SPEC-001
 title: Test Spec
-status: proposed
+status: backlog
 created: 2026-06-22
 updated: 2026-06-22
 ---
@@ -648,32 +440,32 @@ Spec Body"#;
     assert!(updated_content.contains("status: ready"));
     assert!(updated_content.contains("Spec Body"));
 
-    // 2. SPEC - proposed -> accepted (Should fail)
-    let spec_path2 = specs_proposed_dir.join("SPEC-002.md");
+    // 2. SPEC - backlog -> done (illegal: not a legal transition) should fail
+    let spec_path2 = specs_backlog_dir.join("SPEC-002.md");
     let spec_content2 = r#"---
 id: SPEC-002
 title: Test Spec 2
-status: proposed
+status: backlog
 created: 2026-06-22
 updated: 2026-06-22
 ---
 Spec Body 2"#;
     fs::write(&spec_path2, spec_content2).unwrap();
 
-    let res = contract::set_artifact_status(&path_guard, &spec_path2.to_string_lossy(), "accepted");
+    let res = contract::set_artifact_status(&path_guard, &spec_path2.to_string_lossy(), "done");
     assert!(res.is_err());
     assert!(spec_path2.exists()); // Original still exists
 
-    // 3. SPEC - proposed -> rejected (Reject)
+    // 3. SPEC - backlog -> discarded
     let new_path2 =
-        contract::set_artifact_status(&path_guard, &spec_path2.to_string_lossy(), "rejected")
+        contract::set_artifact_status(&path_guard, &spec_path2.to_string_lossy(), "discarded")
             .unwrap();
-    assert_eq!(canon(&new_path2), canon(specs_rejected_dir.join("SPEC-002.md")));
+    assert_eq!(canon(&new_path2), canon(specs_discarded_dir.join("SPEC-002.md")));
     assert!(!spec_path2.exists());
     assert!(new_path2.exists());
 
     let updated_content2 = fs::read_to_string(&new_path2).unwrap();
-    assert!(updated_content2.contains("status: rejected"));
+    assert!(updated_content2.contains("status: discarded"));
 
     // 4. ADR - proposed -> accepted (Approve)
     let adr_path = decisions_dir.join("ADR-001.md");
@@ -773,9 +565,9 @@ Agent Profile Body"#;
     let updated_profile = fs::read_to_string(&new_profile_path).unwrap();
     assert!(updated_profile.contains("status: active"));
 
-    // 9. Non-proposed source status (Should fail)
+    // 9. Illegal transition for the source status (active -> proposed is not legal)
     let res =
-        contract::set_artifact_status(&path_guard, &new_profile_path.to_string_lossy(), "inactive");
+        contract::set_artifact_status(&path_guard, &new_profile_path.to_string_lossy(), "proposed");
     assert!(res.is_err());
 
     // 10. Illegal target status (Should fail)

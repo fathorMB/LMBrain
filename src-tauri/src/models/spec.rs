@@ -2,48 +2,40 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum SpecStatus {
-    #[serde(rename = "proposed")]
-    Proposed,
+    #[serde(rename = "backlog")]
+    Backlog,
     #[serde(rename = "ready")]
     Ready,
-    #[serde(rename = "in-progress")]
-    InProgress,
+    #[serde(rename = "working")]
+    Working,
     #[serde(rename = "review")]
     Review,
-    #[serde(rename = "accepted")]
-    Accepted,
-    #[serde(rename = "changes-requested")]
-    ChangesRequested,
-    #[serde(rename = "rejected")]
-    Rejected,
-    #[serde(rename = "archived")]
-    Archived,
+    #[serde(rename = "done")]
+    Done,
+    #[serde(rename = "discarded")]
+    Discarded,
 }
 
 impl SpecStatus {
     pub fn all() -> &'static [SpecStatus] {
         &[
-            SpecStatus::Proposed,
+            SpecStatus::Backlog,
             SpecStatus::Ready,
-            SpecStatus::InProgress,
+            SpecStatus::Working,
             SpecStatus::Review,
-            SpecStatus::Accepted,
-            SpecStatus::ChangesRequested,
-            SpecStatus::Rejected,
-            SpecStatus::Archived,
+            SpecStatus::Done,
+            SpecStatus::Discarded,
         ]
     }
 
     pub fn as_str(&self) -> &'static str {
         match self {
-            SpecStatus::Proposed => "proposed",
+            SpecStatus::Backlog => "backlog",
             SpecStatus::Ready => "ready",
-            SpecStatus::InProgress => "in-progress",
+            SpecStatus::Working => "working",
             SpecStatus::Review => "review",
-            SpecStatus::Accepted => "accepted",
-            SpecStatus::ChangesRequested => "changes-requested",
-            SpecStatus::Rejected => "rejected",
-            SpecStatus::Archived => "archived",
+            SpecStatus::Done => "done",
+            SpecStatus::Discarded => "discarded",
         }
     }
 }

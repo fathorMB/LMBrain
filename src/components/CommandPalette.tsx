@@ -100,7 +100,7 @@ export function CommandPalette() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search specs, tasks, files…"
+            placeholder="Search specs, files…"
             style={{
               flex: 1,
               fontSize: 14.5,
@@ -142,7 +142,7 @@ export function CommandPalette() {
             </div>
             {[
               { icon: "monitoring", label: "Go to Project Pulse", shortcut: "G P", view: "pulse" as const },
-              { icon: "view_kanban", label: "Open Taskboard", shortcut: "G T", view: "taskboard" as const },
+              { icon: "view_kanban", label: "Open Board", shortcut: "G T", view: "taskboard" as const },
               { icon: "menu_book", label: "Browse Wiki", shortcut: "G W", view: "wiki" as const },
               { icon: "rate_review", label: "View Reviews", shortcut: "G R", view: "reviews" as const },
               { icon: "account_balance", label: "View Decisions", shortcut: "G D", view: "decisions" as const },

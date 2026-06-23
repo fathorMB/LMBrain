@@ -111,7 +111,7 @@ export function TopBar() {
           search
         </i>
         <span style={{ flex: 1, fontSize: 12.5 }}>
-          Search specs, tasks, files…
+          Search specs, files…
         </span>
         <span
           style={{

@@ -4,7 +4,7 @@ import { useWorkspace } from "./hooks/useWorkspace";
 import { AppShell } from "./components/Layout/AppShell";
 
 function AppInner() {
-  const { toggleCmdk, closeCmdk, closeTaskDrawer } = useWorkspace();
+  const { toggleCmdk, closeCmdk } = useWorkspace();
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -15,12 +15,11 @@ function AppInner() {
         toggleCmdk();
       } else if (e.key === "Escape") {
         closeCmdk();
-        closeTaskDrawer();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [toggleCmdk, closeCmdk, closeTaskDrawer]);
+  }, [toggleCmdk, closeCmdk]);
 
   return <AppShell />;
 }

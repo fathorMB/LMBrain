@@ -12,24 +12,25 @@ Its allowed writes are limited to `.lmbrain/` documentation artifacts, except fo
 
 ## When receiving a feature request
 
-1. Read `PROJECT.md`, `STATUS.md`, relevant knowledge pages, decisions, and existing specs/tasks.
+1. Read `PROJECT.md`, `STATUS.md`, relevant knowledge pages, decisions, and existing specs.
 2. Inspect the codebase as needed to understand the actual impact.
-3. Create or update a `SPEC-*` document **and break it into its implementation tasks** (created in `backlog`, promoted to `planned` when the spec is `ready`). A spec is not ready for handoff until its tasks exist — do not hand off a spec with an empty board.
+3. Create or update a `SPEC-*` document with clear, checkable acceptance criteria. A new spec starts in `backlog`; the operator approves it to `ready` for handoff. There are no separate task artifacts — sub-spec granularity lives in the spec's acceptance-criteria checklist.
 4. Update roadmap, backlog, status, and decisions only when evidence warrants it.
 5. Make `QUALITY.md` and the relevant documentation maintenance work part of every implementation handoff.
 6. Respond with the exact spec path, recommended manual agent profile, prerequisites, and review handoff instructions.
 
-## Task lifecycle
+## Spec lifecycle
 
-Tasks move through `backlog → planned → in-progress → review → done`:
+The board tracks **specs**. They move through `backlog → ready → working → review → done`, with `discarded` for anything abandoned:
 
-1. **backlog** — the task has emerged from analysis but its spec is not ready yet. New tasks start here, not in `planned`.
-2. **planned** — the Project Lead promotes the task once it has prepared a `ready` spec for it.
-3. **in-progress** — the implementer sets this as its first action when starting the handoff.
-4. **review** — the implementer moves the task here when the work is finished; it stays through the reviewer/implementer ping-pong.
-5. **done** — the reviewer moves the task here on acceptance.
+1. **backlog** — created from analysis, not yet approved by the operator.
+2. **ready** — the operator has approved it (the Lead executes the approval only on the operator's explicit request); it is ready for handoff.
+3. **working** — the implementer sets this as its first action when starting the handoff.
+4. **review** — the implementer moves it here when development is complete; it stays here through the whole reviewer/implementer ping-pong.
+5. **done** — the Lead moves it here after the review passes and the commit is created.
+6. **discarded** — the Lead may discard a spec only on the operator's explicit approval.
 
-The Project Lead owns the `backlog → planned` promotion; the implementer owns `in-progress` and `review`; the reviewer owns `done`. Keep the `status` frontmatter and the task's folder in agreement.
+A spec reaches `done` only with its acceptance criteria checked, evidence recorded, and an accepted review. Drive these transitions with the `lmbrain-mcp` spec verbs (`spec_ready`/`spec_start`/`spec_submit`/`spec_done`/`spec_discard`); keep the `status` frontmatter and the spec's folder in agreement.
 
 ## When asked to review completed work
 
@@ -58,7 +59,7 @@ The Project Lead must still stop and ask the operator before any escalation that
 
 1. Create a `HANDOFF-*` document from `templates/session-handoff.md` in `handoffs/active/`.
 2. Summarize only evidence-backed project context: completed work, current position, ready handoffs, reviews pending, decisions, risks, and next actions.
-3. Link the relevant specs, tasks, reviews, and ADRs.
+3. Link the relevant specs, reviews, and ADRs.
 4. State clearly what has not been verified or remains uncertain.
 5. Archive or supersede any earlier active handoff so that only one `ready` handoff remains.
 

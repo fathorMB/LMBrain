@@ -1,6 +1,6 @@
 # LMBrain Markdown Contract v0.2
 
-**Kit version:** read from `VERSION` (canonical), currently `1.3.5` (diagnostic warns a ready spec without implementation tasks; the app lists the built-in lmbrain-mcp tools).
+**Kit version:** read from `VERSION` (canonical), currently `2.0.0` (breaking: tasks retired — the board tracks specs with statuses backlog/ready/working/review/done/discarded).
 
 The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable kit version. Use semantic versioning: breaking contract changes increment the major version; backward-compatible additions increment the minor version; clarifications and fixes increment the patch version. Read `CHANGELOG.md` for released changes and `MIGRATIONS.md` before upgrading a released kit.
 
@@ -17,7 +17,6 @@ The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable
 
 | Artifact | Prefix | Location |
 | --- | --- | --- |
-| Task | `TASK-` | `tasks/<status>/` |
 | Specification | `SPEC-` | `specs/<status>/` |
 | Review | `REVIEW-` | `reviews/<status>/` |
 | Decision | `ADR-` | `decisions/` |
@@ -49,8 +48,7 @@ Priority values: `critical`, `high`, `medium`, `low`.
 
 | Artifact | Values |
 | --- | --- |
-| Task | `backlog`, `planned`, `in-progress`, `review`, `done`, `blocked`, `cancelled` |
-| Spec | `proposed`, `ready`, `in-progress`, `review`, `accepted`, `changes-requested`, `rejected`, `archived` |
+| Spec | `backlog`, `ready`, `working`, `review`, `done`, `discarded` |
 | Review | `pending`, `accepted`, `changes-requested`, `blocked`, `superseded` |
 | ADR | `proposed`, `accepted`, `rejected`, `superseded`, `deprecated` |
 | Agent profile | `proposed`, `active`, `inactive`, `retired` |
@@ -61,9 +59,8 @@ Priority values: `critical`, `high`, `medium`, `low`.
 
 ## Invariants
 
-- A spec can be `accepted` only when an associated review is `accepted`.
+- A spec reaches `done` only with its acceptance criteria checked, evidence recorded, and an accepted review.
 - `rejected` is a terminal "declined at proposal/decision time" status available on every proposable artifact (Spec, ADR, Agent proposal, MCP proposal). It is distinct from `changes-requested` (a review asking for revision and resubmission) and from `archived`/`superseded`/`deprecated` (retiring something that was once active). A rejected artifact records the rejection rationale in its body and is not silently reopened.
-- A `done` task must contain evidence and completed acceptance criteria.
 - An `active` MCP needs a documented spec, permissions, and verification evidence.
 - An agent profile always has `activation: manual`; LMBrain never spawns agents.
 - An ADR is not rewritten to change history: create a replacement ADR and mark the old one `superseded`.
@@ -79,7 +76,6 @@ Priority values: `critical`, `high`, `medium`, `low`.
 | --- | --- | --- | --- |
 | Project, roadmap, status | maintain | no | approve/edit |
 | Specs | create/maintain | implementation evidence only | approve/edit |
-| Tasks | maintain | own status/evidence | edit |
 | Reviews | create on request | no | request/edit |
 | ADRs | propose/maintain | propose only | approve/edit |
 | Agent and MCP registries | maintain proposals | no | approve/edit |

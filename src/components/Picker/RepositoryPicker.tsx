@@ -510,7 +510,6 @@ function WorkspacePreview() {
         }}
       >
         <StatBox value={ws.spec_count} label="specifications" />
-        <StatBox value={ws.task_count} label="tasks" />
         <StatBox value={ws.decision_count} label="decisions" />
         <StatBox value={ws.agent_count} label="agent profiles" />
       </div>

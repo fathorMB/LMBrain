@@ -2,72 +2,58 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { TaskboardView } from "../components/Taskboard/TaskboardView";
 import * as commands from "../lib/commands";
-import type { Task } from "../types";
+import type { Spec } from "../types";
 
 vi.mock("../lib/commands", () => ({
-  getTasks: vi.fn(),
-  getDiagnostics: vi.fn(),
+  getSpecs: vi.fn(),
 }));
 
-const baseTask: Task = {
-  id: "TASK-001",
-  title: "A task in the wrong folder",
-  status: "planned",
-  priority: "High",
-  area: "desktop",
+const baseSpec: Spec = {
+  id: "SPEC-001",
+  title: "A working spec",
+  status: "working",
+  priority: null,
+  area: null,
   milestone: null,
-  spec: null,
-  dependencies: [],
-  criteria: [],
-  activity: [],
-  block_reason: null,
-  body: "",
-  path: "C:/ws/.lmbrain/tasks/planned/TASK-001.md",
-  created: "2026-06-22",
-  updated: "2026-06-22",
+  recommended_agent: "AGENT-001",
+  body: "## Acceptance criteria\n- [x] one\n- [ ] two\n\n## Evidence\nproof\n",
+  path: "C:/ws/.lmbrain/specs/working/SPEC-001.md",
+  created: "2026-06-23",
+  updated: "2026-06-23",
   tags: [],
   links: [],
+  related_tasks: [],
+  related_decisions: [],
 };
 
 const dispatch = vi.fn();
 
 vi.mock("../hooks/useWorkspace", () => ({
   useWorkspace: () => ({
-    state: { tasks: [baseTask] },
+    state: { specs: [baseSpec] },
     dispatch,
-    openTaskDrawer: vi.fn(),
+    openSpec: vi.fn(),
   }),
 }));
 
-describe("TaskboardView status mismatch", () => {
+describe("Board (spec board)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(commands.getTasks).mockResolvedValue([baseTask]);
+    vi.mocked(commands.getSpecs).mockResolvedValue([baseSpec]);
   });
 
-  it("surfaces a folder/frontmatter status mismatch on the card", async () => {
-    vi.mocked(commands.getDiagnostics).mockResolvedValue([
-      {
-        message:
-          "Status mismatch: file is in 'tasks/planned' but frontmatter status is 'done'",
-        severity: "warning",
-        path: "tasks/planned/TASK-001.md",
-      },
-    ]);
-
+  it("renders a spec card with its id and acceptance-criteria progress", async () => {
     render(<TaskboardView />);
-
-    await waitFor(() =>
-      expect(screen.getByText("status: done ≠ folder: planned")).toBeDefined()
-    );
+    await waitFor(() => expect(screen.getByText("SPEC-001")).toBeDefined());
+    expect(screen.getByText("A working spec")).toBeDefined();
+    // 1 of 2 acceptance criteria checked
+    expect(screen.getByText("1/2")).toBeDefined();
   });
 
-  it("shows no mismatch badge when folder and frontmatter agree", async () => {
-    vi.mocked(commands.getDiagnostics).mockResolvedValue([]);
-
+  it("renders the spec board columns", async () => {
     render(<TaskboardView />);
-
-    await waitFor(() => expect(commands.getDiagnostics).toHaveBeenCalled());
-    expect(screen.queryByText(/≠ folder:/)).toBeNull();
+    await waitFor(() => expect(screen.getByText("Working")).toBeDefined());
+    expect(screen.getByText("Backlog")).toBeDefined();
+    expect(screen.getByText("Discarded")).toBeDefined();
   });
 });

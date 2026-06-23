@@ -83,7 +83,7 @@ Open these documents in order:
 2. `ROADMAP.md` — milestone direction and planning.
 3. `specs/ready/` — work ready for manual handoff.
 4. `specs/review/` and `reviews/pending/` — completed work waiting for review.
-5. `tasks/blocked/` — work requiring attention.
+5. `specs/review/` — specs in the review ping-pong.
 
 ## Who may change what
 
@@ -104,7 +104,7 @@ Open these documents in order:
 | What are we building? | `PROJECT.md`, `ROADMAP.md` |
 | What should an agent implement? | `specs/<status>/SPEC-*.md` |
 | Did the implementation pass review? | `reviews/<status>/REVIEW-*.md` |
-| What work is on the board? | `tasks/<status>/TASK-*.md` |
+| What work is on the board? | `specs/<status>/SPEC-*.md` |
 | What is an agent allowed to do? | `agents/profiles/AGENT-*.md` |
 | What quality standard applies to every handoff? | `QUALITY.md` |
 | How does a new Project Lead resume a prior session? | `handoffs/active/HANDOFF-*.md` |

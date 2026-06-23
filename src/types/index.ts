@@ -31,55 +31,13 @@ export interface WorkspaceInfo {
   agent_count: number;
 }
 
-export type TaskStatus =
+export type SpecStatus =
   | "backlog"
-  | "planned"
-  | "in-progress"
+  | "ready"
+  | "working"
   | "review"
   | "done"
-  | "blocked"
-  | "cancelled";
-
-export interface TaskCriteria {
-  text: string;
-  completed: boolean;
-}
-
-export interface TaskActivity {
-  action: string;
-  timestamp: string;
-}
-
-export interface Task {
-  id: string;
-  title: string;
-  status: TaskStatus;
-  priority: string | null;
-  area: string | null;
-  milestone: string | null;
-  spec: string | null;
-  dependencies: string[];
-  criteria: TaskCriteria[];
-  activity: TaskActivity[];
-  block_reason: string | null;
-  body: string;
-  path: string;
-  created: string;
-  updated: string;
-  tags: string[];
-  links: string[];
-  malformed?: boolean;
-}
-
-export type SpecStatus =
-  | "proposed"
-  | "ready"
-  | "in-progress"
-  | "review"
-  | "accepted"
-  | "changes-requested"
-  | "rejected"
-  | "archived";
+  | "discarded";
 
 export interface Spec {
   id: string;

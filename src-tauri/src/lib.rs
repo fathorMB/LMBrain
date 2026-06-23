@@ -129,23 +129,13 @@ fn get_pulse_data(state: State<'_, AppState>) -> Result<PulseData, String> {
         .get_root()
         .ok_or_else(|| "No workspace open".to_string())?;
 
-    let tasks = contract::build_tasks(&root).map_err(|e| e.to_string())?;
     let specs = contract::build_specs(&root).map_err(|e| e.to_string())?;
     let reviews = contract::build_reviews(&root).map_err(|e| e.to_string())?;
     let adrs = contract::build_adrs(&root).map_err(|e| e.to_string())?;
     let handoffs = contract::build_handoffs(&root).map_err(|e| e.to_string())?;
 
-    contract::build_pulse_data(&root, &tasks, &specs, &reviews, &adrs, &handoffs)
+    contract::build_pulse_data(&root, &specs, &reviews, &adrs, &handoffs)
         .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn get_tasks(state: State<'_, AppState>) -> Result<Vec<models::task::Task>, String> {
-    let root = state
-        .path_guard
-        .get_root()
-        .ok_or_else(|| "No workspace open".to_string())?;
-    contract::build_tasks(&root).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -383,7 +373,6 @@ pub fn run() {
             list_directory,
             parse_markdown,
             get_pulse_data,
-            get_tasks,
             get_specs,
             get_reviews,
             get_adrs,

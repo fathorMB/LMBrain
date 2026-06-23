@@ -11,99 +11,8 @@ use crate::models::pulse::{ActionItem, MetricCard, PulseData};
 use crate::models::review::{Review, ReviewStatus};
 use crate::models::roadmap::{Milestone, Roadmap};
 use crate::models::spec::{Spec, SpecStatus};
-use crate::models::task::{Task, TaskCriteria, TaskStatus};
 use crate::models::wiki::{WikiNode, WikiNodeKind, WikiTree};
 use crate::models::workspace::{DiagnosticSeverity, KitDiagnostic};
-
-/// Build the full task list by reading all task status directories.
-pub fn build_tasks(root: &Path) -> Result<Vec<Task>, AppError> {
-    let mut tasks = Vec::new();
-    let task_dir = root.join(".lmbrain").join("tasks");
-
-    if !task_dir.exists() {
-        return Ok(tasks);
-    }
-
-    for status in TaskStatus::all() {
-        let dir = task_dir.join(status.as_str());
-        if !dir.exists() {
-            continue;
-        }
-
-        if let Ok(entries) = std::fs::read_dir(&dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) != Some("md") {
-                    continue;
-                }
-
-                if let Ok(content) = std::fs::read_to_string(&path) {
-                    let parsed = parser::parse_markdown_file(&path.to_string_lossy(), &content);
-
-                    let id =
-                        fm_string(&parsed.frontmatter, "id").unwrap_or_else(|| "UNKNOWN".into());
-                    let title = fm_string(&parsed.frontmatter, "title").unwrap_or_else(|| {
-                        path.file_stem()
-                            .unwrap_or_default()
-                            .to_string_lossy()
-                            .to_string()
-                    });
-                    let priority = fm_string(&parsed.frontmatter, "priority");
-                    let area = fm_string(&parsed.frontmatter, "area");
-                    let milestone = fm_string(&parsed.frontmatter, "milestone");
-                    let spec = fm_string(&parsed.frontmatter, "spec");
-                    let created = fm_string(&parsed.frontmatter, "created").unwrap_or_default();
-                    let updated = fm_string(&parsed.frontmatter, "updated").unwrap_or_default();
-                    let tags = fm_string_array(&parsed.frontmatter, "tags");
-                    let links = fm_string_array(&parsed.frontmatter, "links");
-                    let dependencies = fm_string_array(&parsed.frontmatter, "depends_on");
-
-                    // Parse criteria from body (simple checkbox detection)
-                    let criteria = parse_criteria(&parsed.body);
-
-                    // The board column follows the frontmatter `status:` (source of
-                    // truth) so a status change moves the card; the folder is
-                    // expected to agree, and a divergence is reported separately as
-                    // a "Status mismatch" diagnostic. Fall back to the folder when
-                    // the frontmatter status is missing or unrecognized.
-                    let effective_status = fm_string(&parsed.frontmatter, "status")
-                        .and_then(|s| TaskStatus::from_str(s.as_str()))
-                        .unwrap_or_else(|| status.clone());
-
-                    let block_reason = if effective_status == TaskStatus::Blocked {
-                        fm_string(&parsed.frontmatter, "block_reason")
-                            .or_else(|| extract_block_reason(&parsed.body))
-                    } else {
-                        None
-                    };
-
-                    tasks.push(Task {
-                        id,
-                        title,
-                        status: effective_status,
-                        priority,
-                        area,
-                        milestone,
-                        spec,
-                        dependencies,
-                        criteria,
-                        activity: Vec::new(), // Could be derived from git log
-                        block_reason,
-                        body: parsed.body,
-                        path: path.to_string_lossy().to_string(),
-                        created,
-                        updated,
-                        tags,
-                        links,
-                        malformed: Some(parsed.malformed),
-                    });
-                }
-            }
-        }
-    }
-
-    Ok(tasks)
-}
 
 /// Build specs from the specs directory.
 pub fn build_specs(root: &Path) -> Result<Vec<Spec>, AppError> {
@@ -618,7 +527,6 @@ fn build_tree_node(dir: &Path, relative: &str) -> Result<WikiNode, AppError> {
 /// Build pulse data from all parsed artifacts.
 pub fn build_pulse_data(
     root: &Path,
-    tasks: &[Task],
     specs: &[Spec],
     _reviews: &[Review],
     _adrs: &[Adr],
@@ -632,47 +540,27 @@ pub fn build_pulse_data(
         (None, None)
     };
 
-    let ready_specs = specs
-        .iter()
-        .filter(|s| s.status == SpecStatus::Ready)
-        .count();
-    let in_progress = tasks
-        .iter()
-        .filter(|t| t.status == TaskStatus::InProgress)
-        .count();
-    let in_review = tasks
-        .iter()
-        .filter(|t| t.status == TaskStatus::Review)
-        .count();
-    let blocked = tasks
-        .iter()
-        .filter(|t| t.status == TaskStatus::Blocked)
-        .count();
-    let _ready_handoff_count = handoffs
-        .iter()
-        .filter(|h| h.status == HandoffStatus::Ready)
-        .count();
-
+    let count_status = |status: SpecStatus| specs.iter().filter(|s| s.status == status).count();
     let metrics = vec![
         MetricCard {
             label: "Ready for handoff".into(),
-            count: ready_specs,
+            count: count_status(SpecStatus::Ready),
             accent: "#7c6cf6".into(),
         },
         MetricCard {
             label: "In progress".into(),
-            count: in_progress,
+            count: count_status(SpecStatus::Working),
             accent: "#5b8def".into(),
         },
         MetricCard {
             label: "Awaiting review".into(),
-            count: in_review,
+            count: count_status(SpecStatus::Review),
             accent: "#e0a23a".into(),
         },
         MetricCard {
-            label: "Blocked".into(),
-            count: blocked,
-            accent: "#e0584a".into(),
+            label: "Done".into(),
+            count: count_status(SpecStatus::Done),
+            accent: "#46b07d".into(),
         },
     ];
 
@@ -694,21 +582,7 @@ pub fn build_pulse_data(
         })
         .collect();
 
-    let blockers: Vec<ActionItem> = tasks
-        .iter()
-        .filter(|t| t.status == TaskStatus::Blocked)
-        .take(3)
-        .map(|t| ActionItem {
-            title: format!("Unblock {} — {}", t.id, t.title),
-            description: t
-                .block_reason
-                .clone()
-                .unwrap_or_else(|| "Blocked by dependency".into()),
-            action_type: "blocker".into(),
-            spec_id: t.spec.clone(),
-            agent: None,
-        })
-        .collect();
+    let blockers: Vec<ActionItem> = Vec::new();
 
     let ready_handoff_list: Vec<crate::models::handoff::Handoff> = handoffs
         .iter()
@@ -766,37 +640,6 @@ fn extract_section_after_heading(content: &str, heading: &str) -> Option<String>
                     break; // Next section reached
                 }
             }
-        }
-    }
-    None
-}
-
-fn parse_criteria(body: &str) -> Vec<TaskCriteria> {
-    let mut criteria = Vec::new();
-    for line in body.lines() {
-        let trimmed = line.trim();
-        if let Some(text) = trimmed.strip_prefix("- [x] ") {
-            criteria.push(TaskCriteria {
-                text: text.to_string(),
-                completed: true,
-            });
-        } else if let Some(text) = trimmed.strip_prefix("- [ ] ") {
-            criteria.push(TaskCriteria {
-                text: text.to_string(),
-                completed: false,
-            });
-        }
-    }
-    criteria
-}
-
-fn extract_block_reason(body: &str) -> Option<String> {
-    for line in body.lines() {
-        let trimmed = line.trim();
-        if trimmed.to_lowercase().starts_with("blocked")
-            || trimmed.to_lowercase().starts_with("blocker")
-        {
-            return Some(trimmed.to_string());
         }
     }
     None
@@ -885,11 +728,8 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
                                 .map(|n| n.to_string_lossy().to_string())
                                 .unwrap_or_default();
 
-                            // Only check for specs, tasks, reviews (status-directory artifacts)
-                            if artifact_type == "specs"
-                                || artifact_type == "tasks"
-                                || artifact_type == "reviews"
-                            {
+                            // Only check status-directory artifacts (specs, reviews)
+                            if artifact_type == "specs" || artifact_type == "reviews" {
                                 // The status_dir should match the frontmatter status
                                 if !lmbrain_core::invariants::folder_matches_status(&file_path) {
                                     diagnostics.push(KitDiagnostic {
@@ -938,96 +778,6 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
                     message: format!(
                         "Missing reference: spec {} recommends agent '{}', which is not an existing agent profile",
                         spec.id, agent
-                    ),
-                    severity: DiagnosticSeverity::Warning,
-                    path: Some(rel_path),
-                });
-            }
-        }
-    }
-
-    // A task should only leave `backlog` once its spec is prepared by the lead.
-    // Warn when a task is `planned` but has no ready spec backing it (it should
-    // still be in `backlog`).
-    if let (Ok(tasks), Ok(specs)) = (build_tasks(root), build_specs(root)) {
-        let spec_prepared: std::collections::HashMap<String, bool> = specs
-            .iter()
-            .map(|s| {
-                let prepared = matches!(
-                    s.status,
-                    SpecStatus::Ready
-                        | SpecStatus::InProgress
-                        | SpecStatus::Review
-                        | SpecStatus::Accepted
-                );
-                (s.id.clone(), prepared)
-            })
-            .collect();
-
-        for task in &tasks {
-            if task.status != TaskStatus::Planned {
-                continue;
-            }
-            let spec = task
-                .spec
-                .as_deref()
-                .map(str::trim)
-                .filter(|s| !s.is_empty());
-            let message = match spec {
-                None => Some(format!(
-                    "Task {} is 'planned' but has no linked spec; it should stay in 'backlog' until a spec is ready",
-                    task.id
-                )),
-                Some(spec_id) if !lmbrain_core::invariants::task_planned_requires_ready_spec(root, Some(spec_id)) => match spec_prepared.get(spec_id) {
-                    None => Some(format!(
-                        "Task {} references spec '{}', which does not exist",
-                        task.id, spec_id
-                    )),
-                    Some(false) => Some(format!(
-                        "Task {} is 'planned' but its spec '{}' is not ready yet",
-                        task.id, spec_id
-                    )),
-                    Some(true) => None,
-                },
-                Some(_) => None,
-            };
-            if let Some(message) = message {
-                let rel_path = Path::new(&task.path)
-                    .strip_prefix(&lmbrain)
-                    .ok()
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|| task.path.clone());
-                diagnostics.push(KitDiagnostic {
-                    message,
-                    severity: DiagnosticSeverity::Warning,
-                    path: Some(rel_path),
-                });
-            }
-        }
-
-        // The mirror check: a spec that is ready or in active implementation should
-        // have implementation tasks. Warn when it has none, so a ready-for-handoff
-        // spec with an empty board is visible instead of silent.
-        for spec in &specs {
-            if !matches!(
-                spec.status,
-                SpecStatus::Ready | SpecStatus::InProgress | SpecStatus::Review
-            ) {
-                continue;
-            }
-            let has_task = tasks
-                .iter()
-                .any(|t| t.spec.as_deref().map(str::trim) == Some(spec.id.as_str()));
-            if !has_task {
-                let rel_path = Path::new(&spec.path)
-                    .strip_prefix(&lmbrain)
-                    .ok()
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|| spec.path.clone());
-                diagnostics.push(KitDiagnostic {
-                    message: format!(
-                        "Spec {} is '{}' but has no implementation tasks; the Project Lead should create its tasks before handoff",
-                        spec.id, spec.status.as_str()
                     ),
                     severity: DiagnosticSeverity::Warning,
                     path: Some(rel_path),
@@ -1238,7 +988,12 @@ pub fn set_artifact_status(
     let root = path_guard
         .get_root()
         .ok_or_else(|| AppError::PathSafety("No workspace root is set".into()))?;
-    lmbrain_core::transitions::transition_from_proposed(root, path, target_status)
-        .map(|result| result.path)
-        .map_err(|error| AppError::ParseError(error.to_string()))
+    lmbrain_core::transitions::transition(
+        root,
+        path,
+        target_status,
+        lmbrain_core::transitions::MutationOptions::default(),
+    )
+    .map(|result| result.path)
+    .map_err(|error| AppError::ParseError(error.to_string()))
 }

@@ -669,8 +669,8 @@ export function ProjectPulse() {
                 }}
               />
               <MetaRow
-                label="Specs / Tasks"
-                value={`${state.currentWorkspace?.spec_count || 0} / ${state.currentWorkspace?.task_count || 0}`}
+                label="Specs"
+                value={`${state.currentWorkspace?.spec_count || 0}`}
               />
               <MetaRow
                 label="Decisions"

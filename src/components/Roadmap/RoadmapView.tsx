@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { getRoadmap, getSpecs, getTasks } from "../../lib/commands";
+import { getRoadmap, getSpecs } from "../../lib/commands";
 import { InlineRichText } from "../../lib/inlineRichText";
 import { useWikiNavigation } from "../../hooks/useWikiNavigation";
-import type { Roadmap, Spec, Task } from "../../types";
+import type { Roadmap, Spec } from "../../types";
 
 export function RoadmapView() {
   const { state, dispatch } = useWorkspace();
@@ -12,11 +12,10 @@ export function RoadmapView() {
   const navigateToWiki = useWikiNavigation();
 
   useEffect(() => {
-    Promise.all([getRoadmap(), getSpecs(), getTasks()])
-      .then(([rm, specs, tasks]) => {
+    Promise.all([getRoadmap(), getSpecs()])
+      .then(([rm, specs]) => {
         setRoadmap(rm);
         dispatch({ type: "SET_SPECS", specs });
-        dispatch({ type: "SET_TASKS", tasks });
         setLoading(false);
       })
       .catch((err) => {
@@ -36,11 +35,9 @@ export function RoadmapView() {
   const definedMilestones = roadmap?.milestones || [];
   const definedMilestoneIds = new Set(definedMilestones.map((m) => m.id));
 
-  // Group specs and tasks
+  // Group specs by milestone
   const specsByMilestone: Record<string, Spec[]> = {};
-  const tasksByMilestone: Record<string, Task[]> = {};
   const unmappedSpecs: Spec[] = [];
-  const unmappedTasks: Task[] = [];
 
   for (const spec of state.specs) {
     const m = spec.milestone;
@@ -49,16 +46,6 @@ export function RoadmapView() {
       specsByMilestone[m].push(spec);
     } else {
       unmappedSpecs.push(spec);
-    }
-  }
-
-  for (const task of state.tasks) {
-    const m = task.milestone;
-    if (m && definedMilestoneIds.has(m)) {
-      if (!tasksByMilestone[m]) tasksByMilestone[m] = [];
-      tasksByMilestone[m].push(task);
-    } else {
-      unmappedTasks.push(task);
     }
   }
 
@@ -124,9 +111,8 @@ export function RoadmapView() {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {definedMilestones.map((m) => {
             const milestoneSpecs = specsByMilestone[m.id] || [];
-            const milestoneTasks = tasksByMilestone[m.id] || [];
-            const totalTasks = milestoneTasks.length;
-            const doneTasks = milestoneTasks.filter((t) => t.status === "done").length;
+            const totalTasks = milestoneSpecs.length;
+            const doneTasks = milestoneSpecs.filter((s) => s.status === "done").length;
             const progress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
             const sc = getStatusStyle(m.status);
 
@@ -206,7 +192,7 @@ export function RoadmapView() {
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--text-tertiary)" }}>
                       <span>Progress</span>
                       <span>
-                        {doneTasks}/{totalTasks} tasks ({progress}%)
+                        {doneTasks}/{totalTasks} specs ({progress}%)
                       </span>
                     </div>
                     <div
@@ -276,7 +262,7 @@ export function RoadmapView() {
           })}
 
           {/* Unmapped Artifacts Section */}
-          {(unmappedSpecs.length > 0 || unmappedTasks.length > 0) && (
+          {unmappedSpecs.length > 0 && (
             <div
               style={{
                 border: "1px dashed var(--border-secondary)",
@@ -293,66 +279,32 @@ export function RoadmapView() {
                   link_off
                 </i>
                 <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-secondary)" }}>
-                  Unmapped Artifacts
+                  Unmapped Specs
                 </span>
               </div>
               <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-tertiary)" }}>
-                These specifications or tasks do not map to any milestone currently defined in ROADMAP.md.
+                These specifications do not map to any milestone currently defined in ROADMAP.md.
               </p>
 
-              {unmappedSpecs.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-tertiary)" }}>
-                    Specs
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {unmappedSpecs.map((spec) => (
+                  <span
+                    key={spec.id}
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 11,
+                      color: "#8a8d99",
+                      background: "rgba(138,141,153,0.1)",
+                      border: "1px solid rgba(138,141,153,0.2)",
+                      borderRadius: 5,
+                      padding: "3px 8px",
+                    }}
+                    title={spec.title}
+                  >
+                    {spec.id}
                   </span>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {unmappedSpecs.map((spec) => (
-                      <span
-                        key={spec.id}
-                        style={{
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 11,
-                          color: "#8a8d99",
-                          background: "rgba(138,141,153,0.1)",
-                          border: "1px solid rgba(138,141,153,0.2)",
-                          borderRadius: 5,
-                          padding: "3px 8px",
-                        }}
-                        title={spec.title}
-                      >
-                        {spec.id}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {unmappedTasks.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-tertiary)" }}>
-                    Tasks
-                  </span>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {unmappedTasks.map((task) => (
-                      <span
-                        key={task.id}
-                        style={{
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 11,
-                          color: "#8a8d99",
-                          background: "rgba(138,141,153,0.1)",
-                          border: "1px solid rgba(138,141,153,0.2)",
-                          borderRadius: 5,
-                          padding: "3px 8px",
-                        }}
-                        title={task.title}
-                      >
-                        {task.id}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           )}
         </div>

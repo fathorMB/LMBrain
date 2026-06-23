@@ -13,7 +13,6 @@ import type {
   Review,
   Roadmap,
   Spec,
-  Task,
   WikiPage,
   WikiTree,
   WorkspaceInfo,
@@ -58,10 +57,6 @@ export async function parseMarkdown(path: string): Promise<ParsedDocument> {
 
 export async function getPulseData(): Promise<PulseData> {
   return invoke("get_pulse_data");
-}
-
-export async function getTasks(): Promise<Task[]> {
-  return invoke("get_tasks");
 }
 
 export async function getSpecs(): Promise<Spec[]> {

@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.0.0 — 2026-06-23
+
+### Changed (breaking)
+
+- **Tasks are retired.** The board now tracks **specs** through `backlog → ready → working → review → done` (plus `discarded` for anything abandoned). Sub-spec granularity lives in each spec's acceptance-criteria checklist; a spec reaches `done` only with its criteria checked, evidence recorded, and an accepted review. The engine, the `lmbrain-mcp` tools (`spec_ready`/`spec_start`/`spec_submit`/`spec_done`/`spec_discard`), the diagnostics, the templates, and the prompts no longer reference tasks. See [[ADR-005-retire-tasks-spec-board]] / SPEC-019. No migration tooling is provided (early development; re-scaffold instead).
+
 ## 1.3.5 — 2026-06-23
 
 ### Added

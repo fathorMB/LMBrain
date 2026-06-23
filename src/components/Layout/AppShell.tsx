@@ -12,7 +12,6 @@ import { AgentsMCPView } from "../Agents/AgentsMCPView";
 import { SettingsView } from "../Settings/SettingsView";
 import { RoadmapView } from "../Roadmap/RoadmapView";
 import { CommandPalette } from "../CommandPalette";
-import { TaskDrawer } from "../Taskboard/TaskDrawer";
 import { ArtifactDetailModal } from "./ArtifactDetailModal";
 
 export function AppShell() {
@@ -71,9 +70,6 @@ export function AppShell() {
           {renderView()}
         </div>
       </div>
-
-      {/* Task Drawer */}
-      {state.drawerTask && <TaskDrawer />}
 
       {/* Command Palette */}
       {state.cmdkOpen && <CommandPalette />}

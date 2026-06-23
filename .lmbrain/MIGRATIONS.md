@@ -37,5 +37,5 @@ When the first released version is published, this document will state:
 - Required root documents and directories exist.
 - Artifact IDs remain unique.
 - Status-directory paths and frontmatter status values agree.
-- References to specs, tasks, reviews, ADRs, agents, MCPs, and handoffs resolve.
+- References to specs, reviews, ADRs, agents, MCPs, and handoffs resolve.
 - Git diff is reviewed before committing the update.

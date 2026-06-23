@@ -39,7 +39,7 @@ tags: [session-handoff]
 
 ## Receiving Project Lead checklist
 - [ ] Read this handoff and linked artifacts.
-- [ ] Read `STATUS.md` and relevant current specs/tasks.
+- [ ] Read `STATUS.md` and relevant current specs.
 - [ ] Inspect the repository/Git state where relevant.
 - [ ] Validate claims before changing project status or making recommendations.
 - [ ] Update `STATUS.md` if the validated state differs from this snapshot.

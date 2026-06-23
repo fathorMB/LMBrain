@@ -2,7 +2,7 @@
 id: SPEC-XXX
 # Note: Quote the title if it contains a colon
 title: "Feature or work item title"
-status: ready
+status: backlog
 kind: feature
 priority: medium
 area: 
