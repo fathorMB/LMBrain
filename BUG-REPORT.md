@@ -39,7 +39,7 @@
 | [BUG-005](#bug-005--il-prompt-di-handoff-genera-un-path-spec-senza-slug-che-non-esiste) | Il prompt di handoff genera un path spec senza slug (`SPEC-017.md`) che non esiste | Project Pulse / handoffPrompt | 🟡 Media | Risolto in sessione |
 | [BUG-006](#bug-006--lmcp-non-è-realmente-registrato-nellhost-gli-agenti-non-hanno-i-tool-e-editano-a-mano) | L'MCP non è realmente registrato nell'host: gli agenti non hanno i tool e editano a mano | Kit (bootstrap MCP registration) / distribuzione | 🟠 Alta | Registrazione risolta (SPEC-018, 1.3.2). Binario su PATH + uso effettivo da verificare |
 | [BUG-007](#bug-007--la-roadmap-non-viene-mostrata-il-parser-cerca-le-milestone-in-h2-ma-il-template-usa-h3) | La roadmap non viene mostrata: il parser cerca le milestone in `##` (h2) ma il template usa `###` (h3) | Roadmap (parser) | 🟠 Alta | Risolto in sessione |
-| [BUG-008](#bug-008--i-tool-mcp-di-accettazione-non-applicano-il-modello-di-autorità-un-agente-può-auto-approvare-adrspec) | I tool MCP di accettazione non applicano il modello di autorità: un agente può auto-approvare ADR/spec | lmbrain-mcp / engine (authority) | 🟠 Alta | Aperto |
+| [BUG-008](#bug-008--i-tool-mcp-di-accettazione-non-applicano-il-modello-di-autorità-un-agente-può-auto-approvare-adrspec) | I tool MCP di accettazione non applicano il modello di autorità: un agente può auto-approvare ADR/spec | lmbrain-mcp / engine (authority) | 🟠 Alta | Risolto in sessione |
 | [FIX-001](#fix-001--button-copy-prompt--hide-prompt-fuori-stile-in-next-recommended-actions) | Button "Copy prompt" / "Hide prompt" fuori stile in Next Recommended Actions | Project Pulse | 🔵 Bassa | Risolto in sessione |
 | [FIX-002](#fix-002--markup-bold-e-wikilinks-mostrati-grezzi-nel-project-pulse-invece-di-essere-formattatilink) | Markup `**bold**` e `[[wikilink]]` mostrati grezzi nel Project Pulse invece di essere formattati/link | Project Pulse | 🟡 Media | Risolto in sessione |
 | [FIX-003](#fix-003--mismatch-cartellafrontmatter-dello-stato-task-reso-visibile-sulla-card-mitigazione-di-bug-001) | Mismatch cartella/frontmatter dello stato task reso visibile sulla card (mitigazione di BUG-001) | Taskboard | 🟠 Alta | Risolto in sessione |
@@ -403,11 +403,23 @@ Nella nuova run il lead ha creato e portato `accepted` ADR-001/002/003 da sé
 artefatti risultano comunque hand-edited — vedi sotto — ma il rischio resta: anche
 usando i tool, nulla impedirebbe l'auto-approvazione.)*
 
-**Proposta (da decidere)**
-- Non esporre agli agenti i verbi di accettazione che spettano all'operatore
-  (`adr_accept`, `spec_accept`, e probabilmente `review_accept`), oppure
-- gating: quei verbi richiedono un flag/conferma operatore registrato nell'audit;
-- in alternativa, codificare una tabella di autorità per ruolo nell'engine.
+**Decisione dell'operatore**
+ADR e Agent li approva **l'operatore**; il resto (spec/review) può approvarlo il
+lead, ma solo su **richiesta esplicita** dell'operatore.
+
+**Fix applicata**
+- `lmbrain-mcp` non espone più `adr_accept` (rimosso da tool list e routing) →
+  l'accettazione delle ADR non è agent-callable. L'approvazione/attivazione di
+  profili agente non era esposta come tool, quindi era già preclusa.
+  → [`lmbrain-mcp/src/main.rs`](lmbrain-mcp/src/main.rs) + test `adr_accept_is_not_agent_callable`
+- `spec_accept`/`review_accept` restano disponibili al lead, ma `AGENT.md` (kit +
+  live) ora documenta che vanno usati **solo su richiesta esplicita dell'operatore**
+  e che il lead non auto-approva mai le proprie proposte (la "richiesta esplicita"
+  non è enforceable nel tool — è convenzione di prompt).
+  → [`kit/.lmbrain/AGENT.md`](kit/.lmbrain/AGENT.md)
+- L'accettazione operatore delle ADR resta via app (`set_artifact_status`).
+
+**Verifica:** `cargo test -p lmbrain-mcp` → verde (incluso il test di rimozione).
 
 ---
 

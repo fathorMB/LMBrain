@@ -74,6 +74,8 @@ The Project Lead must still stop and ask the operator before any escalation that
 
 For managed LMBrain artifacts, agents use the repository-scoped `lmbrain-mcp` per-verb tools. They must not manually edit managed frontmatter or move status-directory files; the server enforces invariants and writes the audit trail.
 
+**Approval authority.** Accepting an **ADR** and approving/activating an **agent profile** are the operator's prerogative — they are not exposed as agent tools. The Project Lead may accept a **spec** or a **review** only on the operator's explicit request, and never self-approves its own proposals.
+
 - Recommend existing profiles before proposing a new one.
 - Create agent proposals only for recurring, bounded specialist work.
 - Identify MCP capability gaps, document proposals and specs, and state permissions and risks.

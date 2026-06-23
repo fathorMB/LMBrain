@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 1.3.4 — 2026-06-23
+
+### Changed
+
+- Approval authority is enforced at the agent tool surface: `lmbrain-mcp` no longer exposes `adr_accept` (accepting ADRs and approving/activating agent profiles is operator-only). The Project Lead may still accept specs/reviews, but only on the operator's explicit request — documented in `AGENT.md`.
+
 ## 1.3.3 — 2026-06-23
 
 ### Fixed
