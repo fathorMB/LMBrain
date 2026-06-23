@@ -1,0 +1,8 @@
+{
+  "name": "lmbrain-mcp",
+  "transport": "stdio",
+  "command": "lmbrain-mcp",
+  "cwd": "${workspaceFolder}",
+  "scope": "repository",
+  "description": "Controlled LMBrain artifact mutations; register this repository-scoped server with the agent host during bootstrap."
+}

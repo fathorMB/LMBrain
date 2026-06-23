@@ -9,3 +9,5 @@ You may write only inside `.lmbrain/`. Do not modify application or source code,
 Identify the initial architecture, domain language, setup instructions, key integrations, risks, and decisions that need recording. Create only justified specs, tasks, ADR proposals, agent-profile proposals, or MCP proposals. Apply independent technical judgement: challenge fragile or technically weak assumptions and recommend clean alternatives supported by current official documentation where relevant. Do not spawn agents, implement features, activate MCPs, accept unapproved shortcuts, or claim verification you cannot perform.
 
 Finish with a concise report: what you updated, key uncertainties, the recommended first manual handoff (if any), and the exact document path to give that agent.
+
+For all managed artifact mutations, direct agents to the repository-scoped `lmbrain-mcp` server and its per-verb tools. Do not instruct them to edit status frontmatter or move artifact files by hand.

@@ -36,6 +36,7 @@
 | [BUG-002](#bug-002--lapp-non-segnala-quando-recommended_agent-di-una-spec-non-punta-a-un-profilo-agente-esistente) | L'app non segnala quando `recommended_agent` di una spec non punta a un profilo agente esistente | Diagnostics / Project Pulse | 🟡 Media | Risolto in sessione · CI da validare |
 | [BUG-003](#bug-003--il-ciclo-di-vita-dei-task-non-è-supportato-default-planned-e-nessuna-transizione-in-progress-allavvio) | Il ciclo di vita dei task non è supportato: default `planned` e nessuna transizione a `in-progress` all'avvio | Kit (template/AGENT/handoff) | 🟠 Alta | Risolto in sessione · CI da validare |
 | [BUG-004](#bug-004--il-lead-dopo-lapprovazione-delle-adr-si-mette-a-implementare-lo-scaffolding) | Il lead, dopo l'approvazione delle ADR, si mette a implementare lo scaffolding | Kit (AGENT.md / bootstrap prompt) | 🟠 Alta | Risolto in sessione |
+| [BUG-005](#bug-005--il-prompt-di-handoff-genera-un-path-spec-senza-slug-che-non-esiste) | Il prompt di handoff genera un path spec senza slug (`SPEC-017.md`) che non esiste | Project Pulse / handoffPrompt | 🟡 Media | Risolto in sessione |
 | [FIX-001](#fix-001--button-copy-prompt--hide-prompt-fuori-stile-in-next-recommended-actions) | Button "Copy prompt" / "Hide prompt" fuori stile in Next Recommended Actions | Project Pulse | 🔵 Bassa | Risolto in sessione |
 | [FIX-002](#fix-002--markup-bold-e-wikilinks-mostrati-grezzi-nel-project-pulse-invece-di-essere-formattatilink) | Markup `**bold**` e `[[wikilink]]` mostrati grezzi nel Project Pulse invece di essere formattati/link | Project Pulse | 🟡 Media | Risolto in sessione |
 | [FIX-003](#fix-003--mismatch-cartellafrontmatter-dello-stato-task-reso-visibile-sulla-card-mitigazione-di-bug-001) | Mismatch cartella/frontmatter dello stato task reso visibile sulla card (mitigazione di BUG-001) | Taskboard | 🟠 Alta | Risolto in sessione |
@@ -267,6 +268,35 @@ chiariva due cose che il lead razionalizzava:
 **Nota:** è un rinforzo di una regola già esistente (nessun cambiamento di design),
 solo documentazione/prompt del kit — nessuna modifica di codice. L'enforcement vero
 resta comportamentale (l'app non può impedirlo).
+
+---
+
+### BUG-005 — Il prompt di handoff genera un path spec senza slug che non esiste
+
+- **Area / Schermata:** Project Pulse ("Next Recommended Actions") / `buildHandoffPrompt`
+- **Severità:** 🟡 Media
+- **Stato:** Aperto — da fixare in fase di review di SPEC-017 (il file è toccato anche dall'implementatore)
+- **Data rilevamento:** 2026-06-23
+- **Versione:** 1.2.6
+
+**Descrizione**
+Il prompt di handoff generato costruisce il path della spec come
+`.lmbrain/specs/<status>/<SPEC-ID>.md` (es. `.lmbrain/specs/ready/SPEC-017.md`), ma i
+file reali hanno lo **slug** nel nome (es. `SPEC-017-controlled-mutation-engine.md`).
+Il path generato quindi **non esiste**, e un agente che lo apre fallisce.
+
+**Causa tecnica**
+`buildHandoffPrompt(agent, specId, status)` interpola `${specId}.md` invece di
+ricavare il nome-file reale (per id) dall'elenco delle spec.
+→ [`src/lib/handoffPrompt.ts`](src/lib/handoffPrompt.ts)
+
+**Fix applicata**
+`buildHandoffPrompt` accetta ora il nome-file reale della spec; `ActionCard` lo
+risolve da `state.specs` (per id → basename del `path`), con fallback a `SPEC-ID.md`
+solo se la spec non è caricata. Preservata la guida MCP aggiunta dall'implementatore.
+→ [`src/lib/handoffPrompt.ts`](src/lib/handoffPrompt.ts), [`src/components/Pulse/ProjectPulse.tsx`](src/components/Pulse/ProjectPulse.tsx)
+
+**Verifica:** `tsc` pulito; `ProjectPulse.test` 3/3 (il fallback mantiene verde il test).
 
 ---
 

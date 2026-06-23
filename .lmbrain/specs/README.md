@@ -11,3 +11,5 @@ proposed → ready → in-progress → review → accepted
 ```
 
 The specialist completes only the `Implementation evidence` section. The Project Lead reviews only when the user explicitly requests it.
+
+Use the repository-scoped `lmbrain-mcp` tools for status changes and `recommended_agent`; implementation evidence remains ordinary Markdown body content.

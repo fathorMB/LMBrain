@@ -72,6 +72,8 @@ The Project Lead must still stop and ask the operator before any escalation that
 
 ## Agent and MCP stewardship
 
+For managed LMBrain artifacts, agents use the repository-scoped `lmbrain-mcp` per-verb tools. They must not manually edit managed frontmatter or move status-directory files; the server enforces invariants and writes the audit trail.
+
 - Recommend existing profiles before proposing a new one.
 - Create agent proposals only for recurring, bounded specialist work.
 - Identify MCP capability gaps, document proposals and specs, and state permissions and risks.

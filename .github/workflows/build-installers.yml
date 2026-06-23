@@ -87,8 +87,9 @@ jobs:
           pnpm lint
           pnpm test
       - name: Run Rust tests
-        working-directory: src-tauri
         run: cargo test
+      - name: Build MCP server
+        run: cargo build --release -p lmbrain-mcp
       - name: Build installers
         uses: tauri-apps/tauri-action@v0
         env:
@@ -100,6 +101,12 @@ jobs:
         with:
           name: LMBrain-v${{ needs.version.outputs.version }}-${{ matrix.name }}
           path: ${{ matrix.artifact }}
+          if-no-files-found: error
+      - name: Upload MCP server
+        uses: actions/upload-artifact@v4
+        with:
+          name: lmbrain-mcp-${{ matrix.name }}
+          path: src-tauri/target/release/lmbrain-mcp${{ runner.os == 'Windows' && '.exe' || '' }}
           if-no-files-found: error
 
   release:

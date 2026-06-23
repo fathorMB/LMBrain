@@ -874,12 +874,18 @@ function MetricCard({
 }
 
 function ActionCard({ action }: { action: PulseData["actions"][0] }) {
+  const { state } = useWorkspace();
   const [expanded, setExpanded] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const navigateToWiki = useWikiNavigation();
   const isHandoff = action.action_type === "handoff" && action.spec_id;
+  // Resolve the spec's real (slugged) filename so the handoff path actually exists.
+  const specFilename = state.specs
+    ?.find((s) => s.id === action.spec_id)
+    ?.path.split(/[\\/]/)
+    .pop();
   const prompt = isHandoff
-    ? buildHandoffPrompt(action.agent, action.spec_id ?? "", "ready")
+    ? buildHandoffPrompt(action.agent, action.spec_id ?? "", "ready", specFilename)
     : null;
 
   const copyPrompt = async () => {

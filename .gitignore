@@ -5,6 +5,7 @@ node_modules/
 dist/
 
 # Rust build
+/target/
 src-tauri/target/
 
 # IDE

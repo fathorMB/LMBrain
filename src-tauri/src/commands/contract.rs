@@ -891,7 +891,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
                                 || artifact_type == "reviews"
                             {
                                 // The status_dir should match the frontmatter status
-                                if status_dir != fm_status {
+                                if !lmbrain_core::invariants::folder_matches_status(&file_path) {
                                     diagnostics.push(KitDiagnostic {
                                         message: format!(
                                             "Status mismatch: file is in '{}/{}' but frontmatter status is '{}'",
@@ -916,37 +916,32 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
     }
 
     // Validate that each spec's `recommended_agent` resolves to an existing agent
-    // profile. An unresolved value — including the template placeholder `AGENT-XXX`
-    // — is a missing reference the operator should fix before handoff.
+    // profile. Reuse the shared core invariant so the diagnostic and the engine
+    // can never disagree.
     if let Ok(specs) = build_specs(root) {
-        let agent_ids: std::collections::HashSet<String> = build_agents(root)
-            .unwrap_or_default()
-            .into_iter()
-            .map(|a| a.id)
-            .collect();
-
         for spec in &specs {
-            if let Some(agent) = spec.recommended_agent.as_deref() {
-                let agent = agent.trim();
-                if agent.is_empty() {
-                    continue;
-                }
-                let is_placeholder = agent.ends_with("-XXX");
-                if is_placeholder || !agent_ids.contains(agent) {
-                    let rel_path = Path::new(&spec.path)
-                        .strip_prefix(&lmbrain)
-                        .ok()
-                        .map(|p| p.to_string_lossy().to_string())
-                        .unwrap_or_else(|| spec.path.clone());
-                    diagnostics.push(KitDiagnostic {
-                        message: format!(
-                            "Missing reference: spec {} recommends agent '{}', which is not an existing agent profile",
-                            spec.id, agent
-                        ),
-                        severity: DiagnosticSeverity::Warning,
-                        path: Some(rel_path),
-                    });
-                }
+            let Some(agent) = spec
+                .recommended_agent
+                .as_deref()
+                .map(str::trim)
+                .filter(|a| !a.is_empty())
+            else {
+                continue;
+            };
+            if !lmbrain_core::invariants::recommended_agent_resolves(root, Some(agent)) {
+                let rel_path = Path::new(&spec.path)
+                    .strip_prefix(&lmbrain)
+                    .ok()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| spec.path.clone());
+                diagnostics.push(KitDiagnostic {
+                    message: format!(
+                        "Missing reference: spec {} recommends agent '{}', which is not an existing agent profile",
+                        spec.id, agent
+                    ),
+                    severity: DiagnosticSeverity::Warning,
+                    path: Some(rel_path),
+                });
             }
         }
     }
@@ -983,7 +978,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
                     "Task {} is 'planned' but has no linked spec; it should stay in 'backlog' until a spec is ready",
                     task.id
                 )),
-                Some(spec_id) => match spec_prepared.get(spec_id) {
+                Some(spec_id) if !lmbrain_core::invariants::task_planned_requires_ready_spec(root, Some(spec_id)) => match spec_prepared.get(spec_id) {
                     None => Some(format!(
                         "Task {} references spec '{}', which does not exist",
                         task.id, spec_id
@@ -994,6 +989,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
                     )),
                     Some(true) => None,
                 },
+                Some(_) => None,
             };
             if let Some(message) = message {
                 let rel_path = Path::new(&task.path)
@@ -1195,145 +1191,16 @@ fn parse_list_items(val: &str) -> Vec<String> {
     }
 }
 
-/// Write a status transition back to the Markdown source of truth atomically and safely.
+/// Write the existing desktop approval/rejection action through lmbrain-core.
 pub fn set_artifact_status(
     path_guard: &super::filesystem::PathGuard,
     path: &str,
     target_status: &str,
 ) -> Result<PathBuf, AppError> {
-    // 1. Resolve path using PathGuard
-    let resolved_path = path_guard.resolve(path)?;
-
-    // 2. Read the file
-    let content = std::fs::read_to_string(&resolved_path)?;
-    let parsed = parser::parse_markdown_file(&resolved_path.to_string_lossy(), &content);
-
-    // 3. Extract id and status from frontmatter
-    let id = fm_string(&parsed.frontmatter, "id")
-        .ok_or_else(|| AppError::ParseError("Artifact missing 'id' in frontmatter".into()))?;
-    let current_status = fm_string(&parsed.frontmatter, "status")
-        .ok_or_else(|| AppError::ParseError("Artifact missing 'status' in frontmatter".into()))?;
-
-    // 4. Validate that the source status is 'proposed'
-    if current_status != "proposed" {
-        return Err(AppError::ParseError(format!(
-            "Only artifacts in 'proposed' status can be approved or rejected. Current status: '{}'",
-            current_status
-        )));
-    }
-
-    // 5. Determine artifact type by ID prefix and validate transition
-    let is_spec = id.starts_with("SPEC-");
-    let is_adr = id.starts_with("ADR-");
-    let is_agent_prop = id.starts_with("AGENT-PROP-");
-    let is_agent_profile = id.starts_with("AGENT-") && !is_agent_prop;
-    let is_mcp_prop = id.starts_with("MCP-PROP-");
-
-    let is_legal = if is_spec {
-        if target_status == "accepted" {
-            return Err(AppError::ParseError(
-                "Spec approval must go to 'ready', not 'accepted' (review-gated)".into(),
-            ));
-        }
-        target_status == "ready" || target_status == "rejected"
-    } else if is_adr {
-        target_status == "accepted" || target_status == "rejected"
-    } else if is_agent_prop || is_mcp_prop {
-        target_status == "approved" || target_status == "rejected"
-    } else if is_agent_profile {
-        target_status == "active" || target_status == "inactive"
-    } else {
-        false
-    };
-
-    if !is_legal {
-        return Err(AppError::ParseError(format!(
-            "Invalid status transition from 'proposed' to '{}' for artifact type of '{}'",
-            target_status, id
-        )));
-    }
-
-    // 6. Split the file content into frontmatter and body, then rewrite frontmatter
-    let lines: Vec<&str> = content.split('\n').collect();
-    let mut closing_line_idx = None;
-    for (i, line) in lines.iter().enumerate().skip(1) {
-        if line.trim() == "---" {
-            closing_line_idx = Some(i);
-            break;
-        }
-    }
-    let closing_line_idx = closing_line_idx
-        .ok_or_else(|| AppError::ParseError("Closing '---' delimiter not found".into()))?;
-
-    let mut fm_lines: Vec<String> = lines[1..closing_line_idx]
-        .iter()
-        .map(|s| s.replace('\r', ""))
-        .collect();
-    let mut status_found = false;
-    let mut updated_found = false;
-    let current_date = chrono::Local::now().format("%Y-%m-%d").to_string();
-
-    for line in fm_lines.iter_mut() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("status:") {
-            let indent = line.len() - line.trim_start().len();
-            *line = format!("{}status: {}", &line[..indent], target_status);
-            status_found = true;
-        } else if trimmed.starts_with("updated:") {
-            let indent = line.len() - line.trim_start().len();
-            *line = format!("{}updated: {}", &line[..indent], current_date);
-            updated_found = true;
-        }
-    }
-
-    if !status_found {
-        fm_lines.push(format!("status: {}", target_status));
-    }
-    if !updated_found {
-        fm_lines.push(format!("updated: {}", current_date));
-    }
-
-    let mut new_content = String::new();
-    new_content.push_str("---\n");
-    for line in fm_lines {
-        new_content.push_str(&line);
-        new_content.push('\n');
-    }
-    new_content.push_str("---\n");
-    for line in &lines[closing_line_idx + 1..] {
-        new_content.push_str(&line.replace('\r', ""));
-        new_content.push('\n');
-    }
-
-    if new_content.ends_with("\n\n") {
-        new_content.pop();
-    }
-
-    // 7. Write to temp file and rename (atomic update)
-    let target_path = if is_spec {
-        let filename = resolved_path
-            .file_name()
-            .ok_or_else(|| AppError::Io("Invalid file name".into()))?;
-        let root_dir = resolved_path
-            .parent()
-            .and_then(|p| p.parent())
-            .ok_or_else(|| AppError::Io("Invalid parent structure".into()))?;
-        let dest_dir = root_dir.join(target_status);
-        std::fs::create_dir_all(&dest_dir)?;
-        dest_dir.join(filename)
-    } else {
-        resolved_path.clone()
-    };
-
-    let tmp_path = target_path.with_extension("tmp");
-
-    std::fs::write(&tmp_path, new_content)?;
-
-    std::fs::rename(&tmp_path, &target_path)?;
-
-    if target_path != resolved_path {
-        std::fs::remove_file(&resolved_path)?;
-    }
-
-    Ok(target_path)
+    let root = path_guard
+        .get_root()
+        .ok_or_else(|| AppError::PathSafety("No workspace root is set".into()))?;
+    lmbrain_core::transitions::transition_from_proposed(root, path, target_status)
+        .map(|result| result.path)
+        .map_err(|error| AppError::ParseError(error.to_string()))
 }
