@@ -33,6 +33,7 @@
 | ID | Titolo | Area | Severità | Stato |
 |------|--------|------|----------|-------|
 | [BUG-001](#bug-001--lo-stato-dei-task-nella-board-dipende-solo-dalla-cartella-il-campo-status-del-frontmatter-viene-ignorato) | Lo stato dei task nella board dipende solo dalla cartella; il campo `status:` del frontmatter viene ignorato | Taskboard | 🟠 Alta | Risolto in sessione (FIX-004; badge FIX-003). Modifica backend da validare in CI |
+| [BUG-002](#bug-002--lapp-non-segnala-quando-recommended_agent-di-una-spec-non-punta-a-un-profilo-agente-esistente) | L'app non segnala quando `recommended_agent` di una spec non punta a un profilo agente esistente | Diagnostics / Project Pulse | 🟡 Media | Risolto in sessione · CI da validare |
 | [FIX-001](#fix-001--button-copy-prompt--hide-prompt-fuori-stile-in-next-recommended-actions) | Button "Copy prompt" / "Hide prompt" fuori stile in Next Recommended Actions | Project Pulse | 🔵 Bassa | Risolto in sessione |
 | [FIX-002](#fix-002--markup-bold-e-wikilinks-mostrati-grezzi-nel-project-pulse-invece-di-essere-formattatilink) | Markup `**bold**` e `[[wikilink]]` mostrati grezzi nel Project Pulse invece di essere formattati/link | Project Pulse | 🟡 Media | Risolto in sessione |
 | [FIX-003](#fix-003--mismatch-cartellafrontmatter-dello-stato-task-reso-visibile-sulla-card-mitigazione-di-bug-001) | Mismatch cartella/frontmatter dello stato task reso visibile sulla card (mitigazione di BUG-001) | Taskboard | 🟠 Alta | Risolto in sessione |
@@ -122,6 +123,60 @@ un task.
 
 **Da confermare con i dev:** qual è la fonte di verità voluta per lo stato del task
 — la cartella o il campo `status:`? Il fix dipende da questa decisione di design.
+
+---
+
+### BUG-002 — L'app non segnala quando `recommended_agent` di una spec non punta a un profilo agente esistente
+
+- **Area / Schermata:** Diagnostics / Project Pulse ("Next Recommended Actions")
+- **Severità:** 🟡 Media
+- **Stato:** Risolto in sessione (diagnostic aggiunto) · **backend Rust da validare in CI**
+- **Data rilevamento:** 2026-06-23
+- **Versione:** 1.2.1
+
+**Descrizione**
+Una spec può dichiarare `recommended_agent:` con un valore che non corrisponde ad
+alcun profilo di agente esistente (es. il placeholder del template `AGENT-XXX`, o un
+ID errato). L'app non lo segnala in alcun modo: nel Pulse mostra letteralmente
+`Start AGENT-XXX on SPEC-001`, e il prompt di handoff generato istruisce l'agente a
+impersonare un profilo inesistente.
+
+**Come è emerso**
+Testando il progetto di prova `E:\Git\Brewlog`: la sua `SPEC-001` ha
+`recommended_agent: AGENT-XXX` (placeholder non sostituito dal project-lead) e in
+`agents/profiles/` esiste solo `project-lead.md`. La card "Next Recommended Actions"
+mostra `Start AGENT-XXX on SPEC-001`. (Nota: la causa diretta è un dato incompleto in
+Brewlog, ma questo bug riguarda il fatto che **LMBrain non lo intercetta**.)
+
+**Comportamento atteso**
+Coerentemente con `CONTRACT.md` — *"The application should warn about duplicate IDs,
+broken links, directory/status mismatches, missing references, and circular
+dependencies"* — un `recommended_agent` che non risolve a un profilo agente
+esistente (o ancora al placeholder `AGENT-XXX`) dovrebbe produrre un **diagnostic di
+warning** (missing reference).
+
+**Comportamento osservato**
+Nessun diagnostic. Il valore viene propagato tale e quale nella UI e nel prompt.
+
+**Causa tecnica**
+`build_diagnostics` non valida il campo `recommended_agent` contro i profili in
+`agents/profiles/`. Il valore è solo letto e mostrato.
+→ [`src-tauri/src/commands/contract.rs:139`](src-tauri/src/commands/contract.rs:139),
+  [`src-tauri/src/commands/contract.rs:684`](src-tauri/src/commands/contract.rs:684)
+
+**Fix applicata**
+`build_diagnostics` ora valida ogni spec con `recommended_agent` valorizzato:
+emette un warning *"Missing reference: spec … recommends agent '…', which is not an
+existing agent profile"* se il valore è un placeholder (`*-XXX`) o non corrisponde
+all'`id` di un profilo in `agents/profiles/`. Il warning appare nella sezione
+Diagnostics del Pulse (con relativo fix-prompt).
+- → [`src-tauri/src/commands/contract.rs`](src-tauri/src/commands/contract.rs) (in `build_diagnostics`)
+- Aggiunti due test (placeholder non risolto → warning; agente esistente → nessun warning).
+  → [`src-tauri/tests/contract_test.rs`](src-tauri/tests/contract_test.rs)
+
+**⚠️ Verifica:** modifica backend Rust, **non compilabile in locale** → da validare
+in **CI** (`cargo test`). Nessuna modifica frontend necessaria (il Pulse mostra già i
+diagnostics).
 
 ---
 

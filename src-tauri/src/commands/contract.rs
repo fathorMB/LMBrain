@@ -915,6 +915,42 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
         }
     }
 
+    // Validate that each spec's `recommended_agent` resolves to an existing agent
+    // profile. An unresolved value — including the template placeholder `AGENT-XXX`
+    // — is a missing reference the operator should fix before handoff.
+    if let Ok(specs) = build_specs(root) {
+        let agent_ids: std::collections::HashSet<String> = build_agents(root)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|a| a.id)
+            .collect();
+
+        for spec in &specs {
+            if let Some(agent) = spec.recommended_agent.as_deref() {
+                let agent = agent.trim();
+                if agent.is_empty() {
+                    continue;
+                }
+                let is_placeholder = agent.ends_with("-XXX");
+                if is_placeholder || !agent_ids.contains(agent) {
+                    let rel_path = Path::new(&spec.path)
+                        .strip_prefix(&lmbrain)
+                        .ok()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_else(|| spec.path.clone());
+                    diagnostics.push(KitDiagnostic {
+                        message: format!(
+                            "Missing reference: spec {} recommends agent '{}', which is not an existing agent profile",
+                            spec.id, agent
+                        ),
+                        severity: DiagnosticSeverity::Warning,
+                        path: Some(rel_path),
+                    });
+                }
+            }
+        }
+    }
+
     diagnostics
 }
 

@@ -157,6 +157,87 @@ Task body"#;
 }
 
 #[test]
+fn test_build_diagnostics_flags_unresolved_recommended_agent() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+
+    // Spec recommends AGENT-XXX (template placeholder, no such profile exists).
+    let spec_content = r#"---
+id: SPEC-050
+title: Needs an agent
+status: ready
+recommended_agent: AGENT-XXX
+---
+Body"#;
+    fs::write(
+        dir.path()
+            .join(".lmbrain")
+            .join("specs")
+            .join("ready")
+            .join("SPEC-050.md"),
+        spec_content,
+    )
+    .unwrap();
+
+    let diags = contract::build_diagnostics(dir.path());
+    let missing: Vec<_> = diags
+        .iter()
+        .filter(|d| d.message.contains("Missing reference") && d.message.contains("AGENT-XXX"))
+        .collect();
+    assert!(
+        !missing.is_empty(),
+        "Expected a missing-reference diagnostic for the unresolved recommended_agent"
+    );
+}
+
+#[test]
+fn test_build_diagnostics_accepts_resolved_recommended_agent() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+
+    // A real agent profile exists...
+    fs::create_dir_all(dir.path().join(".lmbrain").join("agents").join("profiles")).unwrap();
+    fs::write(
+        dir.path()
+            .join(".lmbrain")
+            .join("agents")
+            .join("profiles")
+            .join("AGENT-IMPL.md"),
+        "---\nid: AGENT-IMPL\ntitle: Implementer\nstatus: active\n---\nBody",
+    )
+    .unwrap();
+
+    // ...and the spec recommends it.
+    let spec_content = r#"---
+id: SPEC-051
+title: Has a valid agent
+status: ready
+recommended_agent: AGENT-IMPL
+---
+Body"#;
+    fs::write(
+        dir.path()
+            .join(".lmbrain")
+            .join("specs")
+            .join("ready")
+            .join("SPEC-051.md"),
+        spec_content,
+    )
+    .unwrap();
+
+    let diags = contract::build_diagnostics(dir.path());
+    let missing: Vec<_> = diags
+        .iter()
+        .filter(|d| d.message.contains("Missing reference") && d.message.contains("SPEC-051"))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "Did not expect a missing-reference diagnostic for a resolved recommended_agent, got: {:?}",
+        missing
+    );
+}
+
+#[test]
 fn test_build_diagnostics_spec_status_mismatch() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());
