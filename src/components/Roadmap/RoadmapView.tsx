@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { getRoadmap, getSpecs, getTasks } from "../../lib/commands";
+import { InlineRichText } from "../../lib/inlineRichText";
+import { useWikiNavigation } from "../../hooks/useWikiNavigation";
 import type { Roadmap, Spec, Task } from "../../types";
 
 export function RoadmapView() {
   const { state, dispatch } = useWorkspace();
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigateToWiki = useWikiNavigation();
 
   useEffect(() => {
     Promise.all([getRoadmap(), getSpecs(), getTasks()])
@@ -161,7 +164,7 @@ export function RoadmapView() {
                         {m.id}
                       </span>
                       <span style={{ fontWeight: 700, fontSize: 16, color: "var(--text-primary)" }}>
-                        {m.title}
+                        <InlineRichText text={m.title} onWikilinkClick={navigateToWiki} />
                       </span>
                     </div>
                   </div>
@@ -193,7 +196,7 @@ export function RoadmapView() {
                       paddingLeft: 10,
                     }}
                   >
-                    {m.outcome}
+                    <InlineRichText text={m.outcome} onWikilinkClick={navigateToWiki} />
                   </div>
                 )}
 

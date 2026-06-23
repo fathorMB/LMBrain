@@ -37,6 +37,7 @@
 | [FIX-002](#fix-002--markup-bold-e-wikilinks-mostrati-grezzi-nel-project-pulse-invece-di-essere-formattatilink) | Markup `**bold**` e `[[wikilink]]` mostrati grezzi nel Project Pulse invece di essere formattati/link | Project Pulse | 🟡 Media | Risolto in sessione |
 | [FIX-003](#fix-003--mismatch-cartellafrontmatter-dello-stato-task-reso-visibile-sulla-card-mitigazione-di-bug-001) | Mismatch cartella/frontmatter dello stato task reso visibile sulla card (mitigazione di BUG-001) | Taskboard | 🟠 Alta | Risolto in sessione |
 | [FIX-004](#fix-004--la-colonna-del-task-segue-il-campo-status-del-frontmatter-il-cambio-stato-muove-la-card) | La colonna del task segue il campo `status:` del frontmatter: il cambio stato muove la card | Taskboard (backend) | 🟠 Alta | Risolto in sessione · CI da validare |
+| [FIX-005](#fix-005--wikilink-grezzi-non-cliccabili-anche-in-roadmap-e-nei-blockerazioni-del-pulse) | Wikilink grezzi/non cliccabili anche in Roadmap e nei blocker/azioni del Pulse | Roadmap / Project Pulse | 🟡 Media | Risolto in sessione |
 
 ---
 
@@ -291,6 +292,39 @@ La modifica è **frontend-free** ma tocca il backend Rust, che **non è compilab
 in locale** (nessun cargo/rustc): va validata in **CI** (`cargo test`). Il badge di
 divergenza di FIX-003 continua a funzionare come segnale per riallineare il file su
 disco.
+
+---
+
+### FIX-005 — Wikilink grezzi/non cliccabili anche in Roadmap e nei blocker/azioni del Pulse
+
+- **Area / Schermata:** Roadmap, Project Pulse (blocker e azioni consigliate)
+- **Severità:** 🟡 Media
+- **Stato:** Risolto in sessione (da verificare a video)
+- **Data rilevamento:** 2026-06-23
+- **Versione:** 1.2.0
+
+**Descrizione**
+Estende [FIX-002](#fix-002--markup-bold-e-wikilinks-mostrati-grezzi-nel-project-pulse-invece-di-essere-formattatilink):
+i `[[wikilink]]` comparivano ancora grezzi (con le doppie quadre) e non cliccabili
+in altri campi di testo libero — il titolo e l'outcome delle milestone nella
+**Roadmap**, e titolo/descrizione di **blocker** e **azioni consigliate** nel Pulse.
+
+**Causa tecnica**
+Quei campi venivano stampati come testo semplice (`{m.outcome}`, `{action.description}`,
+ecc.) senza passare per il renderer inline introdotto in FIX-002.
+→ [`src/components/Roadmap/RoadmapView.tsx`](src/components/Roadmap/RoadmapView.tsx),
+  [`src/components/Pulse/ProjectPulse.tsx`](src/components/Pulse/ProjectPulse.tsx)
+
+**Fix applicata**
+- Estratta la logica di navigazione del wikilink in un hook riutilizzabile
+  `useWikiNavigation`, per non duplicarla tra le viste.
+  → [`src/hooks/useWikiNavigation.ts`](src/hooks/useWikiNavigation.ts)
+- Applicato `InlineRichText` a `m.title`/`m.outcome` (Roadmap) e a
+  `title`/`description` di blocker e azioni (Pulse). I wikilink ora sono cliccabili
+  e aprono il target nella sezione Wiki.
+
+**Verifica:** `pnpm vitest run` → 43/43; `tsc --noEmit` ed `eslint` puliti.
+Resta da confermare a video.
 
 ---
 

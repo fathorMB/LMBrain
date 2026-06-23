@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { getPulseData, getAdrs, getHandoffs, getAgents, getDiagnostics, getWikiTree, getWikiPage } from "../../lib/commands";
+import { getPulseData, getAdrs, getHandoffs, getAgents, getDiagnostics } from "../../lib/commands";
 import { buildHandoffPrompt } from "../../lib/handoffPrompt";
 import { InlineRichText } from "../../lib/inlineRichText";
-import { resolveWikilink } from "../../lib/wikilinks";
+import { useWikiNavigation } from "../../hooks/useWikiNavigation";
 import type { PulseData, Handoff, Adr, KitDiagnostic } from "../../types";
 
 function generateFixPrompt(d: KitDiagnostic): string {
@@ -71,28 +71,7 @@ export function ProjectPulse() {
     load();
   }, [dispatch]);
 
-  // Open a [[wikilink]] target in the Wiki view. The wiki tree/page are fetched
-  // lazily on click so the pulse's initial load stays lightweight.
-  const navigateToWiki = async (target: string) => {
-    try {
-      let tree = state.wikiTree;
-      if (!tree) {
-        tree = await getWikiTree();
-        dispatch({ type: "SET_WIKI_TREE", tree });
-      }
-      const resolved = resolveWikilink(target, tree.root);
-      if (resolved) {
-        const fullPath = state.currentWorkspace
-          ? `${state.currentWorkspace.path}/${resolved}`
-          : resolved;
-        const page = await getWikiPage(fullPath);
-        dispatch({ type: "SET_WIKI_PAGE", page });
-      }
-      dispatch({ type: "SET_VIEW", view: "wiki" });
-    } catch (err) {
-      console.error("Failed to open wiki target:", err);
-    }
-  };
+  const navigateToWiki = useWikiNavigation();
 
   const pulse = state.pulseData;
   if (!pulse) {
@@ -536,7 +515,7 @@ export function ProjectPulse() {
                           color: "var(--text-primary)",
                         }}
                       >
-                        {b.title}
+                        <InlineRichText text={b.title} onWikilinkClick={navigateToWiki} />
                       </span>
                     </div>
                     <div
@@ -546,7 +525,7 @@ export function ProjectPulse() {
                         lineHeight: 1.45,
                       }}
                     >
-                      {b.description}
+                      <InlineRichText text={b.description} onWikilinkClick={navigateToWiki} />
                     </div>
                   </div>
                 ))}
@@ -897,6 +876,7 @@ function MetricCard({
 function ActionCard({ action }: { action: PulseData["actions"][0] }) {
   const [expanded, setExpanded] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const navigateToWiki = useWikiNavigation();
   const isHandoff = action.action_type === "handoff" && action.spec_id;
   const prompt = isHandoff
     ? buildHandoffPrompt(action.agent, action.spec_id ?? "", "ready")
@@ -952,7 +932,7 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
             color: "var(--text-primary)",
           }}
         >
-          {action.title}
+          <InlineRichText text={action.title} onWikilinkClick={navigateToWiki} />
         </div>
         <div
           style={{
@@ -960,7 +940,7 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
             color: "var(--text-tertiary)",
           }}
         >
-          {action.description}
+          <InlineRichText text={action.description} onWikilinkClick={navigateToWiki} />
         </div>
         {expanded && prompt && (
           <div style={{ marginTop: 10 }}>
