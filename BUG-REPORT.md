@@ -35,6 +35,7 @@
 | [BUG-001](#bug-001--lo-stato-dei-task-nella-board-dipende-solo-dalla-cartella-il-campo-status-del-frontmatter-viene-ignorato) | Lo stato dei task nella board dipende solo dalla cartella; il campo `status:` del frontmatter viene ignorato | Taskboard | 🟠 Alta | Risolto in sessione (FIX-004; badge FIX-003). Modifica backend da validare in CI |
 | [BUG-002](#bug-002--lapp-non-segnala-quando-recommended_agent-di-una-spec-non-punta-a-un-profilo-agente-esistente) | L'app non segnala quando `recommended_agent` di una spec non punta a un profilo agente esistente | Diagnostics / Project Pulse | 🟡 Media | Risolto in sessione · CI da validare |
 | [BUG-003](#bug-003--il-ciclo-di-vita-dei-task-non-è-supportato-default-planned-e-nessuna-transizione-in-progress-allavvio) | Il ciclo di vita dei task non è supportato: default `planned` e nessuna transizione a `in-progress` all'avvio | Kit (template/AGENT/handoff) | 🟠 Alta | Risolto in sessione · CI da validare |
+| [BUG-004](#bug-004--il-lead-dopo-lapprovazione-delle-adr-si-mette-a-implementare-lo-scaffolding) | Il lead, dopo l'approvazione delle ADR, si mette a implementare lo scaffolding | Kit (AGENT.md / bootstrap prompt) | 🟠 Alta | Risolto in sessione |
 | [FIX-001](#fix-001--button-copy-prompt--hide-prompt-fuori-stile-in-next-recommended-actions) | Button "Copy prompt" / "Hide prompt" fuori stile in Next Recommended Actions | Project Pulse | 🔵 Bassa | Risolto in sessione |
 | [FIX-002](#fix-002--markup-bold-e-wikilinks-mostrati-grezzi-nel-project-pulse-invece-di-essere-formattatilink) | Markup `**bold**` e `[[wikilink]]` mostrati grezzi nel Project Pulse invece di essere formattati/link | Project Pulse | 🟡 Media | Risolto in sessione |
 | [FIX-003](#fix-003--mismatch-cartellafrontmatter-dello-stato-task-reso-visibile-sulla-card-mitigazione-di-bug-001) | Mismatch cartella/frontmatter dello stato task reso visibile sulla card (mitigazione di BUG-001) | Taskboard | 🟠 Alta | Risolto in sessione |
@@ -227,6 +228,45 @@ spec) → `in-progress` (l'esecutore inizia) → `review` (l'esecutore finisce) 
 **⚠️ Verifica:** frontend 43/43, `tsc`/`eslint` puliti. Il diagnostic Rust si valida
 in CI (`cargo test`). Nota: i dati esistenti di Brewlog (es. `TASK-002` planned senza
 spec) non sono toccati — il nuovo diagnostic te li segnalerà.
+
+---
+
+### BUG-004 — Il lead, dopo l'approvazione delle ADR, si mette a implementare lo scaffolding
+
+- **Area / Schermata:** Kit (`AGENT.md`, prompt di bootstrap del Project Lead)
+- **Severità:** 🟠 Alta
+- **Stato:** Risolto in sessione (rinforzo guardrail)
+- **Data rilevamento:** 2026-06-23
+- **Versione:** 1.2.5
+
+**Descrizione**
+Più volte il Project Lead, dopo che l'operatore ha approvato le ADR (es. lo stack
+tecnologico), ha iniziato a **implementare lo scaffolding** del progetto. Il lead non
+deve implementare: deve produrre l'handoff a uno specialista. Lo scaffolding/setup
+iniziale è lavoro di implementazione.
+
+**Causa (lacuna di guardrail, non un bug app)**
+Il confine in `AGENT.md` vietava già di modificare codice/build/config, ma non
+chiariva due cose che il lead razionalizzava:
+1. che **scaffolding/setup/bootstrapping sono implementazione** (il lead poteva
+   pensare "non sono *feature*, quindi posso");
+2. che **approvare ADR/spec/stack non autorizza a implementare** (il lead leggeva
+   l'approvazione come "via libera").
+→ [`kit/.lmbrain/AGENT.md`](kit/.lmbrain/AGENT.md), [`kit/.lmbrain/templates/project-lead-bootstrap-prompt.md`](kit/.lmbrain/templates/project-lead-bootstrap-prompt.md)
+
+**Fix applicata (kit + live)**
+- In `AGENT.md`, aggiunto un paragrafo esplicito: il confine copre **scaffolding,
+  setup, installazione dipendenze e bootstrapping**; **approvare una ADR/spec/
+  direzione tecnica non autorizza mai a implementare**; dopo l'approvazione l'unico
+  passo è preparare l'handoff (spec path + specialista) e fermarsi; se non esiste un
+  profilo specialista, lo propone e attende.
+- Nel prompt di bootstrap, aggiunta la stessa precisazione ("include scaffolding e
+  setup; approvare lo stack/ADR/spec non autorizza a implementare: prepara l'handoff
+  e fermati").
+
+**Nota:** è un rinforzo di una regola già esistente (nessun cambiamento di design),
+solo documentazione/prompt del kit — nessuna modifica di codice. L'enforcement vero
+resta comportamentale (l'app non può impedirlo).
 
 ---
 
