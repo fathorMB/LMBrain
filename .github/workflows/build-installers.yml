@@ -86,6 +86,9 @@ jobs:
         run: |
           pnpm lint
           pnpm test
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test
       - name: Build installers
         uses: tauri-apps/tauri-action@v0
         env:

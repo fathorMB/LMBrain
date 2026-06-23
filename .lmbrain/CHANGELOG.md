@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 1.2.3 — 2026-06-23
+
+### Changed
+
+- CI release builds now run the Rust integration tests (`cargo test`) alongside the frontend lint and tests.
+
 ## 1.2.2 — 2026-06-23
 
 ### Added
