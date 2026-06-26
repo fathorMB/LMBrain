@@ -4,4 +4,6 @@ pub mod invariants;
 pub mod path;
 pub mod transitions;
 
-pub use transitions::{ArtifactKind, CreateRequest, MutationOptions, MutationResult, TransitionError};
+pub use transitions::{
+    ArtifactKind, CreateRequest, MutationOptions, MutationResult, TransitionError,
+};

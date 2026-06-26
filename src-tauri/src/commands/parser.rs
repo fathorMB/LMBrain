@@ -14,64 +14,46 @@ pub struct FrontmatterResult {
     pub malformed: bool,
 }
 
-/// Parse YAML frontmatter and Markdown body from a string.
+/// Parse frontmatter and Markdown body from a string.
 /// Returns frontmatter map, body text, wikilinks, and any parse diagnostics.
 pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
     let content = content.trim_start();
     let mut diagnostics = Vec::new();
-    let mut malformed = false;
 
     if !content.starts_with("---") {
+        let body = content.to_string();
+        let wikilinks = extract_wikilinks(&body);
         return FrontmatterResult {
             frontmatter: HashMap::new(),
-            body: content.to_string(),
-            wikilinks: Vec::new(),
+            body,
+            wikilinks,
             diagnostics,
             malformed: false,
         };
     }
 
-    // Find the closing ---
-    let after_first = &content[3..];
-    let end = after_first.find("\n---");
-    let close_pos = match end {
-        Some(pos) => pos + 3,
-        None => {
-            diagnostics.push(
-                "Unclosed YAML frontmatter: opening `---` has no matching closing `---`".into(),
-            );
-            return FrontmatterResult {
+    match lmbrain_core::frontmatter::Document::parse(content) {
+        Ok(document) => {
+            let body = document.body.clone();
+            let wikilinks = extract_wikilinks(&body);
+            FrontmatterResult {
+                frontmatter: document.fields(),
+                body,
+                wikilinks,
+                diagnostics,
+                malformed: false,
+            }
+        }
+        Err(error) => {
+            diagnostics.push(format!("Malformed frontmatter: {error}"));
+            FrontmatterResult {
                 frontmatter: HashMap::new(),
                 body: content.to_string(),
                 wikilinks: Vec::new(),
                 diagnostics,
                 malformed: true,
-            };
+            }
         }
-    };
-
-    let yaml_str = &content[3..close_pos].trim();
-    let body = content[(close_pos + 3).min(content.len())..]
-        .trim()
-        .to_string();
-
-    let frontmatter: HashMap<String, Value> = match serde_yaml::from_str(yaml_str) {
-        Ok(fm) => fm,
-        Err(e) => {
-            diagnostics.push(format!("Malformed YAML frontmatter: {}", e));
-            malformed = true;
-            HashMap::new()
-        }
-    };
-
-    let wikilinks = extract_wikilinks(&body);
-
-    FrontmatterResult {
-        frontmatter,
-        body,
-        wikilinks,
-        diagnostics,
-        malformed,
     }
 }
 
@@ -79,27 +61,22 @@ pub fn parse_frontmatter(content: &str) -> FrontmatterResult {
 pub fn extract_wikilinks(body: &str) -> Vec<String> {
     let re = Regex::new(r"\[\[([^\]]+)\]\]").unwrap();
     re.captures_iter(body)
-        .map(|c| c[1].trim().to_string())
+        .map(|capture| capture[1].trim().to_string())
         .collect()
 }
 
 /// Parse a markdown file and return structured content.
 pub fn parse_markdown_file(path: &str, content: &str) -> ParsedDocument {
     let result = parse_frontmatter(content);
-
     let mut diagnostics = result.diagnostics;
 
-    // Check for common issues
     if content.trim().is_empty() {
         diagnostics.push("File is empty".into());
     }
 
-    // Convert frontmatter values to JSON Values
-    let fm_json: HashMap<String, Value> = result.frontmatter;
-
     ParsedDocument {
         path: path.to_string(),
-        frontmatter: fm_json,
+        frontmatter: result.frontmatter,
         body: result.body,
         wikilinks: result.wikilinks,
         diagnostics,
@@ -109,16 +86,17 @@ pub fn parse_markdown_file(path: &str, content: &str) -> ParsedDocument {
 
 /// Extract a string field from frontmatter.
 pub fn fm_string(fm: &HashMap<String, Value>, key: &str) -> Option<String> {
-    fm.get(key).and_then(|v| v.as_str()).map(|s| s.to_string())
+    fm.get(key).and_then(|value| value.as_str().map(str::to_string))
 }
 
 /// Extract a string array field from frontmatter.
 pub fn fm_string_array(fm: &HashMap<String, Value>, key: &str) -> Vec<String> {
     fm.get(key)
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|value| value.as_str().map(str::to_string))
                 .collect()
         })
         .unwrap_or_default()
@@ -126,5 +104,5 @@ pub fn fm_string_array(fm: &HashMap<String, Value>, key: &str) -> Vec<String> {
 
 /// Extract a boolean field from frontmatter.
 pub fn fm_bool(fm: &HashMap<String, Value>, key: &str) -> Option<bool> {
-    fm.get(key).and_then(|v| v.as_bool())
+    fm.get(key).and_then(Value::as_bool)
 }

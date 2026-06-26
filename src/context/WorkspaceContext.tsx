@@ -23,6 +23,7 @@ import type {
   GitInfo,
   FileEvent,
   DetailArtifact,
+  KitDiagnostic,
 } from "../types";
 import * as commands from "../lib/commands";
 
@@ -42,6 +43,7 @@ export interface WorkspaceState {
   mcpRecords: McpRecord[];
   mcpProposals: McpProposal[];
   handoffs: Handoff[];
+  diagnostics: KitDiagnostic[];
   wikiTree: WikiTree | null;
   wikiPage: WikiPage | null;
   selectedSpec: Spec | null;
@@ -53,6 +55,7 @@ export interface WorkspaceState {
 }
 
 export type Action =
+  | { type: "MERGE_DATA"; data: Partial<WorkspaceState> }
   | { type: "SET_SCREEN"; screen: "picker" | "app" }
   | { type: "SET_VIEW"; view: AppView }
   | { type: "SET_WORKSPACE"; info: WorkspaceInfo }
@@ -89,6 +92,7 @@ const initialState: WorkspaceState = {
   mcpRecords: [],
   mcpProposals: [],
   handoffs: [],
+  diagnostics: [],
   wikiTree: null,
   wikiPage: null,
   selectedSpec: null,
@@ -101,6 +105,8 @@ const initialState: WorkspaceState = {
 
 function reducer(state: WorkspaceState, action: Action): WorkspaceState {
   switch (action.type) {
+    case "MERGE_DATA":
+      return { ...state, ...action.data };
     case "SET_SCREEN":
       return { ...state, screen: action.screen };
     case "SET_VIEW":
@@ -172,7 +178,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const loadAllDataInternal = useCallback(async () => {
     try {
-      const [pulseData, specs, reviews, adrs, agents, mcpRecords, mcpProposals, handoffs] =
+      const [
+        pulseData,
+        specs,
+        reviews,
+        adrs,
+        agents,
+        mcpRecords,
+        mcpProposals,
+        handoffs,
+        diagnostics,
+      ] =
         await Promise.all([
           commands.getPulseData(),
           commands.getSpecs(),
@@ -182,16 +198,23 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           commands.getMcpRecords(),
           commands.getMcpProposals(),
           commands.getHandoffs(),
+          commands.getDiagnostics(),
         ]);
 
-      dispatch({ type: "SET_PULSE", data: pulseData });
-      dispatch({ type: "SET_SPECS", specs });
-      dispatch({ type: "SET_REVIEWS", reviews });
-      dispatch({ type: "SET_ADRS", adrs });
-      dispatch({ type: "SET_AGENTS", agents });
-      dispatch({ type: "SET_MCP_RECORDS", records: mcpRecords });
-      dispatch({ type: "SET_MCP_PROPOSALS", proposals: mcpProposals });
-      dispatch({ type: "SET_HANDOFFS", handoffs });
+      dispatch({
+        type: "MERGE_DATA",
+        data: {
+          pulseData,
+          specs,
+          reviews,
+          adrs,
+          agents,
+          mcpRecords,
+          mcpProposals,
+          handoffs,
+          diagnostics,
+        },
+      });
     } catch (err) {
       console.error("Failed to load data:", err);
     }

@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 pub mod commands;
 mod errors;
 pub mod models;
@@ -134,8 +133,7 @@ fn get_pulse_data(state: State<'_, AppState>) -> Result<PulseData, String> {
     let adrs = contract::build_adrs(&root).map_err(|e| e.to_string())?;
     let handoffs = contract::build_handoffs(&root).map_err(|e| e.to_string())?;
 
-    contract::build_pulse_data(&root, &specs, &reviews, &adrs, &handoffs)
-        .map_err(|e| e.to_string())
+    contract::build_pulse_data(&root, &specs, &reviews, &adrs, &handoffs).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

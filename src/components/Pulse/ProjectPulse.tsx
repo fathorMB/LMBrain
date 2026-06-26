@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { getPulseData, getAdrs, getHandoffs, getAgents, getDiagnostics } from "../../lib/commands";
 import { buildHandoffPrompt } from "../../lib/handoffPrompt";
 import { InlineRichText } from "../../lib/inlineRichText";
 import { useWikiNavigation } from "../../hooks/useWikiNavigation";
@@ -44,34 +43,12 @@ Resolve the reported error while preserving the rest of the file content and str
 }
 
 export function ProjectPulse() {
-  const { state, dispatch } = useWorkspace();
-  const [diagnostics, setDiagnostics] = useState<KitDiagnostic[]>([]);
+  const { state } = useWorkspace();
   const [expandedDiagnostic, setExpandedDiagnostic] = useState<number | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [pulse, adrs, handoffs, agents, diags] = await Promise.all([
-          getPulseData(),
-          getAdrs(),
-          getHandoffs(),
-          getAgents(),
-          getDiagnostics(),
-        ]);
-        dispatch({ type: "SET_PULSE", data: pulse });
-        dispatch({ type: "SET_ADRS", adrs });
-        dispatch({ type: "SET_HANDOFFS", handoffs });
-        dispatch({ type: "SET_AGENTS", agents });
-        setDiagnostics(diags);
-      } catch (err) {
-        console.error("Failed to load pulse data:", err);
-      }
-    };
-    load();
-  }, [dispatch]);
-
   const navigateToWiki = useWikiNavigation();
+  const diagnostics = state.diagnostics;
 
   const pulse = state.pulseData;
   if (!pulse) {

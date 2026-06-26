@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::SystemTime;
 
 use crate::errors::AppError;
 use crate::models::file::{DirEntry, FileContent};
@@ -38,23 +39,17 @@ impl PathGuard {
     pub fn set_root(&self, root: &Path) {
         let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
         let clean = clean_path(&canonical);
-        *self.approved_root.lock().unwrap() = Some(clean);
-    }
-
-    pub fn clear_root(&self) {
-        *self.approved_root.lock().unwrap() = None;
+        *self.lock_root() = Some(clean);
     }
 
     pub fn get_root(&self) -> Option<PathBuf> {
-        self.approved_root.lock().unwrap().clone()
+        self.lock_root().clone()
     }
 
     /// Resolve a path relative to the approved root and validate it stays inside.
     pub fn resolve(&self, path: &str) -> Result<PathBuf, AppError> {
         let root = self
-            .approved_root
-            .lock()
-            .unwrap()
+            .lock_root()
             .clone()
             .ok_or_else(|| AppError::PathSafety("No workspace root is set".into()))?;
 
@@ -93,16 +88,7 @@ impl PathGuard {
         let modified = metadata
             .modified()
             .ok()
-            .and_then(|t| {
-                t.duration_since(std::time::UNIX_EPOCH).ok().map(|d| {
-                    let secs = d.as_secs();
-                    // Format as ISO-like string
-                    let days = secs / 86400;
-                    let hours = (secs % 86400) / 3600;
-                    let mins = (secs % 3600) / 60;
-                    format!("{}d {}h {}m ago", days, hours, mins)
-                })
-            })
+            .and_then(format_elapsed_time)
             .unwrap_or_else(|| "unknown".into());
 
         Ok(FileContent {
@@ -131,8 +117,7 @@ impl PathGuard {
                 .metadata()
                 .ok()
                 .and_then(|m| m.modified().ok())
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| format!("{}s", d.as_secs()));
+                .and_then(format_elapsed_time);
 
             entries.push(DirEntry {
                 name,
@@ -147,10 +132,19 @@ impl PathGuard {
 
         Ok(entries)
     }
-
-    /// Check if a path exists within the approved root.
-    pub fn exists(&self, path: &str) -> Result<bool, AppError> {
-        let resolved = self.resolve(path)?;
-        Ok(resolved.exists())
+    fn lock_root(&self) -> std::sync::MutexGuard<'_, Option<PathBuf>> {
+        self.approved_root
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
+}
+
+fn format_elapsed_time(modified: SystemTime) -> Option<String> {
+    let elapsed = SystemTime::now().duration_since(modified).ok()?;
+    let total_minutes = elapsed.as_secs() / 60;
+    let days = total_minutes / (24 * 60);
+    let hours = (total_minutes % (24 * 60)) / 60;
+    let minutes = total_minutes % 60;
+
+    Some(format!("{days}d {hours}h {minutes}m ago"))
 }

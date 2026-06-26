@@ -42,9 +42,3 @@ impl From<serde_json::Error> for AppError {
         AppError::Serialization(e.to_string())
     }
 }
-
-impl From<serde_yaml::Error> for AppError {
-    fn from(e: serde_yaml::Error) -> Self {
-        AppError::ParseError(e.to_string())
-    }
-}

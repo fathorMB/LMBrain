@@ -10,7 +10,11 @@ use crate::errors::AppError;
 
 /// Build the `.mcp.json` content that registers the `lmbrain` server, merging into
 /// any existing configuration and preserving unrelated keys and other servers.
-pub fn build_mcp_config(existing: Option<&str>, command: &str, root: &str) -> Result<String, AppError> {
+pub fn build_mcp_config(
+    existing: Option<&str>,
+    command: &str,
+    root: &str,
+) -> Result<String, AppError> {
     let mut value: Value = match existing {
         Some(text) if !text.trim().is_empty() => serde_json::from_str(text)?,
         _ => json!({}),
@@ -23,10 +27,13 @@ pub fn build_mcp_config(existing: Option<&str>, command: &str, root: &str) -> Re
     if !servers.is_object() {
         *servers = json!({});
     }
-    servers.as_object_mut().expect("mcpServers is an object").insert(
-        "lmbrain".to_string(),
-        json!({ "command": command, "args": ["--root", root] }),
-    );
+    servers
+        .as_object_mut()
+        .expect("mcpServers is an object")
+        .insert(
+            "lmbrain".to_string(),
+            json!({ "command": command, "args": ["--root", root] }),
+        );
     Ok(serde_json::to_string_pretty(&value)?)
 }
 
@@ -54,7 +61,11 @@ pub fn resolve_mcp_command() -> String {
             return value;
         }
     }
-    let binary = if cfg!(windows) { "lmbrain-mcp.exe" } else { "lmbrain-mcp" };
+    let binary = if cfg!(windows) {
+        "lmbrain-mcp.exe"
+    } else {
+        "lmbrain-mcp"
+    };
     if let Ok(exe) = std::env::current_exe() {
         if let Some(candidate) = exe.parent().map(|dir| dir.join(binary)) {
             if candidate.exists() {
@@ -74,7 +85,10 @@ mod tests {
     fn creates_config_when_absent() {
         let out = build_mcp_config(None, "/bin/lmbrain-mcp", "/ws").unwrap();
         let value: Value = serde_json::from_str(&out).unwrap();
-        assert_eq!(value["mcpServers"]["lmbrain"]["command"], "/bin/lmbrain-mcp");
+        assert_eq!(
+            value["mcpServers"]["lmbrain"]["command"],
+            "/bin/lmbrain-mcp"
+        );
         assert_eq!(value["mcpServers"]["lmbrain"]["args"][0], "--root");
         assert_eq!(value["mcpServers"]["lmbrain"]["args"][1], "/ws");
     }

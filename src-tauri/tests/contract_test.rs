@@ -163,7 +163,12 @@ title: Roadmap
     fs::write(dir.path().join(".lmbrain").join("ROADMAP.md"), roadmap).unwrap();
 
     let result = contract::build_roadmap(dir.path()).unwrap();
-    assert_eq!(result.milestones.len(), 2, "expected 2 milestones, got {:?}", result.milestones);
+    assert_eq!(
+        result.milestones.len(),
+        2,
+        "expected 2 milestones, got {:?}",
+        result.milestones
+    );
     let m1 = &result.milestones[0];
     assert_eq!(m1.id, "M-01");
     assert_eq!(m1.title, "Running scaffold");
@@ -231,7 +236,10 @@ Body"#;
         .iter()
         .filter(|d| d.message.contains("Malformed"))
         .collect();
-    assert!(!parse_errors.is_empty(), "Expected malformed YAML diagnostic");
+    assert!(
+        !parse_errors.is_empty(),
+        "Expected malformed YAML diagnostic"
+    );
 }
 
 #[test]
@@ -460,7 +468,10 @@ Spec Body 2"#;
     let new_path2 =
         contract::set_artifact_status(&path_guard, &spec_path2.to_string_lossy(), "discarded")
             .unwrap();
-    assert_eq!(canon(&new_path2), canon(specs_discarded_dir.join("SPEC-002.md")));
+    assert_eq!(
+        canon(&new_path2),
+        canon(specs_discarded_dir.join("SPEC-002.md"))
+    );
     assert!(!spec_path2.exists());
     assert!(new_path2.exists());
 
