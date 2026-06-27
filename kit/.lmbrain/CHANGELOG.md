@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.2.1 - 2026-06-27
+
+### Fixed
+
+- **CI validation for the design release.** Stabilized the Design view preview test by waiting for the async preview frame and made Codex trusted-project path matching recognize Windows-style project keys even when Rust tests run on Linux.
+
 ## 2.2.0 - 2026-06-27
 
 ### Added
