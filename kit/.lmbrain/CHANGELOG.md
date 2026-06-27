@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.2.2 - 2026-06-27
+
+### Fixed
+
+- **Release workflow no longer depends on Actions artifact storage.** Installer jobs upload built installers and `lmbrain-mcp` binaries directly to the GitHub Release, avoiding `upload-artifact` quota failures after successful test/build steps.
+
 ## 2.2.1 - 2026-06-27
 
 ### Fixed

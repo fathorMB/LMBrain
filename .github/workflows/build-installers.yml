@@ -48,6 +48,8 @@ jobs:
     needs: version
     if: needs.version.outputs.changed == 'true'
     name: ${{ matrix.name }} installer
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -96,48 +98,40 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           args: ${{ matrix.args }}
-      - name: Upload installers
-        uses: actions/upload-artifact@v4
-        with:
-          name: LMBrain-v${{ needs.version.outputs.version }}-${{ matrix.name }}
-          path: ${{ matrix.artifact }}
-          if-no-files-found: error
-      - name: Upload MCP server
-        uses: actions/upload-artifact@v4
-        with:
-          name: lmbrain-mcp-${{ matrix.name }}
-          path: target/release/lmbrain-mcp${{ runner.os == 'Windows' && '.exe' || '' }}
-          if-no-files-found: error
-
-  release:
-    name: Publish GitHub release
-    needs: [version, build]
-    if: needs.version.outputs.changed == 'true' && needs.build.result == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Download installers
-        uses: actions/download-artifact@v4
-        with:
-          pattern: LMBrain-v${{ needs.version.outputs.version }}-*
-          path: release-assets
-          merge-multiple: true
-      - name: Create or update release
+      - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
-        shell: bash
+          ARTIFACT_PATTERNS: ${{ matrix.artifact }}
+        shell: pwsh
         run: |
-          tag="v$VERSION"
-          mapfile -d '' assets < <(find release-assets -type f -print0)
-          if [ "${#assets[@]}" -eq 0 ]; then
-            echo "No release assets were downloaded." >&2
-            exit 1
-          fi
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "${assets[@]}" --clobber
-          else
-            gh release create "$tag" "${assets[@]}" --title "LMBrain v$VERSION" --generate-notes
-          fi
+          $tag = "v$env:VERSION"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "LMBrain v$env:VERSION" --generate-notes
+            if ($LASTEXITCODE -ne 0) {
+              gh release view $tag *> $null
+              if ($LASTEXITCODE -ne 0) {
+                throw "Failed to create or find release $tag"
+              }
+            }
+          }
+
+          $assets = @()
+          $patterns = $env:ARTIFACT_PATTERNS -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+          foreach ($pattern in $patterns) {
+            $assets += Get-ChildItem -Path $pattern -File | ForEach-Object { $_.FullName }
+          }
+
+          $mcp = "target/release/lmbrain-mcp"
+          if ($env:RUNNER_OS -eq "Windows") {
+            $mcp = "$mcp.exe"
+          }
+          if (Test-Path $mcp) {
+            $assets += (Resolve-Path $mcp).Path
+          }
+
+          if ($assets.Count -eq 0) {
+            throw "No release assets found"
+          }
+          gh release upload $tag @assets --clobber
