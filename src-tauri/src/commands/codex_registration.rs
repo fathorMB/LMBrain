@@ -174,7 +174,7 @@ fn codex_project_key(root: &Path) -> String {
         .map(|path| clean_path(&path))
         .unwrap_or_else(|_| clean_path(root));
     let key = clean.to_string_lossy().to_string();
-    if cfg!(windows) {
+    if cfg!(windows) || is_windows_path_key(&key) {
         key.to_ascii_lowercase()
     } else {
         key
@@ -184,13 +184,18 @@ fn codex_project_key(root: &Path) -> String {
 fn path_keys_equal(left: &str, right: &str) -> bool {
     let normalize = |value: &str| {
         let value = value.replace('/', "\\");
-        if cfg!(windows) {
+        if cfg!(windows) || is_windows_path_key(&value) {
             value.to_ascii_lowercase()
         } else {
             value
         }
     };
     normalize(left) == normalize(right)
+}
+
+fn is_windows_path_key(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() >= 2 && bytes[1] == b':' || value.contains('\\')
 }
 
 fn write_if_changed(path: &Path, existing: Option<&str>, content: &str) -> Result<(), AppError> {

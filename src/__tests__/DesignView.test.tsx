@@ -49,7 +49,7 @@ describe("DesignView", () => {
 
     await waitFor(() => expect(screen.getAllByText("Checkout Flow").length).toBeGreaterThan(0));
     expect(screen.getByText("Responsive checkout mockup.")).toBeDefined();
-    expect(screen.getByTitle("Design mockup preview")).toBeDefined();
+    await waitFor(() => expect(screen.getByTitle("Design mockup preview")).toBeDefined());
     expect(commands.readDesignMockupHtml).toHaveBeenCalledWith(mockup.entry_path);
   });
 });
