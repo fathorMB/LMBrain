@@ -4,6 +4,13 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.1.2 — 2026-06-27
+
+### Fixed
+
+- **Sessions new-session modal could open behind session windows.** The modal layer now sits above the current highest session-window z-index, so it remains visible and interactive even after repeatedly bringing session windows to the front.
+- **Non-Sessions views could lose click and scroll interaction.** The hidden Sessions layer is now mounted only while the Sessions view is active, and the main content, Wiki panes, and Board columns have the flex sizing needed for their internal scroll containers to work reliably.
+
 ## 2.1.1 — 2026-06-27
 
 ### Fixed

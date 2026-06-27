@@ -62,7 +62,7 @@ graph TD
 * [`.github/workflows/`](file:///.github/workflows/build-installers.yml): Automated installer build and release publisher.
 * [`.lmbrain/`](file:///.lmbrain/): The active project brain governing LMBrain's own development.
 * [`app-design/`](file:///app-design/): HTML/CSS layouts, UI design systems, and visual mockups.
-* [`kit/.lmbrain/`](file:///kit/.lmbrain/): The clean, reusable starter kit template (version `1.0.5`) to bootstrap new projects.
+* [`kit/.lmbrain/`](file:///kit/.lmbrain/): The clean, reusable starter kit template (version `2.1.2`) to bootstrap new projects.
 * [`scripts/`](file:///scripts/): Tooling for validation and version-alignment checks.
 * [`src/`](file:///src/) & [`src-tauri/`](file:///src-tauri/): Frontend and backend source code of the Tauri desktop application.
 
@@ -119,7 +119,7 @@ The app and kit share a single release version. The workflow verifies this align
 node scripts/check-version.mjs
 ```
 To publish a new release:
-1. Update `package.json`, `src-tauri/Cargo.toml`, and `.lmbrain/VERSION`.
+1. Update `package.json`, `src-tauri/Cargo.toml`, `kit/.lmbrain/VERSION`, and `.lmbrain/VERSION`.
 2. Commit and push.
 3. The CI/CD workflow will compile the installer binaries and publish them automatically as assets on a new GitHub Release.
 
@@ -128,4 +128,3 @@ To publish a new release:
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-

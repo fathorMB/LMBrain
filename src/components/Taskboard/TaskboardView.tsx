@@ -40,7 +40,7 @@ export function TaskboardView() {
     state.specs.filter((s) => s.status === status);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       {/* Header */}
       <div
         style={{
@@ -95,7 +95,7 @@ export function TaskboardView() {
       </div>
 
       {/* Columns */}
-      <div style={{ flex: 1, overflowX: "auto", overflowY: "hidden", padding: "16px 24px" }}>
+      <div style={{ flex: 1, minHeight: 0, overflowX: "auto", overflowY: "hidden", padding: "16px 24px" }}>
         <div style={{ display: "flex", gap: 14, height: "100%", minWidth: "max-content" }}>
           {COLUMNS.map((col) => {
             const specs = specsByStatus(col.status);
@@ -130,6 +130,8 @@ export function TaskboardView() {
                     display: "flex",
                     flexDirection: "column",
                     gap: 9,
+                    flex: 1,
+                    minHeight: 0,
                     overflowY: "auto",
                     paddingRight: 2,
                   }}

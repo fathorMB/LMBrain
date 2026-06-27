@@ -61,11 +61,12 @@ export function AppShell() {
       }}
     >
       <Sidebar />
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <TopBar />
         <div
           style={{
             flex: 1,
+            minHeight: 0,
             background: "#0c0b0f",
             position: "relative",
           }}
@@ -73,6 +74,7 @@ export function AppShell() {
           <div
             style={{
               height: "100%",
+              minHeight: 0,
               overflowY: state.view === "sessions" ? "hidden" : "auto",
               display: state.view === "sessions" ? "none" : "block",
             }}
@@ -83,7 +85,7 @@ export function AppShell() {
             style={{
               position: "absolute",
               inset: 0,
-              display: state.currentWorkspace ? "block" : "none",
+              display: state.currentWorkspace && state.view === "sessions" ? "block" : "none",
             }}
           >
             <SessionsView active={state.view === "sessions"} />

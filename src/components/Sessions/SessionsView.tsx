@@ -33,6 +33,10 @@ export function SessionsView({ active }: SessionsViewProps) {
     () => [...state.sessions].sort((left, right) => left.zIndex - right.zIndex),
     [state.sessions]
   );
+  const modalZIndex = useMemo(
+    () => state.sessions.reduce((max, session) => Math.max(max, session.zIndex), 0) + 1,
+    [state.sessions]
+  );
 
   const refreshModels = async () => {
     setModelsLoading(true);
@@ -103,8 +107,10 @@ export function SessionsView({ active }: SessionsViewProps) {
     <div
       style={{
         display: active ? "flex" : "none",
+        position: "relative",
         flexDirection: "column",
         height: "100%",
+        overflow: "hidden",
         background:
           "radial-gradient(circle at top left, rgba(106,79,240,0.18), transparent 26%), #0c0b0f",
       }}
@@ -191,9 +197,13 @@ export function SessionsView({ active }: SessionsViewProps) {
             alignItems: "center",
             justifyContent: "center",
             padding: 24,
+            zIndex: modalZIndex,
           }}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="start-session-title"
             style={{
               width: 460,
               maxWidth: "100%",
@@ -205,6 +215,7 @@ export function SessionsView({ active }: SessionsViewProps) {
             }}
           >
             <div
+              id="start-session-title"
               style={{
                 fontSize: 18,
                 fontWeight: 700,

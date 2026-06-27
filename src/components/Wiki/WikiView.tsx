@@ -82,12 +82,13 @@ export function WikiView() {
   }, [currentPage, wikilinkIndex]);
 
   return (
-    <div style={{ display: "flex", height: "100%" }}>
+    <div style={{ display: "flex", height: "100%", minHeight: 0 }}>
       {/* Tree sidebar */}
       <div
         style={{
           width: 236,
           flex: "none",
+          minHeight: 0,
           borderRight: "1px solid var(--border-primary)",
           overflowY: "auto",
           padding: "15px 11px",
@@ -131,7 +132,7 @@ export function WikiView() {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: "auto" }}>
         {loading ? (
           <div
             style={{
@@ -226,6 +227,7 @@ export function WikiView() {
           style={{
             width: 268,
             flex: "none",
+            minHeight: 0,
             borderLeft: "1px solid var(--border-primary)",
             overflowY: "auto",
             padding: "18px 16px",
@@ -518,4 +520,3 @@ function InfoRow({
     </div>
   );
 }
-
