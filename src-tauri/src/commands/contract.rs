@@ -7,7 +7,7 @@ use std::{
 use crate::commands::parser::{self, fm_string, fm_string_array};
 use crate::errors::AppError;
 use crate::models::adr::{Adr, AdrStatus};
-use crate::models::agent::{AgentProfile, AgentStatus};
+use crate::models::agent::{AgentProfile, AgentProposal, AgentProposalStatus, AgentStatus};
 use crate::models::file::ParsedDocument;
 use crate::models::handoff::{Handoff, HandoffStatus};
 use crate::models::mcp::{McpProposal, McpProposalStatus, McpRecord, McpStatus};
@@ -137,6 +137,29 @@ pub fn build_agents(root: &Path) -> Result<Vec<AgentProfile>, AppError> {
                 activation: fm_string(&parsed.frontmatter, "activation"),
                 can_implement: parser::fm_bool(&parsed.frontmatter, "can_implement"),
                 can_review: parser::fm_bool(&parsed.frontmatter, "can_review"),
+                body: common.body,
+                path: common.path,
+                created: common.created,
+                updated: common.updated,
+                tags: common.tags,
+                links: common.links,
+                malformed: common.malformed,
+            })
+        },
+    )
+}
+
+/// Build agent proposals from the agents/proposals directory.
+pub fn build_agent_proposals(root: &Path) -> Result<Vec<AgentProposal>, AppError> {
+    build_flat_artifacts(
+        &root.join(".lmbrain/agents/proposals"),
+        Some("AGENT-PROP-"),
+        |parsed, path| {
+            let common = common_fields(parsed, path);
+            Ok(AgentProposal {
+                id: common.id,
+                title: common.title,
+                status: parse_agent_proposal_status(&parsed.frontmatter),
                 body: common.body,
                 path: common.path,
                 created: common.created,
@@ -353,6 +376,16 @@ fn parse_agent_status(frontmatter: &HashMap<String, serde_json::Value>) -> Agent
         Some("inactive") => AgentStatus::Inactive,
         Some("retired") => AgentStatus::Retired,
         _ => AgentStatus::Proposed,
+    }
+}
+
+fn parse_agent_proposal_status(
+    frontmatter: &HashMap<String, serde_json::Value>,
+) -> AgentProposalStatus {
+    match fm_string(frontmatter, "status").as_deref() {
+        Some("approved") => AgentProposalStatus::Approved,
+        Some("rejected") => AgentProposalStatus::Rejected,
+        _ => AgentProposalStatus::Proposed,
     }
 }
 

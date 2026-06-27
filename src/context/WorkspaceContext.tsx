@@ -29,6 +29,7 @@ import type {
   WorkspaceInfo,
   WorkspaceSummary,
   AgentProfile,
+  AgentProposal,
 } from "../types";
 import * as commands from "../lib/commands";
 
@@ -48,6 +49,7 @@ export interface WorkspaceState {
   reviews: Review[];
   adrs: Adr[];
   agents: AgentProfile[];
+  agentProposals: AgentProposal[];
   mcpRecords: McpRecord[];
   mcpProposals: McpProposal[];
   handoffs: Handoff[];
@@ -75,6 +77,7 @@ export type Action =
   | { type: "SET_REVIEWS"; reviews: Review[] }
   | { type: "SET_ADRS"; adrs: Adr[] }
   | { type: "SET_AGENTS"; agents: AgentProfile[] }
+  | { type: "SET_AGENT_PROPOSALS"; proposals: AgentProposal[] }
   | { type: "SET_MCP_RECORDS"; records: McpRecord[] }
   | { type: "SET_MCP_PROPOSALS"; proposals: McpProposal[] }
   | { type: "SET_HANDOFFS"; handoffs: Handoff[] }
@@ -105,6 +108,7 @@ const initialState: WorkspaceState = {
   reviews: [],
   adrs: [],
   agents: [],
+  agentProposals: [],
   mcpRecords: [],
   mcpProposals: [],
   handoffs: [],
@@ -170,6 +174,8 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, adrs: action.adrs };
     case "SET_AGENTS":
       return { ...state, agents: action.agents };
+    case "SET_AGENT_PROPOSALS":
+      return { ...state, agentProposals: action.proposals };
     case "SET_MCP_RECORDS":
       return { ...state, mcpRecords: action.records };
     case "SET_MCP_PROPOSALS":
@@ -281,6 +287,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         reviews,
         adrs,
         agents,
+        agentProposals,
         mcpRecords,
         mcpProposals,
         handoffs,
@@ -291,6 +298,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         commands.getReviews(),
         commands.getAdrs(),
         commands.getAgents(),
+        commands.getAgentProposals(),
         commands.getMcpRecords(),
         commands.getMcpProposals(),
         commands.getHandoffs(),
@@ -305,6 +313,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           reviews,
           adrs,
           agents,
+          agentProposals,
           mcpRecords,
           mcpProposals,
           handoffs,

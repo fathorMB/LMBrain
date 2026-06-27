@@ -19,6 +19,7 @@ Initialization refuses to overwrite an existing `.lmbrain/`.
 - `README.md`: kit entry point.
 - `CHANGELOG.md`, `MIGRATIONS.md`, `VERSION`: kit versioning and upgrade information.
 - `templates/`: templates for specs, reviews, ADRs, agent profiles/proposals, MCP proposals/specs, and handoffs.
+- `design/`: operator-loaded design mockups used as support material for specs and implementation handoffs.
 
 ## Artifact Directories
 
@@ -28,12 +29,15 @@ The kit includes directories for:
 - `reviews/<status>/`
 - `decisions/`
 - `agents/`
+- `design/`
 - `mcp/`
 - `handoffs/`
 - `knowledge/`
 - `reports/`
 
 Status-directory artifacts must keep filesystem location and frontmatter `status` aligned. LMBrain surfaces diagnostics for mismatches and related consistency problems.
+
+`design/` is intentionally not a managed artifact directory. It stores self-contained HTML/CSS/JS mockups and optional README/manifest metadata that the Project Lead may reference from specs.
 
 ## Spec Board
 

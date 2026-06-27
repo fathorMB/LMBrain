@@ -1,8 +1,8 @@
 # LMBrain Project Brain
 
-This directory is the portable, versioned source of truth for a project's knowledge, planning, agent handoffs, and reviews.
+This directory is the portable, versioned source of truth for a project's knowledge, planning, design mockups, agent handoffs, and reviews.
 
-**Kit version:** `2.1.2` (read from `VERSION`)
+**Kit version:** `2.2.0` (read from `VERSION`)
 
 ## Quick start
 
@@ -20,6 +20,7 @@ This directory is the portable, versioned source of truth for a project's knowle
 - Specialist agents are manually started by the user and write implementation evidence only.
 - Claude Code and Codex can both use the same repository-scoped `lmbrain-mcp` tools after LMBrain registers the workspace.
 - New agent profiles and MCPs are proposed before they are made active.
+- Design mockups live under `design/` as operator-loaded files; design specialists use the same proposal/profile workflow as every other agent.
 - A Project Lead can write a validated session handoff for the next Project Lead session.
 
 Start with `OPERATOR.md` for the human workflow. Read `CONTRACT.md` for the complete data contract, `QUALITY.md` for the mandatory production standard, and `AGENT.md` for the Project Lead's operating rules.

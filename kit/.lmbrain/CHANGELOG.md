@@ -4,6 +4,13 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.2.0 - 2026-06-27
+
+### Added
+
+- **Design view and kit workspace.** New workspaces scaffold `.lmbrain/design/` for operator-loaded self-contained HTML/CSS/JS mockups, and the desktop app now has a Design view that lists those mockups, shows metadata, and previews HTML entries in an isolated iframe surface.
+- **Normal agent proposal support for design work.** The kit ships a proposed Web App Design Specialist under `agents/proposals/`, and the Agents & MCP view now lists agent proposals alongside profiles so design specialists follow the same approval/profile workflow as every other agent.
+
 ## 2.1.2 — 2026-06-27
 
 ### Fixed

@@ -1,5 +1,6 @@
 pub mod adr;
 pub mod agent;
+pub mod design;
 pub mod file;
 pub mod handoff;
 pub mod mcp;

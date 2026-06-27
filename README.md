@@ -5,6 +5,7 @@ LMBrain is a local-first project brain and desktop workspace for agent-assisted 
 The repository contains three product surfaces:
 
 - a reusable Markdown kit in `kit/.lmbrain/`;
+- a design mockup workspace for operator-loaded HTML/CSS/JS design artifacts;
 - a Tauri desktop app in `src/` and `src-tauri/`;
 - shared Rust services in `lmbrain-core/` and `lmbrain-mcp/`.
 

@@ -5,11 +5,13 @@ pub mod models;
 use std::path::{Path, PathBuf};
 
 use commands::contract;
+use commands::design;
 use commands::filesystem::PathGuard;
 use commands::git;
 use commands::sessions::SessionManager;
 use commands::watcher::FileWatcherService;
 use commands::workspace::WorkspaceService;
+use models::design::{DesignMockup, DesignMockupHtml};
 use models::file::{FileContent, GitInfo, ParsedDocument};
 use models::pulse::PulseData;
 use models::session::{OllamaModel, SessionInfo, SessionStartRequest};
@@ -184,6 +186,17 @@ fn get_agents(state: State<'_, AppState>) -> Result<Vec<models::agent::AgentProf
 }
 
 #[tauri::command]
+fn get_agent_proposals(
+    state: State<'_, AppState>,
+) -> Result<Vec<models::agent::AgentProposal>, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    contract::build_agent_proposals(&root).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn get_mcp_records(state: State<'_, AppState>) -> Result<Vec<models::mcp::McpRecord>, String> {
     let root = state
         .path_guard
@@ -208,6 +221,27 @@ fn get_handoffs(state: State<'_, AppState>) -> Result<Vec<models::handoff::Hando
         .get_root()
         .ok_or_else(|| "No workspace open".to_string())?;
     contract::build_handoffs(&root).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_design_mockups(state: State<'_, AppState>) -> Result<Vec<DesignMockup>, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    design::scan_design_mockups(&root).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn read_design_mockup_html(
+    state: State<'_, AppState>,
+    entry_path: String,
+) -> Result<DesignMockupHtml, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    design::read_design_html(&root, Path::new(&entry_path)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -444,9 +478,12 @@ pub fn run() {
             get_reviews,
             get_adrs,
             get_agents,
+            get_agent_proposals,
             get_mcp_records,
             get_mcp_proposals,
             get_handoffs,
+            get_design_mockups,
+            read_design_mockup_html,
             get_roadmap,
             get_wikilink_index,
             get_diagnostics,

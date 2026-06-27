@@ -16,7 +16,7 @@ The main product idea is simple: a repository owns its project state as Markdown
 
 1. A user copies or initializes the kit into a target repository.
 2. The user opens that repository in LMBrain.
-3. LMBrain reads `.lmbrain/` and shows project pulse, wiki, board, roadmap, reviews, decisions, agents, and MCP state.
+3. LMBrain reads `.lmbrain/` and shows project pulse, wiki, board, design mockups, roadmap, reviews, decisions, agents, and MCP state.
 4. LMBrain registers local agent tooling for supported hosts.
 5. The user manually starts agents or sessions when needed.
 
@@ -27,6 +27,7 @@ LMBrain does not automatically start agents and does not require a remote servic
 - Pulse: current project state, diagnostics, and recommended actions.
 - Wiki: file tree and Markdown rendering for the `.lmbrain/` workspace.
 - Board: specifications grouped by status.
+- Design: operator-loaded self-contained HTML/CSS/JS mockups from `.lmbrain/design/`.
 - Roadmap: milestones parsed from `.lmbrain/ROADMAP.md`.
 - Reviews and Decisions: project governance artifacts.
 - Agents & MCP: agent profiles, proposals, MCP records, and built-in MCP tools.

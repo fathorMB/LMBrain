@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { getAgents, getMcpRecords, getMcpProposals } from "../../lib/commands";
-import type { AgentProfile, McpRecord, McpProposal } from "../../types";
+import { getAgentProposals, getAgents, getMcpRecords, getMcpProposals } from "../../lib/commands";
+import type { AgentProfile, AgentProposal, McpRecord, McpProposal } from "../../types";
 
 // Built-in controlled-mutation tools exposed by the repository-scoped `lmbrain-mcp`
 // server. Keep in sync with `lmbrain-mcp/src/main.rs` (tools()).
@@ -25,11 +25,13 @@ export function AgentsMCPView() {
   useEffect(() => {
     Promise.all([
       getAgents(),
+      getAgentProposals(),
       getMcpRecords(),
       getMcpProposals(),
     ])
-      .then(([agents, records, proposals]) => {
+      .then(([agents, agentProposals, records, proposals]) => {
         dispatch({ type: "SET_AGENTS", agents });
+        dispatch({ type: "SET_AGENT_PROPOSALS", proposals: agentProposals });
         dispatch({ type: "SET_MCP_RECORDS", records });
         dispatch({ type: "SET_MCP_PROPOSALS", proposals });
       })
@@ -96,6 +98,36 @@ export function AgentsMCPView() {
             <AgentCard key={agent.id} agent={agent} />
           ))}
         </div>
+
+        {/* Agent Proposals */}
+        {state.agentProposals.length > 0 && (
+          <>
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: ".09em",
+                textTransform: "uppercase",
+                color: "#6c6671",
+                fontWeight: 600,
+                marginBottom: 11,
+              }}
+            >
+              Agent Proposals
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 9,
+                marginBottom: 32,
+              }}
+            >
+              {state.agentProposals.map((proposal) => (
+                <AgentProposalCard key={proposal.id} proposal={proposal} />
+              ))}
+            </div>
+          </>
+        )}
 
         {/* MCP Records */}
         <div
@@ -241,6 +273,7 @@ export function AgentsMCPView() {
 }
 
 function AgentCard({ agent }: { agent: AgentProfile }) {
+  const { openDetailArtifact } = useWorkspace();
   const statusColors: Record<string, { color: string; bg: string }> = {
     active: { color: "#46b07d", bg: "rgba(70,176,125,.12)" },
     inactive: { color: "#8a8d99", bg: "rgba(139,141,152,.12)" },
@@ -251,6 +284,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
 
   return (
     <div
+      onClick={() => openDetailArtifact({ title: agent.title, path: agent.path })}
       style={{
         display: "flex",
         alignItems: "center",
@@ -259,6 +293,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
         border: "1px solid var(--border-secondary)",
         borderRadius: 11,
         padding: "14px 16px",
+        cursor: "pointer",
       }}
     >
       <div
@@ -329,6 +364,74 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
         }}
       >
         {agent.status.toUpperCase()}
+      </span>
+    </div>
+  );
+}
+
+function AgentProposalCard({ proposal }: { proposal: AgentProposal }) {
+  const { openDetailArtifact } = useWorkspace();
+  const statusColors: Record<string, { color: string; bg: string }> = {
+    proposed: { color: "#e0a23a", bg: "rgba(224,162,58,.12)" },
+    approved: { color: "#46b07d", bg: "rgba(70,176,125,.12)" },
+    rejected: { color: "#e0584a", bg: "rgba(224,88,74,.12)" },
+  };
+  const sc = statusColors[proposal.status] || statusColors.proposed;
+
+  return (
+    <div
+      onClick={() => openDetailArtifact({ title: proposal.title, path: proposal.path })}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        background: "var(--bg-tertiary)",
+        border: "1px solid var(--border-secondary)",
+        borderRadius: 11,
+        padding: "14px 16px",
+        cursor: "pointer",
+      }}
+    >
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          background: "rgba(224,162,58,.12)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flex: "none",
+        }}
+      >
+        <i className="material-symbols-outlined" style={{ fontSize: 18, color: "#e0a23a" }}>
+          pending_actions
+        </i>
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 2 }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#bcaef6" }}>
+            {proposal.id}
+          </span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>
+            {proposal.title}
+          </span>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+          Proposal
+        </div>
+      </div>
+      <span
+        style={{
+          fontSize: 10.5,
+          fontWeight: 700,
+          color: sc.color,
+          background: sc.bg,
+          borderRadius: 5,
+          padding: "3px 8px",
+        }}
+      >
+        {proposal.status.toUpperCase()}
       </span>
     </div>
   );

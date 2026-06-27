@@ -40,3 +40,27 @@ pub struct AgentProfile {
     pub links: Vec<String>,
     pub malformed: Option<bool>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum AgentProposalStatus {
+    #[serde(rename = "proposed")]
+    Proposed,
+    #[serde(rename = "approved")]
+    Approved,
+    #[serde(rename = "rejected")]
+    Rejected,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentProposal {
+    pub id: String,
+    pub title: String,
+    pub status: AgentProposalStatus,
+    pub body: String,
+    pub path: String,
+    pub created: String,
+    pub updated: String,
+    pub tags: Vec<String>,
+    pub links: Vec<String>,
+    pub malformed: Option<bool>,
+}

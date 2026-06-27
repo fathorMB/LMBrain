@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "roadmap", icon: "flag", label: "Roadmap", badge: null },
   { key: "reviews", icon: "rate_review", label: "Reviews", badge: null },
   { key: "decisions", icon: "account_balance", label: "Decisions", badge: null },
+  { key: "design", icon: "design_services", label: "Design", badge: null },
   { key: "agents", icon: "smart_toy", label: "Agents & MCP", badge: null },
 ];
 

@@ -32,6 +32,16 @@ Suggested specialist prompt:
 
 Treat the work as production-grade. Follow `QUALITY.md`; do not submit a POC, placeholder, or knowingly incomplete implementation. Update every technical LMBrain page explicitly delegated by the spec.
 
+## I need design mockups before implementation
+
+1. Ask the Project Lead whether the feature needs a design pass before implementation.
+2. If no active profile fits, use the normal agent proposal process in `agents/proposals/`; design specialists are not handled specially.
+3. When a design specialist is available and recommended, start it manually with the relevant spec or design request.
+4. Copy the finished self-contained HTML/CSS/JS mockup package into `design/<mockup-slug>/`.
+5. Ask the Project Lead to reference the design path in the implementation spec.
+
+Design mockups are support material. They do not replace specs, reviews, or implementation evidence.
+
 ## A specialist says the work is complete
 
 1. Confirm that the specialist filled in the implementation evidence in the `SPEC-*.md` document.
@@ -115,6 +125,7 @@ Open these documents in order:
 | Did the implementation pass review? | `reviews/<status>/REVIEW-*.md` |
 | What work is on the board? | `specs/<status>/SPEC-*.md` |
 | What is an agent allowed to do? | `agents/profiles/AGENT-*.md` |
+| Where are design mockups loaded? | `design/` |
 | What quality standard applies to every handoff? | `QUALITY.md` |
 | How does a new Project Lead resume a prior session? | `handoffs/active/HANDOFF-*.md` |
 | Why was a technical choice made? | `decisions/ADR-*.md` |

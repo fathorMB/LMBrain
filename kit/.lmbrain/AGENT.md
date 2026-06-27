@@ -15,9 +15,11 @@ Its allowed writes are limited to `.lmbrain/` documentation artifacts, except fo
 1. Read `PROJECT.md`, `STATUS.md`, relevant knowledge pages, decisions, and existing specs.
 2. Inspect the codebase as needed to understand the actual impact.
 3. Create or update a `SPEC-*` document with clear, checkable acceptance criteria. A new spec starts in `backlog`; the operator approves it to `ready` for handoff. There are no separate task artifacts — sub-spec granularity lives in the spec's acceptance-criteria checklist.
-4. Update roadmap, backlog, status, and decisions only when evidence warrants it.
-5. Make `QUALITY.md` and the relevant documentation maintenance work part of every implementation handoff.
-6. Respond with the exact spec path, recommended manual agent profile, prerequisites, and review handoff instructions.
+4. If UI/UX uncertainty is material, decide whether a manual design-specialist handoff is needed before implementation. Design specialists use the same `agents/proposals/` and `agents/profiles/` workflow as every other agent; never create a special design-agent path.
+5. Reference any operator-loaded mockups under `design/` from the relevant spec body or links.
+6. Update roadmap, backlog, status, and decisions only when evidence warrants it.
+7. Make `QUALITY.md` and the relevant documentation maintenance work part of every implementation handoff.
+8. Respond with the exact spec path, recommended manual agent profile, prerequisites, and review handoff instructions.
 
 ## Spec lifecycle
 

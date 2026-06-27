@@ -22,6 +22,7 @@ Important areas:
 - `src/components/Layout/`: shell, sidebar, top bar, modal surfaces.
 - `src/components/Pulse/`: project pulse and recommended actions.
 - `src/components/Wiki/`: Markdown tree and page viewer.
+- `src/components/Design/`: design mockup browser and isolated HTML preview.
 - `src/components/Taskboard/`: spec board.
 - `src/components/Sessions/`: floating session windows and xterm terminal integration.
 - `src/context/WorkspaceContext.tsx`: workspace state, navigation, session window state, and data refresh.
@@ -39,7 +40,9 @@ The backend reads `.lmbrain/` artifacts, parses Markdown/frontmatter, builds dia
 
 ## Artifact Model
 
-The app treats `.lmbrain/` as the project source of truth. Key artifact families include specs, reviews, decisions, agent profiles, MCP records/proposals, handoffs, roadmap, status, and knowledge pages.
+The app treats `.lmbrain/` as the project source of truth. Key artifact families include specs, reviews, decisions, agent profiles and proposals, MCP records/proposals, handoffs, roadmap, status, and knowledge pages.
+
+Design mockups under `.lmbrain/design/` are regular files rather than managed lifecycle artifacts. The backend scans that subtree with the same workspace path guard used for other local reads, and the frontend previews HTML with an isolated iframe surface.
 
 Specs are the board unit. Current spec statuses are:
 

@@ -123,6 +123,21 @@ export interface AgentProfile {
   malformed?: boolean;
 }
 
+export type AgentProposalStatus = "proposed" | "approved" | "rejected";
+
+export interface AgentProposal {
+  id: string;
+  title: string;
+  status: AgentProposalStatus;
+  body: string;
+  path: string;
+  created: string;
+  updated: string;
+  tags: string[];
+  links: string[];
+  malformed?: boolean;
+}
+
 export type McpStatus = "specified" | "active" | "inactive" | "deprecated";
 export type McpProposalStatus =
   | "proposed"
@@ -170,6 +185,28 @@ export interface Handoff {
   tags: string[];
   links: string[];
   malformed?: boolean;
+}
+
+export type DesignMockupKind = "package" | "html-file";
+
+export interface DesignMockup {
+  id: string;
+  name: string;
+  path: string;
+  entry_path: string;
+  kind: DesignMockupKind;
+  modified: string | null;
+  size: number;
+  summary: string | null;
+  manifest_title: string | null;
+  manifest_description: string | null;
+  has_manifest: boolean;
+  has_readme: boolean;
+}
+
+export interface DesignMockupHtml {
+  path: string;
+  content: string;
 }
 
 export interface Milestone {
@@ -326,6 +363,7 @@ export type AppView =
   | "reviews"
   | "decisions"
   | "agents"
+  | "design"
   | "settings"
   | "roadmap"
   | "search";

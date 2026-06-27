@@ -2,6 +2,9 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   Adr,
   AgentProfile,
+  AgentProposal,
+  DesignMockup,
+  DesignMockupHtml,
   DirEntry,
   FileContent,
   GitInfo,
@@ -78,6 +81,10 @@ export async function getAgents(): Promise<AgentProfile[]> {
   return invoke("get_agents");
 }
 
+export async function getAgentProposals(): Promise<AgentProposal[]> {
+  return invoke("get_agent_proposals");
+}
+
 export async function getMcpRecords(): Promise<McpRecord[]> {
   return invoke("get_mcp_records");
 }
@@ -88,6 +95,14 @@ export async function getMcpProposals(): Promise<McpProposal[]> {
 
 export async function getHandoffs(): Promise<Handoff[]> {
   return invoke("get_handoffs");
+}
+
+export async function getDesignMockups(): Promise<DesignMockup[]> {
+  return invoke("get_design_mockups");
+}
+
+export async function readDesignMockupHtml(entryPath: string): Promise<DesignMockupHtml> {
+  return invoke("read_design_mockup_html", { entryPath });
 }
 
 export async function getRoadmap(): Promise<Roadmap> {
