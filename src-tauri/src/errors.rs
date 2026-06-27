@@ -27,6 +27,9 @@ pub enum AppError {
     #[error("Watcher error: {0}")]
     Watcher(String),
 
+    #[error("Session error: {0}")]
+    Session(String),
+
     #[error("Serialization error: {0}")]
     Serialization(String),
 }

@@ -164,8 +164,10 @@ export function AgentsMCPView() {
               marginBottom: 12,
             }}
           >
-            Repository-scoped controlled-mutation server, registered automatically via{" "}
-            <span style={{ fontFamily: "var(--font-mono)", color: "#9a949f" }}>.mcp.json</span>.
+            Repository-scoped controlled-mutation server, registered automatically for Claude via{" "}
+            <span style={{ fontFamily: "var(--font-mono)", color: "#9a949f" }}>.mcp.json</span>{" "}
+            and for Codex via{" "}
+            <span style={{ fontFamily: "var(--font-mono)", color: "#9a949f" }}>.codex/config.toml</span>.
             Agents call these per-verb tools instead of editing Markdown by hand.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>

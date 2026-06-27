@@ -28,8 +28,11 @@ fn main() {
             }
         };
 
-        let id = request.get("id").cloned().unwrap_or(Value::Null);
-        reply(id, handle(&root, &request));
+        if let Some(id) = request.get("id").cloned() {
+            reply(id, handle(&root, &request));
+        } else {
+            let _ = handle(&root, &request);
+        }
     }
 }
 

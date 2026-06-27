@@ -3,31 +3,39 @@ import {
   useReducer,
   useCallback,
   useEffect,
+  type Dispatch,
   type ReactNode,
 } from "react";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  Adr,
   AppView,
+  DetailArtifact,
+  FileEvent,
+  GitInfo,
+  Handoff,
+  KitDiagnostic,
+  McpProposal,
+  McpRecord,
+  PulseData,
+  Review,
+  SessionInfo,
+  SessionMode,
+  SessionWindowGeometry,
+  SessionWindowState,
+  Spec,
+  WikiPage,
+  WikiTree,
   WorkspaceInfo,
   WorkspaceSummary,
-  Spec,
-  Review,
-  Adr,
   AgentProfile,
-  McpRecord,
-  McpProposal,
-  Handoff,
-  PulseData,
-  WikiTree,
-  WikiPage,
-  GitInfo,
-  FileEvent,
-  DetailArtifact,
-  KitDiagnostic,
 } from "../types";
 import * as commands from "../lib/commands";
 
-// ─── State ───────────────────────────────────────────────────────
+const DEFAULT_SESSION_GEOMETRY = {
+  width: 760,
+  height: 460,
+};
 
 export interface WorkspaceState {
   screen: "picker" | "app";
@@ -47,6 +55,7 @@ export interface WorkspaceState {
   wikiTree: WikiTree | null;
   wikiPage: WikiPage | null;
   selectedSpec: Spec | null;
+  sessions: SessionWindowState[];
   cmdkOpen: boolean;
   watcherActive: boolean;
   loading: boolean;
@@ -76,7 +85,14 @@ export type Action =
   | { type: "SET_WATCHER"; active: boolean }
   | { type: "SET_LOADING"; loading: boolean }
   | { type: "SET_ERROR"; error: string | null }
-  | { type: "SET_DETAIL_ARTIFACT"; artifact: DetailArtifact | null };
+  | { type: "SET_DETAIL_ARTIFACT"; artifact: DetailArtifact | null }
+  | { type: "SET_SESSIONS"; sessions: SessionWindowState[] }
+  | { type: "ADD_SESSION"; session: SessionWindowState }
+  | { type: "UPDATE_SESSION"; id: string; patch: Partial<SessionWindowState> }
+  | { type: "REMOVE_SESSION"; id: string }
+  | { type: "UPDATE_SESSION_GEOMETRY"; id: string; geometry: SessionWindowGeometry }
+  | { type: "BRING_SESSION_TO_FRONT"; id: string }
+  | { type: "CLEAR_SESSIONS" };
 
 const initialState: WorkspaceState = {
   screen: "picker",
@@ -96,12 +112,39 @@ const initialState: WorkspaceState = {
   wikiTree: null,
   wikiPage: null,
   selectedSpec: null,
+  sessions: [],
   cmdkOpen: false,
   watcherActive: false,
   loading: false,
   error: null,
   detailArtifact: null,
 };
+
+function nextZIndex(sessions: SessionWindowState[]) {
+  return sessions.reduce((max, session) => Math.max(max, session.zIndex), 0) + 1;
+}
+
+function defaultGeometry(index: number): SessionWindowGeometry {
+  return {
+    x: 48 + (index % 6) * 28,
+    y: 36 + (index % 6) * 22,
+    width: DEFAULT_SESSION_GEOMETRY.width,
+    height: DEFAULT_SESSION_GEOMETRY.height,
+  };
+}
+
+function mergeSessionInfo(
+  info: SessionInfo,
+  existing: SessionWindowState | undefined,
+  index: number,
+  zIndex: number
+): SessionWindowState {
+  return {
+    ...info,
+    geometry: existing?.geometry ?? defaultGeometry(index),
+    zIndex: existing?.zIndex ?? zIndex,
+  };
+}
 
 function reducer(state: WorkspaceState, action: Action): WorkspaceState {
   switch (action.type) {
@@ -149,16 +192,50 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, error: action.error };
     case "SET_DETAIL_ARTIFACT":
       return { ...state, detailArtifact: action.artifact };
+    case "SET_SESSIONS":
+      return { ...state, sessions: action.sessions };
+    case "ADD_SESSION":
+      return { ...state, sessions: [...state.sessions, action.session] };
+    case "UPDATE_SESSION":
+      return {
+        ...state,
+        sessions: state.sessions.map((session) =>
+          session.id === action.id ? { ...session, ...action.patch } : session
+        ),
+      };
+    case "REMOVE_SESSION":
+      return {
+        ...state,
+        sessions: state.sessions.filter((session) => session.id !== action.id),
+      };
+    case "UPDATE_SESSION_GEOMETRY":
+      return {
+        ...state,
+        sessions: state.sessions.map((session) =>
+          session.id === action.id
+            ? { ...session, geometry: action.geometry }
+            : session
+        ),
+      };
+    case "BRING_SESSION_TO_FRONT": {
+      const zIndex = nextZIndex(state.sessions);
+      return {
+        ...state,
+        sessions: state.sessions.map((session) =>
+          session.id === action.id ? { ...session, zIndex } : session
+        ),
+      };
+    }
+    case "CLEAR_SESSIONS":
+      return { ...state, sessions: [] };
     default:
       return state;
   }
 }
 
-// ─── Context ─────────────────────────────────────────────────────
-
 export interface WorkspaceContextValue {
   state: WorkspaceState;
-  dispatch: React.Dispatch<Action>;
+  dispatch: Dispatch<Action>;
   openWorkspace: (path: string) => Promise<void>;
   initializeWorkspaceKit: (path: string) => Promise<void>;
   loadAllData: () => Promise<void>;
@@ -166,8 +243,13 @@ export interface WorkspaceContextValue {
   openSpec: (spec: Spec) => void;
   toggleCmdk: () => void;
   closeCmdk: () => void;
-  goToPicker: () => void;
+  goToPicker: () => Promise<void>;
   openDetailArtifact: (artifact: DetailArtifact | null) => void;
+  createSession: (request: { mode: SessionMode; model?: string; label?: string; codex_bin?: string }) => Promise<string>;
+  closeSession: (id: string) => Promise<void>;
+  refreshSessions: () => Promise<void>;
+  updateSessionGeometry: (id: string, geometry: SessionWindowGeometry) => void;
+  bringSessionToFront: (id: string) => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -175,6 +257,21 @@ export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+
+  const refreshSessions = useCallback(async () => {
+    const infos = await commands.sessionList();
+    dispatch({
+      type: "SET_SESSIONS",
+      sessions: infos.map((info, index) =>
+        mergeSessionInfo(
+          info,
+          state.sessions.find((session) => session.id === info.id),
+          index,
+          nextZIndex(state.sessions) + index
+        )
+      ),
+    });
+  }, [state.sessions]);
 
   const loadAllDataInternal = useCallback(async () => {
     try {
@@ -188,18 +285,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         mcpProposals,
         handoffs,
         diagnostics,
-      ] =
-        await Promise.all([
-          commands.getPulseData(),
-          commands.getSpecs(),
-          commands.getReviews(),
-          commands.getAdrs(),
-          commands.getAgents(),
-          commands.getMcpRecords(),
-          commands.getMcpProposals(),
-          commands.getHandoffs(),
-          commands.getDiagnostics(),
-        ]);
+      ] = await Promise.all([
+        commands.getPulseData(),
+        commands.getSpecs(),
+        commands.getReviews(),
+        commands.getAdrs(),
+        commands.getAgents(),
+        commands.getMcpRecords(),
+        commands.getMcpProposals(),
+        commands.getHandoffs(),
+        commands.getDiagnostics(),
+      ]);
 
       dispatch({
         type: "MERGE_DATA",
@@ -224,14 +320,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     await loadAllDataInternal();
   }, [loadAllDataInternal]);
 
-  // Load recent workspaces on mount
   useEffect(() => {
     commands.listRecentWorkspaces().then((workspaces) => {
       dispatch({ type: "SET_RECENT", workspaces });
     });
   }, []);
 
-  // Listen for file change events
   useEffect(() => {
     const unlisten = listen<FileEvent>("file-changed", () => {
       loadAllData();
@@ -241,76 +335,90 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     };
   }, [loadAllData, state.currentWorkspace]);
 
-  const openWorkspace = useCallback(async (path: string) => {
-    dispatch({ type: "SET_LOADING", loading: true });
-    dispatch({ type: "SET_ERROR", error: null });
-    try {
-      const info = await commands.openWorkspace(path);
-      dispatch({ type: "SET_WORKSPACE", info });
-
-      // A folder without a kit stays in the picker so the operator can explicitly
-      // choose whether to initialize it. No project data is loaded beforehand.
-      if (info.health === "none") {
-        return;
-      }
-
-      // Get git info
-      try {
-        const gitInfo = await commands.getGitInfo();
-        dispatch({ type: "SET_GIT_INFO", info: gitInfo });
-      } catch {
-        // Git info is optional
-      }
-
-      // Refresh recent list
-      const workspaces = await commands.listRecentWorkspaces();
-      dispatch({ type: "SET_RECENT", workspaces });
-
-      // Load all data
-      await loadAllDataInternal();
-
-      // Start watcher
-      try {
-        await commands.startWatcher();
-        dispatch({ type: "SET_WATCHER", active: true });
-      } catch {
-        // Watcher is optional
-      }
-
-      dispatch({ type: "SET_SCREEN", screen: "app" });
-    } catch (err) {
+  useEffect(() => {
+    const unlisten = listen<{ id: string; code: number | null }>("session-exit", (event) => {
       dispatch({
-        type: "SET_ERROR",
-        error: typeof err === "string" ? err : "Failed to open workspace",
+        type: "UPDATE_SESSION",
+        id: event.payload.id,
+        patch: {
+          status: "exited",
+          exit_code: event.payload.code,
+        },
       });
-    } finally {
-      dispatch({ type: "SET_LOADING", loading: false });
-    }
-  }, [loadAllDataInternal]);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
 
-  const initializeWorkspaceKit = useCallback(async (path: string) => {
-    dispatch({ type: "SET_LOADING", loading: true });
-    dispatch({ type: "SET_ERROR", error: null });
-    try {
-      await commands.initializeWorkspaceKit(path);
-      await openWorkspace(path);
-    } catch (err) {
-      dispatch({
-        type: "SET_ERROR",
-        error: typeof err === "string" ? err : "Failed to initialize LMBrain kit",
-      });
-    } finally {
-      dispatch({ type: "SET_LOADING", loading: false });
-    }
-  }, [openWorkspace]);
+  const openWorkspace = useCallback(
+    async (path: string) => {
+      dispatch({ type: "SET_LOADING", loading: true });
+      dispatch({ type: "SET_ERROR", error: null });
+      try {
+        const info = await commands.openWorkspace(path);
+        dispatch({ type: "SET_WORKSPACE", info });
 
-  const navigateTo = useCallback(
-    (view: AppView) => {
-      dispatch({ type: "SET_VIEW", view });
-      dispatch({ type: "SET_CMDK", open: false });
+        if (info.health === "none") {
+          return;
+        }
+
+        try {
+          const gitInfo = await commands.getGitInfo();
+          dispatch({ type: "SET_GIT_INFO", info: gitInfo });
+        } catch {
+          // Git info is optional
+        }
+
+        const workspaces = await commands.listRecentWorkspaces();
+        dispatch({ type: "SET_RECENT", workspaces });
+
+        await loadAllDataInternal();
+        await refreshSessions();
+
+        try {
+          await commands.startWatcher();
+          dispatch({ type: "SET_WATCHER", active: true });
+        } catch {
+          // Watcher is optional
+        }
+
+        dispatch({ type: "SET_SCREEN", screen: "app" });
+      } catch (err) {
+        dispatch({
+          type: "SET_ERROR",
+          error: typeof err === "string" ? err : "Failed to open workspace",
+        });
+      } finally {
+        dispatch({ type: "SET_LOADING", loading: false });
+      }
     },
-    []
+    [loadAllDataInternal, refreshSessions]
   );
+
+  const initializeWorkspaceKit = useCallback(
+    async (path: string) => {
+      dispatch({ type: "SET_LOADING", loading: true });
+      dispatch({ type: "SET_ERROR", error: null });
+      try {
+        await commands.initializeWorkspaceKit(path);
+        await openWorkspace(path);
+      } catch (err) {
+        dispatch({
+          type: "SET_ERROR",
+          error: typeof err === "string" ? err : "Failed to initialize LMBrain kit",
+        });
+      } finally {
+        dispatch({ type: "SET_LOADING", loading: false });
+      }
+    },
+    [openWorkspace]
+  );
+
+  const navigateTo = useCallback((view: AppView) => {
+    dispatch({ type: "SET_VIEW", view });
+    dispatch({ type: "SET_CMDK", open: false });
+  }, []);
 
   const openSpec = useCallback((spec: Spec) => {
     dispatch({ type: "SET_SELECTED_SPEC", spec });
@@ -326,14 +434,64 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_CMDK", open: false });
   }, []);
 
-  const goToPicker = useCallback(() => {
+  const createSession = useCallback(
+    async (request: { mode: SessionMode; model?: string; label?: string; codex_bin?: string }) => {
+      const id = await commands.sessionStart(request);
+      const info = (await commands.sessionList()).find((session) => session.id === id);
+      const session: SessionWindowState = mergeSessionInfo(
+        info ?? {
+          id,
+          label:
+            request.label?.trim() ||
+            (request.mode === "ollama" && request.model
+              ? `Claude via ${request.model}`
+              : request.mode === "codex"
+                ? "Codex"
+                : "Claude"),
+          mode: request.mode,
+          model: request.model ?? null,
+          status: "running",
+          exit_code: null,
+        },
+        undefined,
+        state.sessions.length,
+        nextZIndex(state.sessions)
+      );
+      dispatch({ type: "ADD_SESSION", session });
+      dispatch({ type: "SET_VIEW", view: "sessions" });
+      return id;
+    },
+    [state.sessions]
+  );
+
+  const closeSession = useCallback(async (id: string) => {
+    try {
+      await commands.sessionKill(id);
+    } catch (error) {
+      console.error("Failed to close session:", error);
+    } finally {
+      dispatch({ type: "REMOVE_SESSION", id });
+    }
+  }, []);
+
+  const goToPicker = useCallback(async () => {
     commands.stopWatcher().catch(() => {});
     dispatch({ type: "SET_WATCHER", active: false });
+    await Promise.all(state.sessions.map((session) => commands.sessionKill(session.id).catch(() => {})));
+    dispatch({ type: "CLEAR_SESSIONS" });
     dispatch({ type: "SET_SCREEN", screen: "picker" });
-  }, []);
+  }, [state.sessions]);
 
   const openDetailArtifact = useCallback((artifact: DetailArtifact | null) => {
     dispatch({ type: "SET_DETAIL_ARTIFACT", artifact });
+  }, []);
+
+  const updateSessionGeometry = useCallback((id: string, geometry: SessionWindowGeometry) => {
+    dispatch({ type: "UPDATE_SESSION_GEOMETRY", id, geometry });
+  }, []);
+
+  const bringSessionToFront = useCallback((id: string) => {
+    dispatch({ type: "BRING_SESSION_TO_FRONT", id });
   }, []);
 
   return (
@@ -350,6 +508,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         closeCmdk,
         goToPicker,
         openDetailArtifact,
+        createSession,
+        closeSession,
+        refreshSessions,
+        updateSessionGeometry,
+        bringSessionToFront,
       }}
     >
       {children}

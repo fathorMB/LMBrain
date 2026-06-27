@@ -1,0 +1,3 @@
+[mcp_servers.lmbrain]
+command = "lmbrain-mcp"
+args = ["--root", "."]

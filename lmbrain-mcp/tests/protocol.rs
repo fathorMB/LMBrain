@@ -4,6 +4,7 @@ use std::{
     process::{Command, Stdio},
 };
 use tempfile::tempdir;
+
 #[test]
 fn protocol_drives_spec_transition() {
     let d = tempdir().unwrap();
@@ -29,4 +30,36 @@ fn protocol_drives_spec_transition() {
     child.wait().unwrap();
     assert!(out.contains("result"));
     assert!(d.path().join(".lmbrain/specs/working/SPEC-001.md").exists());
+}
+
+#[test]
+fn protocol_does_not_reply_to_notifications() {
+    let d = tempdir().unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lmbrain-mcp"))
+        .current_dir(d.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    writeln!(
+        input,
+        "{{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}}"
+    )
+    .unwrap();
+    writeln!(
+        input,
+        "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}}"
+    )
+    .unwrap();
+    drop(input);
+
+    let mut out = String::new();
+    BufReader::new(child.stdout.take().unwrap())
+        .read_line(&mut out)
+        .unwrap();
+    child.wait().unwrap();
+
+    assert!(out.contains("\"id\":2"));
+    assert!(out.contains("\"tools\""));
 }

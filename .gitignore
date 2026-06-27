@@ -24,3 +24,4 @@ Thumbs.db
 
 # Generated, machine-specific MCP host registration (written by the app on open)
 /.mcp.json
+/.codex/

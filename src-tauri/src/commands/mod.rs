@@ -1,7 +1,9 @@
+pub mod codex_registration;
 pub mod contract;
 pub mod filesystem;
 pub mod git;
 pub mod mcp_registration;
 pub mod parser;
+pub mod sessions;
 pub mod watcher;
 pub mod workspace;

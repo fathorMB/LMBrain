@@ -7,10 +7,11 @@ LMBrain does not automatically start agents. You retain control: you decide when
 ## First use in a new repository
 
 1. Copy `.lmbrain/` into the repository root.
-2. Start a Project Lead manually.
-3. Give it [`templates/project-lead-bootstrap-prompt.md`](templates/project-lead-bootstrap-prompt.md).
-4. Read `STATUS.md` and the Project Lead's final report.
-5. If it recommends a handoff, start the proposed specialist and give it the exact `SPEC-*.md` path.
+2. Open the repository in LMBrain once so it can register `lmbrain-mcp` for Claude Code and Codex.
+3. Start a Project Lead manually in your chosen supported agent.
+4. Give it [`templates/project-lead-bootstrap-prompt.md`](templates/project-lead-bootstrap-prompt.md).
+5. Read `STATUS.md` and the Project Lead's final report.
+6. If it recommends a handoff, start the proposed specialist and give it the exact `SPEC-*.md` path.
 
 ## I need a new feature, fix, or technical change
 
@@ -74,6 +75,14 @@ Approving a profile makes it available; it never launches an agent.
 6. Make the MCP active only after documented verification.
 
 External access, credentials, or write permissions always require your explicit approval.
+
+## Supported agent hosts
+
+LMBrain is agent-agnostic at the workflow layer. Claude Code and Codex can both use the same `lmbrain-mcp` controlled-mutation server after the workspace is opened in LMBrain.
+
+- Claude Code registration is written to `.mcp.json` in the repository root.
+- Codex registration is written to `.codex/config.toml` in the repository root, and LMBrain adds a missing trusted-project entry to `$CODEX_HOME/config.toml`.
+- Sessions are always operator-started. LMBrain can launch native Claude, Claude through Ollama, or native Codex terminals; it never starts them automatically.
 
 ## Daily project check
 

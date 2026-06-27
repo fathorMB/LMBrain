@@ -4,6 +4,17 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.1.0 — 2026-06-27
+
+### Added
+
+- **Sessions view.** Launch and monitor interactive Claude Code sessions as floating, draggable, resizable terminals inside LMBrain (native `claude`, Claude via `ollama launch claude --model <model>`, and native Codex). Sessions run with `cwd` at the workspace root, persist while the app is open, and are terminated on exit. Ollama models are auto-discovered from the local API and filtered to tool-capable ones. (ADR-006, proposed.)
+- **Codex support (agent-agnostic host).** On opening a workspace LMBrain now registers the `lmbrain-mcp` controlled-mutation server for **both** Claude Code (`.mcp.json`) and Codex: it writes a project-scoped `.codex/config.toml` with `[mcp_servers.lmbrain]`, ensures the workspace is a trusted project in `$CODEX_HOME/config.toml` (adds a missing entry only, preserving everything else), and scaffolds a root `AGENTS.md` pointer block to `.lmbrain/AGENT.md`. (ADR-007, proposed.)
+
+### Changed
+
+- `lmbrain-mcp` no longer replies to JSON-RPC notifications (id-less messages such as `notifications/initialized`), for compatibility with stricter MCP clients like Codex.
+
 ## 2.0.1 — 2026-06-26
 
 ### Fixed

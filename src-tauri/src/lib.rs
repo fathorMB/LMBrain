@@ -7,10 +7,12 @@ use std::path::{Path, PathBuf};
 use commands::contract;
 use commands::filesystem::PathGuard;
 use commands::git;
+use commands::sessions::SessionManager;
 use commands::watcher::FileWatcherService;
 use commands::workspace::WorkspaceService;
 use models::file::{FileContent, GitInfo, ParsedDocument};
 use models::pulse::PulseData;
+use models::session::{OllamaModel, SessionInfo, SessionStartRequest};
 use models::workspace::{WorkspaceInfo, WorkspaceSummary};
 use tauri::{AppHandle, Manager, State};
 
@@ -20,6 +22,7 @@ pub struct AppState {
     pub path_guard: PathGuard,
     pub workspace_service: WorkspaceService,
     pub watcher: FileWatcherService,
+    pub sessions: SessionManager,
 }
 
 // ─── Tauri Commands ───────────────────────────────────────────────
@@ -43,10 +46,11 @@ fn open_workspace(state: State<'_, AppState>, path: String) -> Result<WorkspaceI
     // Register the repository-scoped lmbrain-mcp server so agents working in this
     // workspace receive the controlled-mutation tools. Best-effort: never block
     // opening a workspace if registration cannot be written.
-    let _ = commands::mcp_registration::register_mcp_server(
-        root,
-        &commands::mcp_registration::resolve_mcp_command(),
-    );
+    let mcp_command = commands::mcp_registration::resolve_mcp_command();
+    let _ = commands::mcp_registration::register_mcp_server(root, &mcp_command);
+    let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
+    let _ = commands::codex_registration::ensure_codex_workspace_trusted(root);
+    let _ = commands::codex_registration::scaffold_agents_md(root);
 
     // Add to recent workspaces
     let summary = WorkspaceSummary {
@@ -69,10 +73,17 @@ fn initialize_workspace_kit(
     path: String,
 ) -> Result<WorkspaceInfo, String> {
     let template = bundled_kit_path(&app).map_err(|e| e.to_string())?;
-    state
+    let info = state
         .workspace_service
         .initialize_kit(Path::new(&path), &template)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    let root = Path::new(&path);
+    let mcp_command = commands::mcp_registration::resolve_mcp_command();
+    let _ = commands::mcp_registration::register_mcp_server(root, &mcp_command);
+    let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
+    let _ = commands::codex_registration::ensure_codex_workspace_trusted(root);
+    let _ = commands::codex_registration::scaffold_agents_md(root);
+    Ok(info)
 }
 
 fn bundled_kit_path(app: &AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -317,6 +328,58 @@ fn watcher_status(state: State<'_, AppState>) -> bool {
 }
 
 #[tauri::command]
+fn session_start(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    request: SessionStartRequest,
+) -> Result<String, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    state
+        .sessions
+        .start(&root, app, request)
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn session_write(state: State<'_, AppState>, id: String, data: String) -> Result<(), String> {
+    state
+        .sessions
+        .write(&id, &data)
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn session_resize(
+    state: State<'_, AppState>,
+    id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    state
+        .sessions
+        .resize(&id, cols, rows)
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn session_kill(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state.sessions.kill(&id).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn session_list(state: State<'_, AppState>) -> Vec<SessionInfo> {
+    state.sessions.list()
+}
+
+#[tauri::command]
+fn list_ollama_models() -> Result<Vec<OllamaModel>, String> {
+    commands::sessions::list_ollama_models().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 fn set_artifact_status(
     state: State<'_, AppState>,
     path: String,
@@ -358,6 +421,7 @@ pub fn run() {
                 path_guard: PathGuard::new(),
                 workspace_service,
                 watcher: FileWatcherService::new(),
+                sessions: SessionManager::new(),
             });
 
             Ok(())
@@ -388,6 +452,12 @@ pub fn run() {
             start_watcher,
             stop_watcher,
             watcher_status,
+            session_start,
+            session_write,
+            session_resize,
+            session_kill,
+            session_list,
+            list_ollama_models,
             set_artifact_status,
         ])
         .run(tauri::generate_context!())

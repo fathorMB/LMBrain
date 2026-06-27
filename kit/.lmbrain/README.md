@@ -7,16 +7,18 @@ This directory is the portable, versioned source of truth for a project's knowle
 ## Quick start
 
 1. Copy `.lmbrain/` into the root of the target repository.
-2. Give the Project Lead the bootstrap request in `templates/project-lead-bootstrap-prompt.md`.
-3. The Project Lead personalizes the root documents and creates the first specs.
-4. For each approved piece of work, manually start the recommended specialist with its `SPEC-*.md` file.
-5. When the work is complete, explicitly ask the Project Lead for a review.
+2. Open the repository in LMBrain so it can register `lmbrain-mcp` for supported agent hosts.
+3. Give the Project Lead the bootstrap request in `templates/project-lead-bootstrap-prompt.md`.
+4. The Project Lead personalizes the root documents and creates the first specs.
+5. For each approved piece of work, manually start the recommended specialist with its `SPEC-*.md` file.
+6. When the work is complete, explicitly ask the Project Lead for a review.
 
 ## Principles
 
 - Markdown files are the source of truth; a future app is only a view and editor over them.
 - The Project Lead analyzes, specifies, recommends, and reviews. It never implements or spawns agents.
 - Specialist agents are manually started by the user and write implementation evidence only.
+- Claude Code and Codex can both use the same repository-scoped `lmbrain-mcp` tools after LMBrain registers the workspace.
 - New agent profiles and MCPs are proposed before they are made active.
 - A Project Lead can write a validated session handoff for the next Project Lead session.
 

@@ -4,15 +4,32 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.1.0 — 2026-06-27
+
+### Added
+
+- **Sessions view.** Launch and monitor interactive Claude Code sessions as floating, draggable, resizable terminals inside LMBrain (native `claude`, Claude via `ollama launch claude --model <model>`, and native Codex). Sessions run with `cwd` at the workspace root, persist while the app is open, and are terminated on exit. Ollama models are auto-discovered from the local API and filtered to tool-capable ones. (ADR-006, proposed.)
+- **Codex support (agent-agnostic host).** On opening a workspace LMBrain now registers the `lmbrain-mcp` controlled-mutation server for **both** Claude Code (`.mcp.json`) and Codex: it writes a project-scoped `.codex/config.toml` with `[mcp_servers.lmbrain]`, ensures the workspace is a trusted project in `$CODEX_HOME/config.toml` (adds a missing entry only, preserving everything else), and scaffolds a root `AGENTS.md` pointer block to `.lmbrain/AGENT.md`. (ADR-007, proposed.)
+
+### Changed
+
+- `lmbrain-mcp` no longer replies to JSON-RPC notifications (id-less messages such as `notifications/initialized`), for compatibility with stricter MCP clients like Codex.
+
 ## 2.0.1 — 2026-06-26
+
+### Added
+
+- Codex CLI support: LMBrain now writes project-scoped `.codex/config.toml`, ensures missing Codex workspace trust, scaffolds a managed root `AGENTS.md` pointer block, and can launch native Codex sessions alongside Claude and Ollama-backed Claude.
+- Sessions view groundwork: LMBrain now has an in-app PTY session manager and floating terminal workspace for interactive Claude Code sessions, including native `claude` launch, `ollama launch claude --model <model>`, backend Ollama model discovery, and session lifecycle cleanup on app exit. See [[ADR-006-session-process-execution]].
 
 ### Fixed
 
+- `lmbrain-mcp` no longer replies to JSON-RPC notifications, allowing Codex's MCP handshake to complete cleanly.
 - The controlled-mutation engine's frontmatter parser no longer hangs on `activity:` blocks (nested mappings with inline scalar fields). Reading any transitioned or created artifact could previously trigger an infinite loop, freezing the desktop app and the `lmbrain-mcp` server.
 
 ### Changed
 
-- Internal consolidation pass (no behaviour change for artifacts): frontmatter parsing is unified on `lmbrain-core` (`serde_yaml` removed), the desktop artifact loaders were de-duplicated, the engine and MCP server were reformatted for readability, the file "modified" timestamp now reports true elapsed time, and dead code was removed (the workspace is `clippy`-clean).
+- Internal consolidation pass (no behaviour change for artifacts): frontmatter parsing is unified on `lmbrain-core` (`serde_yaml` removed), the engine and MCP server were reformatted for readability, the file "modified" timestamp now reports true elapsed time, and dead code was removed (the workspace is `clippy`-clean).
 
 ## 2.0.0 — 2026-06-23
 

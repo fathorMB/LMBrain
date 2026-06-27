@@ -142,6 +142,7 @@ export function CommandPalette() {
             </div>
             {[
               { icon: "monitoring", label: "Go to Project Pulse", shortcut: "G P", view: "pulse" as const },
+              { icon: "terminal", label: "Open Sessions", shortcut: "G S", view: "sessions" as const },
               { icon: "view_kanban", label: "Open Board", shortcut: "G T", view: "taskboard" as const },
               { icon: "menu_book", label: "Browse Wiki", shortcut: "G W", view: "wiki" as const },
               { icon: "rate_review", label: "View Reviews", shortcut: "G R", view: "reviews" as const },

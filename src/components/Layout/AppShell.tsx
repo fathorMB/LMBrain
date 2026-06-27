@@ -11,6 +11,7 @@ import { DecisionsList } from "../Decisions/DecisionsList";
 import { AgentsMCPView } from "../Agents/AgentsMCPView";
 import { SettingsView } from "../Settings/SettingsView";
 import { RoadmapView } from "../Roadmap/RoadmapView";
+import { SessionsView } from "../Sessions/SessionsView";
 import { CommandPalette } from "../CommandPalette";
 import { ArtifactDetailModal } from "./ArtifactDetailModal";
 
@@ -25,6 +26,8 @@ export function AppShell() {
     switch (state.view) {
       case "pulse":
         return <ProjectPulse />;
+      case "sessions":
+        return null;
       case "wiki":
         return <WikiView />;
       case "taskboard":
@@ -63,11 +66,28 @@ export function AppShell() {
         <div
           style={{
             flex: 1,
-            overflowY: "auto",
             background: "#0c0b0f",
+            position: "relative",
           }}
         >
-          {renderView()}
+          <div
+            style={{
+              height: "100%",
+              overflowY: state.view === "sessions" ? "hidden" : "auto",
+              display: state.view === "sessions" ? "none" : "block",
+            }}
+          >
+            {renderView()}
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: state.currentWorkspace ? "block" : "none",
+            }}
+          >
+            <SessionsView active={state.view === "sessions"} />
+          </div>
         </div>
       </div>
 

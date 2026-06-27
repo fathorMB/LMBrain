@@ -1,4 +1,20 @@
+import { useState } from "react";
+
+const CODEX_BIN_SETTING = "lmbrain.codexBin";
+
 export function SettingsView() {
+  const [codexBin, setCodexBin] = useState(() => localStorage.getItem(CODEX_BIN_SETTING) ?? "");
+
+  const updateCodexBin = (value: string) => {
+    setCodexBin(value);
+    const trimmed = value.trim();
+    if (trimmed) {
+      localStorage.setItem(CODEX_BIN_SETTING, trimmed);
+    } else {
+      localStorage.removeItem(CODEX_BIN_SETTING);
+    }
+  };
+
   return (
     <div style={{ overflowY: "auto", height: "100%" }}>
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "24px 36px 70px" }}>
@@ -46,6 +62,52 @@ export function SettingsView() {
             description="Compact rows for more on screen"
             options={["Cozy", "Dense"]}
             active="Dense"
+          />
+        </div>
+
+        <div
+          style={{
+            background: "var(--bg-tertiary)",
+            border: "1px solid var(--border-secondary)",
+            borderRadius: 12,
+            padding: "13px 16px",
+            marginBottom: 22,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: "var(--text-primary)",
+              marginBottom: 5,
+            }}
+          >
+            Codex executable
+          </div>
+          <div
+            style={{
+              fontSize: 11.5,
+              color: "var(--text-tertiary)",
+              marginBottom: 10,
+            }}
+          >
+            Optional native Codex CLI path used before desktop auto-detection
+          </div>
+          <input
+            value={codexBin}
+            onChange={(event) => updateCodexBin(event.target.value)}
+            placeholder="C:\\Users\\you\\AppData\\Local\\OpenAI\\Codex\\bin\\...\\codex.exe"
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              borderRadius: 10,
+              border: "1px solid #2c2538",
+              background: "#0f0d14",
+              color: "var(--text-primary)",
+              padding: "10px 11px",
+              fontSize: 12.5,
+              outline: "none",
+            }}
           />
         </div>
 

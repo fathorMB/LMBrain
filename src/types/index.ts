@@ -243,6 +243,36 @@ export interface GitInfo {
   current_commit: string | null;
 }
 
+export type SessionMode = "claude" | "ollama" | "codex";
+export type SessionStatus = "running" | "exited";
+
+export interface SessionInfo {
+  id: string;
+  label: string;
+  mode: SessionMode;
+  model: string | null;
+  status: SessionStatus;
+  exit_code: number | null;
+}
+
+export interface OllamaModel {
+  name: string;
+  cloud: boolean;
+  capabilities: string[];
+}
+
+export interface SessionWindowGeometry {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface SessionWindowState extends SessionInfo {
+  geometry: SessionWindowGeometry;
+  zIndex: number;
+}
+
 export interface ParsedDocument {
   path: string;
   frontmatter: Record<string, unknown>;
@@ -289,6 +319,7 @@ export interface WikiPage {
 
 export type AppView =
   | "pulse"
+  | "sessions"
   | "wiki"
   | "taskboard"
   | "spec"

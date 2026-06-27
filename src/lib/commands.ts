@@ -12,9 +12,12 @@ import type {
   PulseData,
   Review,
   Roadmap,
+  SessionInfo,
+  SessionMode,
   Spec,
   WikiPage,
   WikiTree,
+  OllamaModel,
   WorkspaceInfo,
   WorkspaceSummary,
 } from "../types";
@@ -132,6 +135,37 @@ export async function stopWatcher(): Promise<void> {
 
 export async function watcherStatus(): Promise<boolean> {
   return invoke("watcher_status");
+}
+
+export interface SessionStartRequest {
+  mode: SessionMode;
+  model?: string;
+  label?: string;
+  codex_bin?: string;
+}
+
+export async function sessionStart(request: SessionStartRequest): Promise<string> {
+  return invoke("session_start", { request });
+}
+
+export async function sessionWrite(id: string, data: string): Promise<void> {
+  return invoke("session_write", { id, data });
+}
+
+export async function sessionResize(id: string, cols: number, rows: number): Promise<void> {
+  return invoke("session_resize", { id, cols, rows });
+}
+
+export async function sessionKill(id: string): Promise<void> {
+  return invoke("session_kill", { id });
+}
+
+export async function sessionList(): Promise<SessionInfo[]> {
+  return invoke("session_list");
+}
+
+export async function listOllamaModels(): Promise<OllamaModel[]> {
+  return invoke("list_ollama_models");
 }
 
 export async function setArtifactStatus(path: string, targetStatus: string): Promise<string> {
