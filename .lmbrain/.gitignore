@@ -1,3 +1,0 @@
-# Local runtime indexes, caches, and app preferences belong outside versioned knowledge.
-.cache/
-*.local.json

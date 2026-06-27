@@ -4,4 +4,4 @@
 
 Copy its `.lmbrain/` directory into the root of a new software repository, then begin with `OPERATOR.md` and `templates/project-lead-bootstrap-prompt.md`.
 
-This directory intentionally contains no decisions, specifications, tasks, reviews, roadmap state, or specialist profiles from the LMBrain application itself. The live dogfooding instance for this repository remains at the root [`.lmbrain/`](../.lmbrain/README.md).
+This directory intentionally contains no decisions, specifications, reviews, roadmap state, or specialist profiles from the LMBrain application itself. The repository's own documentation lives in [`docs/`](../docs/README.md); any root `.lmbrain/` directory is local dogfooding state and is not versioned.
