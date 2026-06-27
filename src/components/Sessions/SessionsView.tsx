@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { Rnd } from "react-rnd";
 import { listOllamaModels } from "../../lib/commands";
 import { useWorkspace } from "../../hooks/useWorkspace";
@@ -26,6 +26,8 @@ export function SessionsView({ active }: SessionsViewProps) {
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const sortedSessions = useMemo(
     () => [...state.sessions].sort((left, right) => left.zIndex - right.zIndex),
@@ -152,6 +154,7 @@ export function SessionsView({ active }: SessionsViewProps) {
       </div>
 
       <div
+        ref={canvasRef}
         style={{
           position: "relative",
           flex: 1,
@@ -168,6 +171,7 @@ export function SessionsView({ active }: SessionsViewProps) {
             key={session.id}
             session={session}
             active={active}
+            canvasRef={canvasRef}
             onClose={() => closeSession(session.id)}
             onBringToFront={() => bringSessionToFront(session.id)}
             onGeometryChange={(geometry) =>
@@ -308,12 +312,14 @@ export function SessionsView({ active }: SessionsViewProps) {
 function SessionWindow({
   session,
   active,
+  canvasRef,
   onClose,
   onBringToFront,
   onGeometryChange,
 }: {
   session: SessionWindowState;
   active: boolean;
+  canvasRef: RefObject<HTMLDivElement | null>;
   onClose: () => void;
   onBringToFront: () => void;
   onGeometryChange: (geometry: {
@@ -330,28 +336,55 @@ function SessionWindow({
         ? "#9fb3c8"
         : "#f28a8a";
 
+  // Hand-rolled dragging: react-rnd's own dragging does not work reliably under
+  // React 19 here (resize does), so we drive the position from header mouse events.
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
+  const position = dragPos ?? { x: session.geometry.x, y: session.geometry.y };
+
+  const startDrag = (event: React.MouseEvent) => {
+    if ((event.target as HTMLElement).closest("button")) {
+      return;
+    }
+    onBringToFront();
+    event.preventDefault();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const origin = { x: session.geometry.x, y: session.geometry.y };
+    const canvas = canvasRef.current;
+    const maxX = canvas ? canvas.clientWidth - session.geometry.width : Number.MAX_SAFE_INTEGER;
+    const maxY = canvas ? canvas.clientHeight - session.geometry.height : Number.MAX_SAFE_INTEGER;
+    const clamp = (value: number, max: number) => Math.max(0, Math.min(value, Math.max(0, max)));
+    let latest = origin;
+    const onMove = (move: MouseEvent) => {
+      latest = {
+        x: clamp(origin.x + (move.clientX - startX), maxX),
+        y: clamp(origin.y + (move.clientY - startY), maxY),
+      };
+      setDragPos(latest);
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setDragPos(null);
+      onGeometryChange({ ...session.geometry, x: latest.x, y: latest.y });
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
   return (
     <Rnd
       bounds="parent"
+      disableDragging
       size={{ width: session.geometry.width, height: session.geometry.height }}
-      position={{ x: session.geometry.x, y: session.geometry.y }}
+      position={position}
       minWidth={420}
       minHeight={240}
-      dragHandleClassName="session-window-handle"
-      onDragStart={onBringToFront}
       onResizeStart={onBringToFront}
-      onMouseDown={onBringToFront}
-      onDragStop={(_, data) => {
+      onResizeStop={(_, __, element, ___, resizePosition) => {
         onGeometryChange({
-          ...session.geometry,
-          x: data.x,
-          y: data.y,
-        });
-      }}
-      onResizeStop={(_, __, element, ___, position) => {
-        onGeometryChange({
-          x: position.x,
-          y: position.y,
+          x: resizePosition.x,
+          y: resizePosition.y,
           width: element.offsetWidth,
           height: element.offsetHeight,
         });
@@ -369,6 +402,7 @@ function SessionWindow({
       }}
     >
       <div
+        onMouseDown={onBringToFront}
         style={{
           display: "flex",
           flexDirection: "column",
@@ -376,7 +410,7 @@ function SessionWindow({
         }}
       >
         <div
-          className="session-window-handle"
+          onMouseDown={startDrag}
           style={{
             display: "flex",
             alignItems: "center",

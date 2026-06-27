@@ -34,6 +34,12 @@ struct ManagedSession {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     killer: Box<dyn ChildKiller + Send + Sync>,
+    /// Output produced before the frontend terminal attached. The PTY emits its
+    /// first frame (e.g. a TUI entering the alternate screen) before xterm has
+    /// registered its `session-output` listener; without this buffer that frame is
+    /// lost and the terminal stays blank. Replayed verbatim on attach.
+    pre_attach: String,
+    attached: bool,
 }
 
 impl Default for SessionManager {
@@ -102,6 +108,8 @@ impl SessionManager {
                     master: pair.master,
                     writer,
                     killer,
+                    pre_attach: String::new(),
+                    attached: false,
                 },
             );
         }
@@ -154,6 +162,19 @@ impl SessionManager {
             .killer
             .kill()
             .map_err(|err| AppError::Session(err.to_string()))
+    }
+
+    /// Mark a session attached and return the output buffered before attach. From
+    /// this point the reader emits live `session-output` events. Atomic under the
+    /// lock so no chunk is lost or duplicated across the handoff.
+    pub fn attach(&self, id: &str) -> Result<String, AppError> {
+        let mut inner = self.lock_inner();
+        let session = inner
+            .sessions
+            .get_mut(id)
+            .ok_or_else(|| AppError::Session(format!("Unknown session: {id}")))?;
+        session.attached = true;
+        Ok(std::mem::take(&mut session.pre_attach))
     }
 
     pub fn list(&self) -> Vec<SessionInfo> {
@@ -314,16 +335,6 @@ fn spawn_output_reader(
             match reader.read(&mut buffer) {
                 Ok(0) => break,
                 Ok(len) => {
-                    let should_continue = {
-                        let inner = sessions
-                            .lock()
-                            .unwrap_or_else(|poisoned| poisoned.into_inner());
-                        inner.sessions.contains_key(&id)
-                    };
-                    if !should_continue {
-                        break;
-                    }
-
                     pending.extend_from_slice(&buffer[..len]);
                     let valid_len = match std::str::from_utf8(&pending) {
                         Ok(_) => pending.len(),
@@ -340,13 +351,32 @@ fn spawn_output_reader(
 
                     let data = String::from_utf8_lossy(&pending[..valid_len]).to_string();
                     pending.drain(..valid_len);
-                    let _ = app.emit(
-                        SESSION_OUTPUT_EVENT,
-                        SessionOutputPayload {
-                            id: id.clone(),
-                            data,
-                        },
-                    );
+
+                    // Under the lock: if the terminal has attached, emit live;
+                    // otherwise buffer until attach replays it. If the session is
+                    // gone, stop reading.
+                    let emit = {
+                        let mut inner = sessions
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner());
+                        match inner.sessions.get_mut(&id) {
+                            Some(session) if session.attached => true,
+                            Some(session) => {
+                                session.pre_attach.push_str(&data);
+                                false
+                            }
+                            None => break,
+                        }
+                    };
+                    if emit {
+                        let _ = app.emit(
+                            SESSION_OUTPUT_EVENT,
+                            SessionOutputPayload {
+                                id: id.clone(),
+                                data,
+                            },
+                        );
+                    }
                 }
                 Err(_) => break,
             }

@@ -160,6 +160,10 @@ export async function sessionKill(id: string): Promise<void> {
   return invoke("session_kill", { id });
 }
 
+export async function sessionAttach(id: string): Promise<string> {
+  return invoke("session_attach", { id });
+}
+
 export async function sessionList(): Promise<SessionInfo[]> {
   return invoke("session_list");
 }

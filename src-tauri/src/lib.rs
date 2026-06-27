@@ -370,6 +370,11 @@ fn session_kill(state: State<'_, AppState>, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn session_attach(state: State<'_, AppState>, id: String) -> Result<String, String> {
+    state.sessions.attach(&id).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 fn session_list(state: State<'_, AppState>) -> Vec<SessionInfo> {
     state.sessions.list()
 }
@@ -456,6 +461,7 @@ pub fn run() {
             session_write,
             session_resize,
             session_kill,
+            session_attach,
             session_list,
             list_ollama_models,
             set_artifact_status,

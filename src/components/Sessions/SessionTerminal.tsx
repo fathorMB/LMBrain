@@ -2,7 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { sessionResize, sessionWrite } from "../../lib/commands";
+import { sessionAttach, sessionResize, sessionWrite } from "../../lib/commands";
 
 interface SessionTerminalProps {
   sessionId: string;
@@ -80,11 +80,41 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
       sessionWrite(sessionId, data).catch(() => {});
     });
 
+    // Live events are buffered until the backstop snapshot has been written, so the
+    // replayed pre-attach output (e.g. a TUI's first frame) always lands before any
+    // live output and ordering is preserved.
+    let attached = false;
+    const pendingLive: string[] = [];
     const outputUnlisten = listen<{ id: string; data: string }>("session-output", (event) => {
-      if (event.payload.id === sessionId) {
+      if (event.payload.id !== sessionId) {
+        return;
+      }
+      if (attached) {
         terminalRef.current?.write(event.payload.data);
+      } else {
+        pendingLive.push(event.payload.data);
       }
     });
+
+    // Register the listener first, then attach: the backend replays everything it
+    // buffered before this terminal existed and switches to live emission.
+    outputUnlisten
+      .then(() => sessionAttach(sessionId))
+      .then((snapshot) => {
+        const term = terminalRef.current;
+        if (!term) {
+          return;
+        }
+        if (snapshot) {
+          term.write(snapshot);
+        }
+        for (const chunk of pendingLive) {
+          term.write(chunk);
+        }
+        pendingLive.length = 0;
+        attached = true;
+      })
+      .catch(() => {});
 
     requestAnimationFrame(syncSize);
 
@@ -123,14 +153,20 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
   }, [active, sessionId]);
 
   return (
+    // No padding on the measured container: with a global `box-sizing: border-box`,
+    // padding here inflates FitAddon's height measurement and renders one extra row
+    // that overflows past the window. Padding lives on an inner wrapper instead.
     <div
-      ref={containerRef}
       style={{
         flex: 1,
         minHeight: 0,
-        padding: "10px 12px 12px",
+        overflow: "hidden",
         background: "#120f18",
+        padding: "8px 10px",
+        boxSizing: "border-box",
       }}
-    />
+    >
+      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+    </div>
   );
 }

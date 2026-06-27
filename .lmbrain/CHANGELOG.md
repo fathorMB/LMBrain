@@ -4,6 +4,14 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.1.1 — 2026-06-27
+
+### Fixed
+
+- **Sessions terminals stayed blank.** The PTY reader emitted a session's first output (e.g. a TUI entering the alternate screen) before the xterm terminal had attached its listener, so the opening frame was lost and the terminal never rendered. Output is now buffered per session and replayed on attach (new `session_attach` command), preserving order with no loss or duplication.
+- **Terminal content was clipped at the bottom.** With a global `box-sizing: border-box`, padding on the measured container inflated the FitAddon height by ~one row, which overflowed the window. The xterm element is now measured on a padding-free inner container.
+- **Session windows could not be dragged** (and clicking the header could black-screen the app). Root cause: `react-draggable` (under `react-rnd`) reads `process.env.*`, which is undefined in the browser and threw `process is not defined` — silently aborting drags, and crashing render once dragging was disabled. Vite now defines the referenced `process.env` values, and window dragging is driven directly from header mouse events with canvas-bounded clamping.
+
 ## 2.1.0 — 2026-06-27
 
 ### Added
