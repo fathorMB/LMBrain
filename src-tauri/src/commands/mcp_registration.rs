@@ -92,11 +92,11 @@ fn resolve_mcp_command_from(
         }
     }
 
-    let binary = mcp_binary_name();
-    if let Some(candidate) = current_exe
+    for candidate in current_exe
         .as_deref()
         .and_then(Path::parent)
-        .map(|dir| dir.join(binary))
+        .map(sibling_mcp_candidates)
+        .unwrap_or_default()
     {
         if candidate.is_file() {
             return candidate.to_string_lossy().into_owned();
@@ -110,6 +110,34 @@ fn resolve_mcp_command_from(
     }
 
     "lmbrain-mcp".to_string()
+}
+
+fn sibling_mcp_candidates(dir: &Path) -> Vec<PathBuf> {
+    let mut candidates = vec![dir.join(mcp_binary_name())];
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        let mut sidecars = entries
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .map(is_mcp_sidecar_name)
+                    .unwrap_or(false)
+            })
+            .collect::<Vec<_>>();
+        sidecars.sort();
+        candidates.extend(sidecars);
+    }
+    candidates
+}
+
+fn is_mcp_sidecar_name(name: &str) -> bool {
+    let expected = if cfg!(windows) {
+        name.strip_suffix(".exe").unwrap_or(name)
+    } else {
+        name
+    };
+    expected.starts_with("lmbrain-mcp-")
 }
 
 fn cargo_workspace_mcp_candidates() -> Vec<PathBuf> {
@@ -153,7 +181,7 @@ fn concrete_command_exists(command: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_mcp_config, concrete_command_exists, mcp_binary_name,
+        build_mcp_config, concrete_command_exists, is_mcp_sidecar_name, mcp_binary_name,
         resolve_mcp_command_for_root_from, resolve_mcp_command_from,
     };
     use serde_json::Value;
@@ -225,6 +253,21 @@ mod tests {
     }
 
     #[test]
+    fn resolver_finds_suffixed_sidecar_next_to_app() {
+        let dir = tempfile::tempdir().unwrap();
+        let sidecar = dir.path().join(if cfg!(windows) {
+            "lmbrain-mcp-x86_64-pc-windows-msvc.exe"
+        } else {
+            "lmbrain-mcp-x86_64-unknown-linux-gnu"
+        });
+        std::fs::write(&sidecar, "").unwrap();
+
+        let resolved = resolve_mcp_command_from(None, Some(dir.path().join("lmbrain")), Vec::new());
+
+        assert_eq!(resolved, sidecar.to_string_lossy());
+    }
+
+    #[test]
     fn resolver_uses_extra_candidate_when_not_next_to_app() {
         let app_dir = tempfile::tempdir().unwrap();
         let target_dir = tempfile::tempdir().unwrap();
@@ -275,5 +318,16 @@ mod tests {
         std::fs::write(&binary, "").unwrap();
         assert!(concrete_command_exists(&binary.to_string_lossy()));
         assert!(!concrete_command_exists("lmbrain-mcp"));
+    }
+
+    #[test]
+    fn sidecar_name_detection_accepts_tauri_target_suffix() {
+        assert!(is_mcp_sidecar_name(if cfg!(windows) {
+            "lmbrain-mcp-x86_64-pc-windows-msvc.exe"
+        } else {
+            "lmbrain-mcp-x86_64-unknown-linux-gnu"
+        }));
+        assert!(!is_mcp_sidecar_name("lmbrain-mcp"));
+        assert!(!is_mcp_sidecar_name("other-lmbrain-mcp-x86_64"));
     }
 }

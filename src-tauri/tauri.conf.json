@@ -28,6 +28,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": [
+      "binaries/lmbrain-mcp"
+    ],
     "resources": {
       "../kit/.lmbrain/": "kit/.lmbrain/"
     },

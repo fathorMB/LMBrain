@@ -1,12 +1,13 @@
 {
   "name": "lmbrain",
   "private": true,
-  "version": "2.2.4",
+  "version": "2.2.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "prepare:sidecar": "node scripts/prepare-sidecar.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",

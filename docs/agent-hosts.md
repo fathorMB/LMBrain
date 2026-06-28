@@ -22,10 +22,11 @@ When a workspace is opened, LMBrain writes or updates `.mcp.json` in the workspa
 The command is resolved from:
 
 1. `LMBRAIN_MCP_BIN`;
-2. an `lmbrain-mcp` binary next to the running app executable;
-3. Cargo workspace build outputs (`target/debug/lmbrain-mcp` or
+2. the bundled Tauri sidecar next to the running app executable;
+3. an `lmbrain-mcp` binary next to the running app executable;
+4. Cargo workspace build outputs (`target/debug/lmbrain-mcp` or
    `target/release/lmbrain-mcp`, with `.exe` on Windows);
-4. `lmbrain-mcp` on `PATH`.
+5. `lmbrain-mcp` on `PATH`.
 
 When a concrete binary is discovered, LMBrain writes that absolute path into
 `.mcp.json`. This matters for in-app Claude sessions because they inherit the
@@ -33,10 +34,10 @@ desktop app's process environment, which may not include the same `PATH` as an
 interactive shell. If LMBrain cannot discover the binary automatically, set
 `LMBRAIN_MCP_BIN` before starting the app.
 
+Installer builds bundle `lmbrain-mcp` as a Tauri sidecar, so new workspaces
+should receive an absolute command path without requiring a separate PATH setup.
 If automatic discovery would otherwise fall back to bare `lmbrain-mcp`, LMBrain
 preserves an existing absolute `.mcp.json` command while that file still exists.
-This avoids breaking a working project registration when an installed app build
-does not yet bundle the MCP binary as a sidecar.
 
 The write is best-effort and idempotent.
 

@@ -88,10 +88,12 @@ jobs:
         run: |
           pnpm lint
           pnpm test
-      - name: Run Rust tests
-        run: cargo test
       - name: Build MCP server
         run: cargo build --release -p lmbrain-mcp
+      - name: Prepare MCP sidecar
+        run: node scripts/prepare-sidecar.mjs --profile=release
+      - name: Run Rust tests
+        run: cargo test
       - name: Build installers
         uses: tauri-apps/tauri-action@v0
         env:

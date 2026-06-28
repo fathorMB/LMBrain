@@ -29,9 +29,10 @@ On pushes to `main`, the workflow:
 3. skips installer builds when the version did not change;
 4. runs frontend lint/tests and Rust tests;
 5. builds the `lmbrain-mcp` binary;
-6. builds Windows and Linux installers;
-7. uploads installers and MCP server artifacts;
-8. creates or updates the GitHub Release for the version tag.
+6. prepares the MCP binary as a Tauri sidecar;
+7. builds Windows and Linux installers;
+8. uploads installers and MCP server artifacts;
+9. creates or updates the GitHub Release for the version tag.
 
 ## Release Artifacts
 
