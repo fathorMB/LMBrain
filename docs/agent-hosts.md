@@ -23,7 +23,15 @@ The command is resolved from:
 
 1. `LMBRAIN_MCP_BIN`;
 2. an `lmbrain-mcp` binary next to the running app executable;
-3. `lmbrain-mcp` on `PATH`.
+3. Cargo workspace build outputs (`target/debug/lmbrain-mcp` or
+   `target/release/lmbrain-mcp`, with `.exe` on Windows);
+4. `lmbrain-mcp` on `PATH`.
+
+When a concrete binary is discovered, LMBrain writes that absolute path into
+`.mcp.json`. This matters for in-app Claude sessions because they inherit the
+desktop app's process environment, which may not include the same `PATH` as an
+interactive shell. If LMBrain cannot discover the binary automatically, set
+`LMBRAIN_MCP_BIN` before starting the app.
 
 The write is best-effort and idempotent.
 

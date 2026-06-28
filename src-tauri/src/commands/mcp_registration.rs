@@ -54,31 +54,71 @@ pub fn register_mcp_server(root: &Path, command: &str) -> Result<PathBuf, AppErr
 /// Resolve the value to place in `.mcp.json`'s `command`: an explicit
 /// `LMBRAIN_MCP_BIN` override first, then the binary sitting next to the running
 /// executable (the dev/workspace build and, if bundled, the installed app), then
-/// the bare name resolved through `PATH`.
+/// Cargo workspace build outputs, then the bare name resolved through `PATH`.
 pub fn resolve_mcp_command() -> String {
-    if let Ok(value) = std::env::var("LMBRAIN_MCP_BIN") {
-        if !value.trim().is_empty() {
+    resolve_mcp_command_from(
+        std::env::var("LMBRAIN_MCP_BIN").ok(),
+        std::env::current_exe().ok(),
+        cargo_workspace_mcp_candidates(),
+    )
+}
+
+fn resolve_mcp_command_from(
+    env_override: Option<String>,
+    current_exe: Option<PathBuf>,
+    extra_candidates: Vec<PathBuf>,
+) -> String {
+    if let Some(value) = env_override.map(|value| value.trim().to_string()) {
+        if !value.is_empty() {
             return value;
         }
     }
-    let binary = if cfg!(windows) {
+
+    let binary = mcp_binary_name();
+    if let Some(candidate) = current_exe
+        .as_deref()
+        .and_then(Path::parent)
+        .map(|dir| dir.join(binary))
+    {
+        if candidate.is_file() {
+            return candidate.to_string_lossy().into_owned();
+        }
+    }
+
+    for candidate in extra_candidates {
+        if candidate.is_file() {
+            return candidate.to_string_lossy().into_owned();
+        }
+    }
+
+    "lmbrain-mcp".to_string()
+}
+
+fn cargo_workspace_mcp_candidates() -> Vec<PathBuf> {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = manifest_dir
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| manifest_dir.to_path_buf());
+    let binary = mcp_binary_name();
+
+    ["debug", "release"]
+        .into_iter()
+        .map(|profile| workspace_root.join("target").join(profile).join(binary))
+        .collect()
+}
+
+fn mcp_binary_name() -> &'static str {
+    if cfg!(windows) {
         "lmbrain-mcp.exe"
     } else {
         "lmbrain-mcp"
-    };
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(candidate) = exe.parent().map(|dir| dir.join(binary)) {
-            if candidate.exists() {
-                return candidate.to_string_lossy().into_owned();
-            }
-        }
     }
-    "lmbrain-mcp".to_string()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::build_mcp_config;
+    use super::{build_mcp_config, mcp_binary_name, resolve_mcp_command_from};
     use serde_json::Value;
 
     #[test]
@@ -115,5 +155,64 @@ mod tests {
         let out = build_mcp_config(Some("[]"), "lmbrain-mcp", "/ws").unwrap();
         let value: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(value["mcpServers"]["lmbrain"]["command"], "lmbrain-mcp");
+    }
+
+    #[test]
+    fn resolver_honors_env_override_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let sibling = dir.path().join(mcp_binary_name());
+        std::fs::write(&sibling, "").unwrap();
+
+        let resolved = resolve_mcp_command_from(
+            Some("/custom/lmbrain-mcp".into()),
+            Some(dir.path().join("lmbrain")),
+            Vec::new(),
+        );
+
+        assert_eq!(resolved, "/custom/lmbrain-mcp");
+    }
+
+    #[test]
+    fn resolver_prefers_sibling_binary_before_extra_candidates() {
+        let dir = tempfile::tempdir().unwrap();
+        let sibling = dir.path().join(mcp_binary_name());
+        let target_dir = tempfile::tempdir().unwrap();
+        let target = target_dir.path().join(mcp_binary_name());
+        std::fs::write(&sibling, "").unwrap();
+        std::fs::write(&target, "").unwrap();
+
+        let resolved =
+            resolve_mcp_command_from(None, Some(dir.path().join("lmbrain")), vec![target]);
+
+        assert_eq!(resolved, sibling.to_string_lossy());
+    }
+
+    #[test]
+    fn resolver_uses_extra_candidate_when_not_next_to_app() {
+        let app_dir = tempfile::tempdir().unwrap();
+        let target_dir = tempfile::tempdir().unwrap();
+        let target = target_dir.path().join(mcp_binary_name());
+        std::fs::write(&target, "").unwrap();
+
+        let resolved = resolve_mcp_command_from(
+            None,
+            Some(app_dir.path().join("lmbrain")),
+            vec![target.clone()],
+        );
+
+        assert_eq!(resolved, target.to_string_lossy());
+    }
+
+    #[test]
+    fn resolver_falls_back_to_bare_command_when_no_candidate_exists() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let resolved = resolve_mcp_command_from(
+            Some("   ".into()),
+            Some(dir.path().join("lmbrain")),
+            vec![dir.path().join("missing").join(mcp_binary_name())],
+        );
+
+        assert_eq!(resolved, "lmbrain-mcp");
     }
 }

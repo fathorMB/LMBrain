@@ -23,6 +23,12 @@ The backend:
 - reports exits through `session-exit`;
 - kills sessions when requested or when the app exits.
 
+Native Claude sessions load the workspace `.mcp.json` just like an external
+Claude Code launch. LMBrain refreshes that file when the workspace is opened and
+prefers a resolvable absolute `lmbrain-mcp` path when it can discover one, so
+app-launched Claude sessions are not dependent on the user's interactive shell
+`PATH`.
+
 ## Frontend
 
 `src/components/Sessions/SessionsView.tsx` renders a canvas of floating session windows with `react-rnd`. Each window embeds `SessionTerminal`, which uses `@xterm/xterm` and `@xterm/addon-fit`.
