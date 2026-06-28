@@ -48,7 +48,7 @@ fn open_workspace(state: State<'_, AppState>, path: String) -> Result<WorkspaceI
     // Register the repository-scoped lmbrain-mcp server so agents working in this
     // workspace receive the controlled-mutation tools. Best-effort: never block
     // opening a workspace if registration cannot be written.
-    let mcp_command = commands::mcp_registration::resolve_mcp_command();
+    let mcp_command = commands::mcp_registration::resolve_mcp_command_for_root(root);
     let _ = commands::mcp_registration::register_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::ensure_codex_workspace_trusted(root);
@@ -80,7 +80,7 @@ fn initialize_workspace_kit(
         .initialize_kit(Path::new(&path), &template)
         .map_err(|e| e.to_string())?;
     let root = Path::new(&path);
-    let mcp_command = commands::mcp_registration::resolve_mcp_command();
+    let mcp_command = commands::mcp_registration::resolve_mcp_command_for_root(root);
     let _ = commands::mcp_registration::register_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::ensure_codex_workspace_trusted(root);
@@ -371,6 +371,10 @@ fn session_start(
         .path_guard
         .get_root()
         .ok_or_else(|| "No workspace open".to_string())?;
+    if matches!(request.mode, models::session::SessionMode::Claude) {
+        let mcp_command = commands::mcp_registration::resolve_mcp_command_for_root(&root);
+        let _ = commands::mcp_registration::register_mcp_server(&root, &mcp_command);
+    }
     state
         .sessions
         .start(&root, app, request)

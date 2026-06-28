@@ -51,6 +51,24 @@ pub fn register_mcp_server(root: &Path, command: &str) -> Result<PathBuf, AppErr
     Ok(config_path)
 }
 
+/// Resolve the command to register for a concrete workspace. If automatic
+/// discovery only finds the bare fallback, preserve an existing generated
+/// absolute command that still points to a real binary.
+pub fn resolve_mcp_command_for_root(root: &Path) -> String {
+    let resolved = resolve_mcp_command();
+    resolve_mcp_command_for_root_from(root, resolved)
+}
+
+fn resolve_mcp_command_for_root_from(root: &Path, resolved: String) -> String {
+    if resolved != "lmbrain-mcp" {
+        return resolved;
+    }
+
+    existing_registered_mcp_command(root)
+        .filter(|command| concrete_command_exists(command))
+        .unwrap_or(resolved)
+}
+
 /// Resolve the value to place in `.mcp.json`'s `command`: an explicit
 /// `LMBRAIN_MCP_BIN` override first, then the binary sitting next to the running
 /// executable (the dev/workspace build and, if bundled, the installed app), then
@@ -116,9 +134,28 @@ fn mcp_binary_name() -> &'static str {
     }
 }
 
+fn existing_registered_mcp_command(root: &Path) -> Option<String> {
+    let config = std::fs::read_to_string(root.join(".mcp.json")).ok()?;
+    let value: Value = serde_json::from_str(&config).ok()?;
+    value
+        .get("mcpServers")?
+        .get("lmbrain")?
+        .get("command")?
+        .as_str()
+        .map(str::to_string)
+}
+
+fn concrete_command_exists(command: &str) -> bool {
+    let trimmed = command.trim();
+    !trimmed.is_empty() && Path::new(trimmed).is_file()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{build_mcp_config, mcp_binary_name, resolve_mcp_command_from};
+    use super::{
+        build_mcp_config, concrete_command_exists, mcp_binary_name,
+        resolve_mcp_command_for_root_from, resolve_mcp_command_from,
+    };
     use serde_json::Value;
 
     #[test]
@@ -214,5 +251,29 @@ mod tests {
         );
 
         assert_eq!(resolved, "lmbrain-mcp");
+    }
+
+    #[test]
+    fn workspace_resolver_preserves_existing_concrete_command_when_auto_falls_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let binary = dir.path().join(mcp_binary_name());
+        std::fs::write(&binary, "").unwrap();
+        let config = build_mcp_config(None, &binary.to_string_lossy(), "/ws").unwrap();
+        std::fs::write(dir.path().join(".mcp.json"), config).unwrap();
+
+        let resolved = resolve_mcp_command_for_root_from(dir.path(), "lmbrain-mcp".to_string());
+
+        assert_eq!(resolved, binary.to_string_lossy());
+    }
+
+    #[test]
+    fn concrete_command_requires_existing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let binary = dir.path().join(mcp_binary_name());
+
+        assert!(!concrete_command_exists(&binary.to_string_lossy()));
+        std::fs::write(&binary, "").unwrap();
+        assert!(concrete_command_exists(&binary.to_string_lossy()));
+        assert!(!concrete_command_exists("lmbrain-mcp"));
     }
 }

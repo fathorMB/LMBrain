@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -10,6 +11,7 @@ use serde::Deserialize;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
+use crate::commands::mcp_registration::resolve_mcp_command_for_root;
 use crate::errors::AppError;
 use crate::models::session::{
     OllamaModel, SessionExitPayload, SessionInfo, SessionMode, SessionOutputPayload,
@@ -219,7 +221,11 @@ pub fn list_ollama_models() -> Result<Vec<OllamaModel>, AppError> {
 
 fn build_command(request: &SessionStartRequest, cwd: &Path) -> Result<CommandBuilder, AppError> {
     let mut builder = match request.mode {
-        SessionMode::Claude => CommandBuilder::new("claude"),
+        SessionMode::Claude => {
+            let mut command = CommandBuilder::new("claude");
+            configure_lmbrain_mcp_environment(&mut command, cwd);
+            command
+        }
         SessionMode::Ollama => {
             let model = request
                 .model
@@ -240,6 +246,27 @@ fn build_command(request: &SessionStartRequest, cwd: &Path) -> Result<CommandBui
     };
     builder.cwd(cwd);
     Ok(builder)
+}
+
+fn configure_lmbrain_mcp_environment(command: &mut CommandBuilder, cwd: &Path) {
+    let mcp_command = resolve_mcp_command_for_root(cwd);
+    let mcp_path = Path::new(&mcp_command);
+    if !mcp_path.is_file() {
+        return;
+    }
+
+    command.env("LMBRAIN_MCP_BIN", &mcp_command);
+    if let Some(parent) = mcp_path.parent().and_then(prepend_to_path) {
+        command.env("PATH", parent);
+    }
+}
+
+fn prepend_to_path(dir: &Path) -> Option<OsString> {
+    let mut paths = vec![dir.to_path_buf()];
+    if let Some(existing) = std::env::var_os("PATH") {
+        paths.extend(std::env::split_paths(&existing));
+    }
+    std::env::join_paths(paths).ok()
 }
 
 fn default_label(request: &SessionStartRequest) -> String {

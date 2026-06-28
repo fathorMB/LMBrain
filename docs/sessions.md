@@ -25,7 +25,9 @@ The backend:
 
 Native Claude sessions load the workspace `.mcp.json` just like an external
 Claude Code launch. LMBrain refreshes that file when the workspace is opened and
-prefers a resolvable absolute `lmbrain-mcp` path when it can discover one, so
+again immediately before starting a native Claude session. It prefers a
+resolvable absolute `lmbrain-mcp` path when it can discover one, and appends that
+binary's directory plus `LMBRAIN_MCP_BIN` to the child environment, so
 app-launched Claude sessions are not dependent on the user's interactive shell
 `PATH`.
 

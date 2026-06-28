@@ -33,6 +33,11 @@ desktop app's process environment, which may not include the same `PATH` as an
 interactive shell. If LMBrain cannot discover the binary automatically, set
 `LMBRAIN_MCP_BIN` before starting the app.
 
+If automatic discovery would otherwise fall back to bare `lmbrain-mcp`, LMBrain
+preserves an existing absolute `.mcp.json` command while that file still exists.
+This avoids breaking a working project registration when an installed app build
+does not yet bundle the MCP binary as a sidecar.
+
 The write is best-effort and idempotent.
 
 ## Codex
