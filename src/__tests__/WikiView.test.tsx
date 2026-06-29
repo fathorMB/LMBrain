@@ -156,6 +156,7 @@ describe("WikiView link-resolution integration", () => {
     renderWikiView();
 
     await waitFor(() => expect(mocks.getWikiTree).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByText("knowledge"));
     fireEvent.click(screen.getByText("source"));
 
     const existing = await screen.findByTitle("Navigate to EXISTING");
@@ -248,8 +249,21 @@ describe("WikiView collapsible folders", () => {
 
     await waitFor(() => expect(mocks.getWikiTree).toHaveBeenCalledTimes(1));
 
-    // 'deep_folder' has depth 2, so it is collapsed by default. 'deep_file' should not be visible.
+    // Top-level content sections are collapsed by default while the root is expanded.
+    expect(screen.queryByText("deep_folder")).toBeNull();
     expect(screen.queryByText("deep_file")).toBeNull();
+
+    const rootRow = screen.getAllByText(".lmbrain")
+      .map((element) => element.closest("[role='button']"))
+      .find(Boolean);
+    expect(rootRow?.getAttribute("aria-expanded")).toBe("true");
+
+    const knowledgeRow = screen.getByText("knowledge").closest("[role='button']");
+    expect(knowledgeRow).not.toBeNull();
+    expect(knowledgeRow?.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(screen.getByText("knowledge"));
+    expect(knowledgeRow?.getAttribute("aria-expanded")).toBe("true");
 
     // Verify accessibility attributes on 'deep_folder'
     const deepFolderRow = screen.getByText("deep_folder").closest("[role='button']");
@@ -270,4 +284,3 @@ describe("WikiView collapsible folders", () => {
     expect(screen.queryByText("deep_file")).toBeNull();
   });
 });
-

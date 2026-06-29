@@ -9,6 +9,10 @@ vi.mock("../lib/commands", () => ({
   readDesignMockupHtml: vi.fn(),
 }));
 
+vi.mock("@tauri-apps/api/core", () => ({
+  convertFileSrc: (path: string) => `asset://localhost/${path}`,
+}));
+
 const mockup: DesignMockup = {
   id: "checkout-flow",
   name: "checkout-flow",
@@ -27,6 +31,11 @@ const mockup: DesignMockup = {
 describe("DesignView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => "blob:preview-url"),
+      revokeObjectURL: vi.fn(),
+    });
     vi.mocked(commands.readDesignMockupHtml).mockResolvedValue({
       path: mockup.entry_path,
       content: "<!doctype html><html><body>Checkout</body></html>",
@@ -49,7 +58,8 @@ describe("DesignView", () => {
 
     await waitFor(() => expect(screen.getAllByText("Checkout Flow").length).toBeGreaterThan(0));
     expect(screen.getByText("Responsive checkout mockup.")).toBeDefined();
-    await waitFor(() => expect(screen.getByTitle("Design mockup preview")).toBeDefined());
+    const frame = await screen.findByTitle("Design mockup preview");
+    expect(frame.getAttribute("src")).toBe("blob:preview-url");
     expect(commands.readDesignMockupHtml).toHaveBeenCalledWith(mockup.entry_path);
   });
 });

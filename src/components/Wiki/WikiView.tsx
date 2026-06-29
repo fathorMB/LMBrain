@@ -385,7 +385,7 @@ function TreeNode({
   depth: number;
 }) {
   const isFile = node.kind === "file";
-  const [expanded, setExpanded] = useState(depth <= 1);
+  const [expanded, setExpanded] = useState(depth === 0);
   const icon = isFile
     ? "article"
     : node.kind === "knowledge"

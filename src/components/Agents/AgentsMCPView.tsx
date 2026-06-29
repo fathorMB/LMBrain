@@ -21,6 +21,12 @@ const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }
 
 export function AgentsMCPView() {
   const { state, dispatch } = useWorkspace();
+  const visibleAgentProposals = state.agentProposals.filter(
+    (proposal) =>
+      proposal.status === "proposed" ||
+      (proposal.status === "approved" &&
+        !approvedProposalHasMaterializedProfile(proposal, state.agents))
+  );
 
   useEffect(() => {
     Promise.all([
@@ -100,7 +106,7 @@ export function AgentsMCPView() {
         </div>
 
         {/* Agent Proposals */}
-        {state.agentProposals.length > 0 && (
+        {visibleAgentProposals.length > 0 && (
           <>
             <div
               style={{
@@ -122,7 +128,7 @@ export function AgentsMCPView() {
                 marginBottom: 32,
               }}
             >
-              {state.agentProposals.map((proposal) => (
+              {visibleAgentProposals.map((proposal) => (
                 <AgentProposalCard key={proposal.id} proposal={proposal} />
               ))}
             </div>
@@ -270,6 +276,22 @@ export function AgentsMCPView() {
       </div>
     </div>
   );
+}
+
+function approvedProposalHasMaterializedProfile(
+  proposal: AgentProposal,
+  agents: AgentProfile[]
+) {
+  const proposalTitle = normalizeTitle(proposal.title);
+  return agents.some(
+    (agent) =>
+      agent.status !== "proposed" &&
+      (agent.links.includes(proposal.id) || normalizeTitle(agent.title) === proposalTitle)
+  );
+}
+
+function normalizeTitle(title: string) {
+  return title.trim().toLowerCase();
 }
 
 function AgentCard({ agent }: { agent: AgentProfile }) {

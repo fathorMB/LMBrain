@@ -272,6 +272,62 @@ See [[TARGET-001]] for details."#;
 }
 
 #[test]
+fn test_wiki_tree_lists_only_operator_content_directories() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let lmbrain = dir.path().join(".lmbrain");
+
+    fs::create_dir_all(lmbrain.join("decisions")).unwrap();
+    fs::create_dir_all(lmbrain.join("knowledge/deep")).unwrap();
+    fs::create_dir_all(lmbrain.join("specs/ready")).unwrap();
+    fs::create_dir_all(lmbrain.join("agents/proposals")).unwrap();
+    fs::create_dir_all(lmbrain.join("reviews/pending")).unwrap();
+
+    fs::write(lmbrain.join("decisions/ADR-001.md"), "# Decision").unwrap();
+    fs::write(lmbrain.join("knowledge/deep/Topic.md"), "# Topic").unwrap();
+    fs::write(lmbrain.join("specs/ready/SPEC-001.md"), "# Spec").unwrap();
+    fs::write(
+        lmbrain.join("agents/proposals/AGENT-PROP-001.md"),
+        "# Proposal",
+    )
+    .unwrap();
+    fs::write(lmbrain.join("reviews/pending/REVIEW-001.md"), "# Review").unwrap();
+    fs::write(lmbrain.join("STATUS.md"), "# Status").unwrap();
+
+    let tree = contract::build_wiki_tree(dir.path()).unwrap();
+    let names: Vec<_> = tree
+        .root
+        .children
+        .iter()
+        .map(|node| node.name.as_str())
+        .collect();
+
+    assert_eq!(names, vec!["decisions", "knowledge", "specs"]);
+    assert_eq!(tree.root.count, Some(3));
+}
+
+#[test]
+fn test_wikilink_index_uses_only_operator_content_directories() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let lmbrain = dir.path().join(".lmbrain");
+
+    fs::create_dir_all(lmbrain.join("knowledge")).unwrap();
+    fs::create_dir_all(lmbrain.join("agents/proposals")).unwrap();
+    fs::write(lmbrain.join("knowledge/Topic.md"), "See [[VISIBLE]].").unwrap();
+    fs::write(
+        lmbrain.join("agents/proposals/AGENT-PROP-001.md"),
+        "See [[HIDDEN]].",
+    )
+    .unwrap();
+
+    let index = contract::build_wikilink_index(dir.path());
+
+    assert!(index.contains_key("visible"));
+    assert!(!index.contains_key("hidden"));
+}
+
+#[test]
 fn test_status_md_heading_parsing() {
     let content = "## Current focus\n\nTest focus content\n\n## Current milestone\n\nM-01 — Test\n";
     let focus = contract::extract_focus_for_test(content);

@@ -18,6 +18,12 @@ use crate::models::spec::{Spec, SpecStatus};
 use crate::models::wiki::{WikiNode, WikiNodeKind, WikiTree};
 use crate::models::workspace::{DiagnosticSeverity, KitDiagnostic};
 
+const WIKI_CONTENT_DIRS: &[(&str, WikiNodeKind)] = &[
+    ("decisions", WikiNodeKind::Decisions),
+    ("knowledge", WikiNodeKind::Knowledge),
+    ("specs", WikiNodeKind::Specs),
+];
+
 #[derive(Debug, Clone)]
 struct CommonFields {
     id: String,
@@ -434,8 +440,28 @@ pub fn build_wiki_tree(root: &Path) -> Result<WikiTree, AppError> {
         });
     }
 
+    let mut children = Vec::new();
+    let mut file_count = 0;
+    for (directory, kind) in WIKI_CONTENT_DIRS {
+        let path = lmbrain.join(directory);
+        if !path.is_dir() {
+            continue;
+        }
+        let child =
+            build_tree_node_with_kind(&path, &format!(".lmbrain/{directory}"), kind.clone())?;
+        file_count += child.count.unwrap_or(0);
+        children.push(child);
+    }
+    children.sort_by(|left, right| left.name.cmp(&right.name));
+
     Ok(WikiTree {
-        root: build_tree_node(&lmbrain, ".lmbrain")?,
+        root: WikiNode {
+            name: ".lmbrain".into(),
+            path: ".lmbrain".into(),
+            kind: WikiNodeKind::Folder,
+            children,
+            count: Some(file_count),
+        },
     })
 }
 
@@ -501,6 +527,16 @@ fn build_tree_node(dir: &Path, relative: &str) -> Result<WikiNode, AppError> {
         children,
         count: Some(file_count),
     })
+}
+
+fn build_tree_node_with_kind(
+    dir: &Path,
+    relative: &str,
+    kind: WikiNodeKind,
+) -> Result<WikiNode, AppError> {
+    let mut node = build_tree_node(dir, relative)?;
+    node.kind = kind;
+    Ok(node)
 }
 
 /// Build pulse data from all parsed artifacts.
@@ -618,11 +654,9 @@ fn extract_section_after_heading(content: &str, heading: &str) -> Option<String>
 /// Build a wikilink index: for each .md file under .lmbrain/, parse its
 /// wikilinks and record which pages link to which target.
 pub fn build_wikilink_index(root: &Path) -> HashMap<String, Vec<String>> {
-    let mut index = HashMap::new();
+    let mut index: HashMap<String, Vec<String>> = HashMap::new();
     let lmbrain = root.join(".lmbrain");
-    let Ok(entries) = scan_md_files(&lmbrain) else {
-        return index;
-    };
+    let entries = wiki_content_files(&lmbrain);
 
     for file_path in entries {
         if let Ok(parsed) = parse_document(&file_path) {
@@ -642,6 +676,14 @@ pub fn build_wikilink_index(root: &Path) -> HashMap<String, Vec<String>> {
     }
 
     index
+}
+
+fn wiki_content_files(lmbrain: &Path) -> Vec<PathBuf> {
+    WIKI_CONTENT_DIRS
+        .iter()
+        .filter_map(|(directory, _)| scan_md_files(&lmbrain.join(directory)).ok())
+        .flatten()
+        .collect()
 }
 
 /// Scan all .md files under .lmbrain/ for malformed frontmatter and
