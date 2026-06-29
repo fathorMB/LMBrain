@@ -6,11 +6,10 @@ import type { DesignMockup } from "../types";
 
 vi.mock("../lib/commands", () => ({
   getDesignMockups: vi.fn(),
-  readDesignMockupHtml: vi.fn(),
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({
-  convertFileSrc: (path: string) => `asset://localhost/${path}`,
+  convertFileSrc: (path: string, protocol = "asset") => `${protocol}://localhost/${path}`,
 }));
 
 const mockup: DesignMockup = {
@@ -31,15 +30,6 @@ const mockup: DesignMockup = {
 describe("DesignView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubGlobal("URL", {
-      ...URL,
-      createObjectURL: vi.fn(() => "blob:preview-url"),
-      revokeObjectURL: vi.fn(),
-    });
-    vi.mocked(commands.readDesignMockupHtml).mockResolvedValue({
-      path: mockup.entry_path,
-      content: "<!doctype html><html><body>Checkout</body></html>",
-    });
   });
 
   it("renders an empty state when there are no mockups", async () => {
@@ -59,7 +49,8 @@ describe("DesignView", () => {
     await waitFor(() => expect(screen.getAllByText("Checkout Flow").length).toBeGreaterThan(0));
     expect(screen.getByText("Responsive checkout mockup.")).toBeDefined();
     const frame = await screen.findByTitle("Design mockup preview");
-    expect(frame.getAttribute("src")).toBe("blob:preview-url");
-    expect(commands.readDesignMockupHtml).toHaveBeenCalledWith(mockup.entry_path);
+    expect(frame.getAttribute("src")).toBe(
+      `lmbrain-design://localhost/${mockup.entry_path}`
+    );
   });
 });

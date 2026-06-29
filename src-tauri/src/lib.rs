@@ -16,7 +16,7 @@ use models::file::{FileContent, GitInfo, ParsedDocument};
 use models::pulse::PulseData;
 use models::session::{OllamaModel, SessionInfo, SessionStartRequest};
 use models::workspace::{WorkspaceInfo, WorkspaceSummary};
-use tauri::{AppHandle, Manager, State};
+use tauri::{http, AppHandle, Manager, Runtime, State};
 
 // ─── Application State ───────────────────────────────────────────
 
@@ -433,11 +433,53 @@ fn set_artifact_status(
         .map_err(|e| e.to_string())
 }
 
+fn design_preview_protocol<R: Runtime>(
+    app: &AppHandle<R>,
+    request: http::Request<Vec<u8>>,
+) -> http::Response<Vec<u8>> {
+    let Some(state) = app.try_state::<AppState>() else {
+        return text_response(
+            http::StatusCode::SERVICE_UNAVAILABLE,
+            "No application state",
+        );
+    };
+    let Some(root) = state.path_guard.get_root() else {
+        return text_response(http::StatusCode::SERVICE_UNAVAILABLE, "No workspace open");
+    };
+
+    match design::read_design_asset(&root, request.uri().path()) {
+        Ok(asset) => http::Response::builder()
+            .status(http::StatusCode::OK)
+            .header(http::header::CONTENT_TYPE, asset.mime_type)
+            .header(http::header::CONTENT_SECURITY_POLICY, design_preview_csp())
+            .body(asset.content)
+            .unwrap_or_else(|_| {
+                text_response(http::StatusCode::INTERNAL_SERVER_ERROR, "Response error")
+            }),
+        Err(error) => text_response(http::StatusCode::FORBIDDEN, &error.to_string()),
+    }
+}
+
+fn text_response(status: http::StatusCode, body: &str) -> http::Response<Vec<u8>> {
+    http::Response::builder()
+        .status(status)
+        .header(http::header::CONTENT_TYPE, "text/plain; charset=utf-8")
+        .body(body.as_bytes().to_vec())
+        .unwrap()
+}
+
+fn design_preview_csp() -> &'static str {
+    "default-src 'self' data: blob: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https:; worker-src 'self' blob:; frame-src 'self' data: blob: https:"
+}
+
 // ─── Application Entry Point ─────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .register_uri_scheme_protocol("lmbrain-design", |ctx, request| {
+            design_preview_protocol(ctx.app_handle(), request)
+        })
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             if cfg!(debug_assertions) {

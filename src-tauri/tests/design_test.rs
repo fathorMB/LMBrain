@@ -1,6 +1,6 @@
 use std::fs;
 
-use lmbrain_lib::commands::design::{read_design_html, scan_design_mockups};
+use lmbrain_lib::commands::design::{read_design_asset, read_design_html, scan_design_mockups};
 
 #[test]
 fn scan_design_mockups_finds_packages_and_html_files() {
@@ -46,6 +46,30 @@ fn read_design_html_rejects_non_html_entries() {
     fs::write(design_dir.join("notes.txt"), "not html").unwrap();
 
     let result = read_design_html(dir.path(), &design_dir.join("notes.txt"));
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn read_design_asset_serves_files_under_design_tree() {
+    let dir = tempfile::tempdir().unwrap();
+    let design_dir = dir.path().join(".lmbrain/design/mockup");
+    fs::create_dir_all(&design_dir).unwrap();
+    fs::write(design_dir.join("app.js"), "console.log('ok')").unwrap();
+
+    let asset = read_design_asset(dir.path(), "/.lmbrain/design/mockup/app.js").unwrap();
+
+    assert_eq!(asset.mime_type, "text/javascript; charset=utf-8");
+    assert_eq!(asset.content, b"console.log('ok')");
+}
+
+#[test]
+fn read_design_asset_rejects_traversal_outside_design_tree() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::create_dir_all(dir.path().join(".lmbrain/design/mockup")).unwrap();
+    fs::write(dir.path().join(".lmbrain/STATUS.md"), "secret").unwrap();
+
+    let result = read_design_asset(dir.path(), "/.lmbrain/design/mockup/../../STATUS.md");
 
     assert!(result.is_err());
 }

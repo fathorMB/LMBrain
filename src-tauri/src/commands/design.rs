@@ -1,5 +1,6 @@
 use std::{fs, path::Path, time::SystemTime};
 
+use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 
 use crate::{
@@ -85,6 +86,49 @@ pub fn read_design_html(root: &Path, entry_path: &Path) -> Result<DesignMockupHt
     Ok(DesignMockupHtml {
         path: resolved.to_string_lossy().to_string(),
         content: fs::read_to_string(&resolved)?,
+    })
+}
+
+pub struct DesignAsset {
+    pub content: Vec<u8>,
+    pub mime_type: String,
+}
+
+pub fn read_design_asset(root: &Path, request_path: &str) -> Result<DesignAsset, AppError> {
+    let design_root = root.join(DESIGN_DIR).canonicalize().map_err(|_| {
+        AppError::PathSafety(format!("Design directory does not exist: {DESIGN_DIR}"))
+    })?;
+    let decoded = percent_decode_str(request_path.trim_start_matches('/'))
+        .decode_utf8()
+        .map_err(|error| AppError::PathSafety(format!("Invalid design path encoding: {error}")))?;
+    let decoded = decoded.replace('\\', "/");
+    let path = Path::new(decoded.trim_start_matches('/'));
+
+    if path.is_absolute() {
+        return Err(AppError::PathSafety(format!(
+            "Design asset path must be workspace-relative: {decoded}"
+        )));
+    }
+
+    let resolved = root
+        .join(path)
+        .canonicalize()
+        .map_err(|_| AppError::PathSafety(format!("Design asset does not exist: {decoded}")))?;
+
+    if !resolved.starts_with(&design_root) {
+        return Err(AppError::PathSafety(format!(
+            "Design asset is outside {DESIGN_DIR}: {decoded}"
+        )));
+    }
+    if !resolved.is_file() {
+        return Err(AppError::FileNotFound(format!(
+            "Design asset is not a file: {decoded}"
+        )));
+    }
+
+    Ok(DesignAsset {
+        mime_type: mime_type(&resolved).to_string(),
+        content: fs::read(&resolved)?,
     })
 }
 
@@ -209,5 +253,31 @@ fn truncate(input: &str, max: usize) -> String {
         input.to_string()
     } else {
         format!("{}...", &input[..max])
+    }
+}
+
+fn mime_type(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("html" | "htm") => "text/html; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        Some("js" | "mjs") => "text/javascript; charset=utf-8",
+        Some("json" | "map") => "application/json; charset=utf-8",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        Some("ico") => "image/x-icon",
+        Some("wasm") => "application/wasm",
+        Some("woff") => "font/woff",
+        Some("woff2") => "font/woff2",
+        Some("ttf") => "font/ttf",
+        Some("otf") => "font/otf",
+        _ => "application/octet-stream",
     }
 }
