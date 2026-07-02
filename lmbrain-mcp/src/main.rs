@@ -102,6 +102,16 @@ fn tools() -> Vec<Value> {
             "Discard a spec (requires operator approval).",
         ),
         ("review_accept", "Accept a review."),
+        ("adr_accept", "Accept a proposed ADR (on operator request)."),
+        ("adr_reject", "Reject a proposed ADR (on operator request)."),
+        (
+            "agent_activate",
+            "Activate a proposed agent profile (on operator request).",
+        ),
+        (
+            "agent_deactivate",
+            "Deactivate an agent profile (on operator request).",
+        ),
     ] {
         entries.push(transition_tool(name, description));
     }
@@ -379,6 +389,10 @@ fn specific_status(name: &str) -> Option<&'static str> {
         "spec_done" => Some("done"),
         "spec_discard" => Some("discarded"),
         "review_accept" => Some("accepted"),
+        "adr_accept" => Some("accepted"),
+        "adr_reject" => Some("rejected"),
+        "agent_activate" => Some("active"),
+        "agent_deactivate" => Some("inactive"),
         _ => None,
     }
 }
@@ -432,8 +446,10 @@ mod tests {
     }
 
     #[test]
-    fn agent_tools_exclude_operator_only_and_tasks() {
-        assert!(super::specific_status("adr_accept").is_none());
+    fn agent_tools_include_operator_governed_transitions_and_exclude_tasks() {
+        assert_eq!(super::specific_status("adr_accept"), Some("accepted"));
+        assert_eq!(super::specific_status("adr_reject"), Some("rejected"));
+        assert_eq!(super::specific_status("agent_activate"), Some("active"));
         assert!(super::specific_status("task_start").is_none());
 
         let names: Vec<String> = super::tools()
@@ -441,7 +457,10 @@ mod tests {
             .filter_map(|tool| tool.get("name").and_then(Value::as_str).map(str::to_string))
             .collect();
 
-        assert!(!names.contains(&"adr_accept".to_string()));
+        assert!(names.contains(&"adr_accept".to_string()));
+        assert!(names.contains(&"adr_reject".to_string()));
+        assert!(names.contains(&"agent_activate".to_string()));
+        assert!(names.contains(&"agent_deactivate".to_string()));
         assert!(!names.iter().any(|name| name.starts_with("task_")));
         assert!(names.contains(&"spec_done".to_string()));
         assert!(names.contains(&"spec_discard".to_string()));

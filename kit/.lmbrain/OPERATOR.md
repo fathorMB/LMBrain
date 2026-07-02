@@ -24,7 +24,7 @@ LMBrain does not automatically start agents. You retain control: you decide when
    - dependencies, risks, and decisions requiring your approval;
    - any MCP capability that is missing.
 5. Review the spec. Approve or request changes.
-6. If the recommended specialist profile is `proposed` (not yet `active`), approve and activate it first by updating its `status` to `active` in the profile frontmatter. Only then start the specialist manually and give it the spec path.
+6. If the recommended specialist profile is `proposed` (not yet `active`), explicitly ask the Project Lead to activate it with the controlled LMBrain MCP tool. Only then start the specialist manually and give it the spec path.
 
 Suggested specialist prompt (v3 context-economy):
 

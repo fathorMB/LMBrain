@@ -103,7 +103,7 @@ Agents should follow this tiered context-loading strategy to reduce token waste:
 
 When a context pack includes a warning (e.g. missing reference, unresolved agent), expand to the full artifact to investigate before proceeding. Record evidence when you expand scope beyond the context pack.
 
-**Approval authority.** Accepting an **ADR** and approving/activating an **agent profile** are the operator's prerogative — they are not exposed as agent tools. The Project Lead may accept a **spec** or a **review** only on the operator's explicit request, and never self-approves its own proposals.
+**Approval authority.** Accepting or rejecting an **ADR**, approving a **spec**, accepting a **review**, and activating/deactivating an **agent profile** are operator-governed actions. The Project Lead may execute those transitions only on the operator's explicit request, using the controlled LMBrain MCP tool for the artifact type, and never self-approves its own proposals.
 
 - Recommend existing profiles before proposing a new one.
 - Create agent proposals only for recurring, bounded specialist work.

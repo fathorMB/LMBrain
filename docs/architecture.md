@@ -97,6 +97,8 @@ The server exposes specific tools such as:
 
 - `spec_ready`, `spec_start`, `spec_submit`, `spec_done`, `spec_discard`;
 - `review_accept`;
+- `adr_accept`, `adr_reject`;
+- `agent_activate`, `agent_deactivate`;
 - `lmbrain_create`;
 - `lmbrain_set_recommended_agent`;
 - `lmbrain_get_artifact`;
@@ -111,4 +113,4 @@ The server exposes specific tools such as:
 
 All context-pack tools are read-only. They resolve references through existing ID/path logic and report missing links as structured warnings. They are backed by `lmbrain-core/src/context.rs`.
 
-It intentionally does not expose task tools or operator-only ADR acceptance tools.
+It intentionally does not expose task tools. Operator-governed transitions such as ADR decisions and agent activation are exposed as explicit tools so the Project Lead can execute them only after a direct operator instruction.

@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.3.1 - 2026-07-02
+
+### Fixed
+
+- **Approval governance consistency.** Proposed ADRs no longer expose direct app approve/reject buttons. The detail modal now provides copyable Project Lead prompts, and `lmbrain-mcp` exposes explicit operator-requested ADR decision and agent activation tools so the Lead can execute controlled transitions without frontmatter hand edits. This supersedes the earlier `1.3.4` agent-tool restriction for ADR/profile transitions.
+
 ## 2.3.0 - 2026-07-02
 
 ### Changed

@@ -92,7 +92,7 @@ describe("ArtifactDetailModal", () => {
     });
   });
 
-  it("renders Approve and Reject buttons when status is proposed for ADR", async () => {
+  it("shows governance prompts and no direct buttons when status is proposed for ADR", async () => {
     vi.mocked(commands.parseMarkdown).mockResolvedValue({
       path: "E:/workspace/.lmbrain/decisions/ADR-001.md",
       frontmatter: { id: "ADR-001", status: "proposed" },
@@ -104,17 +104,13 @@ describe("ArtifactDetailModal", () => {
     render(<ArtifactDetailModal />);
 
     await waitFor(() => {
-      expect(screen.getByText("Approve")).toBeDefined();
-      expect(screen.getByText("Reject")).toBeDefined();
+      expect(screen.getByText("ADR Decision")).toBeDefined();
+      expect(screen.getByText("Accept decision prompt")).toBeDefined();
+      expect(screen.getByText("Reject decision prompt")).toBeDefined();
     });
 
-    // Test click Reject triggers confirmation
-    fireEvent.click(screen.getByText("Reject"));
-    await waitFor(() => {
-      expect(screen.getByText("Confirm Rejection?")).toBeDefined();
-      expect(screen.getByText("Cancel")).toBeDefined();
-      expect(screen.getByText("Yes, Confirm")).toBeDefined();
-    });
+    expect(screen.queryByText("Approve")).toBeNull();
+    expect(screen.queryByText("Reject")).toBeNull();
   });
 
   it("renders corrective prompt banner when status is rejected", async () => {
@@ -134,38 +130,26 @@ describe("ArtifactDetailModal", () => {
     });
   });
 
-  it.each([
-    ["Approve", "accepted"],
-    ["Reject", "rejected"],
-  ])("refreshes the modal after ADR %s", async (action, resultingStatus) => {
-    vi.mocked(commands.parseMarkdown)
-      .mockResolvedValueOnce({
-        path: "E:/workspace/.lmbrain/decisions/ADR-001.md",
-        frontmatter: { id: "ADR-001", status: "proposed" },
-        body: "Proposed ADR content",
-        wikilinks: [],
-        diagnostics: [],
-      })
-      .mockResolvedValueOnce({
-        path: "E:/workspace/.lmbrain/decisions/ADR-001.md",
-        frontmatter: { id: "ADR-001", status: resultingStatus },
-        body: "Updated ADR content",
-        wikilinks: [],
-        diagnostics: [],
-      });
-    vi.mocked(commands.setArtifactStatus).mockResolvedValue("E:/workspace/.lmbrain/decisions/ADR-001.md");
+  it("generates ADR decision prompts with MCP tool names", async () => {
+    vi.mocked(commands.parseMarkdown).mockResolvedValue({
+      path: "E:/workspace/.lmbrain/decisions/ADR-001.md",
+      frontmatter: { id: "ADR-001", status: "proposed" },
+      body: "Proposed ADR content",
+      wikilinks: [],
+      diagnostics: [],
+    });
 
     render(<ArtifactDetailModal />);
 
-    await waitFor(() => expect(screen.getByText(action)).toBeDefined());
-    fireEvent.click(screen.getByText(action));
-    fireEvent.click(screen.getByText("Yes, Confirm"));
+    await waitFor(() => expect(screen.getByText("ADR Decision")).toBeDefined());
 
-    await waitFor(() => {
-      expect(screen.queryByText("Approve")).toBeNull();
-      expect(screen.queryByText("Reject")).toBeNull();
-      expect(screen.getByText("Updated ADR content")).toBeDefined();
-    });
+    const prompts = screen.getAllByRole("textbox").map((textarea) =>
+      textarea.textContent || (textarea as HTMLTextAreaElement).value
+    );
+    expect(prompts.some((prompt) => prompt.includes("adr_accept"))).toBe(true);
+    expect(prompts.some((prompt) => prompt.includes("adr_reject"))).toBe(true);
+    expect(prompts.some((prompt) => prompt.includes("operator explicitly asked"))).toBe(true);
+    expect(commands.setArtifactStatus).not.toHaveBeenCalled();
   });
 
   // ─── SPEC-026-A: Governance tests ─────────────────────────────────
@@ -258,7 +242,7 @@ describe("ArtifactDetailModal", () => {
     expect(promptText).toContain("operator explicitly asked");
   });
 
-  it("still shows approve/reject for ADR (unaffected artifact kind)", async () => {
+  it("does not show approve/reject for ADR", async () => {
     vi.mocked(commands.parseMarkdown).mockResolvedValue({
       path: "E:/workspace/.lmbrain/decisions/ADR-005.md",
       frontmatter: { id: "ADR-005", status: "proposed" },
@@ -270,9 +254,11 @@ describe("ArtifactDetailModal", () => {
     render(<ArtifactDetailModal />);
 
     await waitFor(() => {
-      expect(screen.getByText("Approve")).toBeDefined();
-      expect(screen.getByText("Reject")).toBeDefined();
+      expect(screen.getByText("ADR Decision")).toBeDefined();
     });
+
+    expect(screen.queryByText("Approve")).toBeNull();
+    expect(screen.queryByText("Reject")).toBeNull();
   });
 
   it("still shows approve/reject for agent proposals (unaffected artifact kind)", async () => {

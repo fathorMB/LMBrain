@@ -11,7 +11,7 @@ function getTargetStatuses(id: string): { approve: string | null; reject: string
     return { approve: null, reject: "rejected" };
   }
   if (id.startsWith("ADR-")) {
-    return { approve: "accepted", reject: "rejected" };
+    return { approve: null, reject: "rejected" };
   }
   if (id.startsWith("AGENT-PROP-")) {
     return { approve: "approved", reject: "rejected" };
@@ -49,7 +49,7 @@ This transition is requested by the operator. Perform it only because the operat
 
 Instructions:
 1. Read AGENT.md, CONTRACT.md, and QUALITY.md.
-2. Use the controlled mutation tools (lmbrain-mcp) to transition the spec status.
+2. Use the lmbrain-mcp spec_ready tool to transition the spec status.
 3. Report the resulting path, status, and any diagnostics.`;
 }
 
@@ -64,7 +64,25 @@ This activation is requested by the operator. Perform it only because the operat
 
 Instructions:
 1. Read AGENT.md, CONTRACT.md, and QUALITY.md.
-2. Use the controlled mutation tools (lmbrain-mcp) to transition the profile status.
+2. Use the lmbrain-mcp agent_activate tool to transition the profile status.
+3. Report the resulting path, status, and any diagnostics.`;
+}
+
+function generateAdrDecisionPrompt(id: string, title: string, path: string, targetStatus: "accepted" | "rejected"): string {
+  const tool = targetStatus === "accepted" ? "adr_accept" : "adr_reject";
+  const action = targetStatus === "accepted" ? "accept" : "reject";
+
+  return `Please ${action} the ADR ${id} ("${title}") by transitioning it from proposed to ${targetStatus}.
+
+Artifact path: ${path}
+Current status: proposed
+Requested transition: proposed -> ${targetStatus}
+
+This decision is requested by the operator. Perform it only because the operator explicitly asked for it.
+
+Instructions:
+1. Read AGENT.md, CONTRACT.md, and QUALITY.md.
+2. Use the lmbrain-mcp ${tool} tool to transition the ADR status.
 3. Report the resulting path, status, and any diagnostics.`;
 }
 
@@ -222,19 +240,19 @@ export function ArtifactDetailModal() {
   const loadedDoc = loadedPath === path ? doc : null;
   const id = loadedDoc?.frontmatter?.id as string | undefined;
   const status = loadedDoc?.frontmatter?.status as string | undefined;
-  // For SPEC and agent profiles, allow eligibleTransitions for any status (we gate approve via
-  // showGovernancePrompt). For all others, restrict to "proposed" as before.
+  // For governance-controlled artifacts, allow eligibleTransitions for any status
+  // and surface copyable Lead prompts instead of direct UI mutations.
   const isSpec = id?.startsWith("SPEC-") ?? false;
+  const isAdr = id?.startsWith("ADR-") ?? false;
   const isAgentProfile = (id?.startsWith("AGENT-") ?? false) && !(id?.startsWith("AGENT-PROP-") ?? false);
-  const isGovernanceControlled = isSpec || isAgentProfile;
+  const isGovernanceControlled = isSpec || isAdr || isAgentProfile;
   const eligibleTransitions = id
     ? (isGovernanceControlled ? getTargetStatuses(id) : (status === "proposed" ? getTargetStatuses(id) : null))
     : null;
-  // SPEC-026-A: Suppress direct approval when approve target is null (backlog specs, proposed agent profiles)
-  // SPEC-026-A: Show governance prompt only for actionable states (backlog spec, proposed agent profile).
-  // For other statuses (ready/working/done/active/inactive), keep Approve suppressed but no prompt.
+  // Suppress direct approval/rejection for governance-controlled artifacts and
+  // show prompts only for actionable proposal states.
   const showGovernancePrompt = isGovernanceControlled && eligibleTransitions?.approve === null && !!id && !!status
-    && ((isSpec && status === "backlog") || (isAgentProfile && status === "proposed"));
+    && ((isSpec && status === "backlog") || (isAdr && status === "proposed") || (isAgentProfile && status === "proposed"));
 
   const handleAction = async (targetStatus: string) => {
     if (!artifact) return;
@@ -422,7 +440,7 @@ export function ArtifactDetailModal() {
                 </div>
               )}
 
-              {/* SPEC-026-A: Governance notice for backlog specs and proposed agent profiles */}
+              {/* Governance notice for artifacts that require Lead action on explicit operator instruction. */}
               {showGovernancePrompt && id && (
                 <div
                   style={{
@@ -438,21 +456,44 @@ export function ArtifactDetailModal() {
                       info
                     </i>
                     <span style={{ fontSize: 13.5, fontWeight: 600, color: "#fff" }}>
-                      {id.startsWith("SPEC-") ? "Spec Approval" : "Agent Profile Activation"}
+                      {id.startsWith("SPEC-")
+                        ? "Spec Approval"
+                        : id.startsWith("ADR-")
+                          ? "ADR Decision"
+                          : "Agent Profile Activation"}
                     </span>
                   </div>
                   <p style={{ fontSize: 12.5, color: "var(--text-secondary)", margin: "0 0 12px" }}>
                     {id.startsWith("SPEC-")
                       ? "Spec approval is performed by the Project Lead on explicit operator instruction. Copy the prompt below and give it to the Project Lead."
-                      : "Agent profile activation is performed through the Project Lead workflow on explicit operator instruction. Copy the prompt below and give it to the Project Lead."}
+                      : id.startsWith("ADR-")
+                        ? "ADR acceptance or rejection is performed by the Project Lead on explicit operator instruction. Copy the intended decision prompt below and give it to the Project Lead."
+                        : "Agent profile activation is performed through the Project Lead workflow on explicit operator instruction. Copy the prompt below and give it to the Project Lead."}
                   </p>
-                  <GovernancePromptCard
-                    prompt={
-                      id.startsWith("SPEC-")
-                        ? generateSpecApprovalPrompt(id, artifact.title, artifact.path)
-                        : generateAgentActivationPrompt(id, artifact.title, artifact.path)
-                    }
-                  />
+                  {id.startsWith("ADR-") ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 11.5, color: "var(--text-tertiary)", marginBottom: 6 }}>
+                          Accept decision prompt
+                        </div>
+                        <GovernancePromptCard prompt={generateAdrDecisionPrompt(id, artifact.title, artifact.path, "accepted")} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11.5, color: "var(--text-tertiary)", marginBottom: 6 }}>
+                          Reject decision prompt
+                        </div>
+                        <GovernancePromptCard prompt={generateAdrDecisionPrompt(id, artifact.title, artifact.path, "rejected")} />
+                      </div>
+                    </div>
+                  ) : (
+                    <GovernancePromptCard
+                      prompt={
+                        id.startsWith("SPEC-")
+                          ? generateSpecApprovalPrompt(id, artifact.title, artifact.path)
+                          : generateAgentActivationPrompt(id, artifact.title, artifact.path)
+                      }
+                    />
+                  )}
                 </div>
               )}
             </>
@@ -497,7 +538,7 @@ export function ArtifactDetailModal() {
             )}
           </div>
 
-          {eligibleTransitions && (
+          {eligibleTransitions && !isGovernanceControlled && (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               {confirmAction === null ? (
                 // SPEC-026-A: For governance-controlled artifacts, never show direct Approve button.

@@ -4,7 +4,15 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.3.0`.
+The current released kit is `2.3.1`.
+
+### 2.3.1 (approval governance alignment - additive)
+
+`2.3.1` aligns approval governance across the app, kit prompts, and MCP tools. It does not require project artifact rewrites. When upgrading an existing brain to `2.3.1`:
+
+1. No file moves or frontmatter changes are required.
+2. Use Project Lead prompts and controlled MCP tools for ADR decisions and agent profile activation/deactivation on explicit operator instruction.
+3. Update `.lmbrain/VERSION` to `2.3.1` only after validating the project with the bundled app and MCP tools.
 
 ### 2.3.0 (v3 package release - additive)
 

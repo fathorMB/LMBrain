@@ -33,6 +33,34 @@ fn protocol_drives_spec_transition() {
 }
 
 #[test]
+fn protocol_drives_adr_transition() {
+    let d = tempdir().unwrap();
+    fs::create_dir_all(d.path().join(".lmbrain/decisions")).unwrap();
+    fs::write(
+        d.path().join(".lmbrain/decisions/ADR-001.md"),
+        "---\nid: ADR-001\nstatus: proposed\n---\n",
+    )
+    .unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_lmbrain-mcp"))
+        .current_dir(d.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    writeln!(input,"{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{{\"name\":\"adr_accept\",\"arguments\":{{\"path\":\".lmbrain/decisions/ADR-001.md\"}}}}}}").unwrap();
+    drop(input);
+    let mut out = String::new();
+    BufReader::new(child.stdout.take().unwrap())
+        .read_line(&mut out)
+        .unwrap();
+    child.wait().unwrap();
+    assert!(out.contains("result"));
+    let source = fs::read_to_string(d.path().join(".lmbrain/decisions/ADR-001.md")).unwrap();
+    assert!(source.contains("status: accepted"));
+}
+
+#[test]
 fn protocol_does_not_reply_to_notifications() {
     let d = tempdir().unwrap();
     let mut child = Command::new(env!("CARGO_BIN_EXE_lmbrain-mcp"))
