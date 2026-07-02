@@ -242,6 +242,301 @@ Body"#;
     );
 }
 
+// ─── V3 agent metadata tests ──────────────────────────────────────
+
+#[test]
+fn test_build_agents_parses_v3_metadata_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let profiles_dir = dir.path().join(".lmbrain").join("agents").join("profiles");
+    fs::create_dir_all(&profiles_dir).unwrap();
+
+    // Profile with all v3 metadata fields
+    fs::write(
+        profiles_dir.join("AGENT-FRONTEND-UI.md"),
+        r#"---
+id: AGENT-FRONTEND-UI
+title: "Frontend UI Specialist"
+status: proposed
+role: frontend-ui-specialist
+activation: manual
+can_implement: true
+can_review: false
+domains: [frontend, ui, react]
+primary_files: [src/components, src/lib]
+review_focus: [accessibility, state-management]
+context_pack: spec
+constraints: []
+links: []
+created: 2026-07-02
+updated: 2026-07-02
+tags: [v3, frontend]
+---
+# Frontend UI Specialist
+"#,
+    )
+    .unwrap();
+
+    let agents = contract::build_agents(dir.path()).unwrap();
+    let agent = agents.iter().find(|a| a.id == "AGENT-FRONTEND-UI").unwrap();
+
+    assert_eq!(agent.domains, Some(vec!["frontend".into(), "ui".into(), "react".into()]));
+    assert_eq!(
+        agent.primary_files,
+        Some(vec!["src/components".into(), "src/lib".into()])
+    );
+    assert_eq!(
+        agent.review_focus,
+        Some(vec!["accessibility".into(), "state-management".into()])
+    );
+    assert_eq!(agent.context_pack, Some("spec".into()));
+    assert_eq!(agent.constraints, Some(Vec::new()));
+}
+
+#[test]
+fn test_build_agents_backward_compatible_without_v3_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let profiles_dir = dir.path().join(".lmbrain").join("agents").join("profiles");
+    fs::create_dir_all(&profiles_dir).unwrap();
+
+    // Legacy v2 profile without any v3 metadata fields
+    fs::write(
+        profiles_dir.join("AGENT-LEGACY.md"),
+        r#"---
+id: AGENT-LEGACY
+title: "Legacy Agent"
+status: active
+role: specialist
+activation: manual
+can_implement: true
+can_review: false
+links: []
+created: 2026-01-01
+updated: 2026-01-01
+tags: []
+---
+# Legacy
+"#,
+    )
+    .unwrap();
+
+    let agents = contract::build_agents(dir.path()).unwrap();
+    let agent = agents.iter().find(|a| a.id == "AGENT-LEGACY").unwrap();
+
+    assert_eq!(agent.domains, None);
+    assert_eq!(agent.primary_files, None);
+    assert_eq!(agent.review_focus, None);
+    assert_eq!(agent.context_pack, None);
+    assert_eq!(agent.constraints, None);
+    assert_eq!(agent.status.as_str(), "active");
+    assert_eq!(agent.can_implement, Some(true));
+}
+
+#[test]
+fn test_build_agent_proposals_parses_v3_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let proposals_dir = dir.path().join(".lmbrain").join("agents").join("proposals");
+    fs::create_dir_all(&proposals_dir).unwrap();
+
+    // Improvement proposal with v3 fields
+    fs::write(
+        proposals_dir.join("AGENT-PROP-IMPROVE-001.md"),
+        r#"---
+id: AGENT-PROP-IMPROVE-001
+title: "Improve frontend specialist"
+status: proposed
+requested_by: AGENT-LEAD
+reason: repeated-review-finding
+proposal_type: improvement
+target_profile: AGENT-FRONTEND-UI
+recommended_for: [SPEC-001]
+links: [REVIEW-001]
+created: 2026-07-02
+updated: 2026-07-02
+tags: [proposal, improvement]
+---
+# Improvement proposal
+"#,
+    )
+    .unwrap();
+
+    let proposals = contract::build_agent_proposals(dir.path()).unwrap();
+    let prop = proposals
+        .iter()
+        .find(|p| p.id == "AGENT-PROP-IMPROVE-001")
+        .unwrap();
+
+    assert_eq!(prop.proposal_type, Some("improvement".into()));
+    assert_eq!(prop.target_profile, Some("AGENT-FRONTEND-UI".into()));
+}
+
+#[test]
+fn test_build_agent_proposals_backward_compatible_without_v3_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let proposals_dir = dir.path().join(".lmbrain").join("agents").join("proposals");
+    fs::create_dir_all(&proposals_dir).unwrap();
+
+    // Legacy proposal without v3 fields
+    fs::write(
+        proposals_dir.join("AGENT-PROP-LEGACY-001.md"),
+        r#"---
+id: AGENT-PROP-LEGACY-001
+title: "Legacy proposal"
+status: proposed
+requested_by: AGENT-LEAD
+reason: recurring-specialized-work
+recommended_for: []
+links: []
+created: 2026-01-01
+updated: 2026-01-01
+tags: [proposal]
+---
+# Legacy
+"#,
+    )
+    .unwrap();
+
+    let proposals = contract::build_agent_proposals(dir.path()).unwrap();
+    let prop = proposals
+        .iter()
+        .find(|p| p.id == "AGENT-PROP-LEGACY-001")
+        .unwrap();
+
+    assert_eq!(prop.proposal_type, None);
+    assert_eq!(prop.target_profile, None);
+}
+
+#[test]
+fn test_build_diagnostics_area_domain_mismatch() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+
+    // Create an agent profile with domains
+    let profiles_dir = dir.path().join(".lmbrain").join("agents").join("profiles");
+    fs::create_dir_all(&profiles_dir).unwrap();
+    fs::write(
+        profiles_dir.join("AGENT-FRONTEND.md"),
+        r#"---
+id: AGENT-FRONTEND
+title: "Frontend Specialist"
+status: active
+role: frontend
+activation: manual
+can_implement: true
+can_review: false
+domains: [frontend, ui, react]
+links: []
+created: 2026-07-02
+updated: 2026-07-02
+tags: []
+---
+# Frontend
+"#,
+    )
+    .unwrap();
+
+    // Spec with area "backend" that doesn't match agent domains
+    fs::write(
+        dir.path()
+            .join(".lmbrain")
+            .join("specs")
+            .join("ready")
+            .join("SPEC-MISMATCH.md"),
+        r#"---
+id: SPEC-MISMATCH
+title: "Backend work"
+status: ready
+area: backend
+recommended_agent: AGENT-FRONTEND
+links: []
+created: 2026-07-02
+updated: 2026-07-02
+tags: []
+---
+# Backend work
+"#,
+    )
+    .unwrap();
+
+    let diags = contract::build_diagnostics(dir.path());
+    let area_mismatches: Vec<_> = diags
+        .iter()
+        .filter(|d| d.message.contains("Area mismatch"))
+        .collect();
+    assert!(
+        !area_mismatches.is_empty(),
+        "Expected an area/domain mismatch diagnostic, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn test_build_diagnostics_area_domain_match_stays_quiet() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+
+    // Create an agent profile with domains
+    let profiles_dir = dir.path().join(".lmbrain").join("agents").join("profiles");
+    fs::create_dir_all(&profiles_dir).unwrap();
+    fs::write(
+        profiles_dir.join("AGENT-BACKEND.md"),
+        r#"---
+id: AGENT-BACKEND
+title: "Backend Specialist"
+status: active
+role: backend
+activation: manual
+can_implement: true
+can_review: false
+domains: [backend, tauri, rust]
+links: []
+created: 2026-07-02
+updated: 2026-07-02
+tags: []
+---
+# Backend
+"#,
+    )
+    .unwrap();
+
+    // Spec with area "backend" that matches agent domains
+    fs::write(
+        dir.path()
+            .join(".lmbrain")
+            .join("specs")
+            .join("ready")
+            .join("SPEC-MATCH.md"),
+        r#"---
+id: SPEC-MATCH
+title: "Backend work"
+status: ready
+area: backend
+recommended_agent: AGENT-BACKEND
+links: []
+created: 2026-07-02
+updated: 2026-07-02
+tags: []
+---
+# Backend work
+"#,
+    )
+    .unwrap();
+
+    let diags = contract::build_diagnostics(dir.path());
+    let area_mismatches: Vec<_> = diags
+        .iter()
+        .filter(|d| d.message.contains("Area mismatch"))
+        .collect();
+    assert!(
+        area_mismatches.is_empty(),
+        "Expected no area/domain mismatch for matching domains, got: {:?}",
+        area_mismatches
+    );
+}
+
 #[test]
 fn test_wikilink_index() {
     let dir = tempfile::tempdir().unwrap();
@@ -449,6 +744,83 @@ updated: 2026-06-22
     assert_eq!(m2.outcome, "Write support.");
     assert_eq!(m2.decisions, vec!["ADR-002"]);
     assert_eq!(m2.depends_on, Some("M-01".to_string()));
+}
+
+#[test]
+fn test_build_milestone_overview_produces_derived_data() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let lmbrain = dir.path().join(".lmbrain");
+
+    // Create a ROADMAP.md
+    fs::write(
+        lmbrain.join("ROADMAP.md"),
+        "---\ntitle: Test Roadmap\n---\n\n# Roadmap\n\n### M-01 — First milestone\n\n- `status`: active\n- `outcome`: Deliver the core.\n- `specs`: [SPEC-001, SPEC-002]\n- `decisions`: [ADR-001]\n- `risks`: [API stability]\n",
+    )
+    .unwrap();
+
+    // Create specs
+    fs::write(
+        lmbrain.join("specs/ready/SPEC-001.md"),
+        "---\nid: SPEC-001\ntitle: Setup\nstatus: ready\nmilestone: M-01\npriority: high\narea: core\nrecommended_agent: AGENT-IMPL\n---\nBody",
+    )
+    .unwrap();
+    fs::write(
+        lmbrain.join("specs/backlog/SPEC-002.md"),
+        "---\nid: SPEC-002\ntitle: Integration\nstatus: backlog\nmilestone: M-01\n---\nBody",
+    )
+    .unwrap();
+
+    // Create a decisions directory and matching ADR
+    fs::create_dir_all(lmbrain.join("decisions")).unwrap();
+    fs::write(
+        lmbrain.join("decisions/ADR-001.md"),
+        "---\nid: ADR-001\ntitle: Architecture choice\nstatus: accepted\ncreated: 2026-07-01\nupdated: 2026-07-01\ntags: []\nlinks: []\n---\nBody",
+    )
+    .unwrap();
+
+    // Create a matching agent profile so the spec's recommended_agent resolves
+    fs::create_dir_all(lmbrain.join("agents/profiles")).unwrap();
+    fs::write(
+        lmbrain.join("agents/profiles/AGENT-IMPL.md"),
+        "---\nid: AGENT-IMPL\ntitle: Implementer\nstatus: active\nrole: specialist\nactivation: manual\ncan_implement: true\ncan_review: false\nlinks: []\ncreated: 2026-07-01\nupdated: 2026-07-01\ntags: []\n---\nBody",
+    )
+    .unwrap();
+
+    let overview = contract::build_milestone_overview(dir.path()).unwrap();
+    assert_eq!(overview.title, "Test Roadmap");
+    assert_eq!(overview.milestones.len(), 1);
+
+    let m = &overview.milestones[0];
+    assert_eq!(m.id, "M-01");
+    assert_eq!(m.spec_count, 2);
+    assert_eq!(m.specs.len(), 2);
+    assert_eq!(m.decisions.len(), 1);
+    assert_eq!(m.decisions[0].id, "ADR-001");
+    // progress is 0/2 since nothing is done (both are ready/backlog)
+    assert!(m.spec_counts_by_status.get("done").copied().unwrap_or(0) == 0);
+    assert!(m.next_action.is_some());
+    assert!(m.next_action.as_ref().unwrap().contains("ready"));
+}
+
+#[test]
+fn test_build_milestone_overview_handles_missing_references() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let lmbrain = dir.path().join(".lmbrain");
+
+    fs::write(
+        lmbrain.join("ROADMAP.md"),
+        "---\ntitle: Roadmap\n---\n\n# Roadmap\n\n### M-01 — Test\n\n- `status`: planned\n- `specs`: []\n- `decisions`: [ADR-999]\n- `depends_on`: M-99\n",
+    )
+    .unwrap();
+
+    let overview = contract::build_milestone_overview(dir.path()).unwrap();
+    assert_eq!(overview.milestones.len(), 1);
+    assert!(
+        !overview.milestones[0].unresolved_refs.is_empty(),
+        "Expected unresolved refs for missing ADR and dependency"
+    );
 }
 
 #[test]

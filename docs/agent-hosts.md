@@ -66,6 +66,16 @@ LMBrain scaffolds a concise managed block in root `AGENTS.md` so Codex can disco
 
 `AGENTS.md` is local generated host state in this repository and is ignored by Git.
 
+## V3 context-pack tools
+
+All supported agent hosts can use the new context-pack MCP tools:
+
+- `lmbrain_project_digest` — project overview (no parameters)
+- `lmbrain_spec_context` — spec handoff context (requires `spec` parameter)
+- `lmbrain_review_context` — review context (requires `spec` parameter)
+
+These tools are read-only and registered through the same `lmbrain-mcp` server. Agents should use them for initial orientation before expanding to full artifacts.
+
 ## Local Generated Files
 
 These files are machine-specific and should not be committed:

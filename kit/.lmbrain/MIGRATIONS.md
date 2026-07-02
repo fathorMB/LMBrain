@@ -4,7 +4,28 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `1.1.1`.
+The current released kit is `2.2.7`.
+
+### 2.2.7 (v3 context economy — additive)
+
+`2.2.7` adds context-pack MCP tools (`lmbrain_project_digest`, `lmbrain_spec_context`, `lmbrain_review_context`), granular specialist-profile guidance, and v3 context-economy workflow docs. It is **additive and backward-compatible**: no existing project artifact changes meaning, and no existing artifact frontmatter must be rewritten. When upgrading an existing brain to `2.2.7`:
+
+1. No file moves or frontmatter changes are required.
+2. Existing artifacts remain valid.
+3. The new MCP tools become available automatically when the app registers `lmbrain-mcp`.
+4. The updated handoff prompt includes context-economy guidance; existing prompts still work.
+5. Review `AGENT.md`, `CONTRACT.md`, `OPERATOR.md`, and `templates/project-lead-bootstrap-prompt.md` for the updated context-tier guidance.
+6. Add missing bundled granular specialist profiles from `agents/profiles/` only when their IDs do not already exist in the project:
+   - `AGENT-FRONTEND-UI`
+   - `AGENT-TAURI-BACKEND`
+   - `AGENT-MCP-CONTRACT`
+   - `AGENT-KIT-DOCS`
+   - `AGENT-REVIEWER`
+   - `AGENT-DESIGN`
+7. Add bundled v3 agent proposal examples from `agents/proposals/` only when their IDs or filenames do not already exist. Do not overwrite project-specific proposals.
+8. Merge the v3 registry rows and "V3 controlled improvement loop" guidance from `agents/registry.md` additively. Preserve all project-specific active profiles and proposals.
+9. Keep existing project-customized agent profiles active/inactive exactly as they are unless the operator explicitly approves a profile status change.
+10. Update `.lmbrain/VERSION` to `2.2.7` only after the additive file/registry updates and validation checks succeed.
 
 ### 1.1.0 (Contract v0.2 — additive)
 
@@ -14,12 +35,11 @@ The current released kit is `1.1.1`.
 2. No other file moves or frontmatter changes are required.
 3. Existing artifacts remain valid; `rejected` simply becomes an available status.
 
-When the first released version is published, this document will state:
-
+When any kit-changing version is released, the author MUST document migration guidance for that version in this file. The guidance section (headed by `### <version>`) must include:
 1. the supported source version(s);
-2. required file additions, moves, renames, or frontmatter changes;
+2. required file additions, moves, renames, or frontmatter edits;
 3. any manual review required from the human operator;
-4. validation steps after updating;
+4. validation steps to run after upgrading;
 5. rollback guidance where applicable.
 
 ## Migration principles

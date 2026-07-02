@@ -7,6 +7,12 @@ role: specialist-role
 activation: manual
 can_implement: true
 can_review: false
+# V3 specialization metadata (optional — omit or leave empty for v2 compatibility)
+domains: []
+primary_files: []
+review_focus: []
+context_pack: spec
+constraints: []
 allowed_mcp: []
 knowledge: []
 links: []

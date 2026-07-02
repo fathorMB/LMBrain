@@ -24,11 +24,11 @@ LMBrain does not automatically start agents. You retain control: you decide when
    - dependencies, risks, and decisions requiring your approval;
    - any MCP capability that is missing.
 5. Review the spec. Approve or request changes.
-6. Start the specialist manually and give it the spec path.
+6. If the recommended specialist profile is `proposed` (not yet `active`), approve and activate it first by updating its `status` to `active` in the profile frontmatter. Only then start the specialist manually and give it the spec path.
 
-Suggested specialist prompt:
+Suggested specialist prompt (v3 context-economy):
 
-> Read `<spec path>`, its linked knowledge pages, and linked ADRs. Implement only the stated scope. Fill the **Implementation evidence** section when done. Report changed files, verification performed, and deviations from the spec. Do not update roadmap, strategic decisions, or project status.
+> Read `QUALITY.md`, `CONTRACT.md`, and `AGENT.md` first. Then use `lmbrain_spec_context` for a compact spec handoff context. Expand to the full spec and source code only when the context pack points to them or verification requires it. Implement only the stated scope. Fill the **Implementation evidence** section when done. Report changed files, verification performed, and deviations from the spec. Do not update roadmap, strategic decisions, or project status.
 
 Treat the work as production-grade. Follow `QUALITY.md`; do not submit a POC, placeholder, or knowingly incomplete implementation. Update every technical LMBrain page explicitly delegated by the spec.
 

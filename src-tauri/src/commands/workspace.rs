@@ -5,7 +5,7 @@ use crate::commands::filesystem::clean_path;
 use crate::errors::AppError;
 use crate::models::workspace::{
     DiagnosticSeverity, KitDiagnostic, KitHealth, WorkspaceInfo, WorkspaceRegistry,
-    WorkspaceSummary,
+    WorkspaceSummary, KitMigrationStatus,
 };
 
 /// Manages the workspace registry (recent/pinned workspaces) and kit validation.
@@ -84,7 +84,7 @@ impl WorkspaceService {
     }
 
     /// Validate a workspace path and return its info.
-    pub fn validate_workspace(&self, path: &str) -> Result<WorkspaceInfo, AppError> {
+    pub fn validate_workspace(&self, path: &str, bundled_kit_path: Option<&Path>) -> Result<WorkspaceInfo, AppError> {
         let root = Path::new(path);
         if !root.exists() {
             return Err(AppError::WorkspaceNotFound(format!(
@@ -103,6 +103,24 @@ impl WorkspaceService {
         let lmbrain_dir = root_clean.join(".lmbrain");
         let mut diagnostics = Vec::new();
         let mut health = KitHealth::Ok;
+        let bundled_kit_path_display = bundled_kit_path
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        // Read bundled version if path is provided
+        let bundled_kit_version = if let Some(b_path) = bundled_kit_path {
+            let bundled_version_path = b_path.join("VERSION");
+            if bundled_version_path.exists() {
+                std::fs::read_to_string(&bundled_version_path)
+                    .ok()
+                    .map(|v| v.trim().to_string())
+                    .unwrap_or_default()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
 
         // Check .lmbrain directory exists
         if !lmbrain_dir.exists() || !lmbrain_dir.is_dir() {
@@ -125,6 +143,10 @@ impl WorkspaceService {
                 task_count: 0,
                 decision_count: 0,
                 agent_count: 0,
+                project_kit_version: String::new(),
+                bundled_kit_version,
+                bundled_kit_path: bundled_kit_path_display,
+                kit_migration_status: KitMigrationStatus::UnknownProjectVersion,
             });
         }
 
@@ -177,10 +199,51 @@ impl WorkspaceService {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "unknown".into());
 
+        // Determine migration status
+        let kit_migration_status = if kit_version.is_empty() {
+            KitMigrationStatus::UnknownProjectVersion
+        } else if bundled_kit_version.is_empty() {
+            KitMigrationStatus::UnknownBundledVersion
+        } else {
+            let p_semver = semver::Version::parse(&kit_version);
+            let b_semver = semver::Version::parse(&bundled_kit_version);
+
+            match (p_semver, b_semver) {
+                (Ok(pv), Ok(bv)) => {
+                    if pv == bv {
+                        KitMigrationStatus::UpToDate
+                    } else if pv < bv {
+                        // Check if migration guidance exists for the target version in MIGRATIONS.md
+                        let mut guidance_exists = false;
+                        if let Some(b_path) = bundled_kit_path {
+                            let migrations_path = b_path.join("MIGRATIONS.md");
+                            if migrations_path.exists() {
+                                if let Ok(content) = std::fs::read_to_string(&migrations_path) {
+                                    let heading_prefix = format!("### {}", bundled_kit_version);
+                                    if content.lines().any(|line| line.trim().starts_with(&heading_prefix)) {
+                                        guidance_exists = true;
+                                    }
+                                }
+                            }
+                        }
+                        if guidance_exists {
+                            KitMigrationStatus::MigrationAvailable
+                        } else {
+                            KitMigrationStatus::MigrationGuidanceMissing
+                        }
+                    } else {
+                        KitMigrationStatus::ProjectNewerThanApp
+                    }
+                }
+                (Err(_), _) => KitMigrationStatus::UnknownProjectVersion,
+                (_, Err(_)) => KitMigrationStatus::UnknownBundledVersion,
+            }
+        };
+
         Ok(WorkspaceInfo {
             path: root_clean.to_string_lossy().to_string(),
             name,
-            kit_version,
+            kit_version: kit_version.clone(),
             health,
             diagnostics,
             branch: None,
@@ -189,6 +252,10 @@ impl WorkspaceService {
             task_count,
             decision_count,
             agent_count,
+            project_kit_version: kit_version,
+            bundled_kit_version,
+            bundled_kit_path: bundled_kit_path_display,
+            kit_migration_status,
         })
     }
 
@@ -227,7 +294,7 @@ impl WorkspaceService {
         }
         result?;
 
-        self.validate_workspace(&root.to_string_lossy())
+        self.validate_workspace(&root.to_string_lossy(), Some(template))
     }
 }
 

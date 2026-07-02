@@ -1900,6 +1900,7 @@ dependencies = [
  "percent-encoding",
  "portable-pty",
  "regex",
+ "semver",
  "serde",
  "serde_json",
  "tauri",

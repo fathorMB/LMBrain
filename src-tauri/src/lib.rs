@@ -30,16 +30,23 @@ pub struct AppState {
 // ─── Tauri Commands ───────────────────────────────────────────────
 
 #[tauri::command]
-fn open_workspace(state: State<'_, AppState>, path: String) -> Result<WorkspaceInfo, String> {
+fn open_workspace(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<WorkspaceInfo, String> {
     let root = Path::new(&path);
     if !root.exists() {
         return Err(format!("Path does not exist: {}", path));
     }
 
+    // Resolve the bundled kit path to do version verification
+    let bundled_path = bundled_kit_path(&app).ok();
+
     // Validate the workspace first — only set root on success
     let info = state
         .workspace_service
-        .validate_workspace(&path)
+        .validate_workspace(&path, bundled_path.as_deref())
         .map_err(|e| e.to_string())?;
 
     // Set the path guard root after successful validation
@@ -251,6 +258,15 @@ fn get_roadmap(state: State<'_, AppState>) -> Result<models::roadmap::Roadmap, S
         .get_root()
         .ok_or_else(|| "No workspace open".to_string())?;
     contract::build_roadmap(&root).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_milestone_overview(state: State<'_, AppState>) -> Result<models::roadmap::MilestoneOverview, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    contract::build_milestone_overview(&root).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -531,6 +547,7 @@ pub fn run() {
             get_design_mockups,
             read_design_mockup_html,
             get_roadmap,
+            get_milestone_overview,
             get_wikilink_index,
             get_diagnostics,
             search_content,

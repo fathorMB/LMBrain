@@ -1,6 +1,6 @@
 # LMBrain Markdown Contract v0.2
 
-**Kit version:** read from `VERSION` (canonical), currently `2.1.2`.
+**Kit version:** read from `VERSION` (canonical).
 
 The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable kit version. Use semantic versioning: breaking contract changes increment the major version; backward-compatible additions increment the minor version; clarifications and fixes increment the patch version. Read `CHANGELOG.md` for released changes and `MIGRATIONS.md` before upgrading a released kit.
 
@@ -56,6 +56,18 @@ Priority values: `critical`, `high`, `medium`, `low`.
 | MCP proposal | `proposed`, `approved`, `rejected`, `implemented`, `blocked` |
 | MCP | `specified`, `active`, `inactive`, `deprecated` |
 | Session handoff | `ready`, `consumed`, `superseded`, `archived` |
+
+## Context packs (v3 context economy)
+
+Context packs are read-only, derived views of the artifact directory. They are not the system of record:
+
+- `lmbrain_project_digest` — compact project overview for Project Lead bootstrap and pulse.
+- `lmbrain_spec_context` — spec handoff context for specialist orientation.
+- `lmbrain_review_context` — review context for reviewer orientation.
+
+Context packs resolve linked specs, ADRs, reviews, agent profiles, roadmap milestones, and diagnostics deterministically. They report missing references as structured warnings. They never mutate files.
+
+Agents must read mandatory policy files (`QUALITY.md`, `CONTRACT.md`, `AGENT.md`) before relying on context packs. They must expand to full source artifacts when a context pack warning indicates a missing or unresolved reference.
 
 ## Invariants
 

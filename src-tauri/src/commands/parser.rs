@@ -106,3 +106,19 @@ pub fn fm_string_array(fm: &HashMap<String, Value>, key: &str) -> Vec<String> {
 pub fn fm_bool(fm: &HashMap<String, Value>, key: &str) -> Option<bool> {
     fm.get(key).and_then(Value::as_bool)
 }
+
+/// Extract an optional string array field from frontmatter.
+/// Returns None when the field is absent, Some(vec) when present (even if empty).
+pub fn fm_string_array_opt(fm: &HashMap<String, Value>, key: &str) -> Option<Vec<String>> {
+    fm.get(key).map(|value| {
+        value
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    })
+}

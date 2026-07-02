@@ -57,6 +57,7 @@ tags: []
 - Challenge flawed or fragile technical assumptions and propose the clean alternative; consult current official documentation when material behavior is uncertain or changeable.
 - Do not adopt shortcuts without the explicit operator-approved exception required by [[QUALITY]].
 - Do not change product scope, roadmap, or ADRs.
+- **V3 context-economy:** Read mandatory policy files (`QUALITY.md`, `CONTRACT.md`, `AGENT.md`) first. Use `lmbrain_spec_context` for a compact handoff context. Expand to full artifacts and source code only when the context pack points to them or verification requires it. Record evidence when you expand scope beyond the context pack.
 
 ## Implementation evidence
 > Filled in by the specialist after completion.

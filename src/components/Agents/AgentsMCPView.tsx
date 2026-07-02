@@ -17,6 +17,10 @@ const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }
   { name: "lmbrain_get_artifact", category: "Read", description: "Read a repository artifact." },
   { name: "lmbrain_validate", category: "Read", description: "Validate controlled-mutation invariants." },
   { name: "lmbrain_list_ready_handoffs", category: "Read", description: "List ready handoffs." },
+  // V3 context-pack tools
+  { name: "lmbrain_project_digest", category: "Context", description: "Compact project overview: title/status, milestone, ready/review specs, blockers, handoffs, active decisions, diagnostics. Read-only." },
+  { name: "lmbrain_spec_context", category: "Context", description: "Spec handoff context: metadata, acceptance criteria, linked decisions, agent profile, files, diagnostics. Read-only." },
+  { name: "lmbrain_review_context", category: "Context", description: "Review context: acceptance criteria, implementation evidence, linked reviews, decisions, verification commands. Read-only." },
 ];
 
 export function AgentsMCPView() {
@@ -303,13 +307,15 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
     retired: { color: "#6c6671", bg: "rgba(108,102,113,.12)" },
   };
   const sc = statusColors[agent.status] || statusColors.proposed;
+  const hasDomains = agent.domains && agent.domains.length > 0;
+  const hasReviewFocus = agent.review_focus && agent.review_focus.length > 0;
 
   return (
     <div
       onClick={() => openDetailArtifact({ title: agent.title, path: agent.path })}
       style={{
         display: "flex",
-        alignItems: "center",
+        alignItems: "flex-start",
         gap: 14,
         background: "var(--bg-tertiary)",
         border: "1px solid var(--border-secondary)",
@@ -328,6 +334,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
           alignItems: "center",
           justifyContent: "center",
           flex: "none",
+          marginTop: 2,
         }}
       >
         <i
@@ -337,13 +344,14 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
           smart_toy
         </i>
       </div>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: 9,
             marginBottom: 2,
+            flexWrap: "wrap",
           }}
         >
           <span
@@ -369,11 +377,50 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
           style={{
             fontSize: 12,
             color: "var(--text-tertiary)",
+            marginBottom: hasDomains || hasReviewFocus ? 6 : 0,
           }}
         >
           {agent.role || agent.status}
           {agent.activation ? ` · ${agent.activation}` : ""}
         </div>
+        {/* V3 specialization metadata */}
+        {hasDomains && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
+            {agent.domains!.map((d) => (
+              <span
+                key={d}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "#7fa8f5",
+                  background: "rgba(91,141,239,.1)",
+                  borderRadius: 4,
+                  padding: "1px 6px",
+                }}
+              >
+                {d}
+              </span>
+            ))}
+          </div>
+        )}
+        {hasReviewFocus && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {agent.review_focus!.map((f) => (
+              <span
+                key={f}
+                style={{
+                  fontSize: 10,
+                  color: "#9a949f",
+                  background: "rgba(255,255,255,.04)",
+                  borderRadius: 4,
+                  padding: "1px 6px",
+                }}
+              >
+                {f}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       <span
         style={{
@@ -383,6 +430,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
           background: sc.bg,
           borderRadius: 5,
           padding: "3px 8px",
+          flexShrink: 0,
         }}
       >
         {agent.status.toUpperCase()}
@@ -399,16 +447,17 @@ function AgentProposalCard({ proposal }: { proposal: AgentProposal }) {
     rejected: { color: "#e0584a", bg: "rgba(224,88,74,.12)" },
   };
   const sc = statusColors[proposal.status] || statusColors.proposed;
+  const isImprovement = proposal.proposal_type === "improvement";
 
   return (
     <div
       onClick={() => openDetailArtifact({ title: proposal.title, path: proposal.path })}
       style={{
         display: "flex",
-        alignItems: "center",
+        alignItems: "flex-start",
         gap: 14,
         background: "var(--bg-tertiary)",
-        border: "1px solid var(--border-secondary)",
+        border: `1px solid ${isImprovement ? "rgba(91,141,239,.3)" : "var(--border-secondary)"}`,
         borderRadius: 11,
         padding: "14px 16px",
         cursor: "pointer",
@@ -419,19 +468,23 @@ function AgentProposalCard({ proposal }: { proposal: AgentProposal }) {
           width: 36,
           height: 36,
           borderRadius: 10,
-          background: "rgba(224,162,58,.12)",
+          background: isImprovement ? "rgba(91,141,239,.12)" : "rgba(224,162,58,.12)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           flex: "none",
+          marginTop: 2,
         }}
       >
-        <i className="material-symbols-outlined" style={{ fontSize: 18, color: "#e0a23a" }}>
-          pending_actions
+        <i
+          className="material-symbols-outlined"
+          style={{ fontSize: 18, color: isImprovement ? "#7fa8f5" : "#e0a23a" }}
+        >
+          {isImprovement ? "auto_awesome" : "pending_actions"}
         </i>
       </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 2 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 2, flexWrap: "wrap" }}>
           <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#bcaef6" }}>
             {proposal.id}
           </span>
@@ -440,7 +493,8 @@ function AgentProposalCard({ proposal }: { proposal: AgentProposal }) {
           </span>
         </div>
         <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
-          Proposal
+          {isImprovement ? "Improvement proposal" : "New-profile proposal"}
+          {proposal.target_profile ? ` → ${proposal.target_profile}` : ""}
         </div>
       </div>
       <span
@@ -451,6 +505,7 @@ function AgentProposalCard({ proposal }: { proposal: AgentProposal }) {
           background: sc.bg,
           borderRadius: 5,
           padding: "3px 8px",
+          flexShrink: 0,
         }}
       >
         {proposal.status.toUpperCase()}

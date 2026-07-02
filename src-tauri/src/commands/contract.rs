@@ -13,7 +13,10 @@ use crate::models::handoff::{Handoff, HandoffStatus};
 use crate::models::mcp::{McpProposal, McpProposalStatus, McpRecord, McpStatus};
 use crate::models::pulse::{ActionItem, MetricCard, PulseData};
 use crate::models::review::{Review, ReviewStatus};
-use crate::models::roadmap::{Milestone, Roadmap};
+use crate::models::roadmap::{
+    Milestone, MilestoneAdrSummary, MilestoneDetail, MilestoneOverview, MilestoneReviewSummary,
+    MilestoneSpecSummary, Roadmap,
+};
 use crate::models::spec::{Spec, SpecStatus};
 use crate::models::wiki::{WikiNode, WikiNodeKind, WikiTree};
 use crate::models::workspace::{DiagnosticSeverity, KitDiagnostic};
@@ -143,6 +146,12 @@ pub fn build_agents(root: &Path) -> Result<Vec<AgentProfile>, AppError> {
                 activation: fm_string(&parsed.frontmatter, "activation"),
                 can_implement: parser::fm_bool(&parsed.frontmatter, "can_implement"),
                 can_review: parser::fm_bool(&parsed.frontmatter, "can_review"),
+                // V3 specialization metadata (optional, backward-compatible)
+                domains: parser::fm_string_array_opt(&parsed.frontmatter, "domains"),
+                primary_files: parser::fm_string_array_opt(&parsed.frontmatter, "primary_files"),
+                review_focus: parser::fm_string_array_opt(&parsed.frontmatter, "review_focus"),
+                context_pack: fm_string(&parsed.frontmatter, "context_pack"),
+                constraints: parser::fm_string_array_opt(&parsed.frontmatter, "constraints"),
                 body: common.body,
                 path: common.path,
                 created: common.created,
@@ -166,6 +175,9 @@ pub fn build_agent_proposals(root: &Path) -> Result<Vec<AgentProposal>, AppError
                 id: common.id,
                 title: common.title,
                 status: parse_agent_proposal_status(&parsed.frontmatter),
+                // V3: proposal type and target profile (optional, backward-compatible)
+                proposal_type: fm_string(&parsed.frontmatter, "proposal_type"),
+                target_profile: fm_string(&parsed.frontmatter, "target_profile"),
                 body: common.body,
                 path: common.path,
                 created: common.created,
@@ -762,6 +774,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
     }
 
     if let Ok(specs) = build_specs(root) {
+        let agents = build_agents(root).unwrap_or_default();
         for spec in &specs {
             let Some(agent) = spec
                 .recommended_agent
@@ -786,6 +799,29 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
                     severity: DiagnosticSeverity::Warning,
                     path: Some(rel_path),
                 });
+            }
+
+            // V3: check if spec area matches agent domains
+            if let Some(area) = &spec.area {
+                if let Some(profile) = agents.iter().find(|a| a.id == agent) {
+                    if let Some(domains) = &profile.domains {
+                        if !domains.is_empty() && !domains.iter().any(|d| area.contains(d.as_str()) || d.as_str().contains(area)) {
+                            let rel_path = Path::new(&spec.path)
+                                .strip_prefix(&lmbrain)
+                                .ok()
+                                .map(|path| path.to_string_lossy().to_string())
+                                .unwrap_or_else(|| spec.path.clone());
+                            diagnostics.push(KitDiagnostic {
+                                message: format!(
+                                    "Area mismatch: spec {} area '{}' does not match agent {} domains {:?}",
+                                    spec.id, area, agent, domains
+                                ),
+                                severity: DiagnosticSeverity::Warning,
+                                path: Some(rel_path),
+                            });
+                        }
+                    }
+                }
             }
         }
     }
@@ -950,6 +986,177 @@ fn parse_list_items(value: &str) -> Vec<String> {
     } else {
         Vec::new()
     }
+}
+
+/// Build a derived milestone overview with joined spec, review, ADR, and diagnostic data.
+pub fn build_milestone_overview(root: &Path) -> Result<MilestoneOverview, AppError> {
+    let roadmap = build_roadmap(root).unwrap_or(Roadmap {
+        title: "Roadmap".into(),
+        milestones: Vec::new(),
+    });
+    let specs = build_specs(root).unwrap_or_default();
+    let reviews = build_reviews(root).unwrap_or_default();
+    let adrs = build_adrs(root).unwrap_or_default();
+
+    let defined_ids: std::collections::HashSet<String> =
+        roadmap.milestones.iter().map(|m| m.id.clone()).collect();
+
+    let warnings = Vec::new();
+    let mut unmapped_specs = Vec::new();
+
+    // Group specs by milestone
+    let mut specs_by_milestone: std::collections::HashMap<String, Vec<&Spec>> =
+        std::collections::HashMap::new();
+    for spec in &specs {
+        if let Some(ref ms) = spec.milestone {
+            if defined_ids.contains(ms) {
+                specs_by_milestone.entry(ms.clone()).or_default().push(spec);
+            } else {
+                unmapped_specs.push(MilestoneSpecSummary {
+                    id: spec.id.clone(),
+                    title: spec.title.clone(),
+                    status: spec.status.as_str().to_string(),
+                    priority: spec.priority.clone(),
+                    area: spec.area.clone(),
+                    recommended_agent: spec.recommended_agent.clone(),
+                    path: Some(spec.path.clone()),
+                });
+            }
+        }
+    }
+
+    // Build ADR lookup
+    let adr_map: std::collections::HashMap<String, &Adr> =
+        adrs.iter().map(|a| (a.id.clone(), a)).collect();
+
+    // Build review lookup by spec_id
+    let mut reviews_by_spec: std::collections::HashMap<String, Vec<&Review>> =
+        std::collections::HashMap::new();
+    for review in &reviews {
+        if let Some(ref spec_id) = review.spec_id {
+            reviews_by_spec.entry(spec_id.clone()).or_default().push(review);
+        }
+    }
+
+    let mut milestones = Vec::new();
+
+    for milestone in &roadmap.milestones {
+        let milestone_specs = specs_by_milestone.remove(&milestone.id).unwrap_or_default();
+        let total = milestone_specs.len();
+
+        // Count specs by status
+        let mut counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
+        let mut spec_summaries = Vec::new();
+        let mut all_reviews = Vec::new();
+        let mut seen_review_ids = std::collections::HashSet::new();
+
+        for spec in &milestone_specs {
+            *counts.entry(spec.status.as_str().to_string()).or_insert(0) += 1;
+            spec_summaries.push(MilestoneSpecSummary {
+                id: spec.id.clone(),
+                title: spec.title.clone(),
+                status: spec.status.as_str().to_string(),
+                priority: spec.priority.clone(),
+                area: spec.area.clone(),
+                recommended_agent: spec.recommended_agent.clone(),
+                path: Some(spec.path.clone()),
+            });
+
+            // Collect reviews for this spec
+            if let Some(spec_reviews) = reviews_by_spec.get(&spec.id) {
+                for r in spec_reviews {
+                    if seen_review_ids.insert(r.id.clone()) {
+                        all_reviews.push(MilestoneReviewSummary {
+                            id: r.id.clone(),
+                            title: r.title.clone(),
+                            status: r.status.as_str().to_string(),
+                            spec_id: r.spec_id.clone(),
+                            path: Some(r.path.clone()),
+                        });
+                    }
+                }
+            }
+        }
+
+        // Resolve linked decisions
+        let mut decision_summaries = Vec::new();
+        let mut unresolved_refs = Vec::new();
+        for adr_id in &milestone.decisions {
+            if let Some(adr) = adr_map.get(adr_id) {
+                decision_summaries.push(MilestoneAdrSummary {
+                    id: adr.id.clone(),
+                    title: adr.title.clone(),
+                    status: adr.status.as_str().to_string(),
+                    path: Some(adr.path.clone()),
+                });
+            } else {
+                unresolved_refs.push(format!("ADR {adr_id} referenced in milestone {} not found", milestone.id));
+            }
+        }
+
+        // Check dependency resolution
+        if let Some(ref dep) = milestone.depends_on {
+            if !defined_ids.contains(dep) {
+                unresolved_refs.push(format!(
+                    "Milestone {} depends on {dep} which is not a defined milestone",
+                    milestone.id
+                ));
+            }
+        }
+
+        // Determine next action
+        let next_action = if total == 0 {
+            Some("No specs assigned".into())
+        } else if counts.get("ready").copied().unwrap_or(0) > 0 {
+            Some(format!(
+                "{} ready spec(s) ready for handoff",
+                counts.get("ready").unwrap()
+            ))
+        } else if counts.get("review").copied().unwrap_or(0) > 0 {
+            Some(format!(
+                "{} spec(s) awaiting review",
+                counts.get("review").unwrap()
+            ))
+        } else if counts.get("working").copied().unwrap_or(0) > 0 {
+            Some("Specs in progress".into())
+        } else if counts.get("done").copied().unwrap_or(0) == total && total > 0 {
+            Some("All specs complete".into())
+        } else {
+            None
+        };
+
+        let done = counts.get("done").copied().unwrap_or(0);
+        let progress_pct = if total > 0 {
+            (done as f64 / total as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        milestones.push(MilestoneDetail {
+            id: milestone.id.clone(),
+            title: milestone.title.clone(),
+            status: milestone.status.clone(),
+            outcome: milestone.outcome.clone(),
+            depends_on: milestone.depends_on.clone(),
+            risks: milestone.risks.clone(),
+            spec_count: total,
+            spec_counts_by_status: counts,
+            specs: spec_summaries,
+            reviews: all_reviews,
+            decisions: decision_summaries,
+            unresolved_refs,
+            next_action,
+            progress_pct,
+        });
+    }
+
+    Ok(MilestoneOverview {
+        title: roadmap.title,
+        milestones,
+        unmapped_specs,
+        warnings,
+    })
 }
 
 /// Write the existing desktop approval/rejection action through lmbrain-core.

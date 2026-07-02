@@ -17,6 +17,14 @@ export interface WorkspaceSummary {
   is_clean: boolean | null;
 }
 
+export type KitMigrationStatus =
+  | "up-to-date"
+  | "migration-available"
+  | "project-newer-than-app"
+  | "unknown-project-version"
+  | "unknown-bundled-version"
+  | "migration-guidance-missing";
+
 export interface WorkspaceInfo {
   path: string;
   name: string;
@@ -29,6 +37,10 @@ export interface WorkspaceInfo {
   task_count: number;
   decision_count: number;
   agent_count: number;
+  project_kit_version: string;
+  bundled_kit_version: string;
+  bundled_kit_path: string;
+  kit_migration_status: KitMigrationStatus;
 }
 
 export type SpecStatus =
@@ -114,6 +126,12 @@ export interface AgentProfile {
   activation: string | null;
   can_implement: boolean | null;
   can_review: boolean | null;
+  // V3 specialization metadata (optional, backward-compatible)
+  domains: string[] | null;
+  primary_files: string[] | null;
+  review_focus: string[] | null;
+  context_pack: string | null;
+  constraints: string[] | null;
   body: string;
   path: string;
   created: string;
@@ -129,6 +147,10 @@ export interface AgentProposal {
   id: string;
   title: string;
   status: AgentProposalStatus;
+  // V3: proposal type — "new-profile" (default) or "improvement"
+  proposal_type: string | null;
+  // V3: target profile ID for improvement proposals
+  target_profile: string | null;
   body: string;
   path: string;
   created: string;
@@ -225,6 +247,57 @@ export interface Roadmap {
   milestones: Milestone[];
 }
 
+// ─── V3 milestone intelligence ────────────────────────────────────
+
+export interface MilestoneSpecSummary {
+  id: string;
+  title: string;
+  status: string;
+  priority: string | null;
+  area: string | null;
+  recommended_agent: string | null;
+  path: string | null;
+}
+
+export interface MilestoneReviewSummary {
+  id: string;
+  title: string;
+  status: string;
+  spec_id: string | null;
+  path: string | null;
+}
+
+export interface MilestoneAdrSummary {
+  id: string;
+  title: string;
+  status: string;
+  path: string | null;
+}
+
+export interface MilestoneDetail {
+  id: string;
+  title: string;
+  status: string;
+  outcome: string;
+  depends_on: string | null;
+  risks: string[];
+  spec_count: number;
+  spec_counts_by_status: Record<string, number>;
+  specs: MilestoneSpecSummary[];
+  reviews: MilestoneReviewSummary[];
+  decisions: MilestoneAdrSummary[];
+  unresolved_refs: string[];
+  next_action: string | null;
+  progress_pct: number;
+}
+
+export interface MilestoneOverview {
+  title: string;
+  milestones: MilestoneDetail[];
+  unmapped_specs: MilestoneSpecSummary[];
+  warnings: string[];
+}
+
 export interface MetricCard {
   label: string;
   count: number;
@@ -298,17 +371,8 @@ export interface OllamaModel {
   capabilities: string[];
 }
 
-export interface SessionWindowGeometry {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export interface SessionWindowState extends SessionInfo {
-  geometry: SessionWindowGeometry;
-  zIndex: number;
-}
+// SessionWindowGeometry and SessionWindowState were removed in v3.
+// Sessions are now tab-based; SessionInfo is the only session type needed.
 
 export interface ParsedDocument {
   path: string;

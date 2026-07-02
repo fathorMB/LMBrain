@@ -52,6 +52,45 @@ The current board tracks specs, not tasks. Spec status values are:
 
 Acceptance criteria inside a spec provide sub-spec granularity.
 
+## V3 context economy
+
+The kit includes context-pack MCP tools for token-efficient agent workflow:
+
+- **Project Lead bootstrap:** Use `lmbrain_project_digest` instead of reading the entire `.lmbrain/` directory.
+- **Specialist handoff:** Use `lmbrain_spec_context` for a compact spec context before expanding to full artifacts.
+- **Review:** Use `lmbrain_review_context` for acceptance criteria, evidence, and linked reviews.
+
+Context packs are derived views only. Source artifacts remain the system of record. See `CONTRACT.md` for the full context-pack contract.
+
+## V3 agent taxonomy
+
+The kit ships granular specialist profiles for recurring bounded work:
+
+| Profile | ID | Domains |
+| --- | --- | --- |
+| Frontend UI Specialist | AGENT-FRONTEND-UI | frontend, ui, react, typescript, css |
+| Tauri/Rust Backend Specialist | AGENT-TAURI-BACKEND | tauri, rust, backend |
+| MCP/Contract Specialist | AGENT-MCP-CONTRACT | mcp, contract, core |
+| Kit/Docs/Release Specialist | AGENT-KIT-DOCS | kit, docs, release |
+| Product Reviewer/QA | AGENT-REVIEWER | review, qa, testing |
+| Design Specialist | AGENT-DESIGN | design, ui-ux |
+
+All profiles use `activation: manual`. The Project Lead recommends the most specific profile for each spec. See `agents/registry.md` for the full registry.
+
+### Controlled improvement loop
+
+Improvement proposals use the existing `agents/proposals/` mechanism with `proposal_type: improvement` and a `target_profile` field. The Project Lead may create improvement proposals from accepted reviews, repeated remediation findings, implementation evidence, diagnostics, or operator feedback. Operator approval is required before any behavior-affecting profile change becomes active.
+
 ## Versioning
 
 The app and kit share one release version. The canonical kit version is `kit/.lmbrain/VERSION`, and `scripts/check-version.mjs` verifies it against `package.json` and `src-tauri/Cargo.toml`.
+
+## Kit Migration
+
+The application automatically compares the opened workspace `.lmbrain` kit version (from `.lmbrain/VERSION`) against the app's bundled kit version. If the project version is older, a "Migration available" status is surfaced in the project metadata panel on the Project Pulse view.
+
+Instead of performing automated updates that could overwrite custom files or project-specific configurations, the application provides a copyable **Project Lead migration prompt**. When copied and executed by the operator's Project Lead agent:
+1. The Project Lead reads `.lmbrain/MIGRATIONS.md` to review the migration steps and history.
+2. The Project Lead compares templates and prepares a migration plan.
+3. The Project Lead requests operator confirmation before writing any changes.
+4. The Project Lead updates `.lmbrain/VERSION` only after validation tests succeed.

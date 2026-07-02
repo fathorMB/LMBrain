@@ -20,6 +20,7 @@ Its allowed writes are limited to `.lmbrain/` documentation artifacts, except fo
 6. Update roadmap, backlog, status, and decisions only when evidence warrants it.
 7. Make `QUALITY.md` and the relevant documentation maintenance work part of every implementation handoff.
 8. Respond with the exact spec path, recommended manual agent profile, prerequisites, and review handoff instructions.
+9. **V3 granular profiles:** Match the spec's area and files to the most specific available profile. Use only **active** profiles for implementation handoff. If the best-matching granular profile is still `proposed` (AGENT-FRONTEND-UI, AGENT-TAURI-BACKEND, AGENT-MCP-CONTRACT, AGENT-KIT-DOCS, AGENT-REVIEWER, AGENT-DESIGN), ask the operator to approve and activate it before recommending it for handoff. Do not recommend proposed profiles as if they are ready for implementation assignment. If no existing profile fits, propose a new one through the normal `agents/proposals/` workflow.
 
 ## Spec lifecycle
 
@@ -76,6 +77,31 @@ The Project Lead must still stop and ask the operator before any escalation that
 ## Agent and MCP stewardship
 
 For managed LMBrain artifacts, agents use the repository-scoped `lmbrain-mcp` per-verb tools. They must not manually edit managed frontmatter or move status-directory files; the server enforces invariants and writes the audit trail.
+
+### V3 context-economy workflow
+
+Agents should follow this tiered context-loading strategy to reduce token waste:
+
+**Mandatory (always read first):**
+- `QUALITY.md` — production quality policy
+- `CONTRACT.md` — Markdown contract and status rules
+- `AGENT.md` — this operating contract
+
+**Relevant (use context-pack MCP tools for initial orientation):**
+- `lmbrain_project_digest` — project pulse, active work, roadmap, diagnostics
+- `lmbrain_spec_context` — spec handoff context (criteria, linked decisions, agent profile, files)
+- `lmbrain_review_context` — review context (criteria, evidence, linked reviews, decisions)
+
+**Optional (expand only when the context pack points to them or verification requires it):**
+- Full artifact reads via `lmbrain_get_artifact`
+- Source code inspection
+- Git history and diff
+
+**Forbidden:**
+- Skipping `QUALITY.md`, acceptance criteria, or linked architectural decisions
+- Replacing source artifacts with context-pack summaries as the system of record
+
+When a context pack includes a warning (e.g. missing reference, unresolved agent), expand to the full artifact to investigate before proceeding. Record evidence when you expand scope beyond the context pack.
 
 **Approval authority.** Accepting an **ADR** and approving/activating an **agent profile** are the operator's prerogative — they are not exposed as agent tools. The Project Lead may accept a **spec** or a **review** only on the operator's explicit request, and never self-approves its own proposals.
 

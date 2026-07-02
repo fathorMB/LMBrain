@@ -33,9 +33,11 @@ app-launched Claude sessions are not dependent on the user's interactive shell
 
 ## Frontend
 
-`src/components/Sessions/SessionsView.tsx` renders a canvas of floating session windows with `react-rnd`. Each window embeds `SessionTerminal`, which uses `@xterm/xterm` and `@xterm/addon-fit`.
+`src/components/Sessions/SessionsView.tsx` renders a tab-based session workspace. A tab strip shows all active sessions; clicking a tab switches the active terminal. Each tab displays the session label, mode/exit status, and a close button.
 
-Session window geometry and z-order live in `WorkspaceContext`. The Sessions view remains mounted while the app is open so terminals survive navigation between views.
+The active terminal is rendered by `SessionTerminal`, which uses `@xterm/xterm` and `@xterm/addon-fit`. Only the active session's terminal is mounted; switching tabs re-attaches via the backend's pre-attach buffering, preserving output history.
+
+Session state lives in `WorkspaceContext` as `SessionInfo[]` with an `activeSessionId`. The Sessions view remains mounted while the app is open so terminals survive navigation between views.
 
 ## Ollama Models
 

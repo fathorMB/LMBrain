@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { buildHandoffPrompt } from "../../lib/handoffPrompt";
+import { buildHandoffPrompt, buildMigrationPrompt } from "../../lib/handoffPrompt";
 import { InlineRichText } from "../../lib/inlineRichText";
 import { useWikiNavigation } from "../../hooks/useWikiNavigation";
 import type { PulseData, Handoff, Adr, KitDiagnostic } from "../../types";
@@ -42,10 +42,30 @@ Instructions:
 Resolve the reported error while preserving the rest of the file content and structure.`;
 }
 
+const getMigrationStatusLabelAndColor = (status: string | undefined): { label: string; color: string } => {
+  switch (status) {
+    case "up-to-date":
+      return { label: "Up to date", color: "var(--green)" };
+    case "migration-available":
+      return { label: "Migration available", color: "var(--yellow)" };
+    case "project-newer-than-app":
+      return { label: "Project newer than app", color: "var(--red)" };
+    case "unknown-project-version":
+      return { label: "Unknown project version", color: "var(--text-muted)" };
+    case "unknown-bundled-version":
+      return { label: "Unknown bundled version", color: "var(--text-muted)" };
+    case "migration-guidance-missing":
+      return { label: "Guidance missing", color: "var(--yellow)" };
+    default:
+      return { label: "—", color: "var(--text-muted)" };
+  }
+};
+
 export function ProjectPulse() {
   const { state } = useWorkspace();
   const [expandedDiagnostic, setExpandedDiagnostic] = useState<number | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedMigration, setCopiedMigration] = useState(false);
 
   const navigateToWiki = useWikiNavigation();
   const diagnostics = state.diagnostics;
@@ -635,9 +655,23 @@ export function ProjectPulse() {
               />
               <MetaRow
                 label=".lmbrain version"
-                value={state.currentWorkspace?.kit_version || "—"}
+                value={state.currentWorkspace?.project_kit_version || state.currentWorkspace?.kit_version || "—"}
                 mono
               />
+              {state.currentWorkspace && state.currentWorkspace.bundled_kit_version && (
+                <>
+                  <MetaRow
+                    label="Bundled kit"
+                    value={state.currentWorkspace.bundled_kit_version}
+                    mono
+                  />
+                  <MetaRow
+                    label="Kit status"
+                    value={getMigrationStatusLabelAndColor(state.currentWorkspace.kit_migration_status).label}
+                    accent={getMigrationStatusLabelAndColor(state.currentWorkspace.kit_migration_status).color}
+                  />
+                </>
+              )}
               <div
                 style={{
                   height: 1,
@@ -658,6 +692,47 @@ export function ProjectPulse() {
                 value={state.watcherActive ? "active" : "inactive"}
                 accent={state.watcherActive ? "var(--green)" : "var(--text-muted)"}
               />
+              {state.currentWorkspace &&
+                state.currentWorkspace.kit_migration_status &&
+                state.currentWorkspace.kit_migration_status !== "up-to-date" &&
+                state.currentWorkspace.kit_migration_status !== "project-newer-than-app" && (
+                  <div style={{ marginTop: 10 }}>
+                    <button
+                      onClick={() => {
+                        const prompt = buildMigrationPrompt(
+                          state.currentWorkspace!.path,
+                          state.currentWorkspace!.project_kit_version || state.currentWorkspace!.kit_version,
+                          state.currentWorkspace!.bundled_kit_version,
+                          state.currentWorkspace!.kit_migration_status,
+                          state.currentWorkspace!.bundled_kit_path
+                        );
+                        navigator.clipboard.writeText(prompt);
+                        setCopiedMigration(true);
+                        setTimeout(() => setCopiedMigration(false), 2000);
+                      }}
+                      style={{
+                        width: "100%",
+                        background: "rgba(124, 108, 246, 0.1)",
+                        border: "1px solid var(--accent)",
+                        borderRadius: 8,
+                        padding: "8px 12px",
+                        fontSize: 11.5,
+                        color: "var(--accent-light)",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <i className="material-symbols-outlined" style={{ fontSize: 15 }}>
+                        {copiedMigration ? "check" : "content_copy"}
+                      </i>
+                      {copiedMigration ? "Copied!" : "Copy migration prompt"}
+                    </button>
+                  </div>
+                )}
             </div>
           </div>
 
@@ -927,6 +1002,26 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
         </div>
         {expanded && prompt && (
           <div style={{ marginTop: 10 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: "#7fa8f5",
+                marginBottom: 6,
+                lineHeight: 1.4,
+              }}
+            >
+              <i
+                className="material-symbols-outlined"
+                style={{ fontSize: 13, verticalAlign: "middle", marginRight: 4 }}
+              >
+                lightbulb
+              </i>
+              The prompt includes v3 context-economy guidance. The agent will use{" "}
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5 }}>
+                lmbrain_spec_context
+              </span>{" "}
+              for a compact handoff context before expanding to full artifacts.
+            </div>
             <textarea
               aria-label={`Handoff prompt for ${action.spec_id}`}
               readOnly

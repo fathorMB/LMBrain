@@ -38,7 +38,23 @@ vi.mock("../hooks/useWorkspace", () => ({
           path: ".lmbrain/tasks/task-001.md",
         },
       ],
-      currentWorkspace: { path: "E:/workspace", name: "workspace" },
+      currentWorkspace: {
+        path: "E:/workspace",
+        name: "workspace",
+        kit_version: "2.1.2",
+        project_kit_version: "2.1.2",
+        bundled_kit_version: "2.2.7",
+        bundled_kit_path: "E:/Git/LMBrain/kit/.lmbrain",
+        kit_migration_status: "migration-available",
+        health: "ok",
+        diagnostics: [],
+        branch: null,
+        is_clean: null,
+        spec_count: 1,
+        task_count: 0,
+        decision_count: 0,
+        agent_count: 0,
+      },
       gitInfo: null,
       watcherActive: false,
       specs: [
@@ -137,5 +153,30 @@ describe("ProjectPulse Diagnostics Fix Prompt", () => {
       type: "SET_DETAIL_ARTIFACT",
       artifact: { title: "ROADMAP.md", path: "E:/workspace/.lmbrain/ROADMAP.md" },
     });
+  });
+
+  it("renders kit version metadata and handles Copy migration prompt click", async () => {
+    render(<ProjectPulse />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Bundled kit")).toBeDefined();
+      expect(screen.getByText("Kit status")).toBeDefined();
+      expect(screen.getByText("Migration available")).toBeDefined();
+    });
+
+    const copyBtn = screen.getByText("Copy migration prompt");
+    expect(copyBtn).toBeDefined();
+
+    fireEvent.click(copyBtn);
+    expect(writeTextMock).toHaveBeenCalled();
+    expect(writeTextMock.mock.calls[writeTextMock.mock.calls.length - 1][0]).toContain(
+      "You are the Project Lead. The LMBrain application detected that this project's kit version is older"
+    );
+    expect(writeTextMock.mock.calls[writeTextMock.mock.calls.length - 1][0]).toContain(
+      "Bundled kit source path: E:/Git/LMBrain/kit/.lmbrain"
+    );
+    expect(writeTextMock.mock.calls[writeTextMock.mock.calls.length - 1][0]).toContain(
+      "authoritative source"
+    );
   });
 });

@@ -4,6 +4,14 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.2.7 - 2026-07-02
+
+### Added
+
+- **V3 context-economy workflow.** The kit documents the `lmbrain_project_digest`, `lmbrain_spec_context`, and `lmbrain_review_context` MCP context packs and updates Project Lead / specialist handoff guidance to use compact context first, expanding to full artifacts only when required.
+- **Granular specialist profile taxonomy.** The reusable kit now includes proposed frontend UI, Tauri backend, MCP/contract, kit/docs, product reviewer, and design specialist profiles, plus registry guidance for operator activation and controlled profile-improvement proposals.
+- **Manual kit migration guidance.** `MIGRATIONS.md` now describes the additive `2.2.7` migration path, including preserving project-specific files, adding missing bundled v3 profiles, merging registry guidance, and updating `VERSION` only after validation.
+
 ## 2.2.2 - 2026-06-27
 
 ### Fixed

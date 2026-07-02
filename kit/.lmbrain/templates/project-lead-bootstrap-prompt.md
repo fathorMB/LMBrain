@@ -1,6 +1,6 @@
 # Bootstrap prompt for the Project Lead
 
-Read the complete `.lmbrain/` directory, then inspect this repository before making recommendations.
+Read `QUALITY.md`, `CONTRACT.md`, and `AGENT.md` first. Then use `lmbrain_project_digest` for a compact project overview (milestone, ready/review specs, blockers, handoffs, active decisions, diagnostics). Expand to full artifacts and source code only when the context pack points to them or analysis requires it.
 
 Act as the Project Lead described in `.lmbrain/AGENT.md`. Personalize `PROJECT.md`, `STATUS.md`, `ROADMAP.md`, `BACKLOG.md`, and the knowledge base with evidence from the codebase. Preserve the Markdown Contract and `QUALITY.md`.
 

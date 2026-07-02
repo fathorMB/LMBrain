@@ -21,8 +21,6 @@ import type {
   Review,
   SessionInfo,
   SessionMode,
-  SessionWindowGeometry,
-  SessionWindowState,
   Spec,
   WikiPage,
   WikiTree,
@@ -32,11 +30,6 @@ import type {
   AgentProposal,
 } from "../types";
 import * as commands from "../lib/commands";
-
-const DEFAULT_SESSION_GEOMETRY = {
-  width: 760,
-  height: 460,
-};
 
 export interface WorkspaceState {
   screen: "picker" | "app";
@@ -57,7 +50,8 @@ export interface WorkspaceState {
   wikiTree: WikiTree | null;
   wikiPage: WikiPage | null;
   selectedSpec: Spec | null;
-  sessions: SessionWindowState[];
+  sessions: SessionInfo[];
+  activeSessionId: string | null;
   cmdkOpen: boolean;
   watcherActive: boolean;
   loading: boolean;
@@ -89,12 +83,11 @@ export type Action =
   | { type: "SET_LOADING"; loading: boolean }
   | { type: "SET_ERROR"; error: string | null }
   | { type: "SET_DETAIL_ARTIFACT"; artifact: DetailArtifact | null }
-  | { type: "SET_SESSIONS"; sessions: SessionWindowState[] }
-  | { type: "ADD_SESSION"; session: SessionWindowState }
-  | { type: "UPDATE_SESSION"; id: string; patch: Partial<SessionWindowState> }
+  | { type: "SET_SESSIONS"; sessions: SessionInfo[] }
+  | { type: "ADD_SESSION"; session: SessionInfo }
+  | { type: "UPDATE_SESSION"; id: string; patch: Partial<SessionInfo> }
   | { type: "REMOVE_SESSION"; id: string }
-  | { type: "UPDATE_SESSION_GEOMETRY"; id: string; geometry: SessionWindowGeometry }
-  | { type: "BRING_SESSION_TO_FRONT"; id: string }
+  | { type: "SET_ACTIVE_SESSION"; id: string | null }
   | { type: "CLEAR_SESSIONS" };
 
 const initialState: WorkspaceState = {
@@ -117,6 +110,7 @@ const initialState: WorkspaceState = {
   wikiPage: null,
   selectedSpec: null,
   sessions: [],
+  activeSessionId: null,
   cmdkOpen: false,
   watcherActive: false,
   loading: false,
@@ -124,30 +118,57 @@ const initialState: WorkspaceState = {
   detailArtifact: null,
 };
 
-function nextZIndex(sessions: SessionWindowState[]) {
-  return sessions.reduce((max, session) => Math.max(max, session.zIndex), 0) + 1;
+// ─── Session reducer (exported for testing) ───────────────────────
+export interface SessionState {
+  sessions: SessionInfo[];
+  activeSessionId: string | null;
 }
 
-function defaultGeometry(index: number): SessionWindowGeometry {
-  return {
-    x: 48 + (index % 6) * 28,
-    y: 36 + (index % 6) * 22,
-    width: DEFAULT_SESSION_GEOMETRY.width,
-    height: DEFAULT_SESSION_GEOMETRY.height,
-  };
-}
+export type SessionAction =
+  | { type: "SET_SESSIONS"; sessions: SessionInfo[] }
+  | { type: "ADD_SESSION"; session: SessionInfo }
+  | { type: "UPDATE_SESSION"; id: string; patch: Partial<SessionInfo> }
+  | { type: "REMOVE_SESSION"; id: string }
+  | { type: "SET_ACTIVE_SESSION"; id: string | null }
+  | { type: "CLEAR_SESSIONS" };
 
-function mergeSessionInfo(
-  info: SessionInfo,
-  existing: SessionWindowState | undefined,
-  index: number,
-  zIndex: number
-): SessionWindowState {
-  return {
-    ...info,
-    geometry: existing?.geometry ?? defaultGeometry(index),
-    zIndex: existing?.zIndex ?? zIndex,
-  };
+// eslint-disable-next-line react-refresh/only-export-components
+export function sessionReducer(state: SessionState, action: SessionAction): SessionState {
+  switch (action.type) {
+    case "SET_SESSIONS": {
+      const activeExists = state.activeSessionId && action.sessions.some((s) => s.id === state.activeSessionId);
+      return {
+        ...state,
+        sessions: action.sessions,
+        activeSessionId: activeExists ? state.activeSessionId : (action.sessions[0]?.id ?? null),
+      };
+    }
+    case "ADD_SESSION":
+      return {
+        ...state,
+        sessions: [...state.sessions, action.session],
+        activeSessionId: action.session.id,
+      };
+    case "UPDATE_SESSION":
+      return {
+        ...state,
+        sessions: state.sessions.map((session) =>
+          session.id === action.id ? { ...session, ...action.patch } : session
+        ),
+      };
+    case "REMOVE_SESSION": {
+      const remaining = state.sessions.filter((s) => s.id !== action.id);
+      const idx = state.sessions.findIndex((s) => s.id === action.id);
+      const nextActive = state.activeSessionId === action.id
+        ? (remaining.length > 0 ? remaining[Math.max(0, idx - 1)]?.id ?? null : null)
+        : state.activeSessionId;
+      return { ...state, sessions: remaining, activeSessionId: nextActive };
+    }
+    case "SET_ACTIVE_SESSION":
+      return { ...state, activeSessionId: action.id };
+    case "CLEAR_SESSIONS":
+      return { ...state, sessions: [], activeSessionId: null };
+  }
 }
 
 function reducer(state: WorkspaceState, action: Action): WorkspaceState {
@@ -199,41 +220,12 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
     case "SET_DETAIL_ARTIFACT":
       return { ...state, detailArtifact: action.artifact };
     case "SET_SESSIONS":
-      return { ...state, sessions: action.sessions };
     case "ADD_SESSION":
-      return { ...state, sessions: [...state.sessions, action.session] };
     case "UPDATE_SESSION":
-      return {
-        ...state,
-        sessions: state.sessions.map((session) =>
-          session.id === action.id ? { ...session, ...action.patch } : session
-        ),
-      };
     case "REMOVE_SESSION":
-      return {
-        ...state,
-        sessions: state.sessions.filter((session) => session.id !== action.id),
-      };
-    case "UPDATE_SESSION_GEOMETRY":
-      return {
-        ...state,
-        sessions: state.sessions.map((session) =>
-          session.id === action.id
-            ? { ...session, geometry: action.geometry }
-            : session
-        ),
-      };
-    case "BRING_SESSION_TO_FRONT": {
-      const zIndex = nextZIndex(state.sessions);
-      return {
-        ...state,
-        sessions: state.sessions.map((session) =>
-          session.id === action.id ? { ...session, zIndex } : session
-        ),
-      };
-    }
+    case "SET_ACTIVE_SESSION":
     case "CLEAR_SESSIONS":
-      return { ...state, sessions: [] };
+      return { ...state, ...sessionReducer(state, action as unknown as SessionAction) };
     default:
       return state;
   }
@@ -254,8 +246,7 @@ export interface WorkspaceContextValue {
   createSession: (request: { mode: SessionMode; model?: string; label?: string; codex_bin?: string }) => Promise<string>;
   closeSession: (id: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
-  updateSessionGeometry: (id: string, geometry: SessionWindowGeometry) => void;
-  bringSessionToFront: (id: string) => void;
+  setActiveSession: (id: string | null) => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -266,18 +257,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const refreshSessions = useCallback(async () => {
     const infos = await commands.sessionList();
-    dispatch({
-      type: "SET_SESSIONS",
-      sessions: infos.map((info, index) =>
-        mergeSessionInfo(
-          info,
-          state.sessions.find((session) => session.id === info.id),
-          index,
-          nextZIndex(state.sessions) + index
-        )
-      ),
-    });
-  }, [state.sessions]);
+    dispatch({ type: "SET_SESSIONS", sessions: infos });
+  }, []);
 
   const loadAllDataInternal = useCallback(async () => {
     try {
@@ -447,30 +428,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     async (request: { mode: SessionMode; model?: string; label?: string; codex_bin?: string }) => {
       const id = await commands.sessionStart(request);
       const info = (await commands.sessionList()).find((session) => session.id === id);
-      const session: SessionWindowState = mergeSessionInfo(
-        info ?? {
-          id,
-          label:
-            request.label?.trim() ||
-            (request.mode === "ollama" && request.model
-              ? `Claude via ${request.model}`
-              : request.mode === "codex"
-                ? "Codex"
-                : "Claude"),
-          mode: request.mode,
-          model: request.model ?? null,
-          status: "running",
-          exit_code: null,
-        },
-        undefined,
-        state.sessions.length,
-        nextZIndex(state.sessions)
-      );
+      const session: SessionInfo = info ?? {
+        id,
+        label:
+          request.label?.trim() ||
+          (request.mode === "ollama" && request.model
+            ? `Claude via ${request.model}`
+            : request.mode === "codex"
+              ? "Codex"
+              : "Claude"),
+        mode: request.mode,
+        model: request.model ?? null,
+        status: "running",
+        exit_code: null,
+      };
       dispatch({ type: "ADD_SESSION", session });
       dispatch({ type: "SET_VIEW", view: "sessions" });
       return id;
     },
-    [state.sessions]
+    []
   );
 
   const closeSession = useCallback(async (id: string) => {
@@ -495,12 +471,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_DETAIL_ARTIFACT", artifact });
   }, []);
 
-  const updateSessionGeometry = useCallback((id: string, geometry: SessionWindowGeometry) => {
-    dispatch({ type: "UPDATE_SESSION_GEOMETRY", id, geometry });
-  }, []);
-
-  const bringSessionToFront = useCallback((id: string) => {
-    dispatch({ type: "BRING_SESSION_TO_FRONT", id });
+  const setActiveSession = useCallback((id: string | null) => {
+    dispatch({ type: "SET_ACTIVE_SESSION", id });
   }, []);
 
   return (
@@ -520,8 +492,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         createSession,
         closeSession,
         refreshSessions,
-        updateSessionGeometry,
-        bringSessionToFront,
+        setActiveSession,
       }}
     >
       {children}

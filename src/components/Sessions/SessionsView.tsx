@@ -1,8 +1,7 @@
-import { useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
-import { Rnd } from "react-rnd";
+import { useState, type CSSProperties } from "react";
 import { listOllamaModels } from "../../lib/commands";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import type { OllamaModel, SessionMode, SessionWindowState } from "../../types";
+import type { OllamaModel, SessionMode, SessionInfo } from "../../types";
 import { SessionTerminal } from "./SessionTerminal";
 
 interface SessionsViewProps {
@@ -14,8 +13,7 @@ export function SessionsView({ active }: SessionsViewProps) {
     state,
     createSession,
     closeSession,
-    updateSessionGeometry,
-    bringSessionToFront,
+    setActiveSession,
   } = useWorkspace();
   const [modalOpen, setModalOpen] = useState(false);
   const [mode, setMode] = useState<SessionMode>("claude");
@@ -27,16 +25,7 @@ export function SessionsView({ active }: SessionsViewProps) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const canvasRef = useRef<HTMLDivElement | null>(null);
-
-  const sortedSessions = useMemo(
-    () => [...state.sessions].sort((left, right) => left.zIndex - right.zIndex),
-    [state.sessions]
-  );
-  const modalZIndex = useMemo(
-    () => state.sessions.reduce((max, session) => Math.max(max, session.zIndex), 0) + 1,
-    [state.sessions]
-  );
+  const activeSession = state.sessions.find((s) => s.id === state.activeSessionId) ?? null;
 
   const refreshModels = async () => {
     setModelsLoading(true);
@@ -57,9 +46,6 @@ export function SessionsView({ active }: SessionsViewProps) {
     }
   };
 
-  // Lazily discover Ollama models from a user action (opening the modal in Ollama
-  // mode, or switching to Ollama) rather than from an effect, which would trigger
-  // a synchronous setState during render.
   const ensureModelsLoaded = () => {
     if (models.length === 0 && !modelsLoading) {
       refreshModels();
@@ -103,6 +89,10 @@ export function SessionsView({ active }: SessionsViewProps) {
     }
   };
 
+  const handleCloseTab = (id: string) => {
+    closeSession(id);
+  };
+
   return (
     <div
       style={{
@@ -115,78 +105,85 @@ export function SessionsView({ active }: SessionsViewProps) {
           "radial-gradient(circle at top left, rgba(106,79,240,0.18), transparent 26%), #0c0b0f",
       }}
     >
+      {/* Header */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 16,
-          padding: "18px 22px 16px",
+          padding: "12px 18px 0",
           borderBottom: "1px solid rgba(57, 49, 70, 0.8)",
           background: "rgba(10, 9, 13, 0.7)",
           backdropFilter: "blur(8px)",
+          flexShrink: 0,
         }}
       >
-        <div>
-          <div
-            style={{
-              fontSize: 22,
-              fontWeight: 800,
-              letterSpacing: "-.03em",
-              color: "var(--text-primary)",
-            }}
-          >
-            Sessions
-          </div>
-          <div
-            style={{
-              marginTop: 5,
-              fontSize: 12.5,
-              color: "var(--text-tertiary)",
-            }}
-          >
-            Launch interactive agent terminals in the current workspace.
-          </div>
-        </div>
-        <button
-          onClick={openModal}
-          style={primaryButtonStyle}
+        <div
+          style={{
+            fontSize: 15,
+            fontWeight: 700,
+            color: "var(--text-primary)",
+            letterSpacing: "-.02em",
+          }}
         >
-          <i className="material-symbols-outlined" style={{ fontSize: 18 }}>
+          Sessions
+        </div>
+        <button onClick={openModal} style={primaryButtonStyle}>
+          <i className="material-symbols-outlined" style={{ fontSize: 16 }}>
             add
           </i>
           New session
         </button>
       </div>
 
-      <div
-        ref={canvasRef}
-        style={{
-          position: "relative",
-          flex: 1,
-          minHeight: 0,
-          overflow: "hidden",
-        }}
-      >
-        {sortedSessions.length === 0 && (
+      {/* Tab strip */}
+      {state.sessions.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 0,
+            padding: "0 12px",
+            background: "rgba(10, 9, 13, 0.5)",
+            borderBottom: "1px solid rgba(57, 49, 70, 0.6)",
+            flexShrink: 0,
+            overflowX: "auto",
+          }}
+        >
+          {state.sessions.map((session) => (
+            <SessionTab
+              key={session.id}
+              session={session}
+              active={session.id === state.activeSessionId}
+              onSelect={() => setActiveSession(session.id)}
+              onClose={() => handleCloseTab(session.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Terminal area */}
+      <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+        {state.sessions.length === 0 && (
           <EmptySessionsState active={active} onCreate={openModal} />
         )}
 
-        {sortedSessions.map((session) => (
-          <SessionWindow
-            key={session.id}
-            session={session}
-            active={active}
-            canvasRef={canvasRef}
-            onClose={() => closeSession(session.id)}
-            onBringToFront={() => bringSessionToFront(session.id)}
-            onGeometryChange={(geometry) =>
-              updateSessionGeometry(session.id, geometry)
-            }
-          />
-        ))}
+        {activeSession && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <SessionTerminal sessionId={activeSession.id} active={active} />
+          </div>
+        )}
       </div>
 
+      {/* New session modal */}
       {modalOpen && (
         <div
           style={{
@@ -197,7 +194,7 @@ export function SessionsView({ active }: SessionsViewProps) {
             alignItems: "center",
             justifyContent: "center",
             padding: 24,
-            zIndex: modalZIndex,
+            zIndex: 100,
           }}
         >
           <div
@@ -320,25 +317,16 @@ export function SessionsView({ active }: SessionsViewProps) {
   );
 }
 
-function SessionWindow({
+function SessionTab({
   session,
   active,
-  canvasRef,
+  onSelect,
   onClose,
-  onBringToFront,
-  onGeometryChange,
 }: {
-  session: SessionWindowState;
+  session: SessionInfo;
   active: boolean;
-  canvasRef: RefObject<HTMLDivElement | null>;
+  onSelect: () => void;
   onClose: () => void;
-  onBringToFront: () => void;
-  onGeometryChange: (geometry: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }) => void;
 }) {
   const statusColor =
     session.status === "running"
@@ -347,170 +335,88 @@ function SessionWindow({
         ? "#9fb3c8"
         : "#f28a8a";
 
-  // Hand-rolled dragging: react-rnd's own dragging does not work reliably under
-  // React 19 here (resize does), so we drive the position from header mouse events.
-  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
-  const position = dragPos ?? { x: session.geometry.x, y: session.geometry.y };
-
-  const startDrag = (event: React.MouseEvent) => {
-    if ((event.target as HTMLElement).closest("button")) {
-      return;
-    }
-    onBringToFront();
-    event.preventDefault();
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const origin = { x: session.geometry.x, y: session.geometry.y };
-    const canvas = canvasRef.current;
-    const maxX = canvas ? canvas.clientWidth - session.geometry.width : Number.MAX_SAFE_INTEGER;
-    const maxY = canvas ? canvas.clientHeight - session.geometry.height : Number.MAX_SAFE_INTEGER;
-    const clamp = (value: number, max: number) => Math.max(0, Math.min(value, Math.max(0, max)));
-    let latest = origin;
-    const onMove = (move: MouseEvent) => {
-      latest = {
-        x: clamp(origin.x + (move.clientX - startX), maxX),
-        y: clamp(origin.y + (move.clientY - startY), maxY),
-      };
-      setDragPos(latest);
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      setDragPos(null);
-      onGeometryChange({ ...session.geometry, x: latest.x, y: latest.y });
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  };
-
   return (
-    <Rnd
-      bounds="parent"
-      disableDragging
-      size={{ width: session.geometry.width, height: session.geometry.height }}
-      position={position}
-      minWidth={420}
-      minHeight={240}
-      onResizeStart={onBringToFront}
-      onResizeStop={(_, __, element, ___, resizePosition) => {
-        onGeometryChange({
-          x: resizePosition.x,
-          y: resizePosition.y,
-          width: element.offsetWidth,
-          height: element.offsetHeight,
-        });
-      }}
+    <div
+      onClick={onSelect}
       style={{
-        zIndex: session.zIndex,
-        borderRadius: 16,
-        overflow: "hidden",
-        border: "1px solid #2d2538",
-        boxShadow:
-          session.status === "running"
-            ? "0 18px 50px rgba(0, 0, 0, 0.38)"
-            : "0 12px 34px rgba(0, 0, 0, 0.28)",
-        background: "#0f0d13",
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "8px 12px",
+        borderRight: "1px solid rgba(57, 49, 70, 0.5)",
+        borderBottom: active ? "2px solid #7c6cf6" : "2px solid transparent",
+        background: active ? "rgba(124,108,246,0.06)" : "transparent",
+        cursor: "pointer",
+        minWidth: 0,
+        maxWidth: 200,
+        userSelect: "none",
+        flexShrink: 0,
       }}
     >
       <div
-        onMouseDown={onBringToFront}
         style={{
-          display: "flex",
-          flexDirection: "column",
-          height: "100%",
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: statusColor,
+          flex: "none",
+        }}
+      />
+      <div
+        style={{
+          fontSize: 12.5,
+          fontWeight: active ? 700 : 500,
+          color: active ? "var(--text-primary)" : "var(--text-tertiary)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          flex: 1,
+          minWidth: 0,
         }}
       >
-        <div
-          onMouseDown={startDrag}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "10px 12px",
-            background: "linear-gradient(180deg, #17131f, #14111a)",
-            borderBottom: "1px solid #2a2434",
-            cursor: "move",
-          }}
-        >
-          <div
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: "50%",
-              background: statusColor,
-              boxShadow: `0 0 0 4px ${statusColor}20`,
-              flex: "none",
-            }}
-          />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color: "var(--text-primary)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {session.label}
-            </div>
-            <div
-              style={{
-                fontSize: 11,
-                color: "var(--text-tertiary)",
-                marginTop: 2,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {session.mode === "ollama" && session.model
-                ? `ollama launch claude --model ${session.model}`
-                : session.mode === "codex"
-                  ? "codex"
-                  : "claude"}
-            </div>
-          </div>
-          <div
-            style={{
-              fontSize: 10.5,
-              fontWeight: 700,
-              letterSpacing: ".05em",
-              textTransform: "uppercase",
-              color: statusColor,
-              background: `${statusColor}15`,
-              border: `1px solid ${statusColor}33`,
-              borderRadius: 999,
-              padding: "4px 8px",
-            }}
-          >
-            {session.status === "running"
-              ? "running"
-              : session.exit_code === null
-                ? "exited"
-                : `exit ${session.exit_code}`}
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 8,
-              border: "1px solid #342d40",
-              background: "#16121d",
-              color: "var(--text-secondary)",
-              cursor: "pointer",
-            }}
-          >
-            <i className="material-symbols-outlined" style={{ fontSize: 16 }}>
-              close
-            </i>
-          </button>
-        </div>
-        <SessionTerminal sessionId={session.id} active={active} />
+        {session.label || session.mode}
       </div>
-    </Rnd>
+      <div
+        style={{
+          fontSize: 10,
+          color: "var(--text-muted)",
+          whiteSpace: "nowrap",
+          flex: "none",
+        }}
+      >
+        {session.status === "running"
+          ? session.mode
+          : session.exit_code === null
+            ? "exited"
+            : `exit ${session.exit_code}`}
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: 5,
+          border: "none",
+          background: "transparent",
+          color: "var(--text-muted)",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flex: "none",
+          opacity: 0.6,
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; e.currentTarget.style.background = "transparent"; }}
+      >
+        <i className="material-symbols-outlined" style={{ fontSize: 13 }}>
+          close
+        </i>
+      </button>
+    </div>
   );
 }
 
@@ -635,7 +541,7 @@ const primaryButtonStyle: CSSProperties = {
   color: "#fff",
   fontSize: 13,
   fontWeight: 700,
-  padding: "10px 14px",
+  padding: "8px 12px",
   cursor: "pointer",
 };
 

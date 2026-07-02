@@ -4,9 +4,11 @@ import { parseMarkdown, setArtifactStatus } from "../../lib/commands";
 import { MarkdownRenderer } from "../../lib/markdown";
 import type { ParsedDocument } from "../../types";
 
-function getTargetStatuses(id: string): { approve: string; reject: string; rejectLabel?: string } | null {
+function getTargetStatuses(id: string): { approve: string | null; reject: string; rejectLabel?: string } | null {
   if (id.startsWith("SPEC-")) {
-    return { approve: "ready", reject: "rejected" };
+    // SPEC-026-A: Remove direct spec approval from UI for all specs.
+    // Governance prompt shown for backlog specs; other statuses get no approve action.
+    return { approve: null, reject: "rejected" };
   }
   if (id.startsWith("ADR-")) {
     return { approve: "accepted", reject: "rejected" };
@@ -15,7 +17,9 @@ function getTargetStatuses(id: string): { approve: string; reject: string; rejec
     return { approve: "approved", reject: "rejected" };
   }
   if (id.startsWith("AGENT-")) {
-    return { approve: "active", reject: "inactive", rejectLabel: "Deactivate" };
+    // SPEC-026-A: Remove direct agent profile activation from UI for all profiles.
+    // Governance prompt shown for proposed profiles; other statuses get no approve action.
+    return { approve: null, reject: "inactive", rejectLabel: "Deactivate" };
   }
   if (id.startsWith("MCP-PROP-")) {
     return { approve: "approved", reject: "rejected" };
@@ -32,6 +36,84 @@ Instructions:
 2. Address the reasons for rejection or make the necessary updates to improve it.
 3. Once the revisions are complete, set its status back to "proposed" so it can be reviewed again.
 4. Do not make any unrelated changes to other files.`;
+}
+
+function generateSpecApprovalPrompt(id: string, title: string, path: string): string {
+  return `Please approve the specification ${id} ("${title}") by transitioning it from backlog to ready.
+
+Artifact path: ${path}
+Current status: backlog
+Requested transition: backlog → ready
+
+This transition is requested by the operator. Perform it only because the operator explicitly asked for it.
+
+Instructions:
+1. Read AGENT.md, CONTRACT.md, and QUALITY.md.
+2. Use the controlled mutation tools (lmbrain-mcp) to transition the spec status.
+3. Report the resulting path, status, and any diagnostics.`;
+}
+
+function generateAgentActivationPrompt(id: string, title: string, path: string): string {
+  return `Please activate the agent profile ${id} ("${title}") by transitioning it from proposed to active.
+
+Artifact path: ${path}
+Current status: proposed
+Requested transition: proposed → active
+
+This activation is requested by the operator. Perform it only because the operator explicitly asked for it.
+
+Instructions:
+1. Read AGENT.md, CONTRACT.md, and QUALITY.md.
+2. Use the controlled mutation tools (lmbrain-mcp) to transition the profile status.
+3. Report the resulting path, status, and any diagnostics.`;
+}
+
+function GovernancePromptCard({ prompt }: { prompt: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <textarea
+        readOnly
+        value={prompt}
+        onClick={(e) => e.currentTarget.select()}
+        style={{
+          width: "100%",
+          height: 120,
+          background: "var(--bg-primary)",
+          border: "1px solid var(--border-primary)",
+          borderRadius: 6,
+          padding: "8px 12px",
+          fontFamily: "var(--font-mono)",
+          fontSize: 11.5,
+          color: "var(--text-secondary)",
+          resize: "none",
+          outline: "none",
+        }}
+      />
+      <button
+        onClick={() => {
+          navigator.clipboard.writeText(prompt);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }}
+        style={{
+          position: "absolute",
+          right: 8,
+          bottom: 12,
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: 6,
+          padding: "4px 10px",
+          fontSize: 11.5,
+          color: "#fff",
+          cursor: "pointer",
+          fontWeight: 600,
+        }}
+      >
+        {copied ? "Copied!" : "Copy prompt"}
+      </button>
+    </div>
+  );
 }
 
 export function ArtifactDetailModal() {
@@ -140,7 +222,19 @@ export function ArtifactDetailModal() {
   const loadedDoc = loadedPath === path ? doc : null;
   const id = loadedDoc?.frontmatter?.id as string | undefined;
   const status = loadedDoc?.frontmatter?.status as string | undefined;
-  const eligibleTransitions = id && status === "proposed" ? getTargetStatuses(id) : null;
+  // For SPEC and agent profiles, allow eligibleTransitions for any status (we gate approve via
+  // showGovernancePrompt). For all others, restrict to "proposed" as before.
+  const isSpec = id?.startsWith("SPEC-") ?? false;
+  const isAgentProfile = (id?.startsWith("AGENT-") ?? false) && !(id?.startsWith("AGENT-PROP-") ?? false);
+  const isGovernanceControlled = isSpec || isAgentProfile;
+  const eligibleTransitions = id
+    ? (isGovernanceControlled ? getTargetStatuses(id) : (status === "proposed" ? getTargetStatuses(id) : null))
+    : null;
+  // SPEC-026-A: Suppress direct approval when approve target is null (backlog specs, proposed agent profiles)
+  // SPEC-026-A: Show governance prompt only for actionable states (backlog spec, proposed agent profile).
+  // For other statuses (ready/working/done/active/inactive), keep Approve suppressed but no prompt.
+  const showGovernancePrompt = isGovernanceControlled && eligibleTransitions?.approve === null && !!id && !!status
+    && ((isSpec && status === "backlog") || (isAgentProfile && status === "proposed"));
 
   const handleAction = async (targetStatus: string) => {
     if (!artifact) return;
@@ -327,6 +421,40 @@ export function ArtifactDetailModal() {
                   </div>
                 </div>
               )}
+
+              {/* SPEC-026-A: Governance notice for backlog specs and proposed agent profiles */}
+              {showGovernancePrompt && id && (
+                <div
+                  style={{
+                    marginTop: 24,
+                    padding: 16,
+                    background: "rgba(91, 141, 239, 0.08)",
+                    border: "1px solid rgba(91, 141, 239, 0.2)",
+                    borderRadius: 10,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                    <i className="material-symbols-outlined" style={{ color: "#7fa8f5", fontSize: 20 }}>
+                      info
+                    </i>
+                    <span style={{ fontSize: 13.5, fontWeight: 600, color: "#fff" }}>
+                      {id.startsWith("SPEC-") ? "Spec Approval" : "Agent Profile Activation"}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 12.5, color: "var(--text-secondary)", margin: "0 0 12px" }}>
+                    {id.startsWith("SPEC-")
+                      ? "Spec approval is performed by the Project Lead on explicit operator instruction. Copy the prompt below and give it to the Project Lead."
+                      : "Agent profile activation is performed through the Project Lead workflow on explicit operator instruction. Copy the prompt below and give it to the Project Lead."}
+                  </p>
+                  <GovernancePromptCard
+                    prompt={
+                      id.startsWith("SPEC-")
+                        ? generateSpecApprovalPrompt(id, artifact.title, artifact.path)
+                        : generateAgentActivationPrompt(id, artifact.title, artifact.path)
+                    }
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
@@ -372,10 +500,32 @@ export function ArtifactDetailModal() {
           {eligibleTransitions && (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               {confirmAction === null ? (
+                // SPEC-026-A: For governance-controlled artifacts, never show direct Approve button.
+                // Show reject button always; governance prompt in body for actionable states.
+                isGovernanceControlled ? (
+                  <button
+                    disabled={submitting}
+                    onClick={() => { setConfirmAction("reject"); }}
+                    style={{
+                      background: "rgba(224, 88, 74, 0.15)",
+                      border: "1px solid rgba(224, 88, 74, 0.4)",
+                      borderRadius: 8,
+                      padding: "6px 14px",
+                      fontSize: 12.5,
+                      color: "#e0584a",
+                      cursor: "pointer",
+                      fontWeight: 600,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(224, 88, 74, 0.25)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(224, 88, 74, 0.15)")}
+                  >
+                    {eligibleTransitions.rejectLabel || "Reject"}
+                  </button>
+                ) : (
                 <>
                   <button
                     disabled={submitting}
-                    onClick={() => { console.log("reject button clicked!"); setConfirmAction("reject"); }}
+                    onClick={() => { setConfirmAction("reject"); }}
                     style={{
                       background: "rgba(224, 88, 74, 0.15)",
                       border: "1px solid rgba(224, 88, 74, 0.4)",
@@ -410,6 +560,7 @@ export function ArtifactDetailModal() {
                     Approve
                   </button>
                 </>
+                )
               ) : (
                 <>
                   <span style={{ fontSize: 12.5, color: "var(--text-secondary)", marginRight: 4 }}>
@@ -436,7 +587,7 @@ export function ArtifactDetailModal() {
                     onClick={() =>
                       handleAction(
                         confirmAction === "approve"
-                          ? eligibleTransitions.approve
+                          ? (eligibleTransitions.approve ?? eligibleTransitions.reject)
                           : eligibleTransitions.reject
                       )
                     }

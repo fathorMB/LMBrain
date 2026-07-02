@@ -32,6 +32,12 @@ pub struct AgentProfile {
     pub activation: Option<String>,
     pub can_implement: Option<bool>,
     pub can_review: Option<bool>,
+    // V3 specialization metadata (optional, backward-compatible)
+    pub domains: Option<Vec<String>>,
+    pub primary_files: Option<Vec<String>>,
+    pub review_focus: Option<Vec<String>>,
+    pub context_pack: Option<String>,
+    pub constraints: Option<Vec<String>>,
     pub body: String,
     pub path: String,
     pub created: String,
@@ -56,6 +62,10 @@ pub struct AgentProposal {
     pub id: String,
     pub title: String,
     pub status: AgentProposalStatus,
+    // V3: proposal type — "new-profile" (default) or "improvement"
+    pub proposal_type: Option<String>,
+    // V3: target profile ID for improvement proposals
+    pub target_profile: Option<String>,
     pub body: String,
     pub path: String,
     pub created: String,

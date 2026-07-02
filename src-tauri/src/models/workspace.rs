@@ -37,6 +37,22 @@ pub struct WorkspaceSummary {
     pub is_clean: Option<bool>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum KitMigrationStatus {
+    #[serde(rename = "up-to-date")]
+    UpToDate,
+    #[serde(rename = "migration-available")]
+    MigrationAvailable,
+    #[serde(rename = "project-newer-than-app")]
+    ProjectNewerThanApp,
+    #[serde(rename = "unknown-project-version")]
+    UnknownProjectVersion,
+    #[serde(rename = "unknown-bundled-version")]
+    UnknownBundledVersion,
+    #[serde(rename = "migration-guidance-missing")]
+    MigrationGuidanceMissing,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceInfo {
     pub path: String,
@@ -50,6 +66,10 @@ pub struct WorkspaceInfo {
     pub task_count: usize,
     pub decision_count: usize,
     pub agent_count: usize,
+    pub project_kit_version: String,
+    pub bundled_kit_version: String,
+    pub bundled_kit_path: String,
+    pub kit_migration_status: KitMigrationStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -92,7 +92,7 @@ describe("ArtifactDetailModal", () => {
     });
   });
 
-  it("renders Approve and Reject buttons when status is proposed", async () => {
+  it("renders Approve and Reject buttons when status is proposed for ADR", async () => {
     vi.mocked(commands.parseMarkdown).mockResolvedValue({
       path: "E:/workspace/.lmbrain/decisions/ADR-001.md",
       frontmatter: { id: "ADR-001", status: "proposed" },
@@ -166,5 +166,173 @@ describe("ArtifactDetailModal", () => {
       expect(screen.queryByText("Reject")).toBeNull();
       expect(screen.getByText("Updated ADR content")).toBeDefined();
     });
+  });
+
+  // ─── SPEC-026-A: Governance tests ─────────────────────────────────
+
+  it("shows governance notice and no Approve button for backlog spec", async () => {
+    vi.mocked(commands.parseMarkdown).mockResolvedValue({
+      path: "E:/workspace/.lmbrain/specs/backlog/SPEC-001.md",
+      frontmatter: { id: "SPEC-001", status: "backlog" },
+      body: "Backlog spec content",
+      wikilinks: [],
+      diagnostics: [],
+    });
+
+    render(<ArtifactDetailModal />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Spec Approval")).toBeDefined();
+      expect(screen.getByText(/Spec approval is performed by the Project Lead/)).toBeDefined();
+    });
+
+    // No Approve button
+    expect(screen.queryByText("Approve")).toBeNull();
+  });
+
+  it("shows governance notice and no Approve button for proposed agent profile", async () => {
+    vi.mocked(commands.parseMarkdown).mockResolvedValue({
+      path: "E:/workspace/.lmbrain/agents/profiles/AGENT-TEST.md",
+      frontmatter: { id: "AGENT-TEST", status: "proposed" },
+      body: "Proposed agent profile content",
+      wikilinks: [],
+      diagnostics: [],
+    });
+
+    render(<ArtifactDetailModal />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Agent Profile Activation")).toBeDefined();
+      expect(screen.getByText(/Agent profile activation is performed through the Project Lead workflow/)).toBeDefined();
+    });
+
+    // No Approve button
+    expect(screen.queryByText("Approve")).toBeNull();
+  });
+
+  it("generates spec approval prompt with correct context", async () => {
+    vi.mocked(commands.parseMarkdown).mockResolvedValue({
+      path: "E:/workspace/.lmbrain/specs/backlog/SPEC-001.md",
+      frontmatter: { id: "SPEC-001", status: "backlog" },
+      body: "Backlog spec content",
+      wikilinks: [],
+      diagnostics: [],
+    });
+
+    render(<ArtifactDetailModal />);
+
+    await waitFor(() => expect(screen.getByText("Spec Approval")).toBeDefined());
+
+    const textareas = screen.getAllByRole("textbox");
+    expect(textareas.length).toBeGreaterThanOrEqual(1);
+    const promptText = textareas[textareas.length - 1].textContent || (textareas[textareas.length - 1] as HTMLTextAreaElement).value;
+    expect(promptText).toContain("SPEC-001");
+    expect(promptText).toContain("backlog → ready");
+    expect(promptText).toContain("AGENT.md");
+    expect(promptText).toContain("CONTRACT.md");
+    expect(promptText).toContain("QUALITY.md");
+    expect(promptText).toContain("operator explicitly asked");
+  });
+
+  it("generates agent activation prompt with correct context", async () => {
+    vi.mocked(commands.parseMarkdown).mockResolvedValue({
+      path: "E:/workspace/.lmbrain/agents/profiles/AGENT-TEST.md",
+      frontmatter: { id: "AGENT-TEST", status: "proposed" },
+      body: "Proposed agent profile content",
+      wikilinks: [],
+      diagnostics: [],
+    });
+
+    render(<ArtifactDetailModal />);
+
+    await waitFor(() => expect(screen.getByText("Agent Profile Activation")).toBeDefined());
+
+    const textareas = screen.getAllByRole("textbox");
+    expect(textareas.length).toBeGreaterThanOrEqual(1);
+    const promptText = textareas[textareas.length - 1].textContent || (textareas[textareas.length - 1] as HTMLTextAreaElement).value;
+    expect(promptText).toContain("AGENT-TEST");
+    expect(promptText).toContain("proposed → active");
+    expect(promptText).toContain("AGENT.md");
+    expect(promptText).toContain("CONTRACT.md");
+    expect(promptText).toContain("QUALITY.md");
+    expect(promptText).toContain("operator explicitly asked");
+  });
+
+  it("still shows approve/reject for ADR (unaffected artifact kind)", async () => {
+    vi.mocked(commands.parseMarkdown).mockResolvedValue({
+      path: "E:/workspace/.lmbrain/decisions/ADR-005.md",
+      frontmatter: { id: "ADR-005", status: "proposed" },
+      body: "ADR content",
+      wikilinks: [],
+      diagnostics: [],
+    });
+
+    render(<ArtifactDetailModal />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Approve")).toBeDefined();
+      expect(screen.getByText("Reject")).toBeDefined();
+    });
+  });
+
+  it("still shows approve/reject for agent proposals (unaffected artifact kind)", async () => {
+    vi.mocked(commands.parseMarkdown).mockResolvedValue({
+      path: "E:/workspace/.lmbrain/agents/proposals/AGENT-PROP-001.md",
+      frontmatter: { id: "AGENT-PROP-001", status: "proposed" },
+      body: "Agent proposal content",
+      wikilinks: [],
+      diagnostics: [],
+    });
+
+    render(<ArtifactDetailModal />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Approve")).toBeDefined();
+      expect(screen.getByText("Reject")).toBeDefined();
+    });
+
+    expect(screen.queryByText("Agent Profile Activation")).toBeNull();
+  });
+
+  it("shows no Approve button and no misleading prompt for ready spec", async () => {
+    vi.mocked(commands.parseMarkdown).mockResolvedValue({
+      path: "E:/workspace/.lmbrain/specs/ready/SPEC-002.md",
+      frontmatter: { id: "SPEC-002", status: "ready" },
+      body: "Ready spec content",
+      wikilinks: [],
+      diagnostics: [],
+    });
+
+    render(<ArtifactDetailModal />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Ready spec content")).toBeDefined();
+    });
+
+    // No Approve button for any spec
+    expect(screen.queryByText("Approve")).toBeNull();
+    // No governance prompt for non-backlog specs
+    expect(screen.queryByText("Spec Approval")).toBeNull();
+  });
+
+  it("shows no Approve button and no misleading prompt for inactive agent profile", async () => {
+    vi.mocked(commands.parseMarkdown).mockResolvedValue({
+      path: "E:/workspace/.lmbrain/agents/profiles/AGENT-INACTIVE.md",
+      frontmatter: { id: "AGENT-INACTIVE", status: "inactive" },
+      body: "Inactive agent profile content",
+      wikilinks: [],
+      diagnostics: [],
+    });
+
+    render(<ArtifactDetailModal />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Inactive agent profile content")).toBeDefined();
+    });
+
+    // No Approve button for any agent profile
+    expect(screen.queryByText("Approve")).toBeNull();
+    // No governance prompt for non-proposed profiles
+    expect(screen.queryByText("Agent Profile Activation")).toBeNull();
   });
 });

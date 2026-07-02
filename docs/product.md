@@ -28,7 +28,7 @@ LMBrain does not automatically start agents and does not require a remote servic
 - Wiki: file tree and Markdown rendering for the `.lmbrain/` workspace.
 - Board: specifications grouped by status.
 - Design: operator-loaded self-contained HTML/CSS/JS mockups from `.lmbrain/design/`.
-- Roadmap: milestones parsed from `.lmbrain/ROADMAP.md`.
+- Roadmap (milestone intelligence): milestones with derived spec status, reviews, decisions, risks, dependencies, and next actions.
 - Reviews and Decisions: project governance artifacts.
 - Agents & MCP: agent profiles, proposals, MCP records, and built-in MCP tools.
 - Sessions: floating interactive terminals for supported agent CLIs.

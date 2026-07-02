@@ -11,6 +11,7 @@ import type {
   Handoff,
   McpProposal,
   McpRecord,
+  MilestoneOverview,
   ParsedDocument,
   PulseData,
   Review,
@@ -107,6 +108,10 @@ export async function readDesignMockupHtml(entryPath: string): Promise<DesignMoc
 
 export async function getRoadmap(): Promise<Roadmap> {
   return invoke("get_roadmap");
+}
+
+export async function getMilestoneOverview(): Promise<MilestoneOverview> {
+  return invoke("get_milestone_overview");
 }
 
 export async function getWikilinkIndex(): Promise<Record<string, string[]>> {

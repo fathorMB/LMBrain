@@ -3,6 +3,7 @@ use std::{
     path::PathBuf,
 };
 
+use lmbrain_core::context::{build_project_digest, build_review_context, build_spec_context};
 use lmbrain_core::transitions::{
     create, set_recommended_agent, transition, ArtifactKind, CreateRequest, MutationOptions,
 };
@@ -118,6 +119,19 @@ fn tools() -> Vec<Value> {
             "Validate controlled-mutation invariants.",
         ),
         read_tool("lmbrain_list_ready_handoffs", "List ready handoffs."),
+        // V3 context-pack tools
+        context_tool(
+            "lmbrain_project_digest",
+            "Compact project overview: title/status, current milestone, ready/review specs, blockers, ready handoffs, active decisions, diagnostics summary, and version/health warnings. Returns JSON and Markdown summary. Does not mutate artifacts.",
+        ),
+        context_tool(
+            "lmbrain_spec_context",
+            "Spec handoff context: spec metadata, acceptance criteria checklist, linked decisions, recommended agent profile summary, related reviews, referenced milestone, explicit files/areas, and diagnostics affecting the handoff. Returns JSON and Markdown summary. Does not mutate artifacts.",
+        ),
+        context_tool(
+            "lmbrain_review_context",
+            "Review context: acceptance criteria, implementation evidence, linked accepted/proposed reviews, relevant decisions, and verification commands claimed by the specialist. Returns JSON and Markdown summary. Does not mutate artifacts.",
+        ),
     ]);
 
     entries
@@ -181,6 +195,30 @@ fn read_tool(name: &str, description: &str) -> Value {
         json!({"type":"object","required":["path"],"properties":{"path":{"type":"string"}},"additionalProperties":false})
     } else {
         json!({"type":"object","properties":{},"additionalProperties":false})
+    };
+
+    json!({
+        "name": name,
+        "description": description,
+        "inputSchema": schema
+    })
+}
+
+fn context_tool(name: &str, description: &str) -> Value {
+    let schema = if name == "lmbrain_project_digest" {
+        json!({"type":"object","properties":{},"additionalProperties":false})
+    } else {
+        json!({
+            "type": "object",
+            "required": ["spec"],
+            "properties": {
+                "spec": {
+                    "type": "string",
+                    "description": "Spec ID (e.g. SPEC-023) or path relative to .lmbrain/"
+                }
+            },
+            "additionalProperties": false
+        })
     };
 
     json!({
@@ -309,6 +347,26 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         "lmbrain_validate" => Ok(text(json!({
             "unique_ids": lmbrain_core::invariants::unique_ids(root)
         }))),
+        "lmbrain_project_digest" => {
+            let digest = build_project_digest(root);
+            Ok(text(json!(digest)))
+        }
+        "lmbrain_spec_context" => {
+            let spec = args
+                .get("spec")
+                .and_then(Value::as_str)
+                .ok_or("spec parameter missing")?;
+            let ctx = build_spec_context(root, spec)?;
+            Ok(text(json!(ctx)))
+        }
+        "lmbrain_review_context" => {
+            let spec = args
+                .get("spec")
+                .and_then(Value::as_str)
+                .ok_or("spec parameter missing")?;
+            let ctx = build_review_context(root, spec)?;
+            Ok(text(json!(ctx)))
+        }
         _ => Err("unknown tool".into()),
     }
 }
@@ -388,5 +446,66 @@ mod tests {
         assert!(names.contains(&"spec_done".to_string()));
         assert!(names.contains(&"spec_discard".to_string()));
         assert!(names.contains(&"review_accept".to_string()));
+    }
+
+    #[test]
+    fn context_pack_tools_are_listed() {
+        let names: Vec<String> = super::tools()
+            .iter()
+            .filter_map(|tool| tool.get("name").and_then(Value::as_str).map(str::to_string))
+            .collect();
+        assert!(names.contains(&"lmbrain_project_digest".to_string()));
+        assert!(names.contains(&"lmbrain_spec_context".to_string()));
+        assert!(names.contains(&"lmbrain_review_context".to_string()));
+    }
+
+    #[test]
+    fn context_tools_have_input_schemas() {
+        let tools = super::tools();
+        for tool in &tools {
+            let name = tool.get("name").and_then(Value::as_str).unwrap_or("");
+            if !name.starts_with("lmbrain_") {
+                continue;
+            }
+            let schema = tool.get("inputSchema").and_then(Value::as_object);
+            assert!(schema.is_some(), "Tool {name} is missing inputSchema");
+        }
+    }
+
+    #[test]
+    fn spec_context_tool_requires_spec_param() {
+        let tools = super::tools();
+        let tool = tools
+            .iter()
+            .find(|t| t.get("name").and_then(Value::as_str) == Some("lmbrain_spec_context"))
+            .expect("lmbrain_spec_context tool not found");
+        let schema = tool.get("inputSchema").and_then(Value::as_object).unwrap();
+        let required = schema.get("required").and_then(Value::as_array).unwrap();
+        assert!(required.iter().any(|v| v.as_str() == Some("spec")));
+    }
+
+    #[test]
+    fn review_context_tool_requires_spec_param() {
+        let tools = super::tools();
+        let tool = tools
+            .iter()
+            .find(|t| t.get("name").and_then(Value::as_str) == Some("lmbrain_review_context"))
+            .expect("lmbrain_review_context tool not found");
+        let schema = tool.get("inputSchema").and_then(Value::as_object).unwrap();
+        let required = schema.get("required").and_then(Value::as_array).unwrap();
+        assert!(required.iter().any(|v| v.as_str() == Some("spec")));
+    }
+
+    #[test]
+    fn project_digest_tool_has_no_required_params() {
+        let tools = super::tools();
+        let tool = tools
+            .iter()
+            .find(|t| t.get("name").and_then(Value::as_str) == Some("lmbrain_project_digest"))
+            .expect("lmbrain_project_digest tool not found");
+        let schema = tool.get("inputSchema").and_then(Value::as_object).unwrap();
+        // Should have no required params
+        let required = schema.get("required");
+        assert!(required.is_none());
     }
 }

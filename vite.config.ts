@@ -7,11 +7,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [react()],
   // Prevent vite from obscuring rust errors
   clearScreen: false,
-  // react-draggable (under react-rnd) references `process.env.*` at runtime, which
-  // is undefined in the browser and throws `process is not defined`. Provide the
-  // values it reads without clobbering anything else.
+  // Provide NODE_ENV for any dependency that reads it at runtime.
   define: {
-    "process.env.DRAGGABLE_DEBUG": "false",
     "process.env.NODE_ENV": JSON.stringify(mode),
   },
   server: {

@@ -401,6 +401,26 @@ function HandoffCTA({ spec }: { spec: Spec }) {
           </span>
           . LMBrain will not launch it for you.
         </div>
+        <div
+          style={{
+            fontSize: 11.5,
+            color: "#7fa8f5",
+            marginTop: 6,
+            lineHeight: 1.4,
+          }}
+        >
+          <i
+            className="material-symbols-outlined"
+            style={{ fontSize: 13, verticalAlign: "middle", marginRight: 4 }}
+          >
+            lightbulb
+          </i>
+          The prompt now includes v3 context-economy guidance. The agent will use{" "}
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>
+            lmbrain_spec_context
+          </span>{" "}
+          for a compact handoff context before expanding to full artifacts.
+        </div>
       </div>
       <button
         onClick={handleCopy}
