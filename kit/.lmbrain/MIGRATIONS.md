@@ -4,7 +4,15 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.3.1`.
+The current released kit is `2.3.2`.
+
+### 2.3.2 (design package preview fix - additive)
+
+`2.3.2` improves the desktop app's Design view preview loading for multi-file mockup packages. It does not require project artifact rewrites. When upgrading an existing brain to `2.3.2`:
+
+1. No file moves or frontmatter changes are required.
+2. Existing `.lmbrain/design/<package>/index.html` mockups continue to use relative package assets such as `assets/app.js` and `assets/design-system.css`.
+3. Update `.lmbrain/VERSION` to `2.3.2` only after validating the project with the bundled app and MCP tools.
 
 ### 2.3.1 (approval governance alignment - additive)
 

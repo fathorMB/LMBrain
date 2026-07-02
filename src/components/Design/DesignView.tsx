@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { getDesignMockups } from "../../lib/commands";
+import { getDesignMockups, readDesignMockupHtml } from "../../lib/commands";
 import type { DesignMockup } from "../../types";
 
 export function DesignView() {
@@ -9,6 +9,7 @@ export function DesignView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -36,15 +37,40 @@ export function DesignView() {
     [mockups, selectedId]
   );
 
-  const previewUrl = useMemo(
-    () => (selected ? convertFileSrc(selected.entry_path, "lmbrain-design") : null),
+  const previewBaseUrl = useMemo(
+    () => (selected ? convertFileSrc(designBasePath(selected.entry_path), "lmbrain-design") : null),
     [selected]
   );
 
+  useEffect(() => {
+    if (!selected || !previewBaseUrl) {
+      return;
+    }
+
+    let alive = true;
+    readDesignMockupHtml(selected.entry_path)
+      .then((html) => {
+        if (!alive) return;
+        setPreviewHtml(injectBaseHref(html.content, previewBaseUrl));
+      })
+      .catch(() => {
+        if (!alive) return;
+        setPreviewHtml(null);
+        setPreviewError("Preview unavailable for this design mockup.");
+      })
+
+    return () => {
+      alive = false;
+    };
+  }, [selected, previewBaseUrl]);
+
   const handleSelectMockup = (id: string) => {
     setSelectedId(id);
+    setPreviewHtml(null);
     setPreviewError(null);
   };
+
+  const previewLoading = !!selected && !!previewBaseUrl && !previewHtml && !previewError;
 
   if (loading) {
     return <CenteredState icon="hourglass_top" title="Loading designs" />;
@@ -216,13 +242,15 @@ export function DesignView() {
               background: "#fff",
             }}
           >
-            {previewError ? (
+            {previewLoading ? (
+              <CenteredState icon="hourglass_top" title="Loading preview" light />
+            ) : previewError ? (
               <CenteredState icon="visibility_off" title={previewError} light />
-            ) : previewUrl ? (
+            ) : previewHtml ? (
               <iframe
                 title="Design mockup preview"
-                sandbox="allow-scripts allow-forms allow-pointer-lock"
-                src={previewUrl}
+                sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin"
+                srcDoc={previewHtml}
                 onError={() => setPreviewError("Preview unavailable for this design mockup.")}
                 style={{ width: "100%", height: "100%", border: 0, background: "#fff" }}
               />
@@ -269,6 +297,34 @@ function CenteredState({
       </div>
     </div>
   );
+}
+
+function designBasePath(entryPath: string) {
+  const normalized = entryPath.replace(/\\/g, "/");
+  const slash = normalized.lastIndexOf("/");
+  if (slash < 0) return "./";
+  return `${normalized.slice(0, slash + 1)}`;
+}
+
+function injectBaseHref(html: string, baseUrl: string) {
+  const baseTag = `<base href="${escapeHtmlAttribute(ensureTrailingSlash(baseUrl))}">`;
+  if (/<base\s/i.test(html)) return html;
+  if (/<head[^>]*>/i.test(html)) {
+    return html.replace(/<head([^>]*)>/i, `<head$1>\n  ${baseTag}`);
+  }
+  return `${baseTag}\n${html}`;
+}
+
+function ensureTrailingSlash(value: string) {
+  return value.endsWith("/") ? value : `${value}/`;
+}
+
+function escapeHtmlAttribute(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function formatBytes(size: number) {

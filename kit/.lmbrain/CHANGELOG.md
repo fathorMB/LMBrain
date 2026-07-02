@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.3.2 - 2026-07-02
+
+### Fixed
+
+- **Design package preview loading.** The Design view now reads validated mockup HTML through the backend and injects a package-scoped base URL before rendering in the iframe, so multi-file mockups with relative CSS/JS assets load correctly from `.lmbrain/design/<package>/`.
+
 ## 2.3.1 - 2026-07-02
 
 ### Fixed
