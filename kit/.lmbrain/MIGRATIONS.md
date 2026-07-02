@@ -4,7 +4,17 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.2.7`.
+The current released kit is `2.3.0`.
+
+### 2.3.0 (v3 package release - additive)
+
+`2.3.0` is the formal package release for the v3 app/kit workflow. It does not introduce additional project artifact contract changes beyond the `2.2.7` v3 context-economy migration. When upgrading an existing brain to `2.3.0`:
+
+1. If the project is already on `2.2.7`, no file moves or frontmatter changes are required.
+2. If the project is older than `2.2.7`, apply the `2.2.7` migration steps below first, preserving project-specific content and custom agent profiles.
+3. Validate the migrated project with the bundled app and MCP tools.
+4. Update `.lmbrain/VERSION` to `2.3.0` only after validation succeeds.
+5. Roll back by restoring the project `.lmbrain/` diff from version control; no destructive migration step is required.
 
 ### 2.2.7 (v3 context economy — additive)
 

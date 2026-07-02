@@ -4,6 +4,13 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.3.0 - 2026-07-02
+
+### Changed
+
+- **Formal v3 package release.** Publishes the v3 workflow, migration, context-pack, granular-agent, session-tab, milestone-intelligence, and operator-approval changes under a new shared app/kit version so the installer workflow builds release assets instead of skipping unchanged-version pushes.
+- **Migration source remains explicit.** Existing `2.2.7` brains can move to `2.3.0` without artifact rewrites; projects older than `2.2.7` should apply the documented v3 additive migration first, validate, then update `VERSION`.
+
 ## 2.2.7 - 2026-07-02
 
 ### Added
