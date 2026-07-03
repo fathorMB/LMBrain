@@ -280,7 +280,10 @@ tags: [v3, frontend]
     let agents = contract::build_agents(dir.path()).unwrap();
     let agent = agents.iter().find(|a| a.id == "AGENT-FRONTEND-UI").unwrap();
 
-    assert_eq!(agent.domains, Some(vec!["frontend".into(), "ui".into(), "react".into()]));
+    assert_eq!(
+        agent.domains,
+        Some(vec!["frontend".into(), "ui".into(), "react".into()])
+    );
     assert_eq!(
         agent.primary_files,
         Some(vec!["src/components".into(), "src/lib".into()])
@@ -821,6 +824,68 @@ fn test_build_milestone_overview_handles_missing_references() {
         !overview.milestones[0].unresolved_refs.is_empty(),
         "Expected unresolved refs for missing ADR and dependency"
     );
+}
+
+#[test]
+fn test_build_roadmap_accepts_nucleus_style_milestones_and_inline_refs() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let lmbrain = dir.path().join(".lmbrain");
+
+    fs::write(
+        lmbrain.join("ROADMAP.md"),
+        "---\ntitle: Roadmap\n---\n\n# Roadmap\n\n## Milestones\n\n### M0 — Foundations & architecture\n- `status`: done\n- `outcome`: Delivered.\n- `specs`: [SPEC-001]\n- `decisions`: [ADR-001]\n\n### M4 — Persistence & data-driven scenarios\n- `status`: in progress\n- `outcome`: Versioned save/load and hardening.\n- `specs`: [SPEC-010] **delivered**. Split work: [SPEC-012], [SPEC-013], [SPEC-014].\n- `risks`: Save schema evolution.\n\n### Future — Extensibility\n- `status`: proposed\n- `specs`: (backlog)\n",
+    )
+    .unwrap();
+
+    let roadmap = contract::build_roadmap(dir.path()).unwrap();
+    assert_eq!(roadmap.milestones.len(), 2);
+    assert_eq!(roadmap.milestones[0].id, "M0");
+    assert_eq!(roadmap.milestones[0].title, "Foundations & architecture");
+    assert_eq!(roadmap.milestones[1].id, "M4");
+    assert_eq!(roadmap.milestones[1].status, "in progress");
+    assert_eq!(
+        roadmap.milestones[1].specs,
+        vec!["SPEC-010", "SPEC-012", "SPEC-013", "SPEC-014"]
+    );
+}
+
+#[test]
+fn test_build_milestone_overview_maps_specs_to_nucleus_style_milestone_ids() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let lmbrain = dir.path().join(".lmbrain");
+
+    fs::write(
+        lmbrain.join("ROADMAP.md"),
+        "---\ntitle: Roadmap\n---\n\n# Roadmap\n\n### M4 — Persistence & data-driven scenarios\n- `status`: in progress\n- `outcome`: Versioned save/load and hardening.\n- `specs`: [SPEC-010] **delivered**. Split work: [SPEC-012].\n",
+    )
+    .unwrap();
+    fs::create_dir_all(lmbrain.join("specs/done")).unwrap();
+    fs::create_dir_all(lmbrain.join("specs/backlog")).unwrap();
+    fs::write(
+        lmbrain.join("specs/done/SPEC-010.md"),
+        "---\nid: SPEC-010\ntitle: Persistence\nstatus: done\nmilestone: M4\ncreated: 2026-07-03\nupdated: 2026-07-03\ntags: []\nlinks: []\n---\nBody",
+    )
+    .unwrap();
+    fs::write(
+        lmbrain.join("specs/backlog/SPEC-012.md"),
+        "---\nid: SPEC-012\ntitle: Balance\nstatus: backlog\nmilestone: M4\ncreated: 2026-07-03\nupdated: 2026-07-03\ntags: []\nlinks: []\n---\nBody",
+    )
+    .unwrap();
+
+    let overview = contract::build_milestone_overview(dir.path()).unwrap();
+    assert_eq!(overview.milestones.len(), 1);
+    assert_eq!(overview.milestones[0].id, "M4");
+    assert_eq!(overview.milestones[0].spec_count, 2);
+    let spec_ids = overview.milestones[0]
+        .specs
+        .iter()
+        .map(|spec| spec.id.as_str())
+        .collect::<Vec<_>>();
+    assert!(spec_ids.contains(&"SPEC-010"));
+    assert!(spec_ids.contains(&"SPEC-012"));
+    assert!(overview.unmapped_specs.is_empty());
 }
 
 #[test]

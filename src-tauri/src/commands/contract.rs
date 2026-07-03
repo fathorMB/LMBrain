@@ -805,7 +805,11 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
             if let Some(area) = &spec.area {
                 if let Some(profile) = agents.iter().find(|a| a.id == agent) {
                     if let Some(domains) = &profile.domains {
-                        if !domains.is_empty() && !domains.iter().any(|d| area.contains(d.as_str()) || d.as_str().contains(area)) {
+                        if !domains.is_empty()
+                            && !domains
+                                .iter()
+                                .any(|d| area.contains(d.as_str()) || d.as_str().contains(area))
+                        {
                             let rel_path = Path::new(&spec.path)
                                 .strip_prefix(&lmbrain)
                                 .ok()
@@ -905,26 +909,10 @@ fn parse_roadmap_content(content: &str) -> Roadmap {
     for line in body.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with('#') {
+            let heading_level = trimmed.chars().take_while(|ch| *ch == '#').count();
             let heading_content = trimmed.trim_start_matches('#').trim();
-            let delimiter = if heading_content.contains("—") {
-                "—"
-            } else if heading_content.contains("–") {
-                "–"
-            } else if heading_content.contains('-') {
-                "-"
-            } else {
-                ""
-            };
-
-            let (id, milestone_title) = if !delimiter.is_empty() {
-                let parts: Vec<&str> = heading_content.splitn(2, delimiter).collect();
-                (parts[0].trim().to_string(), parts[1].trim().to_string())
-            } else {
-                (heading_content.trim().to_string(), String::new())
-            };
-
-            let is_milestone = id.starts_with("M-")
-                && id[2..].chars().next().is_some_and(|ch| ch.is_ascii_digit());
+            let (id, milestone_title) = split_milestone_heading(heading_content);
+            let is_milestone = is_milestone_id(&id);
             if is_milestone {
                 if let Some(milestone) = current_milestone.take() {
                     milestones.push(milestone);
@@ -939,6 +927,10 @@ fn parse_roadmap_content(content: &str) -> Roadmap {
                     risks: Vec::new(),
                     depends_on: None,
                 });
+            } else if heading_level <= 3 {
+                if let Some(milestone) = current_milestone.take() {
+                    milestones.push(milestone);
+                }
             }
         } else if (trimmed.starts_with("- ") || trimmed.starts_with("* "))
             && current_milestone.is_some()
@@ -973,19 +965,60 @@ fn parse_roadmap_content(content: &str) -> Roadmap {
 }
 
 fn parse_list_items(value: &str) -> Vec<String> {
-    let trimmed = value.trim();
-    if trimmed.starts_with('[') && trimmed.ends_with(']') {
-        let inside = &trimmed[1..trimmed.len() - 1];
-        inside
-            .split(',')
-            .map(|item| item.trim().to_string())
-            .filter(|item| !item.is_empty())
-            .collect()
-    } else if !trimmed.is_empty() {
-        vec![trimmed.to_string()]
-    } else {
-        Vec::new()
+    let bracketed = value
+        .match_indices('[')
+        .filter_map(|(start, _)| {
+            let rest = &value[start + 1..];
+            let end = rest.find(']')?;
+            Some(rest[..end].to_string())
+        })
+        .flat_map(|inside| {
+            inside
+                .split(',')
+                .map(|item| clean_reference_item(item).to_string())
+                .filter(|item| !item.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    if !bracketed.is_empty() {
+        return bracketed;
     }
+
+    value
+        .split(',')
+        .map(clean_reference_item)
+        .filter(|item| !item.is_empty() && *item != "(backlog)")
+        .map(str::to_string)
+        .collect()
+}
+
+fn split_milestone_heading(heading: &str) -> (String, String) {
+    for delimiter in [" — ", " – ", " - ", "—", "–"] {
+        if let Some((id, title)) = heading.split_once(delimiter) {
+            return (id.trim().to_string(), title.trim().to_string());
+        }
+    }
+
+    let mut parts = heading.splitn(2, char::is_whitespace);
+    let id = parts.next().unwrap_or_default().trim().to_string();
+    let title = parts.next().unwrap_or_default().trim().to_string();
+    (id, title)
+}
+
+fn is_milestone_id(id: &str) -> bool {
+    let Some(rest) = id.strip_prefix('M') else {
+        return false;
+    };
+    let rest = rest.strip_prefix('-').unwrap_or(rest);
+    !rest.is_empty() && rest.chars().all(|ch| ch.is_ascii_digit())
+}
+
+fn clean_reference_item(item: &str) -> &str {
+    item.trim()
+        .trim_matches('`')
+        .trim_matches(|ch| ch == '[' || ch == ']')
+        .trim()
 }
 
 /// Build a derived milestone overview with joined spec, review, ADR, and diagnostic data.
@@ -1034,7 +1067,10 @@ pub fn build_milestone_overview(root: &Path) -> Result<MilestoneOverview, AppErr
         std::collections::HashMap::new();
     for review in &reviews {
         if let Some(ref spec_id) = review.spec_id {
-            reviews_by_spec.entry(spec_id.clone()).or_default().push(review);
+            reviews_by_spec
+                .entry(spec_id.clone())
+                .or_default()
+                .push(review);
         }
     }
 
@@ -1045,8 +1081,7 @@ pub fn build_milestone_overview(root: &Path) -> Result<MilestoneOverview, AppErr
         let total = milestone_specs.len();
 
         // Count specs by status
-        let mut counts: std::collections::HashMap<String, usize> =
-            std::collections::HashMap::new();
+        let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
         let mut spec_summaries = Vec::new();
         let mut all_reviews = Vec::new();
         let mut seen_review_ids = std::collections::HashSet::new();
@@ -1091,7 +1126,10 @@ pub fn build_milestone_overview(root: &Path) -> Result<MilestoneOverview, AppErr
                     path: Some(adr.path.clone()),
                 });
             } else {
-                unresolved_refs.push(format!("ADR {adr_id} referenced in milestone {} not found", milestone.id));
+                unresolved_refs.push(format!(
+                    "ADR {adr_id} referenced in milestone {} not found",
+                    milestone.id
+                ));
             }
         }
 

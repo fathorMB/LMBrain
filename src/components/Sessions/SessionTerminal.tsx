@@ -79,6 +79,17 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
     const dataDisposable = term.onData((data) => {
       sessionWrite(sessionId, data).catch(() => {});
     });
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        return;
+      }
+      const rows = Math.max(1, Math.ceil(Math.abs(event.deltaY) / 36));
+      term.scrollLines(event.deltaY > 0 ? rows : -rows);
+      event.preventDefault();
+    };
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    const handlePointerDown = () => term.focus();
+    container.addEventListener("pointerdown", handlePointerDown);
 
     // Live events are buffered until the backstop snapshot has been written, so the
     // replayed pre-attach output (e.g. a TUI's first frame) always lands before any
@@ -121,6 +132,8 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
     return () => {
       resizeObserver.disconnect();
       dataDisposable.dispose();
+      container.removeEventListener("wheel", handleWheel);
+      container.removeEventListener("pointerdown", handlePointerDown);
       outputUnlisten.then((fn) => fn());
       term.dispose();
       terminalRef.current = null;
@@ -140,6 +153,7 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
       if (!term || !fitAddon) {
         return;
       }
+      term.focus();
       fitAddon.fit();
       if (
         !lastSizeRef.current ||

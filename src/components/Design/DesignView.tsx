@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { getDesignMockups, readDesignMockupHtml } from "../../lib/commands";
+import { getDesignMockups, readDesignMockupPreviewHtml } from "../../lib/commands";
 import type { DesignMockup } from "../../types";
 
 export function DesignView() {
@@ -37,32 +36,27 @@ export function DesignView() {
     [mockups, selectedId]
   );
 
-  const previewBaseUrl = useMemo(
-    () => (selected ? convertFileSrc(designBasePath(selected.entry_path), "lmbrain-design") : null),
-    [selected]
-  );
-
   useEffect(() => {
-    if (!selected || !previewBaseUrl) {
+    if (!selected) {
       return;
     }
 
     let alive = true;
-    readDesignMockupHtml(selected.entry_path)
+    readDesignMockupPreviewHtml(selected.entry_path)
       .then((html) => {
         if (!alive) return;
-        setPreviewHtml(injectBaseHref(html.content, previewBaseUrl));
+        setPreviewHtml(html.content);
       })
       .catch(() => {
         if (!alive) return;
         setPreviewHtml(null);
         setPreviewError("Preview unavailable for this design mockup.");
-      })
+      });
 
     return () => {
       alive = false;
     };
-  }, [selected, previewBaseUrl]);
+  }, [selected]);
 
   const handleSelectMockup = (id: string) => {
     setSelectedId(id);
@@ -70,7 +64,7 @@ export function DesignView() {
     setPreviewError(null);
   };
 
-  const previewLoading = !!selected && !!previewBaseUrl && !previewHtml && !previewError;
+  const previewLoading = !!selected && !previewHtml && !previewError;
 
   if (loading) {
     return <CenteredState icon="hourglass_top" title="Loading designs" />;
@@ -248,6 +242,7 @@ export function DesignView() {
               <CenteredState icon="visibility_off" title={previewError} light />
             ) : previewHtml ? (
               <iframe
+                key={selected?.entry_path}
                 title="Design mockup preview"
                 sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin"
                 srcDoc={previewHtml}
@@ -297,34 +292,6 @@ function CenteredState({
       </div>
     </div>
   );
-}
-
-function designBasePath(entryPath: string) {
-  const normalized = entryPath.replace(/\\/g, "/");
-  const slash = normalized.lastIndexOf("/");
-  if (slash < 0) return "./";
-  return `${normalized.slice(0, slash + 1)}`;
-}
-
-function injectBaseHref(html: string, baseUrl: string) {
-  const baseTag = `<base href="${escapeHtmlAttribute(ensureTrailingSlash(baseUrl))}">`;
-  if (/<base\s/i.test(html)) return html;
-  if (/<head[^>]*>/i.test(html)) {
-    return html.replace(/<head([^>]*)>/i, `<head$1>\n  ${baseTag}`);
-  }
-  return `${baseTag}\n${html}`;
-}
-
-function ensureTrailingSlash(value: string) {
-  return value.endsWith("/") ? value : `${value}/`;
-}
-
-function escapeHtmlAttribute(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 }
 
 function formatBytes(size: number) {

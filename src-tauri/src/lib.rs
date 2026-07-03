@@ -252,6 +252,18 @@ fn read_design_mockup_html(
 }
 
 #[tauri::command]
+fn read_design_mockup_preview_html(
+    state: State<'_, AppState>,
+    entry_path: String,
+) -> Result<DesignMockupHtml, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    design::read_design_preview_html(&root, Path::new(&entry_path)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn get_roadmap(state: State<'_, AppState>) -> Result<models::roadmap::Roadmap, String> {
     let root = state
         .path_guard
@@ -261,7 +273,9 @@ fn get_roadmap(state: State<'_, AppState>) -> Result<models::roadmap::Roadmap, S
 }
 
 #[tauri::command]
-fn get_milestone_overview(state: State<'_, AppState>) -> Result<models::roadmap::MilestoneOverview, String> {
+fn get_milestone_overview(
+    state: State<'_, AppState>,
+) -> Result<models::roadmap::MilestoneOverview, String> {
     let root = state
         .path_guard
         .get_root()
@@ -546,6 +560,7 @@ pub fn run() {
             get_handoffs,
             get_design_mockups,
             read_design_mockup_html,
+            read_design_mockup_preview_html,
             get_roadmap,
             get_milestone_overview,
             get_wikilink_index,

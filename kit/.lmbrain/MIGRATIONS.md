@@ -4,7 +4,16 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.3.2`.
+The current released kit is `2.3.3`.
+
+### 2.3.3 (design preview and Nucleus roadmap fix - additive)
+
+`2.3.3` fixes desktop-app rendering and parsing behavior without changing the Markdown artifact contract. It does not require project artifact rewrites. When upgrading an existing brain to `2.3.3`:
+
+1. No file moves or frontmatter changes are required.
+2. Existing `.lmbrain/design/<package>/index.html` mockups can continue to use relative CSS and JavaScript assets; the app inlines those local assets for preview rendering.
+3. Existing roadmap milestone IDs such as `M0`, `M4`, and `M-01` remain valid.
+4. Update `.lmbrain/VERSION` to `2.3.3` only after validating the project with the bundled app and MCP tools.
 
 ### 2.3.2 (design package preview fix - additive)
 

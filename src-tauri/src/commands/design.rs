@@ -55,6 +55,37 @@ pub fn scan_design_mockups(root: &Path) -> Result<Vec<DesignMockup>, AppError> {
 }
 
 pub fn read_design_html(root: &Path, entry_path: &Path) -> Result<DesignMockupHtml, AppError> {
+    let resolved = resolve_design_entry(root, entry_path)?;
+
+    Ok(DesignMockupHtml {
+        path: resolved.to_string_lossy().to_string(),
+        content: fs::read_to_string(&resolved)?,
+    })
+}
+
+pub fn read_design_preview_html(
+    root: &Path,
+    entry_path: &Path,
+) -> Result<DesignMockupHtml, AppError> {
+    let design_root = root.join(DESIGN_DIR).canonicalize().map_err(|_| {
+        AppError::PathSafety(format!("Design directory does not exist: {DESIGN_DIR}"))
+    })?;
+    let resolved = resolve_design_entry(root, entry_path)?;
+    let content = fs::read_to_string(&resolved)?;
+    let entry_dir = resolved.parent().ok_or_else(|| {
+        AppError::PathSafety(format!(
+            "Design entry has no parent directory: {}",
+            entry_path.display()
+        ))
+    })?;
+
+    Ok(DesignMockupHtml {
+        path: resolved.to_string_lossy().to_string(),
+        content: inline_preview_assets(&design_root, entry_dir, &content)?,
+    })
+}
+
+fn resolve_design_entry(root: &Path, entry_path: &Path) -> Result<std::path::PathBuf, AppError> {
     let design_root = root.join(DESIGN_DIR).canonicalize().map_err(|_| {
         AppError::PathSafety(format!("Design directory does not exist: {DESIGN_DIR}"))
     })?;
@@ -83,10 +114,7 @@ pub fn read_design_html(root: &Path, entry_path: &Path) -> Result<DesignMockupHt
         )));
     }
 
-    Ok(DesignMockupHtml {
-        path: resolved.to_string_lossy().to_string(),
-        content: fs::read_to_string(&resolved)?,
-    })
+    Ok(resolved)
 }
 
 pub struct DesignAsset {
@@ -181,6 +209,180 @@ fn build_html_file(root: &Path, path: &Path, name: String) -> Result<DesignMocku
         has_manifest: false,
         has_readme: false,
     })
+}
+
+fn inline_preview_assets(
+    design_root: &Path,
+    entry_dir: &Path,
+    html: &str,
+) -> Result<String, AppError> {
+    let html = inline_stylesheets(design_root, entry_dir, html)?;
+    inline_scripts(design_root, entry_dir, &html)
+}
+
+fn inline_stylesheets(
+    design_root: &Path,
+    entry_dir: &Path,
+    html: &str,
+) -> Result<String, AppError> {
+    let mut output = String::new();
+    let mut cursor = 0;
+
+    while let Some(start_rel) = find_ascii_ci(&html[cursor..], "<link") {
+        let start = cursor + start_rel;
+        let Some(end_rel) = html[start..].find('>') else {
+            break;
+        };
+        let end = start + end_rel + 1;
+        let tag = &html[start..end];
+
+        output.push_str(&html[cursor..start]);
+        if attr_contains_ascii_ci(tag, "rel", "stylesheet") {
+            if let Some(href) = attr_value(tag, "href") {
+                if let Some(css) = read_local_text_asset(design_root, entry_dir, &href)? {
+                    output.push_str("<style data-lmbrain-inline=\"");
+                    output.push_str(&escape_html_attr(&href));
+                    output.push_str("\">\n");
+                    output.push_str(&css);
+                    output.push_str("\n</style>");
+                } else {
+                    output.push_str(tag);
+                }
+            } else {
+                output.push_str(tag);
+            }
+        } else {
+            output.push_str(tag);
+        }
+        cursor = end;
+    }
+
+    output.push_str(&html[cursor..]);
+    Ok(output)
+}
+
+fn inline_scripts(design_root: &Path, entry_dir: &Path, html: &str) -> Result<String, AppError> {
+    let mut output = String::new();
+    let mut cursor = 0;
+
+    while let Some(start_rel) = find_ascii_ci(&html[cursor..], "<script") {
+        let start = cursor + start_rel;
+        let Some(open_end_rel) = html[start..].find('>') else {
+            break;
+        };
+        let open_end = start + open_end_rel + 1;
+        let tag = &html[start..open_end];
+        let Some(close_start_rel) = find_ascii_ci(&html[open_end..], "</script>") else {
+            break;
+        };
+        let close_end = open_end + close_start_rel + "</script>".len();
+
+        output.push_str(&html[cursor..start]);
+        if let Some(src) = attr_value(tag, "src") {
+            if let Some(js) = read_local_text_asset(design_root, entry_dir, &src)? {
+                output.push_str("<script");
+                if let Some(script_type) = attr_value(tag, "type") {
+                    output.push_str(" type=\"");
+                    output.push_str(&escape_html_attr(&script_type));
+                    output.push('"');
+                }
+                output.push_str(" data-lmbrain-inline=\"");
+                output.push_str(&escape_html_attr(&src));
+                output.push_str("\">\n");
+                output.push_str(&js);
+                output.push_str("\n</script>");
+            } else {
+                output.push_str(&html[start..close_end]);
+            }
+        } else {
+            output.push_str(&html[start..close_end]);
+        }
+        cursor = close_end;
+    }
+
+    output.push_str(&html[cursor..]);
+    Ok(output)
+}
+
+fn read_local_text_asset(
+    design_root: &Path,
+    entry_dir: &Path,
+    reference: &str,
+) -> Result<Option<String>, AppError> {
+    let reference = reference.trim();
+    if reference.is_empty()
+        || reference.starts_with('#')
+        || reference.starts_with("//")
+        || reference.starts_with("data:")
+        || reference.starts_with("blob:")
+        || reference.contains("://")
+    {
+        return Ok(None);
+    }
+
+    let reference = reference
+        .split_once('#')
+        .map(|(path, _)| path)
+        .unwrap_or(reference)
+        .split_once('?')
+        .map(|(path, _)| path)
+        .unwrap_or(reference);
+    let resolved = entry_dir
+        .join(reference.replace('\\', "/"))
+        .canonicalize()
+        .map_err(|_| AppError::FileNotFound(format!("Design asset not found: {reference}")))?;
+
+    if !resolved.starts_with(design_root) {
+        return Err(AppError::PathSafety(format!(
+            "Design asset is outside {DESIGN_DIR}: {reference}"
+        )));
+    }
+    if !resolved.is_file() {
+        return Err(AppError::FileNotFound(format!(
+            "Design asset is not a file: {reference}"
+        )));
+    }
+
+    Ok(Some(fs::read_to_string(resolved)?))
+}
+
+fn find_ascii_ci(haystack: &str, needle: &str) -> Option<usize> {
+    haystack.to_lowercase().find(&needle.to_lowercase())
+}
+
+fn attr_value(tag: &str, name: &str) -> Option<String> {
+    let lower = tag.to_lowercase();
+    let pattern = format!("{}=", name.to_lowercase());
+    let start = lower.find(&pattern)? + pattern.len();
+    let rest = tag[start..].trim_start();
+    let quote = rest.chars().next()?;
+    if quote == '"' || quote == '\'' {
+        let value_start = quote.len_utf8();
+        let value_end = rest[value_start..].find(quote)? + value_start;
+        Some(rest[value_start..value_end].to_string())
+    } else {
+        Some(
+            rest.split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .trim_end_matches('>')
+                .to_string(),
+        )
+    }
+}
+
+fn attr_contains_ascii_ci(tag: &str, name: &str, expected: &str) -> bool {
+    attr_value(tag, name)
+        .map(|value| value.to_lowercase().contains(&expected.to_lowercase()))
+        .unwrap_or(false)
+}
+
+fn escape_html_attr(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 fn read_manifest(path: &Path) -> Option<DesignManifest> {

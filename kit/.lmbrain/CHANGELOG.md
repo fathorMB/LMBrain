@@ -4,6 +4,14 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.3.3 - 2026-07-03
+
+### Fixed
+
+- **Design package previews on Windows/WebView2.** The Design view now renders package previews from backend-bundled HTML with local CSS and JavaScript inlined, avoiding iframe custom-protocol asset failures and showing the actual mockup instead of the app fallback shell.
+- **Nucleus-style roadmap milestones.** Roadmaps using milestone IDs such as `M0`/`M4` and inline spec references now populate the Roadmap view correctly.
+- **Tabbed session ergonomics.** Session headers and tabs use stable alignment, and terminal wheel input explicitly scrolls xterm scrollback.
+
 ## 2.3.2 - 2026-07-02
 
 ### Fixed

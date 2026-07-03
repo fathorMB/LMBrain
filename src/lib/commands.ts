@@ -106,6 +106,10 @@ export async function readDesignMockupHtml(entryPath: string): Promise<DesignMoc
   return invoke("read_design_mockup_html", { entryPath });
 }
 
+export async function readDesignMockupPreviewHtml(entryPath: string): Promise<DesignMockupHtml> {
+  return invoke("read_design_mockup_preview_html", { entryPath });
+}
+
 export async function getRoadmap(): Promise<Roadmap> {
   return invoke("get_roadmap");
 }

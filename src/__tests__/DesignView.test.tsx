@@ -6,11 +6,7 @@ import type { DesignMockup } from "../types";
 
 vi.mock("../lib/commands", () => ({
   getDesignMockups: vi.fn(),
-  readDesignMockupHtml: vi.fn(),
-}));
-
-vi.mock("@tauri-apps/api/core", () => ({
-  convertFileSrc: (path: string, protocol = "asset") => `${protocol}://localhost/${path}`,
+  readDesignMockupPreviewHtml: vi.fn(),
 }));
 
 const mockup: DesignMockup = {
@@ -35,7 +31,7 @@ describe("DesignView", () => {
 
   it("renders an empty state when there are no mockups", async () => {
     vi.mocked(commands.getDesignMockups).mockResolvedValue([]);
-    vi.mocked(commands.readDesignMockupHtml).mockResolvedValue({
+    vi.mocked(commands.readDesignMockupPreviewHtml).mockResolvedValue({
       path: "",
       content: "",
     });
@@ -48,9 +44,10 @@ describe("DesignView", () => {
 
   it("renders mockup metadata and preview frame", async () => {
     vi.mocked(commands.getDesignMockups).mockResolvedValue([mockup]);
-    vi.mocked(commands.readDesignMockupHtml).mockResolvedValue({
+    vi.mocked(commands.readDesignMockupPreviewHtml).mockResolvedValue({
       path: "E:/workspace/.lmbrain/design/checkout-flow/index.html",
-      content: '<!doctype html><html><head><title>Checkout</title></head><body><script src="assets/app.js"></script></body></html>',
+      content:
+        '<!doctype html><html><head><style data-lmbrain-inline="assets/design-system.css">body{color:red}</style></head><body><script data-lmbrain-inline="assets/app.js">window.ready=true</script></body></html>',
     });
 
     render(<DesignView />);
@@ -58,10 +55,9 @@ describe("DesignView", () => {
     await waitFor(() => expect(screen.getAllByText("Checkout Flow").length).toBeGreaterThan(0));
     expect(screen.getByText("Responsive checkout mockup.")).toBeDefined();
     const frame = await screen.findByTitle("Design mockup preview");
-    expect(commands.readDesignMockupHtml).toHaveBeenCalledWith(mockup.entry_path);
-    expect(frame.getAttribute("srcdoc")).toContain(
-      '<base href="lmbrain-design://localhost/.lmbrain/design/checkout-flow/">'
-    );
-    expect(frame.getAttribute("srcdoc")).toContain('script src="assets/app.js"');
+    expect(commands.readDesignMockupPreviewHtml).toHaveBeenCalledWith(mockup.entry_path);
+    expect(frame.getAttribute("srcdoc")).toContain('data-lmbrain-inline="assets/design-system.css"');
+    expect(frame.getAttribute("srcdoc")).toContain('data-lmbrain-inline="assets/app.js"');
+    expect(frame.hasAttribute("src")).toBe(false);
   });
 });
