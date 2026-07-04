@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.3.4 - 2026-07-05
+
+### Fixed
+
+- **Design previews execute packaged runtimes again.** The Design view now loads mockup entries through the dedicated `lmbrain-design.localhost` preview origin instead of `srcdoc`, so WebView2 can execute package scripts and resolve local assets without exposing raw `{{ ... }}` template markup.
+
 ## 2.3.3 - 2026-07-03
 
 ### Fixed

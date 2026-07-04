@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getDesignMockups, readDesignMockupPreviewHtml } from "../../lib/commands";
+import { getDesignMockups } from "../../lib/commands";
 import type { DesignMockup } from "../../types";
 
 export function DesignView() {
@@ -8,7 +8,6 @@ export function DesignView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -36,35 +35,12 @@ export function DesignView() {
     [mockups, selectedId]
   );
 
-  useEffect(() => {
-    if (!selected) {
-      return;
-    }
-
-    let alive = true;
-    readDesignMockupPreviewHtml(selected.entry_path)
-      .then((html) => {
-        if (!alive) return;
-        setPreviewHtml(html.content);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setPreviewHtml(null);
-        setPreviewError("Preview unavailable for this design mockup.");
-      });
-
-    return () => {
-      alive = false;
-    };
-  }, [selected]);
+  const previewSrc = selected ? designPreviewUrl(selected.entry_path) : null;
 
   const handleSelectMockup = (id: string) => {
     setSelectedId(id);
-    setPreviewHtml(null);
     setPreviewError(null);
   };
-
-  const previewLoading = !!selected && !previewHtml && !previewError;
 
   if (loading) {
     return <CenteredState icon="hourglass_top" title="Loading designs" />;
@@ -236,16 +212,14 @@ export function DesignView() {
               background: "#fff",
             }}
           >
-            {previewLoading ? (
-              <CenteredState icon="hourglass_top" title="Loading preview" light />
-            ) : previewError ? (
+            {previewError ? (
               <CenteredState icon="visibility_off" title={previewError} light />
-            ) : previewHtml ? (
+            ) : previewSrc ? (
               <iframe
                 key={selected?.entry_path}
                 title="Design mockup preview"
                 sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin"
-                srcDoc={previewHtml}
+                src={previewSrc}
                 onError={() => setPreviewError("Preview unavailable for this design mockup.")}
                 style={{ width: "100%", height: "100%", border: 0, background: "#fff" }}
               />
@@ -257,6 +231,11 @@ export function DesignView() {
       </div>
     </div>
   );
+}
+
+function designPreviewUrl(entryPath: string) {
+  const normalized = entryPath.replace(/\\/g, "/").replace(/^\/+/, "");
+  return `http://lmbrain-design.localhost/${normalized.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 function CenteredState({
