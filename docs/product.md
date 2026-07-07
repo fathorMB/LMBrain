@@ -25,6 +25,7 @@ LMBrain does not automatically start agents and does not require a remote servic
 ## Main Views
 
 - Pulse: current project state, diagnostics, and recommended actions.
+- Insights: read-only artifact inventory, spec flow, diagnostics, and review-quality statistics.
 - Wiki: file tree and Markdown rendering for the `.lmbrain/` workspace.
 - Board: specifications grouped by status.
 - Design: operator-loaded self-contained HTML/CSS/JS mockups from `.lmbrain/design/`.

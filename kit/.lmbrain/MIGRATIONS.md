@@ -4,7 +4,17 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.5.0`.
+The current released kit is `2.5.1`.
+
+### 2.5.1 (project insights statistics - app-derived)
+
+`2.5.1` adds an app Insights page with read-only statistics derived from existing LMBrain artifacts. It does not require artifact rewrites.
+
+When upgrading an existing brain to `2.5.1`:
+
+1. No file moves or frontmatter changes are required.
+2. Existing review-quality statistics depend on review `spec` links and `created` dates. Missing links or dates are surfaced as denominator/exclusion counts rather than silently inferred.
+3. Update `.lmbrain/VERSION` to `2.5.1` after opening the project with the bundled app and validating that existing artifacts still parse.
 
 ### 2.5.0 (project-scoped agent skills - additive)
 

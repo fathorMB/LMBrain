@@ -13,6 +13,7 @@ import type {
   McpRecord,
   MilestoneOverview,
   ParsedDocument,
+  ProjectStatistics,
   PulseData,
   Review,
   Roadmap,
@@ -121,6 +122,10 @@ export async function getRoadmap(): Promise<Roadmap> {
 
 export async function getMilestoneOverview(): Promise<MilestoneOverview> {
   return invoke("get_milestone_overview");
+}
+
+export async function getProjectStatistics(): Promise<ProjectStatistics> {
+  return invoke("get_project_statistics");
 }
 
 export async function getWikilinkIndex(): Promise<Record<string, string[]>> {

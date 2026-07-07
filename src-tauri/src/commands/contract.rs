@@ -1,9 +1,12 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
 
+use chrono::NaiveDate;
+
+use crate::commands::design;
 use crate::commands::parser::{self, fm_string, fm_string_array};
 use crate::errors::AppError;
 use crate::models::adr::{Adr, AdrStatus};
@@ -19,6 +22,10 @@ use crate::models::roadmap::{
 };
 use crate::models::skill::{Skill, SkillStatus};
 use crate::models::spec::{Spec, SpecStatus};
+use crate::models::statistics::{
+    ArtifactFamilyStats, DiagnosticStats, ProjectStatistics, ReviewDimensionStat,
+    ReviewQualityStats, ReviewTrendPoint, SpecFlowStats, StatusCount,
+};
 use crate::models::wiki::{WikiNode, WikiNodeKind, WikiTree};
 use crate::models::workspace::{DiagnosticSeverity, KitDiagnostic};
 
@@ -671,6 +678,422 @@ pub fn build_pulse_data(
         ready_handoffs: ready_handoffs.clone(),
         active_handoff: ready_handoffs.into_iter().next(),
     })
+}
+
+pub fn build_project_statistics(root: &Path) -> Result<ProjectStatistics, AppError> {
+    let specs = build_specs(root)?;
+    let reviews = build_reviews(root)?;
+    let adrs = build_adrs(root)?;
+    let agents = build_agents(root)?;
+    let agent_proposals = build_agent_proposals(root)?;
+    let mcp_records = build_mcp_records(root)?;
+    let mcp_proposals = build_mcp_proposals(root)?;
+    let skills = build_skills(root)?;
+    let handoffs = build_handoffs(root)?;
+    let design_mockups = design::scan_design_mockups(root).unwrap_or_default();
+    let diagnostics = build_diagnostics(root);
+
+    let artifact_families = vec![
+        family_stats(
+            "specs",
+            "Specs",
+            specs.iter().map(|spec| spec.status.as_str().to_string()),
+        ),
+        family_stats(
+            "reviews",
+            "Reviews",
+            reviews
+                .iter()
+                .map(|review| review.status.as_str().to_string()),
+        ),
+        family_stats(
+            "decisions",
+            "Decisions",
+            adrs.iter().map(|adr| adr.status.as_str().to_string()),
+        ),
+        family_stats(
+            "agents",
+            "Agent profiles",
+            agents.iter().map(|agent| agent.status.as_str().to_string()),
+        ),
+        family_stats(
+            "agent-proposals",
+            "Agent proposals",
+            agent_proposals
+                .iter()
+                .map(|proposal| agent_proposal_status(&proposal.status).to_string()),
+        ),
+        family_stats(
+            "skills",
+            "Skills",
+            skills.iter().map(|skill| skill.status.as_str().to_string()),
+        ),
+        family_stats(
+            "mcp",
+            "MCP specifications",
+            mcp_records
+                .iter()
+                .map(|record| mcp_status(&record.status).to_string()),
+        ),
+        family_stats(
+            "mcp-proposals",
+            "MCP proposals",
+            mcp_proposals
+                .iter()
+                .map(|proposal| mcp_proposal_status(&proposal.status).to_string()),
+        ),
+        family_stats(
+            "handoffs",
+            "Handoffs",
+            handoffs
+                .iter()
+                .map(|handoff| handoff_status(&handoff.status).to_string()),
+        ),
+        family_stats(
+            "design",
+            "Design mockups",
+            design_mockups.iter().map(|mockup| match mockup.kind {
+                crate::models::design::DesignMockupKind::Package => "package".to_string(),
+                crate::models::design::DesignMockupKind::HtmlFile => "html-file".to_string(),
+            }),
+        ),
+    ];
+
+    Ok(ProjectStatistics {
+        artifact_families,
+        spec_flow: build_spec_flow_stats(&specs),
+        review_quality: build_review_quality_stats(&specs, &reviews),
+        diagnostics: build_diagnostic_stats(&diagnostics),
+    })
+}
+
+fn build_spec_flow_stats(specs: &[Spec]) -> SpecFlowStats {
+    let done_specs = specs
+        .iter()
+        .filter(|spec| spec.status == SpecStatus::Done)
+        .count();
+    let open_specs = specs
+        .iter()
+        .filter(|spec| !matches!(spec.status, SpecStatus::Done | SpecStatus::Discarded))
+        .count();
+
+    SpecFlowStats {
+        total_specs: specs.len(),
+        done_specs,
+        open_specs,
+        done_ratio: ratio(done_specs, specs.len()),
+        by_status: status_counts(specs.iter().map(|spec| spec.status.as_str().to_string())),
+        by_priority: status_counts(specs.iter().map(|spec| {
+            spec.priority
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or("unspecified")
+                .to_string()
+        })),
+        by_area: status_counts(specs.iter().map(|spec| {
+            spec.area
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or("unspecified")
+                .to_string()
+        })),
+    }
+}
+
+fn build_review_quality_stats(specs: &[Spec], reviews: &[Review]) -> ReviewQualityStats {
+    let spec_by_id: HashMap<&str, &Spec> =
+        specs.iter().map(|spec| (spec.id.as_str(), spec)).collect();
+    let mut reviews_by_spec: HashMap<&str, Vec<&Review>> = HashMap::new();
+    let mut reviews_without_spec = 0;
+    let mut reviews_without_created = 0;
+    let mut trend: BTreeMap<String, TrendAccumulator> = BTreeMap::new();
+
+    for review in reviews {
+        let Some(spec_id) = review
+            .spec_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            reviews_without_spec += 1;
+            continue;
+        };
+        reviews_by_spec.entry(spec_id).or_default().push(review);
+
+        if let Some(date) = parse_artifact_date(&review.created) {
+            let period = date.format("%Y-%m").to_string();
+            let entry = trend.entry(period).or_default();
+            entry.total_reviews += 1;
+            match review.status {
+                ReviewStatus::Accepted => entry.accepted_reviews += 1,
+                ReviewStatus::ChangesRequested => entry.changes_requested_reviews += 1,
+                _ => {}
+            }
+            entry.reviewed_specs.insert(spec_id.to_string());
+            if review.status == ReviewStatus::ChangesRequested {
+                entry
+                    .specs_with_changes_requested
+                    .insert(spec_id.to_string());
+            }
+        } else {
+            reviews_without_created += 1;
+        }
+    }
+
+    let reviewed_specs = reviews_by_spec.len();
+    let accepted_reviews = reviews
+        .iter()
+        .filter(|review| review.status == ReviewStatus::Accepted)
+        .count();
+    let changes_requested_reviews = reviews
+        .iter()
+        .filter(|review| review.status == ReviewStatus::ChangesRequested)
+        .count();
+    let blocked_reviews = reviews
+        .iter()
+        .filter(|review| review.status == ReviewStatus::Blocked)
+        .count();
+    let superseded_reviews = reviews
+        .iter()
+        .filter(|review| review.status == ReviewStatus::Superseded)
+        .count();
+
+    let mut specs_with_changes_requested = 0;
+    let mut specs_with_multiple_changes_requested = 0;
+    let mut first_pass_eligible_specs = 0;
+    let mut first_pass_accepted_specs = 0;
+    let mut area_map: HashMap<String, DimensionAccumulator> = HashMap::new();
+    let mut agent_map: HashMap<String, DimensionAccumulator> = HashMap::new();
+
+    for (spec_id, spec_reviews) in &reviews_by_spec {
+        let cr_count = spec_reviews
+            .iter()
+            .filter(|review| review.status == ReviewStatus::ChangesRequested)
+            .count();
+        let has_changes_requested = cr_count > 0;
+        if has_changes_requested {
+            specs_with_changes_requested += 1;
+        }
+        if cr_count > 1 {
+            specs_with_multiple_changes_requested += 1;
+        }
+
+        if let Some(spec) = spec_by_id.get(spec_id) {
+            let area = spec
+                .area
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or("unspecified");
+            area_map
+                .entry(area.to_string())
+                .or_default()
+                .add(has_changes_requested);
+
+            let agent = spec
+                .recommended_agent
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or("unspecified");
+            agent_map
+                .entry(agent.to_string())
+                .or_default()
+                .add(has_changes_requested);
+        }
+
+        let dated = spec_reviews
+            .iter()
+            .filter_map(|review| parse_artifact_date(&review.created).map(|date| (date, *review)))
+            .collect::<Vec<_>>();
+        if dated.len() == spec_reviews.len() && !dated.is_empty() {
+            first_pass_eligible_specs += 1;
+            let first = dated
+                .iter()
+                .min_by_key(|(date, review)| (*date, review.id.as_str()))
+                .map(|(_, review)| *review);
+            if first.is_some_and(|review| review.status == ReviewStatus::Accepted) {
+                first_pass_accepted_specs += 1;
+            }
+        }
+    }
+
+    ReviewQualityStats {
+        total_reviews: reviews.len(),
+        reviewed_specs,
+        accepted_reviews,
+        changes_requested_reviews,
+        blocked_reviews,
+        superseded_reviews,
+        reviews_without_spec,
+        reviews_without_created,
+        specs_with_changes_requested,
+        specs_with_multiple_changes_requested,
+        change_request_rate: ratio(specs_with_changes_requested, reviewed_specs),
+        first_pass_eligible_specs,
+        first_pass_accepted_specs,
+        first_pass_acceptance_rate: ratio(first_pass_accepted_specs, first_pass_eligible_specs),
+        average_reviews_per_reviewed_spec: ratio_f64(
+            reviews_by_spec.values().map(Vec::len).sum::<usize>(),
+            reviewed_specs,
+        ),
+        by_area: dimension_stats(area_map),
+        by_agent: dimension_stats(agent_map),
+        trend: trend
+            .into_iter()
+            .map(|(period, entry)| ReviewTrendPoint {
+                period,
+                total_reviews: entry.total_reviews,
+                accepted_reviews: entry.accepted_reviews,
+                changes_requested_reviews: entry.changes_requested_reviews,
+                reviewed_specs: entry.reviewed_specs.len(),
+                specs_with_changes_requested: entry.specs_with_changes_requested.len(),
+            })
+            .collect(),
+    }
+}
+
+fn build_diagnostic_stats(diagnostics: &[KitDiagnostic]) -> DiagnosticStats {
+    DiagnosticStats {
+        total: diagnostics.len(),
+        warnings: diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.severity == DiagnosticSeverity::Warning)
+            .count(),
+        errors: diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.severity == DiagnosticSeverity::Error)
+            .count(),
+        by_family: status_counts(diagnostics.iter().map(|diagnostic| {
+            diagnostic
+                .path
+                .as_deref()
+                .and_then(|path| path.split(['/', '\\']).next())
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or("workspace")
+                .to_string()
+        })),
+    }
+}
+
+#[derive(Default)]
+struct DimensionAccumulator {
+    reviewed_specs: usize,
+    specs_with_changes_requested: usize,
+}
+
+impl DimensionAccumulator {
+    fn add(&mut self, has_changes_requested: bool) {
+        self.reviewed_specs += 1;
+        if has_changes_requested {
+            self.specs_with_changes_requested += 1;
+        }
+    }
+}
+
+#[derive(Default)]
+struct TrendAccumulator {
+    total_reviews: usize,
+    accepted_reviews: usize,
+    changes_requested_reviews: usize,
+    reviewed_specs: HashSet<String>,
+    specs_with_changes_requested: HashSet<String>,
+}
+
+fn family_stats(
+    family: &str,
+    label: &str,
+    statuses: impl Iterator<Item = String>,
+) -> ArtifactFamilyStats {
+    let statuses = status_counts(statuses);
+    let total = statuses.iter().map(|status| status.count).sum();
+    ArtifactFamilyStats {
+        family: family.into(),
+        label: label.into(),
+        total,
+        statuses,
+    }
+}
+
+fn status_counts(values: impl Iterator<Item = String>) -> Vec<StatusCount> {
+    let mut counts = BTreeMap::<String, usize>::new();
+    for value in values {
+        *counts.entry(value).or_default() += 1;
+    }
+    counts
+        .into_iter()
+        .map(|(status, count)| StatusCount { status, count })
+        .collect()
+}
+
+fn dimension_stats(map: HashMap<String, DimensionAccumulator>) -> Vec<ReviewDimensionStat> {
+    let mut stats = map
+        .into_iter()
+        .map(|(value, counts)| ReviewDimensionStat {
+            value,
+            reviewed_specs: counts.reviewed_specs,
+            specs_with_changes_requested: counts.specs_with_changes_requested,
+            change_request_rate: ratio(counts.specs_with_changes_requested, counts.reviewed_specs),
+        })
+        .collect::<Vec<_>>();
+    stats.sort_by(|left, right| {
+        right
+            .specs_with_changes_requested
+            .cmp(&left.specs_with_changes_requested)
+            .then_with(|| right.reviewed_specs.cmp(&left.reviewed_specs))
+            .then_with(|| left.value.cmp(&right.value))
+    });
+    stats
+}
+
+fn ratio(numerator: usize, denominator: usize) -> f64 {
+    if denominator == 0 {
+        0.0
+    } else {
+        numerator as f64 / denominator as f64
+    }
+}
+
+fn ratio_f64(numerator: usize, denominator: usize) -> f64 {
+    ratio(numerator, denominator)
+}
+
+fn parse_artifact_date(value: &str) -> Option<NaiveDate> {
+    NaiveDate::parse_from_str(value.trim(), "%Y-%m-%d").ok()
+}
+
+fn agent_proposal_status(status: &AgentProposalStatus) -> &'static str {
+    match status {
+        AgentProposalStatus::Proposed => "proposed",
+        AgentProposalStatus::Approved => "approved",
+        AgentProposalStatus::Rejected => "rejected",
+    }
+}
+
+fn mcp_status(status: &McpStatus) -> &'static str {
+    match status {
+        McpStatus::Specified => "specified",
+        McpStatus::Active => "active",
+        McpStatus::Inactive => "inactive",
+        McpStatus::Deprecated => "deprecated",
+    }
+}
+
+fn mcp_proposal_status(status: &McpProposalStatus) -> &'static str {
+    match status {
+        McpProposalStatus::Proposed => "proposed",
+        McpProposalStatus::Approved => "approved",
+        McpProposalStatus::Rejected => "rejected",
+        McpProposalStatus::Implemented => "implemented",
+        McpProposalStatus::Blocked => "blocked",
+    }
+}
+
+fn handoff_status(status: &HandoffStatus) -> &'static str {
+    match status {
+        HandoffStatus::Ready => "ready",
+        HandoffStatus::Consumed => "consumed",
+        HandoffStatus::Superseded => "superseded",
+        HandoffStatus::Archived => "archived",
+    }
 }
 
 pub fn extract_focus_for_test(content: &str) -> Option<String> {

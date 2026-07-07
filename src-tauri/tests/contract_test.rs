@@ -534,6 +534,139 @@ tags: []
 }
 
 #[test]
+fn test_build_project_statistics_counts_changes_requested_by_spec() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let lmbrain = dir.path().join(".lmbrain");
+    fs::create_dir_all(lmbrain.join("reviews/accepted")).unwrap();
+    fs::create_dir_all(lmbrain.join("reviews/changes-requested")).unwrap();
+    fs::create_dir_all(lmbrain.join("reviews/pending")).unwrap();
+
+    fs::write(
+        lmbrain.join("specs/ready/SPEC-FIRST.md"),
+        r#"---
+id: SPEC-FIRST
+title: First pass
+status: ready
+area: frontend
+recommended_agent: AGENT-FRONTEND
+created: 2026-07-01
+updated: 2026-07-01
+tags: []
+links: []
+---
+# First pass
+"#,
+    )
+    .unwrap();
+    fs::write(
+        lmbrain.join("specs/ready/SPEC-LOOP.md"),
+        r#"---
+id: SPEC-LOOP
+title: Review loop
+status: ready
+area: backend
+recommended_agent: AGENT-BACKEND
+created: 2026-07-01
+updated: 2026-07-01
+tags: []
+links: []
+---
+# Review loop
+"#,
+    )
+    .unwrap();
+
+    fs::write(
+        lmbrain.join("reviews/accepted/REVIEW-FIRST.md"),
+        r#"---
+id: REVIEW-FIRST
+title: Review first
+status: accepted
+spec: SPEC-FIRST
+created: 2026-07-02
+updated: 2026-07-02
+tags: []
+links: []
+---
+# Review first
+"#,
+    )
+    .unwrap();
+    fs::write(
+        lmbrain.join("reviews/changes-requested/REVIEW-LOOP-1.md"),
+        r#"---
+id: REVIEW-LOOP-1
+title: Review loop one
+status: changes-requested
+spec: SPEC-LOOP
+created: 2026-07-03
+updated: 2026-07-03
+tags: []
+links: []
+---
+# Review loop one
+"#,
+    )
+    .unwrap();
+    fs::write(
+        lmbrain.join("reviews/accepted/REVIEW-LOOP-2.md"),
+        r#"---
+id: REVIEW-LOOP-2
+title: Review loop two
+status: accepted
+spec: SPEC-LOOP
+created: 2026-07-04
+updated: 2026-07-04
+tags: []
+links: []
+---
+# Review loop two
+"#,
+    )
+    .unwrap();
+    fs::write(
+        lmbrain.join("reviews/pending/REVIEW-NO-SPEC.md"),
+        r#"---
+id: REVIEW-NO-SPEC
+title: Missing spec link
+status: pending
+created: 2026-07-05
+updated: 2026-07-05
+tags: []
+links: []
+---
+# Missing spec link
+"#,
+    )
+    .unwrap();
+
+    let stats = contract::build_project_statistics(dir.path()).unwrap();
+    let review = stats.review_quality;
+
+    assert_eq!(review.total_reviews, 4);
+    assert_eq!(review.reviewed_specs, 2);
+    assert_eq!(review.reviews_without_spec, 1);
+    assert_eq!(review.specs_with_changes_requested, 1);
+    assert_eq!(review.changes_requested_reviews, 1);
+    assert_eq!(review.first_pass_eligible_specs, 2);
+    assert_eq!(review.first_pass_accepted_specs, 1);
+    assert_eq!(review.change_request_rate, 0.5);
+    assert_eq!(review.first_pass_acceptance_rate, 0.5);
+    assert_eq!(review.trend.len(), 1);
+    assert_eq!(review.trend[0].period, "2026-07");
+    assert_eq!(review.trend[0].specs_with_changes_requested, 1);
+    assert!(review
+        .by_area
+        .iter()
+        .any(|area| area.value == "backend" && area.specs_with_changes_requested == 1));
+    assert!(review
+        .by_agent
+        .iter()
+        .any(|agent| agent.value == "AGENT-BACKEND" && agent.specs_with_changes_requested == 1));
+}
+
+#[test]
 fn test_build_diagnostics_area_domain_mismatch() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());

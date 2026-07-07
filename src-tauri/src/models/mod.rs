@@ -10,5 +10,6 @@ pub mod roadmap;
 pub mod session;
 pub mod skill;
 pub mod spec;
+pub mod statistics;
 pub mod wiki;
 pub mod workspace;

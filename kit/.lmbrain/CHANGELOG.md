@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.5.1 - 2026-07-07
+
+### Added
+
+- **Project Insights page.** The app now exposes a dedicated Insights view with artifact inventory, spec flow, diagnostics, and review-quality statistics, including the share of reviewed specs that received `changes-requested`.
+
 ## 2.5.0 - 2026-07-07
 
 ### Added

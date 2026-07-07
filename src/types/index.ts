@@ -324,6 +324,79 @@ export interface MilestoneOverview {
   warnings: string[];
 }
 
+export interface StatusCount {
+  status: string;
+  count: number;
+}
+
+export interface ArtifactFamilyStats {
+  family: string;
+  label: string;
+  total: number;
+  statuses: StatusCount[];
+}
+
+export interface SpecFlowStats {
+  total_specs: number;
+  done_specs: number;
+  open_specs: number;
+  done_ratio: number;
+  by_status: StatusCount[];
+  by_priority: StatusCount[];
+  by_area: StatusCount[];
+}
+
+export interface ReviewDimensionStat {
+  value: string;
+  reviewed_specs: number;
+  specs_with_changes_requested: number;
+  change_request_rate: number;
+}
+
+export interface ReviewTrendPoint {
+  period: string;
+  total_reviews: number;
+  accepted_reviews: number;
+  changes_requested_reviews: number;
+  reviewed_specs: number;
+  specs_with_changes_requested: number;
+}
+
+export interface ReviewQualityStats {
+  total_reviews: number;
+  reviewed_specs: number;
+  accepted_reviews: number;
+  changes_requested_reviews: number;
+  blocked_reviews: number;
+  superseded_reviews: number;
+  reviews_without_spec: number;
+  reviews_without_created: number;
+  specs_with_changes_requested: number;
+  specs_with_multiple_changes_requested: number;
+  change_request_rate: number;
+  first_pass_eligible_specs: number;
+  first_pass_accepted_specs: number;
+  first_pass_acceptance_rate: number;
+  average_reviews_per_reviewed_spec: number;
+  by_area: ReviewDimensionStat[];
+  by_agent: ReviewDimensionStat[];
+  trend: ReviewTrendPoint[];
+}
+
+export interface DiagnosticStats {
+  total: number;
+  warnings: number;
+  errors: number;
+  by_family: StatusCount[];
+}
+
+export interface ProjectStatistics {
+  artifact_families: ArtifactFamilyStats[];
+  spec_flow: SpecFlowStats;
+  review_quality: ReviewQualityStats;
+  diagnostics: DiagnosticStats;
+}
+
 export interface MetricCard {
   label: string;
   count: number;
@@ -454,6 +527,7 @@ export type AppView =
   | "decisions"
   | "agents"
   | "skills"
+  | "insights"
   | "design"
   | "settings"
   | "roadmap"

@@ -293,6 +293,17 @@ fn get_milestone_overview(
 }
 
 #[tauri::command]
+fn get_project_statistics(
+    state: State<'_, AppState>,
+) -> Result<models::statistics::ProjectStatistics, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    contract::build_project_statistics(&root).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn get_wikilink_index(
     state: State<'_, AppState>,
 ) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
@@ -573,6 +584,7 @@ pub fn run() {
             read_design_mockup_preview_html,
             get_roadmap,
             get_milestone_overview,
+            get_project_statistics,
             get_wikilink_index,
             get_diagnostics,
             search_content,

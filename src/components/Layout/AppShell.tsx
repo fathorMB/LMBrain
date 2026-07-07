@@ -13,6 +13,7 @@ import { SkillsView } from "../Skills/SkillsView";
 import { DesignView } from "../Design/DesignView";
 import { SettingsView } from "../Settings/SettingsView";
 import { RoadmapView } from "../Roadmap/RoadmapView";
+import { InsightsView } from "../Insights/InsightsView";
 import { SessionsView } from "../Sessions/SessionsView";
 import { CommandPalette } from "../CommandPalette";
 import { ArtifactDetailModal } from "./ArtifactDetailModal";
@@ -50,6 +51,8 @@ export function AppShell() {
         return <SettingsView />;
       case "roadmap":
         return <RoadmapView />;
+      case "insights":
+        return <InsightsView />;
       case "search":
         return <PlaceholderView />;
       default:

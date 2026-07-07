@@ -14,6 +14,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "wiki", icon: "menu_book", label: "Wiki", badge: null },
   { key: "taskboard", icon: "view_kanban", label: "Board", badge: null },
   { key: "roadmap", icon: "flag", label: "Roadmap", badge: null },
+  { key: "insights", icon: "query_stats", label: "Insights", badge: null },
   { key: "reviews", icon: "rate_review", label: "Reviews", badge: null },
   { key: "decisions", icon: "account_balance", label: "Decisions", badge: null },
   { key: "design", icon: "design_services", label: "Design", badge: null },

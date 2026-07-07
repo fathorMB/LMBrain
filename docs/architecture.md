@@ -23,6 +23,7 @@ Important areas:
 - `src/components/Pulse/`: project pulse and recommended actions.
 - `src/components/Wiki/`: Markdown tree and page viewer.
 - `src/components/Design/`: design mockup browser and isolated HTML preview.
+- `src/components/Insights/`: read-only project statistics and review-quality metrics.
 - `src/components/Skills/`: dedicated project-scoped skill browser.
 - `src/components/Taskboard/`: spec board.
 - `src/components/Sessions/`: tab-based session workspace with xterm terminal integration.
@@ -67,6 +68,12 @@ Skills are `SKILL-*` Markdown artifacts under `.lmbrain/skills/<status>/`. They 
 Skills are not executable capabilities. LMBrain parses and displays skill commands, includes applicable active skills in context packs, and reports reference diagnostics, but it does not run commands automatically.
 
 The app exposes skills through a dedicated `Skills` page rather than adding them to `Agents & MCP`. Specs and agent profiles may reference skills through optional `skills: []` frontmatter.
+
+### Project insights
+
+The Insights page is backed by `get_project_statistics`, a Tauri command that derives read-only metrics from parsed LMBrain artifacts. It reports artifact inventory, spec flow, diagnostics, and review-quality statistics.
+
+Review-quality metrics are spec-centric where possible. The main change-request rate is calculated as distinct specs with at least one `changes-requested` review divided by distinct reviewed specs. First-pass acceptance is calculated only for reviewed specs whose linked reviews have valid `created` dates, and missing dates or missing `spec` links are surfaced as explicit counts rather than inferred.
 
 ### Milestone intelligence (v3)
 
