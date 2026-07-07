@@ -98,4 +98,18 @@ describe("buildMigrationPrompt", () => {
     expect(prompt).toContain("2.1.2");
     expect(prompt).toContain("2.2.7");
   });
+
+  it("normalizes Windows extended paths in migration prompts", () => {
+    const prompt = buildMigrationPrompt(
+      "E:/workspace",
+      "2.3.4",
+      "2.4.0",
+      "migration-available",
+      "\\\\?\\C:\\Program Files\\LMBrain\\kit\\.lmbrain"
+    );
+
+    expect(prompt).toContain("Bundled kit source path: C:/Program Files/LMBrain/kit/.lmbrain");
+    expect(prompt).not.toContain("\\\\?\\");
+    expect(prompt).not.toContain("file:///%3F");
+  });
 });

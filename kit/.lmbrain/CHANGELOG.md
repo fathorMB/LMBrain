@@ -4,7 +4,7 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
-## 2.4.0 - 2026-07-07
+## 2.4.1 - 2026-07-07
 
 ### Added
 
@@ -15,6 +15,7 @@ The `VERSION` file is the canonical, machine-readable kit version.
 
 - **Spec closeout invariant false-negative.** `spec_done` now evaluates checked boxes only inside `## Acceptance criteria` and accepts implementation evidence under `## Implementation evidence` or `## Evidence`, avoiding false failures caused by unrelated checklists such as handoff status.
 - **Review remediation lifecycle guidance.** Kit docs, templates, handoff prompts, and MCP descriptions now reinforce that only implementers move specs to `working`/`review`, and changes-requested remediation happens while the spec stays in `review`.
+- **Windows migration prompt paths.** Bundled kit paths are normalized before they reach migration prompts, avoiding malformed `file:///%3F...` URLs when the installed app resolves paths through the Windows extended-path prefix.
 
 ## 2.3.4 - 2026-07-05
 

@@ -32,8 +32,9 @@ export function buildMigrationPrompt(
   bundledKitPath?: string
 ): string {
   const isUnknown = status === "unknown-project-version" || status === "unknown-bundled-version";
-  const bundledSource = bundledKitPath?.trim()
-    ? `Bundled kit source path: ${bundledKitPath.trim()}\n`
+  const safeBundledKitPath = normalizePromptPath(bundledKitPath);
+  const bundledSource = safeBundledKitPath
+    ? `Bundled kit source path: ${safeBundledKitPath}\n`
     : "";
   
   if (isUnknown) {
@@ -100,4 +101,13 @@ Please execute the migration workflow:
 10. Present the migration plan and ask for operator confirmation before performing any additive migration writes.
 11. If any required changes are breaking or ambiguous, create a migration spec or report the conflicts clearly to the operator.
 12. Update the version identifier in \`.lmbrain/VERSION\` to "${bundledVersion}" only after all migration steps and validation succeed, and the operator approves.`;
+}
+
+function normalizePromptPath(path?: string | null): string {
+  const trimmed = path?.trim();
+  if (!trimmed) return "";
+  return trimmed
+    .replace(/^\\\\\?\\/, "")
+    .replace(/^\/\/\?\//, "")
+    .replace(/\\/g, "/");
 }

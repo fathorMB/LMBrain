@@ -4,8 +4,8 @@ use std::sync::Mutex;
 use crate::commands::filesystem::clean_path;
 use crate::errors::AppError;
 use crate::models::workspace::{
-    DiagnosticSeverity, KitDiagnostic, KitHealth, WorkspaceInfo, WorkspaceRegistry,
-    WorkspaceSummary, KitMigrationStatus,
+    DiagnosticSeverity, KitDiagnostic, KitHealth, KitMigrationStatus, WorkspaceInfo,
+    WorkspaceRegistry, WorkspaceSummary,
 };
 
 /// Manages the workspace registry (recent/pinned workspaces) and kit validation.
@@ -84,7 +84,11 @@ impl WorkspaceService {
     }
 
     /// Validate a workspace path and return its info.
-    pub fn validate_workspace(&self, path: &str, bundled_kit_path: Option<&Path>) -> Result<WorkspaceInfo, AppError> {
+    pub fn validate_workspace(
+        &self,
+        path: &str,
+        bundled_kit_path: Option<&Path>,
+    ) -> Result<WorkspaceInfo, AppError> {
         let root = Path::new(path);
         if !root.exists() {
             return Err(AppError::WorkspaceNotFound(format!(
@@ -104,7 +108,7 @@ impl WorkspaceService {
         let mut diagnostics = Vec::new();
         let mut health = KitHealth::Ok;
         let bundled_kit_path_display = bundled_kit_path
-            .map(|p| p.to_string_lossy().to_string())
+            .map(display_path_for_prompt)
             .unwrap_or_default();
 
         // Read bundled version if path is provided
@@ -220,7 +224,10 @@ impl WorkspaceService {
                             if migrations_path.exists() {
                                 if let Ok(content) = std::fs::read_to_string(&migrations_path) {
                                     let heading_prefix = format!("### {}", bundled_kit_version);
-                                    if content.lines().any(|line| line.trim().starts_with(&heading_prefix)) {
+                                    if content
+                                        .lines()
+                                        .any(|line| line.trim().starts_with(&heading_prefix))
+                                    {
                                         guidance_exists = true;
                                     }
                                 }
@@ -296,6 +303,15 @@ impl WorkspaceService {
 
         self.validate_workspace(&root.to_string_lossy(), Some(template))
     }
+}
+
+fn display_path_for_prompt(path: &Path) -> String {
+    let raw = path.to_string_lossy();
+    let stripped = raw
+        .strip_prefix(r"\\?\")
+        .or_else(|| raw.strip_prefix(r"//?/"))
+        .unwrap_or(&raw);
+    stripped.replace('\\', "/")
 }
 
 fn copy_directory(source: &Path, destination: &Path) -> Result<(), AppError> {

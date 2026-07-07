@@ -1,7 +1,7 @@
-use std::fs;
-use std::path::Path;
 use lmbrain_lib::commands::workspace::WorkspaceService;
 use lmbrain_lib::models::workspace::KitMigrationStatus;
+use std::fs;
+use std::path::Path;
 
 fn setup_test_workspace(dir: &Path, project_version: Option<&str>) {
     let lmbrain = dir.join(".lmbrain");
@@ -68,7 +68,27 @@ fn test_migration_status_available_with_guidance() {
     assert_eq!(info.project_kit_version, "2.1.2");
     assert_eq!(info.bundled_kit_version, "2.2.7");
     assert!(info.bundled_kit_path.ends_with(".lmbrain"));
-    assert_eq!(info.kit_migration_status, KitMigrationStatus::MigrationAvailable);
+    assert_eq!(
+        info.kit_migration_status,
+        KitMigrationStatus::MigrationAvailable
+    );
+}
+
+#[test]
+fn test_bundled_kit_path_display_strips_windows_extended_prefix() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_workspace(dir.path(), Some("2.1.2"));
+
+    let extended = Path::new(r"\\?\C:\Program Files\LMBrain\kit\.lmbrain");
+    let service = WorkspaceService::new();
+    let info = service
+        .validate_workspace(&dir.path().to_string_lossy(), Some(extended))
+        .unwrap();
+
+    assert_eq!(
+        info.bundled_kit_path,
+        "C:/Program Files/LMBrain/kit/.lmbrain"
+    );
 }
 
 #[test]
@@ -92,7 +112,10 @@ fn test_migration_status_guidance_missing() {
         )
         .unwrap();
 
-    assert_eq!(info.kit_migration_status, KitMigrationStatus::MigrationGuidanceMissing);
+    assert_eq!(
+        info.kit_migration_status,
+        KitMigrationStatus::MigrationGuidanceMissing
+    );
 }
 
 #[test]
@@ -111,7 +134,10 @@ fn test_migration_status_project_newer() {
         )
         .unwrap();
 
-    assert_eq!(info.kit_migration_status, KitMigrationStatus::ProjectNewerThanApp);
+    assert_eq!(
+        info.kit_migration_status,
+        KitMigrationStatus::ProjectNewerThanApp
+    );
 }
 
 #[test]
@@ -131,7 +157,10 @@ fn test_migration_status_unknown_project_version() {
         )
         .unwrap();
 
-    assert_eq!(info.kit_migration_status, KitMigrationStatus::UnknownProjectVersion);
+    assert_eq!(
+        info.kit_migration_status,
+        KitMigrationStatus::UnknownProjectVersion
+    );
 }
 
 #[test]
@@ -150,5 +179,8 @@ fn test_migration_status_unparsable_versions() {
         )
         .unwrap();
 
-    assert_eq!(info.kit_migration_status, KitMigrationStatus::UnknownProjectVersion);
+    assert_eq!(
+        info.kit_migration_status,
+        KitMigrationStatus::UnknownProjectVersion
+    );
 }
