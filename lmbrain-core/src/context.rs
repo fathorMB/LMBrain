@@ -97,6 +97,7 @@ pub struct CompactReview {
 pub struct AgentProfileSummary {
     pub id: String,
     pub title: String,
+    pub mnemonic_name: Option<String>,
     pub role: Option<String>,
     pub status: String,
     pub can_implement: Option<bool>,
@@ -645,6 +646,7 @@ fn resolve_agent(lmbrain: &Path, agent_id: &str) -> Option<AgentProfileSummary> 
                         return Some(AgentProfileSummary {
                             id: agent_id.to_string(),
                             title: doc.value("title").unwrap_or_default(),
+                            mnemonic_name: doc.value("mnemonic_name"),
                             role: doc.value("role"),
                             status: doc.value("status").unwrap_or_default(),
                             can_implement: doc.bool("can_implement"),
@@ -962,6 +964,9 @@ fn format_spec_context_md(
     if let Some(agent) = recommended_agent {
         md.push_str(&format!("**Recommended agent:** {agent}\n"));
         if let Some(profile) = agent_profile {
+            if let Some(name) = &profile.mnemonic_name {
+                md.push_str(&format!("  - Mnemonic name: {name}\n"));
+            }
             md.push_str(&format!("  - Role: {}\n", profile.role.as_deref().unwrap_or("unspecified")));
             md.push_str(&format!("  - Status: {}\n", profile.status));
         }
@@ -1222,6 +1227,7 @@ links: []
             r#"---
 id: AGENT-FULLSTACK-DESKTOP
 title: "Fullstack Desktop Specialist"
+mnemonic_name: "Sam Stacktrace"
 status: active
 role: "Fullstack Rust/TypeScript developer"
 activation: manual
@@ -1300,10 +1306,15 @@ links: []
             ctx.agent_profile.as_ref().unwrap().id,
             "AGENT-FULLSTACK-DESKTOP"
         );
+        assert_eq!(
+            ctx.agent_profile.as_ref().unwrap().mnemonic_name.as_deref(),
+            Some("Sam Stacktrace")
+        );
         assert_eq!(ctx.acceptance_criteria.len(), 2);
         assert!(!ctx.acceptance_criteria[0].checked);
         assert!(ctx.explicit_files.iter().any(|f| f.contains("main.rs")));
         assert!(ctx.markdown.contains("Spec Context"));
+        assert!(ctx.markdown.contains("Sam Stacktrace"));
     }
 
     #[test]

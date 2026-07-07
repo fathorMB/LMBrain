@@ -1,7 +1,9 @@
 use lmbrain_core::{
     frontmatter::Document,
     invariants,
-    transitions::{create, transition, ArtifactKind, CreateRequest, MutationOptions},
+    transitions::{
+        create, set_agent_mnemonic_name, transition, ArtifactKind, CreateRequest, MutationOptions,
+    },
 };
 use std::fs;
 use tempfile::tempdir;
@@ -117,11 +119,17 @@ fn invariants_cover_reviews_handoffs_specs_criteria_and_agents() {
     assert!(invariants::criteria_complete_with_evidence(
         "## Acceptance criteria\n- [x] Done\n## Evidence\nproof"
     ));
+    assert!(invariants::criteria_complete_with_evidence(
+        "## Acceptance criteria\n- [x] Done\n\n## Implementation evidence\n### Changes made\nImplemented.\n\n### Handoff status\n- [ ] Ready for Project Lead review"
+    ));
     assert!(!invariants::criteria_complete_with_evidence(
         "## Evidence\nproof"
     ));
     assert!(!invariants::criteria_complete_with_evidence(
         "## Acceptance criteria\n- [ ] Pending\n## Evidence\nproof"
+    ));
+    assert!(!invariants::criteria_complete_with_evidence(
+        "## Acceptance criteria\n- [x] Done\n\n## Implementation evidence\n### Changes made\n### Verification performed"
     ));
     write(
         r,
@@ -133,6 +141,39 @@ fn invariants_cover_reviews_handoffs_specs_criteria_and_agents() {
         r,
         Some("AGENT-XXX")
     ));
+}
+
+#[test]
+fn spec_done_accepts_checked_criteria_with_implementation_evidence_and_other_unchecked_lists() {
+    let d = tempdir().unwrap();
+    let r = d.path();
+    write(
+        r,
+        ".lmbrain/specs/review/SPEC-001-real-shape.md",
+        "---\nid: SPEC-001\nstatus: review\n---\n\n## Acceptance criteria\n- [x] The actual acceptance criterion is met.\n\n## Implementation evidence\n### Changes made\nImplemented the requested behavior.\n\n### Handoff status\n- [ ] Ready for Project Lead review\n",
+    );
+    write(
+        r,
+        ".lmbrain/reviews/accepted/REVIEW-001.md",
+        "---\nid: REVIEW-001\nspec: SPEC-001\nstatus: accepted\n---\n",
+    );
+
+    let result = transition(
+        r,
+        ".lmbrain/specs/review/SPEC-001-real-shape.md",
+        "done",
+        MutationOptions::default(),
+    )
+    .unwrap();
+
+    assert_eq!(result.status, "done");
+    assert!(
+        result
+            .path
+            .ends_with(".lmbrain/specs/done/SPEC-001-real-shape.md"),
+        "unexpected path {:?}",
+        result.path
+    );
 }
 
 #[test]
@@ -168,6 +209,41 @@ fn creation_allocates_progressive_ids_and_keeps_flat_artifacts_flat() {
         "unexpected path {:?}",
         result.path
     );
+}
+
+#[test]
+fn agent_mnemonic_name_setter_is_agent_only_and_audited() {
+    let d = tempdir().unwrap();
+    let r = d.path();
+    write(
+        r,
+        ".lmbrain/agents/profiles/AGENT-001.md",
+        "---\nid: AGENT-001\ntitle: Specialist\nstatus: active\n---\nBody",
+    );
+    write(
+        r,
+        ".lmbrain/specs/ready/SPEC-001.md",
+        "---\nid: SPEC-001\ntitle: Spec\nstatus: ready\n---\nBody",
+    );
+
+    let result = set_agent_mnemonic_name(
+        r,
+        ".lmbrain/agents/profiles/AGENT-001.md",
+        "Ada Checklist",
+        MutationOptions::default(),
+    )
+    .unwrap();
+    let out = fs::read_to_string(result.path).unwrap();
+    assert!(out.contains("mnemonic_name: \"Ada Checklist\""));
+    assert!(out.contains("action: \"set mnemonic_name\""));
+
+    let not_agent = set_agent_mnemonic_name(
+        r,
+        ".lmbrain/specs/ready/SPEC-001.md",
+        "Spec Wrangler",
+        MutationOptions::default(),
+    );
+    assert!(not_agent.is_err());
 }
 
 #[test]

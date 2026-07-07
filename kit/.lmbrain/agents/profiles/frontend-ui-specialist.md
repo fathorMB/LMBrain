@@ -1,6 +1,7 @@
 ---
 id: AGENT-FRONTEND-UI
 title: "Frontend UI Specialist"
+mnemonic_name: "Marta Pixelperfetta"
 status: proposed
 role: frontend-ui-specialist
 activation: manual

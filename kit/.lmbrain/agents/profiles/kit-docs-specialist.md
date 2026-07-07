@@ -1,6 +1,7 @@
 ---
 id: AGENT-KIT-DOCS
 title: "Kit/Docs/Release Specialist"
+mnemonic_name: "Nina Changelog"
 status: proposed
 role: kit-docs-release-specialist
 activation: manual

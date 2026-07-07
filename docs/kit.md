@@ -66,16 +66,16 @@ Context packs are derived views only. Source artifacts remain the system of reco
 
 The kit ships granular specialist profiles for recurring bounded work:
 
-| Profile | ID | Domains |
-| --- | --- | --- |
-| Frontend UI Specialist | AGENT-FRONTEND-UI | frontend, ui, react, typescript, css |
-| Tauri/Rust Backend Specialist | AGENT-TAURI-BACKEND | tauri, rust, backend |
-| MCP/Contract Specialist | AGENT-MCP-CONTRACT | mcp, contract, core |
-| Kit/Docs/Release Specialist | AGENT-KIT-DOCS | kit, docs, release |
-| Product Reviewer/QA | AGENT-REVIEWER | review, qa, testing |
-| Design Specialist | AGENT-DESIGN | design, ui-ux |
+| Profile | Name | ID | Domains |
+| --- | --- | --- | --- |
+| Frontend UI Specialist | Marta Pixelperfetta | AGENT-FRONTEND-UI | frontend, ui, react, typescript, css |
+| Tauri/Rust Backend Specialist | Bruno Fileguard | AGENT-TAURI-BACKEND | tauri, rust, backend |
+| MCP/Contract Specialist | Vera Protocollo | AGENT-MCP-CONTRACT | mcp, contract, core |
+| Kit/Docs/Release Specialist | Nina Changelog | AGENT-KIT-DOCS | kit, docs, release |
+| Product Reviewer/QA | Clara Redpen | AGENT-REVIEWER | review, qa, testing |
+| Design Specialist | Lia Wireframe | AGENT-DESIGN | design, ui-ux |
 
-All profiles use `activation: manual`. The Project Lead recommends the most specific profile for each spec. See `agents/registry.md` for the full registry.
+All profiles use `activation: manual`. The Project Lead recommends the most specific profile for each spec. `mnemonic_name` is a human conversational label only; authority still comes from the profile's `id`, `status`, and capability fields. See `agents/registry.md` for the full registry.
 
 ### Controlled improvement loop
 

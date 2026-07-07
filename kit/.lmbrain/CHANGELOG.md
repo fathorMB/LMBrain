@@ -4,6 +4,18 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.4.0 - 2026-07-07
+
+### Added
+
+- **Agent mnemonic names.** Agent profiles now support optional `mnemonic_name` metadata, and agent proposals support `proposed_mnemonic_name`. Bundled specialist profiles include human, memorable role-aligned names, and the Project Lead contract now requires a mnemonic name when proposing or creating profiles.
+- **Controlled mnemonic-name mutation.** `lmbrain-mcp` exposes `lmbrain_set_agent_mnemonic_name` so existing profiles can receive or update mnemonic names without hand-editing managed frontmatter.
+
+### Fixed
+
+- **Spec closeout invariant false-negative.** `spec_done` now evaluates checked boxes only inside `## Acceptance criteria` and accepts implementation evidence under `## Implementation evidence` or `## Evidence`, avoiding false failures caused by unrelated checklists such as handoff status.
+- **Review remediation lifecycle guidance.** Kit docs, templates, handoff prompts, and MCP descriptions now reinforce that only implementers move specs to `working`/`review`, and changes-requested remediation happens while the spec stays in `review`.
+
 ## 2.3.4 - 2026-07-05
 
 ### Fixed

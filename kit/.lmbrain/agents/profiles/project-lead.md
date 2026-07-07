@@ -1,6 +1,7 @@
 ---
 id: AGENT-LEAD
 title: Project Lead
+mnemonic_name: "Ada Checklist"
 status: active
 role: project-lead
 activation: manual

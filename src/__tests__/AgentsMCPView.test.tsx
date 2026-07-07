@@ -8,6 +8,7 @@ const dispatch = vi.fn();
 const activeAgent: AgentProfile = {
   id: "AGENT-001",
   title: "Active Specialist",
+  mnemonic_name: "Ada Checklist",
   status: "active",
   role: "specialist",
   activation: "manual",
@@ -30,6 +31,7 @@ const activeAgent: AgentProfile = {
 const specializedAgent: AgentProfile = {
   id: "AGENT-FRONTEND-UI",
   title: "Frontend UI Specialist",
+  mnemonic_name: "Marta Pixelperfetta",
   status: "proposed",
   role: "frontend-ui-specialist",
   activation: "manual",
@@ -52,6 +54,7 @@ const approvedProposal: AgentProposal = {
   id: "AGENT-PROP-001",
   title: "Approved Specialist Proposal",
   status: "approved",
+  proposed_mnemonic_name: null,
   proposal_type: null,
   target_profile: null,
   body: "",
@@ -66,6 +69,7 @@ const pendingProposal: AgentProposal = {
   id: "AGENT-PROP-002",
   title: "Pending Specialist Proposal",
   status: "proposed",
+  proposed_mnemonic_name: "Bruno Fileguard",
   proposal_type: null,
   target_profile: null,
   body: "",
@@ -80,6 +84,7 @@ const approvedOrphanProposal: AgentProposal = {
   id: "AGENT-PROP-003",
   title: "Approved Without Profile",
   status: "approved",
+  proposed_mnemonic_name: null,
   proposal_type: null,
   target_profile: null,
   body: "",
@@ -95,6 +100,7 @@ const improvementProposal: AgentProposal = {
   id: "AGENT-PROP-IMPROVE-001",
   title: "Improve frontend specialist",
   status: "proposed",
+  proposed_mnemonic_name: null,
   proposal_type: "improvement",
   target_profile: "AGENT-FRONTEND-UI",
   body: "",
@@ -134,18 +140,29 @@ describe("AgentsMCPView", () => {
   it("hides materialized approvals while keeping unresolved agent proposals visible", async () => {
     render(<AgentsMCPView />);
 
-    await waitFor(() => expect(screen.getByText("Active Specialist")).toBeDefined());
+    await waitFor(() => expect(screen.getByText("Ada Checklist")).toBeDefined());
 
     expect(screen.getByText("Pending Specialist Proposal")).toBeDefined();
+    expect(screen.getByText("proposes Bruno Fileguard")).toBeDefined();
     expect(screen.getByText("Approved Without Profile")).toBeDefined();
     expect(screen.queryByText("Approved Specialist Proposal")).toBeNull();
+  });
+
+  it("renders mnemonic names for agent profiles while preserving role titles", async () => {
+    render(<AgentsMCPView />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Marta Pixelperfetta")).toBeDefined();
+    });
+
+    expect(screen.getByText("Frontend UI Specialist")).toBeDefined();
   });
 
   it("renders domain chips for agents with specialization metadata", async () => {
     render(<AgentsMCPView />);
 
     await waitFor(() => {
-      expect(screen.getByText("Frontend UI Specialist")).toBeDefined();
+      expect(screen.getByText("Marta Pixelperfetta")).toBeDefined();
     });
 
     // Domain chips should be visible
@@ -158,7 +175,7 @@ describe("AgentsMCPView", () => {
     render(<AgentsMCPView />);
 
     await waitFor(() => {
-      expect(screen.getByText("Frontend UI Specialist")).toBeDefined();
+      expect(screen.getByText("Marta Pixelperfetta")).toBeDefined();
     });
 
     // Review focus chips should be visible

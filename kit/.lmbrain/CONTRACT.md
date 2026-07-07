@@ -42,6 +42,10 @@ Required fields are `id`, `title`, `status`, `created`, `updated`, `tags`, and `
 
 Optional shared fields: `area`, `milestone`, `priority`, `owner`.
 
+Agent-profile optional field: `mnemonic_name`. It is a short human conversational label for an agent profile. It does not replace `id`, `title`, `role`, or authority metadata.
+
+Agent-proposal optional field: `proposed_mnemonic_name`. It records the intended `mnemonic_name` before a profile is materialized.
+
 Priority values: `critical`, `high`, `medium`, `low`.
 
 ## Allowed statuses
@@ -75,6 +79,7 @@ Agents must read mandatory policy files (`QUALITY.md`, `CONTRACT.md`, `AGENT.md`
 - `rejected` is a terminal "declined at proposal/decision time" status available on every proposable artifact (Spec, ADR, Agent proposal, MCP proposal). It is distinct from `changes-requested` (a review asking for revision and resubmission) and from `archived`/`superseded`/`deprecated` (retiring something that was once active). A rejected artifact records the rejection rationale in its body and is not silently reopened.
 - An `active` MCP needs a documented spec, permissions, and verification evidence.
 - An agent profile always has `activation: manual`; LMBrain never spawns agents.
+- An agent profile may have a `mnemonic_name`; when present it is display/context metadata only and never grants authority.
 - An ADR is not rewritten to change history: create a replacement ADR and mark the old one `superseded`.
 - The Project Lead may write only inside `.lmbrain/` during ordinary work. It may alter application code only through the narrowly scoped, operator-authorized escalation process in `AGENT.md`.
 - All implementation and review work complies with `QUALITY.md` unless a human-approved exception is recorded.

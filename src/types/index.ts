@@ -121,6 +121,7 @@ export type AgentStatus = "proposed" | "active" | "inactive" | "retired";
 export interface AgentProfile {
   id: string;
   title: string;
+  mnemonic_name: string | null;
   status: AgentStatus;
   role: string | null;
   activation: string | null;
@@ -147,6 +148,7 @@ export interface AgentProposal {
   id: string;
   title: string;
   status: AgentProposalStatus;
+  proposed_mnemonic_name: string | null;
   // V3: proposal type — "new-profile" (default) or "improvement"
   proposal_type: string | null;
   // V3: target profile ID for improvement proposals

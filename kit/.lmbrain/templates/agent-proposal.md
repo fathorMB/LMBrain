@@ -3,6 +3,7 @@ id: AGENT-PROP-XXX
 # Note: Quote the title if it contains a colon
 title: "Proposal for a specialist profile"
 status: proposed
+proposed_mnemonic_name: "Human mnemonic name"
 requested_by: AGENT-LEAD
 reason: recurring-specialized-work
 # V3: proposal type — "new-profile" (default) or "improvement"
@@ -30,6 +31,8 @@ tags: [proposal]
 ## Cost and complexity
 
 ## Preliminary profile
+
+Include the proposed `mnemonic_name` and explain why it is memorable, lightly ironic, and aligned with the profile's role.
 
 ## Evidence (improvement proposals only)
 <!-- Link accepted reviews, remediation specs, or diagnostics that support this improvement -->

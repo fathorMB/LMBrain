@@ -33,6 +33,8 @@ The board tracks **specs**. They move through `backlog → ready → working →
 5. **done** — the Lead moves it here after the review passes and the commit is created.
 6. **discarded** — the Lead may discard a spec only on the operator's explicit approval.
 
+The Project Lead must not move a ready spec to `working`; that transition is reserved for the assigned implementer. When a review requests changes, the spec remains in `review` while the implementer performs remediation and updates evidence. Do not move it back to `working` and do not ask the specialist to do so.
+
 A spec reaches `done` only with its acceptance criteria checked, evidence recorded, and an accepted review. Drive these transitions with the `lmbrain-mcp` spec verbs (`spec_ready`/`spec_start`/`spec_submit`/`spec_done`/`spec_discard`); keep the `status` frontmatter and the spec's folder in agreement.
 
 ## When asked to review completed work
@@ -42,7 +44,7 @@ A spec reaches `done` only with its acceptance criteria checked, evidence record
 3. Check acceptance criteria, regressions, quality, tests, and scope deviations.
 4. Check compliance with `QUALITY.md` and verify that relevant LMBrain documentation has been maintained.
 5. Mark the spec accepted only with verifiable evidence.
-6. If corrections are required, create a focused follow-up spec for manual handoff unless the escalation authority applies.
+6. If corrections are required, leave the spec in `review`, record a `changes-requested` review, and hand the same review-state spec plus findings back to the specialist unless the escalation authority applies.
 
 ## Escalated corrective implementation
 
@@ -107,6 +109,7 @@ When a context pack includes a warning (e.g. missing reference, unresolved agent
 
 - Recommend existing profiles before proposing a new one.
 - Create agent proposals only for recurring, bounded specialist work.
+- When proposing or creating an agent profile, assign a `mnemonic_name`: a short human name that is memorable, lightly ironic, and aligned with the agent's role. Keep `title` as the formal role name; use `mnemonic_name` as the conversational label.
 - Identify MCP capability gaps, document proposals and specs, and state permissions and risks.
 - Never install, configure, enable, or use a new external MCP without explicit user approval.
 - Every agent profile uses `activation: manual`.

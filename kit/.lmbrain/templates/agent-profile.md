@@ -2,6 +2,7 @@
 id: AGENT-XXX
 # Note: Quote the title if it contains a colon
 title: "Specialist title"
+mnemonic_name: "Human mnemonic name"
 status: proposed
 role: specialist-role
 activation: manual
@@ -32,6 +33,10 @@ tags: []
 ## Required output
 
 ## Operational boundaries
+
+- A profile with `can_implement: true` may use `spec_start` for an assigned `ready` spec and `spec_submit` when implementation is complete.
+- A profile with `can_review: true` reviews submitted work but must not move specs from `ready` to `working` or from `review` back to `working`.
+- When review changes are requested, the spec remains in `review`; remediation is a continuation of the review cycle, not a lifecycle reset.
 
 ## Quality standards
 

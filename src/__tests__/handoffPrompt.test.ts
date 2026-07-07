@@ -37,6 +37,15 @@ describe("buildHandoffPrompt", () => {
     expect(prompt).toContain("spec_submit");
   });
 
+  it("keeps remediation handoffs in review without lifecycle ping-pong", () => {
+    const prompt = buildHandoffPrompt("AGENT-TEST", "SPEC-001", "review", "SPEC-001-test.md");
+    expect(prompt).toContain(".lmbrain/specs/review/SPEC-001-test.md");
+    expect(prompt).toContain("already in `review`");
+    expect(prompt).toContain("do not move it back to `working`");
+    expect(prompt).not.toContain("run `spec_start`");
+    expect(prompt).not.toContain("run `spec_submit`");
+  });
+
   it("includes the lmbrain-mcp tool usage instruction", () => {
     const prompt = buildHandoffPrompt("AGENT-TEST", "SPEC-001", "ready");
     expect(prompt).toContain("lmbrain-mcp");
@@ -64,6 +73,8 @@ describe("buildMigrationPrompt", () => {
     expect(prompt).toContain("agents/profiles");
     expect(prompt).toContain("agents/proposals");
     expect(prompt).toContain("merge registry rows/guidance additively");
+    expect(prompt).toContain("mnemonic_name");
+    expect(prompt).toContain("sticky-review/spec-closeout lifecycle guidance");
     expect(prompt).toContain("MIGRATIONS.md");
     expect(prompt).toContain("CONTRACT.md");
     expect(prompt).toContain("QUALITY.md");

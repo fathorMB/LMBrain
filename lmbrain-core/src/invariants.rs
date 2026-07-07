@@ -13,7 +13,10 @@ pub fn spec_has_accepted_review(root: &Path, spec_id: &str) -> bool {
 }
 
 pub fn criteria_complete_with_evidence(body: &str) -> bool {
-    let criteria = body
+    let Some(criteria_section) = markdown_section(body, &["acceptance criteria"]) else {
+        return false;
+    };
+    let criteria = criteria_section
         .lines()
         .filter(|line| line.trim_start().starts_with("- ["))
         .collect::<Vec<_>>();
@@ -23,10 +26,71 @@ pub fn criteria_complete_with_evidence(body: &str) -> bool {
             let trimmed = line.trim_start();
             trimmed.starts_with("- [x]") || trimmed.starts_with("- [X]")
         })
-        && body
-            .split("## Evidence")
-            .nth(1)
-            .is_some_and(|value| !value.trim().is_empty())
+        && markdown_section(body, &["implementation evidence", "evidence"])
+            .is_some_and(has_evidence_content)
+}
+
+fn markdown_section<'a>(body: &'a str, headings: &[&str]) -> Option<&'a str> {
+    let mut section_start = None;
+    let mut section_level = 0usize;
+
+    for (offset, line) in line_offsets(body) {
+        let Some((level, text)) = heading(line) else {
+            continue;
+        };
+
+        if let Some(start) = section_start {
+            if level <= section_level {
+                return Some(&body[start..offset]);
+            }
+        }
+
+        if section_start.is_none()
+            && headings
+                .iter()
+                .any(|candidate| normalize_heading(text) == *candidate)
+        {
+            section_start = Some(offset + line.len());
+            section_level = level;
+        }
+    }
+
+    section_start.map(|start| &body[start..])
+}
+
+fn line_offsets(body: &str) -> impl Iterator<Item = (usize, &str)> {
+    let mut offset = 0usize;
+    body.split_inclusive('\n').map(move |line| {
+        let current = offset;
+        offset += line.len();
+        (current, line.trim_end_matches(['\r', '\n']))
+    })
+}
+
+fn heading(line: &str) -> Option<(usize, &str)> {
+    let trimmed = line.trim_start();
+    let level = trimmed.chars().take_while(|ch| *ch == '#').count();
+    if level == 0 || level > 6 {
+        return None;
+    }
+    let text = trimmed[level..].trim_start();
+    if text.is_empty() {
+        return None;
+    }
+    Some((level, text.trim_matches('#').trim()))
+}
+
+fn normalize_heading(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
+}
+
+fn has_evidence_content(section: &str) -> bool {
+    section.lines().any(|line| {
+        let trimmed = line.trim();
+        !trimmed.is_empty()
+            && !trimmed.starts_with('#')
+            && trimmed != "> Filled in by the specialist after completion."
+    })
 }
 
 pub fn single_ready_handoff(root: &Path, excluding: Option<&Path>) -> bool {

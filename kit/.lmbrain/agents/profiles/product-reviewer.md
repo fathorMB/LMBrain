@@ -1,6 +1,7 @@
 ---
 id: AGENT-REVIEWER
 title: "Product Reviewer/QA Specialist"
+mnemonic_name: "Clara Redpen"
 status: proposed
 role: product-reviewer-qa
 activation: manual

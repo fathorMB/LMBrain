@@ -1,6 +1,7 @@
 ---
 id: AGENT-TAURI-BACKEND
 title: "Tauri/Rust Backend Specialist"
+mnemonic_name: "Bruno Fileguard"
 status: proposed
 role: tauri-backend-specialist
 activation: manual

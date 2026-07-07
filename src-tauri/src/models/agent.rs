@@ -27,6 +27,7 @@ impl AgentStatus {
 pub struct AgentProfile {
     pub id: String,
     pub title: String,
+    pub mnemonic_name: Option<String>,
     pub status: AgentStatus,
     pub role: Option<String>,
     pub activation: Option<String>,
@@ -62,6 +63,7 @@ pub struct AgentProposal {
     pub id: String,
     pub title: String,
     pub status: AgentProposalStatus,
+    pub proposed_mnemonic_name: Option<String>,
     // V3: proposal type — "new-profile" (default) or "improvement"
     pub proposal_type: Option<String>,
     // V3: target profile ID for improvement proposals

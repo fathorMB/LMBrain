@@ -170,7 +170,31 @@ pub fn set_recommended_agent(
         "recommended_agent",
         agent,
         options,
+        None,
         |root| invariants::recommended_agent_resolves(root, Some(agent)),
+    )
+}
+
+pub fn set_agent_mnemonic_name(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    name: &str,
+    options: MutationOptions,
+) -> Result<MutationResult, TransitionError> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err(TransitionError::Invariant(
+            "mnemonic_name cannot be empty".into(),
+        ));
+    }
+    set_field(
+        root,
+        artifact,
+        "mnemonic_name",
+        &format!("\"{}\"", trimmed.replace('"', "\\\"")),
+        options,
+        Some(ArtifactKind::Agent),
+        |_| true,
     )
 }
 
@@ -180,6 +204,7 @@ fn set_field(
     key: &str,
     value: &str,
     options: MutationOptions,
+    expected_kind: Option<ArtifactKind>,
     valid: impl Fn(&Path) -> bool,
 ) -> Result<MutationResult, TransitionError> {
     require_force_reason(&options)?;
@@ -190,6 +215,15 @@ fn set_field(
     let id = document
         .value("id")
         .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    if let Some(expected_kind) = expected_kind {
+        let actual_kind = kind_for_id(&id)
+            .ok_or_else(|| TransitionError::Missing("recognized artifact ID".into()))?;
+        if actual_kind != expected_kind {
+            return Err(TransitionError::Invariant(format!(
+                "expected {expected_kind:?} artifact"
+            )));
+        }
+    }
 
     if !valid(guard.root()) && !options.force {
         return Err(TransitionError::Invariant(format!("invalid {key}")));

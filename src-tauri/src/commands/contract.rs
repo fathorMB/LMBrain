@@ -141,6 +141,7 @@ pub fn build_agents(root: &Path) -> Result<Vec<AgentProfile>, AppError> {
             Ok(AgentProfile {
                 id: common.id,
                 title: common.title,
+                mnemonic_name: fm_string(&parsed.frontmatter, "mnemonic_name"),
                 status: parse_agent_status(&parsed.frontmatter),
                 role: fm_string(&parsed.frontmatter, "role"),
                 activation: fm_string(&parsed.frontmatter, "activation"),
@@ -175,6 +176,7 @@ pub fn build_agent_proposals(root: &Path) -> Result<Vec<AgentProposal>, AppError
                 id: common.id,
                 title: common.title,
                 status: parse_agent_proposal_status(&parsed.frontmatter),
+                proposed_mnemonic_name: fm_string(&parsed.frontmatter, "proposed_mnemonic_name"),
                 // V3: proposal type and target profile (optional, backward-compatible)
                 proposal_type: fm_string(&parsed.frontmatter, "proposal_type"),
                 target_profile: fm_string(&parsed.frontmatter, "target_profile"),

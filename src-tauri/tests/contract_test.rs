@@ -257,6 +257,7 @@ fn test_build_agents_parses_v3_metadata_fields() {
         r#"---
 id: AGENT-FRONTEND-UI
 title: "Frontend UI Specialist"
+mnemonic_name: "Marta Pixelperfetta"
 status: proposed
 role: frontend-ui-specialist
 activation: manual
@@ -280,6 +281,7 @@ tags: [v3, frontend]
     let agents = contract::build_agents(dir.path()).unwrap();
     let agent = agents.iter().find(|a| a.id == "AGENT-FRONTEND-UI").unwrap();
 
+    assert_eq!(agent.mnemonic_name, Some("Marta Pixelperfetta".into()));
     assert_eq!(
         agent.domains,
         Some(vec!["frontend".into(), "ui".into(), "react".into()])
@@ -328,6 +330,7 @@ tags: []
     let agent = agents.iter().find(|a| a.id == "AGENT-LEGACY").unwrap();
 
     assert_eq!(agent.domains, None);
+    assert_eq!(agent.mnemonic_name, None);
     assert_eq!(agent.primary_files, None);
     assert_eq!(agent.review_focus, None);
     assert_eq!(agent.context_pack, None);
@@ -350,6 +353,7 @@ fn test_build_agent_proposals_parses_v3_fields() {
 id: AGENT-PROP-IMPROVE-001
 title: "Improve frontend specialist"
 status: proposed
+proposed_mnemonic_name: "Marta Pixelperfetta"
 requested_by: AGENT-LEAD
 reason: repeated-review-finding
 proposal_type: improvement
@@ -371,6 +375,10 @@ tags: [proposal, improvement]
         .find(|p| p.id == "AGENT-PROP-IMPROVE-001")
         .unwrap();
 
+    assert_eq!(
+        prop.proposed_mnemonic_name,
+        Some("Marta Pixelperfetta".into())
+    );
     assert_eq!(prop.proposal_type, Some("improvement".into()));
     assert_eq!(prop.target_profile, Some("AGENT-FRONTEND-UI".into()));
 }
@@ -409,6 +417,7 @@ tags: [proposal]
         .unwrap();
 
     assert_eq!(prop.proposal_type, None);
+    assert_eq!(prop.proposed_mnemonic_name, None);
     assert_eq!(prop.target_profile, None);
 }
 

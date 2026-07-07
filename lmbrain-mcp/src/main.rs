@@ -5,7 +5,8 @@ use std::{
 
 use lmbrain_core::context::{build_project_digest, build_review_context, build_spec_context};
 use lmbrain_core::transitions::{
-    create, set_recommended_agent, transition, ArtifactKind, CreateRequest, MutationOptions,
+    create, set_agent_mnemonic_name, set_recommended_agent, transition, ArtifactKind,
+    CreateRequest, MutationOptions,
 };
 use serde_json::{json, Value};
 
@@ -94,14 +95,23 @@ fn tools() -> Vec<Value> {
             "spec_ready",
             "Approve a backlog spec to ready (on operator request).",
         ),
-        ("spec_start", "Start a ready spec (begin implementation)."),
-        ("spec_submit", "Submit a working spec for review."),
-        ("spec_done", "Mark a reviewed spec done."),
+        (
+            "spec_start",
+            "Implementation specialist only: move an assigned ready spec to working when starting implementation.",
+        ),
+        (
+            "spec_submit",
+            "Implementation specialist only: move a working spec to review when implementation is complete.",
+        ),
+        (
+            "spec_done",
+            "Project Lead on operator/review authority: mark a reviewed spec done after accepted review, checked criteria, and evidence.",
+        ),
         (
             "spec_discard",
             "Discard a spec (requires operator approval).",
         ),
-        ("review_accept", "Accept a review."),
+        ("review_accept", "Accept a review on explicit operator request."),
         ("adr_accept", "Accept a proposed ADR (on operator request)."),
         ("adr_reject", "Reject a proposed ADR (on operator request)."),
         (
@@ -122,6 +132,11 @@ fn tools() -> Vec<Value> {
             "lmbrain_set_recommended_agent",
             "Set a spec recommended agent.",
             "agent",
+        ),
+        setter_tool(
+            "lmbrain_set_agent_mnemonic_name",
+            "Set an agent profile mnemonic human name.",
+            "mnemonic_name",
         ),
         read_tool("lmbrain_get_artifact", "Read a repository artifact."),
         read_tool(
@@ -326,6 +341,18 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         )
         .map(|result| text(json!(result)))
         .map_err(|error| error.to_string()),
+        "lmbrain_set_agent_mnemonic_name" => set_agent_mnemonic_name(
+            root,
+            args.get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?,
+            args.get("mnemonic_name")
+                .and_then(Value::as_str)
+                .ok_or("mnemonic_name missing")?,
+            opts(args),
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
         "lmbrain_get_artifact" => {
             let source = std::fs::read_to_string(
                 root.join(
@@ -465,6 +492,7 @@ mod tests {
         assert!(names.contains(&"spec_done".to_string()));
         assert!(names.contains(&"spec_discard".to_string()));
         assert!(names.contains(&"review_accept".to_string()));
+        assert!(names.contains(&"lmbrain_set_agent_mnemonic_name".to_string()));
     }
 
     #[test]

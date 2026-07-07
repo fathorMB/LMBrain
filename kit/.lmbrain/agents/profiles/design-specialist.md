@@ -1,6 +1,7 @@
 ---
 id: AGENT-DESIGN
 title: "Design Specialist"
+mnemonic_name: "Lia Wireframe"
 status: proposed
 role: design-specialist
 activation: manual

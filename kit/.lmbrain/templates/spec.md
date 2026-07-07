@@ -50,6 +50,7 @@ tags: []
 ## Risks and open decisions
 
 ## Instructions for the assigned specialist
+- If this spec is in `ready`, run `spec_start` as your first implementation action and `spec_submit` when the implementation is complete. If this spec is already in `review` for remediation, do not move it back to `working`; update evidence and report completion for re-review.
 - Implement only the stated scope.
 - Report changed files, tests run, and known limitations.
 - Produce production-grade, maintainable code; do not ship placeholder, POC, or knowingly incomplete behaviour.

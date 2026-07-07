@@ -50,7 +50,7 @@ Design mockups are support material. They do not replace specs, reviews, or impl
 4. The Project Lead creates a `REVIEW-*.md` artifact and checks the implementation against the specification, `QUALITY.md`, and required LMBrain documentation updates.
 5. Read the result:
    - `accepted`: the spec and related work can be considered complete;
-   - `changes-requested`: hand the follow-up `SPEC-*.md` to a specialist manually;
+   - `changes-requested`: hand the same `specs/review/SPEC-*.md` and the review findings back to the specialist manually; the spec stays in `review` during remediation;
    - `blocked`: resolve the recorded blocker before continuing.
 
 The Project Lead reviews; it does not fix the code itself.

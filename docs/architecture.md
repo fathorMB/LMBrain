@@ -46,6 +46,7 @@ The app treats `.lmbrain/` as the project source of truth. Key artifact families
 
 Agent profiles now support optional specialization fields for granular role targeting:
 
+- `mnemonic_name` — short human conversational label for the profile
 - `domains` — list of domain tags (e.g. `[frontend, ui, react]`)
 - `primary_files` — list of file globs the agent typically works with
 - `review_focus` — list of review focus areas (e.g. `[accessibility, path-safety]`)
@@ -56,7 +57,7 @@ All fields are optional. Existing v2 profiles without these fields continue to p
 
 ### Agent proposals (v3 improvement loop)
 
-Agent proposals now support a `proposal_type` field (`new-profile` or `improvement`) and a `target_profile` field for improvement proposals targeting existing profiles. Improvement proposals follow the same lifecycle as new-profile proposals but require operator approval before behavior-affecting changes become active.
+Agent proposals now support a `proposal_type` field (`new-profile` or `improvement`), a `target_profile` field for improvement proposals targeting existing profiles, and an optional `proposed_mnemonic_name` for profiles that will be materialized later. Improvement proposals follow the same lifecycle as new-profile proposals but require operator approval before behavior-affecting changes become active.
 
 ### Milestone intelligence (v3)
 
@@ -72,6 +73,8 @@ Specs are the board unit. Current spec statuses are:
 backlog -> ready -> working -> review -> done
 discarded
 ```
+
+`ready -> working` and `working -> review` are implementer-owned transitions. A spec stays in `review` while changes-requested findings are remediated; it is not moved back to `working`.
 
 Tasks are not a first-class board artifact in the current product.
 
@@ -101,6 +104,7 @@ The server exposes specific tools such as:
 - `agent_activate`, `agent_deactivate`;
 - `lmbrain_create`;
 - `lmbrain_set_recommended_agent`;
+- `lmbrain_set_agent_mnemonic_name`;
 - `lmbrain_get_artifact`;
 - `lmbrain_validate`;
 - `lmbrain_list_ready_handoffs`.

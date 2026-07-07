@@ -4,7 +4,34 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.3.3`.
+The current released kit is `2.4.0`.
+
+### 2.4.0 (agent mnemonic names and lifecycle invariant alignment - additive)
+
+`2.4.0` adds human mnemonic names for agent profiles and aligns existing project brains with the corrected spec lifecycle and `spec_done` invariant behavior. The artifact contract remains backward-compatible: existing profiles without `mnemonic_name` and proposals without `proposed_mnemonic_name` remain valid.
+
+When upgrading an existing brain to `2.4.0`:
+
+1. Review project-specific customizations before copying any bundled kit file. Do not blindly overwrite existing `AGENT.md`, `CONTRACT.md`, `OPERATOR.md`, templates, profiles, or registries.
+2. Add `mnemonic_name` to existing agent profiles where absent. Prefer short human labels that are memorable, lightly ironic, and role-aligned. Bundled defaults:
+   - `AGENT-LEAD`: `Ada Checklist`
+   - `AGENT-FRONTEND-UI`: `Marta Pixelperfetta`
+   - `AGENT-TAURI-BACKEND`: `Bruno Fileguard`
+   - `AGENT-MCP-CONTRACT`: `Vera Protocollo`
+   - `AGENT-KIT-DOCS`: `Nina Changelog`
+   - `AGENT-REVIEWER`: `Clara Redpen`
+   - `AGENT-DESIGN`: `Lia Wireframe`
+3. Add `proposed_mnemonic_name` to agent proposals where a future profile name is already known. Leave it absent for historical proposals when no suitable name is clear.
+4. Merge the bundled `templates/agent-profile.md` and `templates/agent-proposal.md` additions so new profiles/proposals include mnemonic-name fields.
+5. Merge `AGENT.md`, `CONTRACT.md`, `OPERATOR.md`, `agents/README.md`, `agents/registry.md`, and `specs/README.md` guidance for:
+   - `mnemonic_name` / `proposed_mnemonic_name`;
+   - `ready -> working` and `working -> review` being implementer-owned;
+   - specs staying in `review` through changes-requested remediation;
+   - `spec_done` depending on checked acceptance criteria, implementation evidence, and accepted review.
+6. If the project has custom active profiles, keep their status and authority metadata unchanged. Add only the new mnemonic-name metadata unless the operator explicitly approves broader profile changes.
+7. Validate with the bundled app and MCP tools. For a project that previously required forced `spec_done` due to the known evidence/criteria false-negative, verify a representative done-ready spec has checked criteria under `## Acceptance criteria`, content under `## Implementation evidence` or `## Evidence`, and an accepted linked review.
+8. Update `.lmbrain/VERSION` to `2.4.0` only after the additive merges and validation checks succeed.
+9. Roll back by restoring the project `.lmbrain/` diff from version control; this migration does not require destructive file moves.
 
 ### 2.3.3 (design preview and Nucleus roadmap fix - additive)
 

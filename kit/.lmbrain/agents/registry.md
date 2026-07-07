@@ -5,15 +5,15 @@ updated: 2026-06-22
 
 # Agent Registry
 
-| ID | Role | Status | Activation | Definition | Domains |
-| --- | --- | --- | --- | --- | --- |
-| AGENT-LEAD | Project Lead | active | manual | [[project-lead]] | project-management |
-| AGENT-FRONTEND-UI | Frontend UI Specialist | proposed | manual | [[AGENT-FRONTEND-UI]] | frontend, ui, react |
-| AGENT-TAURI-BACKEND | Tauri/Rust Backend Specialist | proposed | manual | [[AGENT-TAURI-BACKEND]] | tauri, rust, backend |
-| AGENT-MCP-CONTRACT | MCP/Contract Specialist | proposed | manual | [[AGENT-MCP-CONTRACT]] | mcp, contract, core |
-| AGENT-KIT-DOCS | Kit/Docs/Release Specialist | proposed | manual | [[AGENT-KIT-DOCS]] | kit, docs, release |
-| AGENT-REVIEWER | Product Reviewer/QA | proposed | manual | [[AGENT-REVIEWER]] | review, qa, testing |
-| AGENT-DESIGN | Design Specialist | proposed | manual | [[AGENT-DESIGN]] | design, ui-ux |
+| ID | Name | Role | Status | Activation | Definition | Domains |
+| --- | --- | --- | --- | --- | --- | --- |
+| AGENT-LEAD | Ada Checklist | Project Lead | active | manual | [[project-lead]] | project-management |
+| AGENT-FRONTEND-UI | Marta Pixelperfetta | Frontend UI Specialist | proposed | manual | [[AGENT-FRONTEND-UI]] | frontend, ui, react |
+| AGENT-TAURI-BACKEND | Bruno Fileguard | Tauri/Rust Backend Specialist | proposed | manual | [[AGENT-TAURI-BACKEND]] | tauri, rust, backend |
+| AGENT-MCP-CONTRACT | Vera Protocollo | MCP/Contract Specialist | proposed | manual | [[AGENT-MCP-CONTRACT]] | mcp, contract, core |
+| AGENT-KIT-DOCS | Nina Changelog | Kit/Docs/Release Specialist | proposed | manual | [[AGENT-KIT-DOCS]] | kit, docs, release |
+| AGENT-REVIEWER | Clara Redpen | Product Reviewer/QA | proposed | manual | [[AGENT-REVIEWER]] | review, qa, testing |
+| AGENT-DESIGN | Lia Wireframe | Design Specialist | proposed | manual | [[AGENT-DESIGN]] | design, ui-ux |
 
 Add specialist profiles only when a real project need justifies them. Keep profiles in `profiles/` and proposals in `proposals/`.
 

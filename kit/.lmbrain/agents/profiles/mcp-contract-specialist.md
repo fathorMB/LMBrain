@@ -1,6 +1,7 @@
 ---
 id: AGENT-MCP-CONTRACT
 title: "MCP/Contract Specialist"
+mnemonic_name: "Vera Protocollo"
 status: proposed
 role: mcp-contract-specialist
 activation: manual

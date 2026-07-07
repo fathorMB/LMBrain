@@ -7,17 +7,18 @@ import type { AgentProfile, AgentProposal, McpRecord, McpProposal } from "../../
 // server. Keep in sync with `lmbrain-mcp/src/main.rs` (tools()).
 const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }[] = [
   { name: "spec_ready", category: "Spec", description: "Approve a backlog spec to ready (on operator request)." },
-  { name: "spec_start", category: "Spec", description: "Start a ready spec (begin implementation)." },
-  { name: "spec_submit", category: "Spec", description: "Submit a working spec for review." },
-  { name: "spec_done", category: "Spec", description: "Mark a reviewed spec done." },
+  { name: "spec_start", category: "Spec", description: "Implementation specialist only: move an assigned ready spec to working." },
+  { name: "spec_submit", category: "Spec", description: "Implementation specialist only: submit a completed working spec for review." },
+  { name: "spec_done", category: "Spec", description: "Project Lead closeout after accepted review, checked criteria, and evidence." },
   { name: "spec_discard", category: "Spec", description: "Discard a spec (requires operator approval)." },
-  { name: "review_accept", category: "Review", description: "Accept a review (on operator request)." },
+  { name: "review_accept", category: "Review", description: "Accept a review on explicit operator request." },
   { name: "adr_accept", category: "ADR", description: "Accept a proposed ADR (on operator request)." },
   { name: "adr_reject", category: "ADR", description: "Reject a proposed ADR (on operator request)." },
   { name: "agent_activate", category: "Agent", description: "Activate a proposed agent profile (on operator request)." },
   { name: "agent_deactivate", category: "Agent", description: "Deactivate an agent profile (on operator request)." },
   { name: "lmbrain_create", category: "Create", description: "Create an artifact with an allocated ID." },
   { name: "lmbrain_set_recommended_agent", category: "Setter", description: "Set a spec's recommended agent." },
+  { name: "lmbrain_set_agent_mnemonic_name", category: "Setter", description: "Set an agent profile's mnemonic human name." },
   { name: "lmbrain_get_artifact", category: "Read", description: "Read a repository artifact." },
   { name: "lmbrain_validate", category: "Read", description: "Validate controlled-mutation invariants." },
   { name: "lmbrain_list_ready_handoffs", category: "Read", description: "List ready handoffs." },
@@ -313,6 +314,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
   const sc = statusColors[agent.status] || statusColors.proposed;
   const hasDomains = agent.domains && agent.domains.length > 0;
   const hasReviewFocus = agent.review_focus && agent.review_focus.length > 0;
+  const displayName = agent.mnemonic_name || agent.title;
 
   return (
     <div
@@ -374,8 +376,18 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
               color: "var(--text-primary)",
             }}
           >
-            {agent.title}
+            {displayName}
           </span>
+          {agent.mnemonic_name && (
+            <span
+              style={{
+                fontSize: 11.5,
+                color: "var(--text-tertiary)",
+              }}
+            >
+              {agent.title}
+            </span>
+          )}
         </div>
         <div
           style={{
@@ -495,6 +507,11 @@ function AgentProposalCard({ proposal }: { proposal: AgentProposal }) {
           <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>
             {proposal.title}
           </span>
+          {proposal.proposed_mnemonic_name && (
+            <span style={{ fontSize: 11.5, color: "var(--text-tertiary)" }}>
+              proposes {proposal.proposed_mnemonic_name}
+            </span>
+          )}
         </div>
         <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
           {isImprovement ? "Improvement proposal" : "New-profile proposal"}
