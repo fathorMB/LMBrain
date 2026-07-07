@@ -69,6 +69,7 @@ pub struct SpecContext {
     pub acceptance_criteria: Vec<Criterion>,
     pub linked_decisions: Vec<CompactAdr>,
     pub related_reviews: Vec<CompactReview>,
+    pub applicable_skills: Vec<SkillSummary>,
     pub explicit_files: Vec<String>,
     pub explicit_areas: Vec<String>,
     pub diagnostics: Vec<String>,
@@ -102,6 +103,20 @@ pub struct AgentProfileSummary {
     pub status: String,
     pub can_implement: Option<bool>,
     pub can_review: Option<bool>,
+    pub skills: Vec<String>,
+}
+
+/// Compact skill reference for context packs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillSummary {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+    pub kind: Option<String>,
+    pub risk: Option<String>,
+    pub requires_operator_approval: Option<bool>,
+    pub commands: Vec<String>,
+    pub path: String,
 }
 
 /// Review context for reviewer orientation.
@@ -114,6 +129,7 @@ pub struct ReviewContext {
     pub linked_reviews: Vec<CompactReview>,
     pub relevant_decisions: Vec<CompactAdr>,
     pub verification_commands: Vec<String>,
+    pub applicable_skills: Vec<SkillSummary>,
     pub warnings: Vec<String>,
     pub markdown: String,
 }
@@ -152,7 +168,10 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
     let diagnostics = scan_diagnostics(root);
     let diag_summary = DiagnosticsSummary {
         errors: diagnostics.iter().filter(|d| d.severity == "error").count(),
-        warnings: diagnostics.iter().filter(|d| d.severity == "warning").count(),
+        warnings: diagnostics
+            .iter()
+            .filter(|d| d.severity == "warning")
+            .count(),
         total: diagnostics.len(),
     };
 
@@ -209,10 +228,8 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
 pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecContext, String> {
     let lmbrain = root.join(".lmbrain");
     let spec_path = resolve_spec_path(&lmbrain, spec_id_or_path)?;
-    let source = fs::read_to_string(&spec_path)
-        .map_err(|e| format!("Failed to read spec: {e}"))?;
-    let document = Document::parse(&source)
-        .map_err(|e| format!("Failed to parse spec: {e}"))?;
+    let source = fs::read_to_string(&spec_path).map_err(|e| format!("Failed to read spec: {e}"))?;
+    let document = Document::parse(&source).map_err(|e| format!("Failed to parse spec: {e}"))?;
 
     let id = document.value("id").unwrap_or_default();
     let title = document.value("title").unwrap_or_default();
@@ -221,6 +238,8 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
     let area = document.value("area");
     let milestone = document.value("milestone");
     let recommended_agent = document.value("recommended_agent");
+    let spec_skills = document.string_array("skills");
+    let spec_tags = document.string_array("tags");
     let related_decisions = document.string_array("related_decisions");
 
     // Parse acceptance criteria from body
@@ -240,6 +259,15 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
     let agent_profile = recommended_agent
         .as_deref()
         .and_then(|agent| resolve_agent(&lmbrain, agent));
+    let applicable_skills = resolve_applicable_skills(
+        &lmbrain,
+        &spec_skills,
+        recommended_agent.as_deref(),
+        agent_profile.as_ref(),
+        area.as_deref(),
+        &spec_tags,
+        false,
+    );
 
     // Resolve related reviews
     let related_reviews = resolve_reviews_for_spec(&lmbrain, &id);
@@ -270,6 +298,7 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         &criteria,
         &linked_decisions,
         &related_reviews,
+        &applicable_skills,
         &explicit_files,
         &explicit_areas,
         &diagnostics,
@@ -288,6 +317,7 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         acceptance_criteria: criteria,
         linked_decisions,
         related_reviews,
+        applicable_skills,
         explicit_files,
         explicit_areas,
         diagnostics,
@@ -300,13 +330,18 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
 pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<ReviewContext, String> {
     let lmbrain = root.join(".lmbrain");
     let spec_path = resolve_spec_path(&lmbrain, spec_id_or_path)?;
-    let source = fs::read_to_string(&spec_path)
-        .map_err(|e| format!("Failed to read spec: {e}"))?;
-    let document = Document::parse(&source)
-        .map_err(|e| format!("Failed to parse spec: {e}"))?;
+    let source = fs::read_to_string(&spec_path).map_err(|e| format!("Failed to read spec: {e}"))?;
+    let document = Document::parse(&source).map_err(|e| format!("Failed to parse spec: {e}"))?;
 
     let spec_id = document.value("id").unwrap_or_default();
     let spec_title = document.value("title").unwrap_or_default();
+    let spec_skills = document.string_array("skills");
+    let spec_tags = document.string_array("tags");
+    let area = document.value("area");
+    let recommended_agent = document.value("recommended_agent");
+    let agent_profile = recommended_agent
+        .as_deref()
+        .and_then(|agent| resolve_agent(&lmbrain, agent));
 
     // Parse acceptance criteria
     let criteria = parse_criteria(&document.body);
@@ -330,6 +365,15 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
 
     // Extract verification commands
     let verification_commands = extract_section_list(&document.body, "Required verification");
+    let applicable_skills = resolve_applicable_skills(
+        &lmbrain,
+        &spec_skills,
+        recommended_agent.as_deref(),
+        agent_profile.as_ref(),
+        area.as_deref(),
+        &spec_tags,
+        true,
+    );
 
     let markdown = format_review_context_md(
         &spec_id,
@@ -339,6 +383,7 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         &linked_reviews,
         &relevant_decisions,
         &verification_commands,
+        &applicable_skills,
         &warnings,
     );
 
@@ -350,6 +395,7 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         linked_reviews,
         relevant_decisions,
         verification_commands,
+        applicable_skills,
         warnings,
         markdown,
     })
@@ -485,7 +531,12 @@ fn scan_active_adrs(lmbrain: &Path) -> Vec<CompactAdr> {
             }
         }
     }
-    adrs.sort_by(|a, b| b.decision_date.as_deref().unwrap_or("").cmp(a.decision_date.as_deref().unwrap_or("")));
+    adrs.sort_by(|a, b| {
+        b.decision_date
+            .as_deref()
+            .unwrap_or("")
+            .cmp(a.decision_date.as_deref().unwrap_or(""))
+    });
     adrs
 }
 
@@ -528,10 +579,7 @@ fn scan_diagnostics(root: &Path) -> Vec<DiagnosticEntry> {
                 if (artifact_type == "specs" || artifact_type == "reviews")
                     && !crate::invariants::folder_matches_status(&file_path)
                 {
-                    let status_dir = parent
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("?");
+                    let status_dir = parent.file_name().and_then(|n| n.to_str()).unwrap_or("?");
                     let fm_status = doc.value("status").unwrap_or_else(|| "?".into());
                     diagnostics.push(DiagnosticEntry {
                         message: format!(
@@ -651,6 +699,7 @@ fn resolve_agent(lmbrain: &Path, agent_id: &str) -> Option<AgentProfileSummary> 
                             status: doc.value("status").unwrap_or_default(),
                             can_implement: doc.bool("can_implement"),
                             can_review: doc.bool("can_review"),
+                            skills: doc.string_array("skills"),
                         });
                     }
                 }
@@ -662,6 +711,112 @@ fn resolve_agent(lmbrain: &Path, agent_id: &str) -> Option<AgentProfileSummary> 
 
 fn agent_resolves(lmbrain: &Path, agent_id: &str) -> bool {
     resolve_agent(lmbrain, agent_id).is_some()
+}
+
+fn resolve_applicable_skills(
+    lmbrain: &Path,
+    explicit_skill_ids: &[String],
+    recommended_agent: Option<&str>,
+    agent_profile: Option<&AgentProfileSummary>,
+    area: Option<&str>,
+    tags: &[String],
+    review_only: bool,
+) -> Vec<SkillSummary> {
+    let skills = scan_skills(lmbrain);
+    let mut result = Vec::new();
+    for (summary, applies_to, domains) in skills {
+        if summary.status != "active" {
+            continue;
+        }
+        let explicit = explicit_skill_ids.iter().any(|id| id == &summary.id);
+        let agent_default = agent_profile
+            .map(|profile| profile.skills.iter().any(|id| id == &summary.id))
+            .unwrap_or(false);
+        let applies_to_agent = recommended_agent
+            .map(|agent| {
+                applies_to
+                    .iter()
+                    .any(|target| target == "all" || target == agent)
+            })
+            .unwrap_or_else(|| applies_to.iter().any(|target| target == "all"));
+        let domain_match = area
+            .map(|area| {
+                domains
+                    .iter()
+                    .any(|domain| area.contains(domain) || domain.contains(area))
+            })
+            .unwrap_or(false)
+            || tags
+                .iter()
+                .any(|tag| domains.iter().any(|domain| tag == domain));
+        let review_kind = summary
+            .kind
+            .as_deref()
+            .map(|kind| matches!(kind, "review" | "test" | "diagnostic" | "verification"))
+            .unwrap_or(false);
+
+        if explicit
+            || agent_default
+            || applies_to_agent
+            || domain_match
+            || (review_only && review_kind)
+        {
+            if !result
+                .iter()
+                .any(|skill: &SkillSummary| skill.id == summary.id)
+            {
+                result.push(summary);
+            }
+        }
+    }
+    result
+}
+
+fn scan_skills(lmbrain: &Path) -> Vec<(SkillSummary, Vec<String>, Vec<String>)> {
+    let skills_dir = lmbrain.join("skills");
+    let mut skills = Vec::new();
+    for status in ["active", "proposed", "retired"] {
+        let dir = skills_dir.join(status);
+        if !dir.exists() {
+            continue;
+        }
+        if let Ok(entries) = fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("md") {
+                    continue;
+                }
+                if let Ok(source) = fs::read_to_string(&path) {
+                    if let Ok(doc) = Document::parse(&source) {
+                        let id = doc.value("id").unwrap_or_default();
+                        if !id.starts_with("SKILL-") {
+                            continue;
+                        }
+                        let rel_path = path
+                            .strip_prefix(lmbrain)
+                            .ok()
+                            .map(|p| format!(".lmbrain/{}", p.to_string_lossy().replace('\\', "/")))
+                            .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"));
+                        skills.push((
+                            SkillSummary {
+                                id,
+                                title: doc.value("title").unwrap_or_default(),
+                                status: doc.value("status").unwrap_or_else(|| status.to_string()),
+                                kind: doc.value("kind"),
+                                risk: doc.value("risk"),
+                                requires_operator_approval: doc.bool("requires_operator_approval"),
+                                commands: doc.string_array("commands"),
+                                path: rel_path,
+                            },
+                            doc.string_array("applies_to"),
+                            doc.string_array("domains"),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    skills
 }
 
 fn resolve_reviews_for_spec(lmbrain: &Path, spec_id: &str) -> Vec<CompactReview> {
@@ -726,10 +881,8 @@ fn spec_diagnostics(lmbrain: &Path, spec_id: &str) -> Vec<String> {
                     {
                         let id = doc.value("id").unwrap_or_default();
                         if id == spec_id {
-                            let status_dir = parent
-                                .file_name()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or("?");
+                            let status_dir =
+                                parent.file_name().and_then(|n| n.to_str()).unwrap_or("?");
                             let fm_status = doc.value("status").unwrap_or_else(|| "?".into());
                             result.push(format!(
                                 "Status mismatch: file is in '{artifact_type}/{status_dir}' but frontmatter status is '{fm_status}'"
@@ -872,10 +1025,7 @@ fn format_project_digest_md(
     if !ready_specs.is_empty() {
         md.push_str(&format!("## Ready specs ({})\n\n", ready_specs.len()));
         for spec in ready_specs {
-            md.push_str(&format!(
-                "- **{}**: {}",
-                spec.id, spec.title
-            ));
+            md.push_str(&format!("- **{}**: {}", spec.id, spec.title));
             if let Some(agent) = &spec.recommended_agent {
                 md.push_str(&format!(" (agent: {agent})"));
             }
@@ -946,6 +1096,7 @@ fn format_spec_context_md(
     criteria: &[Criterion],
     linked_decisions: &[CompactAdr],
     related_reviews: &[CompactReview],
+    applicable_skills: &[SkillSummary],
     explicit_files: &[String],
     explicit_areas: &[String],
     diagnostics: &[String],
@@ -967,7 +1118,10 @@ fn format_spec_context_md(
             if let Some(name) = &profile.mnemonic_name {
                 md.push_str(&format!("  - Mnemonic name: {name}\n"));
             }
-            md.push_str(&format!("  - Role: {}\n", profile.role.as_deref().unwrap_or("unspecified")));
+            md.push_str(&format!(
+                "  - Role: {}\n",
+                profile.role.as_deref().unwrap_or("unspecified")
+            ));
             md.push_str(&format!("  - Status: {}\n", profile.status));
         }
     }
@@ -1001,6 +1155,27 @@ fn format_spec_context_md(
         md.push_str("## Related reviews\n\n");
         for r in related_reviews {
             md.push_str(&format!("- **{}**: {} ({})\n", r.id, r.title, r.status));
+        }
+        md.push('\n');
+    }
+
+    if !applicable_skills.is_empty() {
+        md.push_str("## Applicable skills\n\n");
+        for skill in applicable_skills {
+            md.push_str(&format!(
+                "- **{}**: {} ({}, risk: {})",
+                skill.id,
+                skill.title,
+                skill.kind.as_deref().unwrap_or("procedure"),
+                skill.risk.as_deref().unwrap_or("unspecified")
+            ));
+            if skill.requires_operator_approval.unwrap_or(false) {
+                md.push_str(" - operator approval required");
+            }
+            md.push('\n');
+            for command in &skill.commands {
+                md.push_str(&format!("  - `{command}`\n"));
+            }
         }
         md.push('\n');
     }
@@ -1047,6 +1222,7 @@ fn format_review_context_md(
     linked_reviews: &[CompactReview],
     relevant_decisions: &[CompactAdr],
     verification_commands: &[String],
+    applicable_skills: &[SkillSummary],
     warnings: &[String],
 ) -> String {
     let mut md = format!("# Review Context: {spec_id} — {spec_title}\n\n");
@@ -1093,6 +1269,27 @@ fn format_review_context_md(
         md.push_str("## Verification commands\n\n");
         for cmd in verification_commands {
             md.push_str(&format!("- `{cmd}`\n"));
+        }
+        md.push('\n');
+    }
+
+    if !applicable_skills.is_empty() {
+        md.push_str("## Applicable skills\n\n");
+        for skill in applicable_skills {
+            md.push_str(&format!(
+                "- **{}**: {} ({}, risk: {})",
+                skill.id,
+                skill.title,
+                skill.kind.as_deref().unwrap_or("procedure"),
+                skill.risk.as_deref().unwrap_or("unspecified")
+            ));
+            if skill.requires_operator_approval.unwrap_or(false) {
+                md.push_str(" - operator approval required");
+            }
+            md.push('\n');
+            for command in &skill.commands {
+                md.push_str(&format!("  - `{command}`\n"));
+            }
         }
         md.push('\n');
     }
@@ -1362,7 +1559,10 @@ links: []
         let ctx = build_review_context(dir.path(), "SPEC-023").unwrap();
         assert_eq!(ctx.spec_id, "SPEC-023");
         assert_eq!(ctx.acceptance_criteria.len(), 2);
-        assert!(ctx.verification_commands.iter().any(|c| c.contains("cargo test")));
+        assert!(ctx
+            .verification_commands
+            .iter()
+            .any(|c| c.contains("cargo test")));
         assert!(ctx.markdown.contains("Review Context"));
     }
 
@@ -1465,7 +1665,9 @@ links: []
         .unwrap();
         let diagnostics = scan_diagnostics(dir.path());
         assert!(
-            diagnostics.iter().any(|d| d.message.contains("Status mismatch")),
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("Status mismatch")),
             "Expected a status mismatch diagnostic, got: {diagnostics:?}"
         );
     }
@@ -1495,7 +1697,9 @@ links: []
         .unwrap();
         let diagnostics = scan_diagnostics(dir.path());
         assert!(
-            diagnostics.iter().any(|d| d.message.contains("AGENT-NONEXISTENT")),
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("AGENT-NONEXISTENT")),
             "Expected an unresolved agent diagnostic, got: {diagnostics:?}"
         );
     }
@@ -1507,7 +1711,11 @@ links: []
         fs::create_dir_all(lmbrain.join("specs/ready")).unwrap();
         fs::create_dir_all(lmbrain.join("agents/profiles")).unwrap();
         // STATUS.md
-        fs::write(lmbrain.join("STATUS.md"), "# Project Test\n\n**Status:** active\n").unwrap();
+        fs::write(
+            lmbrain.join("STATUS.md"),
+            "# Project Test\n\n**Status:** active\n",
+        )
+        .unwrap();
         // A spec with unresolved agent
         fs::write(
             lmbrain.join("specs/ready/SPEC-099-noagent.md"),

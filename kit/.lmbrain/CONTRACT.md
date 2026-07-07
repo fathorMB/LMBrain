@@ -25,6 +25,7 @@ The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable
 | MCP specification | `MCP-` | `mcp/specs/` |
 | MCP proposal | `MCP-PROP-` | `mcp/proposals/` |
 | Session handoff | `HANDOFF-` | `handoffs/active/` |
+| Skill | `SKILL-` | `skills/<status>/` |
 
 ## Shared frontmatter
 
@@ -46,6 +47,10 @@ Agent-profile optional field: `mnemonic_name`. It is a short human conversationa
 
 Agent-proposal optional field: `proposed_mnemonic_name`. It records the intended `mnemonic_name` before a profile is materialized.
 
+Spec and agent-profile optional field: `skills`. It records `SKILL-*` procedure references that should be considered during handoff or role-specific operation.
+
+Skill optional fields: `scope`, `kind`, `risk`, `applies_to`, `domains`, `commands`, and `requires_operator_approval`. Skills are documented project procedures; command entries are instructions for agents, not app-executed automation.
+
 Priority values: `critical`, `high`, `medium`, `low`.
 
 ## Allowed statuses
@@ -60,6 +65,7 @@ Priority values: `critical`, `high`, `medium`, `low`.
 | MCP proposal | `proposed`, `approved`, `rejected`, `implemented`, `blocked` |
 | MCP | `specified`, `active`, `inactive`, `deprecated` |
 | Session handoff | `ready`, `consumed`, `superseded`, `archived` |
+| Skill | `proposed`, `active`, `retired` |
 
 ## Context packs (v3 context economy)
 
@@ -80,6 +86,8 @@ Agents must read mandatory policy files (`QUALITY.md`, `CONTRACT.md`, `AGENT.md`
 - An `active` MCP needs a documented spec, permissions, and verification evidence.
 - An agent profile always has `activation: manual`; LMBrain never spawns agents.
 - An agent profile may have a `mnemonic_name`; when present it is display/context metadata only and never grants authority.
+- A skill is procedural knowledge, not an executable capability. LMBrain must not auto-run skill commands.
+- Skill references from specs, agent profiles, or `applies_to` must resolve to existing `SKILL-*` or `AGENT-*` artifacts where applicable; `applies_to: [all]` is allowed.
 - An ADR is not rewritten to change history: create a replacement ADR and mark the old one `superseded`.
 - The Project Lead may write only inside `.lmbrain/` during ordinary work. It may alter application code only through the narrowly scoped, operator-authorized escalation process in `AGENT.md`.
 - All implementation and review work complies with `QUALITY.md` unless a human-approved exception is recorded.
@@ -96,5 +104,6 @@ Agents must read mandatory policy files (`QUALITY.md`, `CONTRACT.md`, `AGENT.md`
 | Reviews | create on request | no | request/edit |
 | ADRs | propose/maintain | propose only | approve/edit |
 | Agent and MCP registries | maintain proposals | no | approve/edit |
+| Skills | propose/maintain | follow active procedures and suggest improvements | approve/edit |
 | Session handoffs | create/consume | no | request/edit |
 | Application code and configuration | no, except qualified escalated corrective work | only when manually assigned by user | edit |

@@ -9,6 +9,7 @@ area:
 milestone: 
 # References use IDs only (e.g. [TASK-001]); use [[wikilinks]] in prose
 recommended_agent: AGENT-XXX
+skills: []
 related_tasks: []
 related_decisions: []
 links: []

@@ -74,7 +74,14 @@ All supported agent hosts can use the new context-pack MCP tools:
 - `lmbrain_spec_context` — spec handoff context (requires `spec` parameter)
 - `lmbrain_review_context` — review context (requires `spec` parameter)
 
-These tools are read-only and registered through the same `lmbrain-mcp` server. Agents should use them for initial orientation before expanding to full artifacts.
+These tools are read-only and registered through the same `lmbrain-mcp` server. Spec and review context include applicable active `SKILL-*` procedures when the project defines them. Agents should use them for initial orientation before expanding to full artifacts.
+
+`lmbrain-mcp` also exposes skill lifecycle tools:
+
+- `skill_activate`
+- `skill_retire`
+
+Skills are documented procedures, not executable MCP tools. The MCP server does not run skill commands automatically.
 
 ## Local Generated Files
 

@@ -59,6 +59,7 @@ export interface Spec {
   area: string | null;
   milestone: string | null;
   recommended_agent: string | null;
+  skills: string[];
   body: string;
   path: string;
   created: string;
@@ -133,6 +134,7 @@ export interface AgentProfile {
   review_focus: string[] | null;
   context_pack: string | null;
   constraints: string[] | null;
+  skills: string[] | null;
   body: string;
   path: string;
   created: string;
@@ -187,6 +189,28 @@ export interface McpProposal {
   id: string;
   title: string;
   status: McpProposalStatus;
+  body: string;
+  path: string;
+  created: string;
+  updated: string;
+  tags: string[];
+  links: string[];
+  malformed?: boolean;
+}
+
+export type SkillStatus = "proposed" | "active" | "retired";
+
+export interface Skill {
+  id: string;
+  title: string;
+  status: SkillStatus;
+  scope: string | null;
+  kind: string | null;
+  risk: string | null;
+  applies_to: string[];
+  domains: string[];
+  commands: string[];
+  requires_operator_approval: boolean | null;
   body: string;
   path: string;
   created: string;
@@ -429,6 +453,7 @@ export type AppView =
   | "reviews"
   | "decisions"
   | "agents"
+  | "skills"
   | "design"
   | "settings"
   | "roadmap"

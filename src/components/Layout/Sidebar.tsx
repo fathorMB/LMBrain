@@ -18,6 +18,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "decisions", icon: "account_balance", label: "Decisions", badge: null },
   { key: "design", icon: "design_services", label: "Design", badge: null },
   { key: "agents", icon: "smart_toy", label: "Agents & MCP", badge: null },
+  { key: "skills", icon: "psychology_alt", label: "Skills", badge: null },
 ];
 
 export function Sidebar() {

@@ -1,4 +1,5 @@
 use lmbrain_core::{
+    context::build_spec_context,
     frontmatter::Document,
     invariants,
     transitions::{
@@ -23,8 +24,12 @@ fn artifact(kind: ArtifactKind, status: &str) -> (&'static str, String) {
         ArtifactKind::Mcp => ("MCP-001", "mcp/specs"),
         ArtifactKind::McpProposal => ("MCP-PROP-001", "mcp/proposals"),
         ArtifactKind::Handoff => ("HANDOFF-001", "handoffs/active"),
+        ArtifactKind::Skill => ("SKILL-001", "skills"),
     };
-    let relative = if matches!(kind, ArtifactKind::Spec | ArtifactKind::Review) {
+    let relative = if matches!(
+        kind,
+        ArtifactKind::Spec | ArtifactKind::Review | ArtifactKind::Skill
+    ) {
         format!(".lmbrain/{base}/{status}/{id}.md")
     } else {
         format!(".lmbrain/{base}/{id}.md")
@@ -69,6 +74,9 @@ fn every_declared_transition_has_valid_and_illegal_coverage() {
         (ArtifactKind::Handoff, "ready", "consumed"),
         (ArtifactKind::Handoff, "ready", "superseded"),
         (ArtifactKind::Handoff, "consumed", "archived"),
+        (ArtifactKind::Skill, "proposed", "active"),
+        (ArtifactKind::Skill, "proposed", "retired"),
+        (ArtifactKind::Skill, "active", "retired"),
     ];
     for &(kind, from, to) in cases {
         let d = tempdir().unwrap();
@@ -174,6 +182,80 @@ fn spec_done_accepts_checked_criteria_with_implementation_evidence_and_other_unc
         "unexpected path {:?}",
         result.path
     );
+}
+
+#[test]
+fn skill_creation_and_lifecycle_use_status_directories() {
+    let d = tempdir().unwrap();
+    let r = d.path();
+    fs::create_dir_all(r.join(".lmbrain/templates")).unwrap();
+    write(
+        r,
+        ".lmbrain/templates/skill.md",
+        "---\nid: SKILL-XXX\ntitle: Skill\nstatus: proposed\ncreated: YYYY-MM-DD\nupdated: YYYY-MM-DD\ntags: []\nlinks: []\n---\n# Skill\n",
+    );
+
+    let created = create(
+        r,
+        CreateRequest {
+            kind: ArtifactKind::Skill,
+            title: "Build and Test".into(),
+            status: None,
+            fields: vec![("kind".into(), "verification".into())],
+        },
+    )
+    .unwrap();
+    assert_eq!(created.id, "SKILL-001");
+    assert!(
+        created
+            .path
+            .ends_with("skills/proposed/SKILL-001-build-and-test.md"),
+        "unexpected path {:?}",
+        created.path
+    );
+
+    let activated = transition(r, &created.path, "active", MutationOptions::default()).unwrap();
+    assert!(activated
+        .path
+        .ends_with("skills/active/SKILL-001-build-and-test.md"));
+
+    let retired = transition(r, &activated.path, "retired", MutationOptions::default()).unwrap();
+    assert!(retired
+        .path
+        .ends_with("skills/retired/SKILL-001-build-and-test.md"));
+}
+
+#[test]
+fn spec_context_includes_applicable_active_skills() {
+    let d = tempdir().unwrap();
+    let r = d.path();
+    write(
+        r,
+        ".lmbrain/specs/ready/SPEC-101.md",
+        "---\nid: SPEC-101\ntitle: Skill Context\nstatus: ready\nrecommended_agent: AGENT-IMPL\nskills: [SKILL-001]\ntags: [test]\n---\n\n## Acceptance criteria\n- [ ] Works\n",
+    );
+    write(
+        r,
+        ".lmbrain/agents/profiles/AGENT-IMPL.md",
+        "---\nid: AGENT-IMPL\ntitle: Implementer\nstatus: active\nskills: [SKILL-002]\n---\nBody",
+    );
+    write(
+        r,
+        ".lmbrain/skills/active/SKILL-001.md",
+        "---\nid: SKILL-001\ntitle: Build and test\nstatus: active\nkind: verification\nrisk: medium\ncommands: [cargo test --workspace]\nrequires_operator_approval: true\n---\nBody",
+    );
+    write(
+        r,
+        ".lmbrain/skills/proposed/SKILL-002.md",
+        "---\nid: SKILL-002\ntitle: Proposed only\nstatus: proposed\nkind: test\n---\nBody",
+    );
+
+    let ctx = build_spec_context(r, "SPEC-101").unwrap();
+    assert_eq!(ctx.applicable_skills.len(), 1);
+    assert_eq!(ctx.applicable_skills[0].id, "SKILL-001");
+    assert!(ctx.markdown.contains("Build and test"));
+    assert!(ctx.markdown.contains("operator approval required"));
+    assert!(!ctx.markdown.contains("Proposed only"));
 }
 
 #[test]

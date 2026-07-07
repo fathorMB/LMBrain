@@ -14,6 +14,7 @@ primary_files: []
 review_focus: []
 context_pack: spec
 constraints: []
+skills: []
 allowed_mcp: []
 knowledge: []
 links: []

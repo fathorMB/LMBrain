@@ -9,6 +9,7 @@ import { SpecDetail } from "../Spec/SpecDetail";
 import { ReviewsList } from "../Reviews/ReviewsList";
 import { DecisionsList } from "../Decisions/DecisionsList";
 import { AgentsMCPView } from "../Agents/AgentsMCPView";
+import { SkillsView } from "../Skills/SkillsView";
 import { DesignView } from "../Design/DesignView";
 import { SettingsView } from "../Settings/SettingsView";
 import { RoadmapView } from "../Roadmap/RoadmapView";
@@ -41,6 +42,8 @@ export function AppShell() {
         return <DecisionsList />;
       case "agents":
         return <AgentsMCPView />;
+      case "skills":
+        return <SkillsView />;
       case "design":
         return <DesignView />;
       case "settings":

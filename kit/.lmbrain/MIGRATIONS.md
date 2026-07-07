@@ -4,7 +4,22 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.4.1`.
+The current released kit is `2.5.0`.
+
+### 2.5.0 (project-scoped agent skills - additive)
+
+`2.5.0` adds project-scoped `SKILL-*` procedure artifacts, a dedicated Skills app page, context-pack skill summaries, and controlled skill lifecycle tools. Skills are Markdown runbooks for manually started agents; LMBrain does not execute skill commands automatically.
+
+When upgrading an existing brain to `2.5.0`:
+
+1. Review project-specific customizations before copying any bundled kit file. Do not blindly overwrite existing `AGENT.md`, `CONTRACT.md`, templates, registries, or profile files.
+2. Add the `skills/` directory structure with `active/`, `proposed/`, and `retired/` if absent.
+3. Add `skills/README.md`, `skills/registry.md`, and `templates/skill.md` if absent.
+4. Merge `CONTRACT.md`, `AGENT.md`, `templates/spec.md`, and `templates/agent-profile.md` additions for `SKILL-*` artifacts and optional `skills: []` references.
+5. Do not create active project skills automatically. The Project Lead may propose skills after validating concrete project procedures, and the operator approves activation.
+6. Validate that existing specs and agent profiles still parse. If custom specs/profiles already have a `skills` field, ensure referenced `SKILL-*` artifacts exist or intentionally leave diagnostics visible until they are created.
+7. Update `.lmbrain/VERSION` to `2.5.0` only after the additive merges and validation checks succeed.
+8. Roll back by restoring the project `.lmbrain/` diff from version control; this migration does not require destructive file moves.
 
 ### 2.4.1 (agent mnemonic names and lifecycle invariant alignment - additive)
 

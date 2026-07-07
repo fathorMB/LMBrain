@@ -24,6 +24,7 @@ pub enum ArtifactKind {
     Mcp,
     McpProposal,
     Handoff,
+    Skill,
 }
 
 impl ArtifactKind {
@@ -37,6 +38,7 @@ impl ArtifactKind {
             Self::Mcp => "MCP",
             Self::McpProposal => "MCP-PROP",
             Self::Handoff => "HANDOFF",
+            Self::Skill => "SKILL",
         }
     }
 
@@ -50,11 +52,12 @@ impl ArtifactKind {
             Self::Mcp => "mcp/specs",
             Self::McpProposal => "mcp/proposals",
             Self::Handoff => "handoffs/active",
+            Self::Skill => "skills",
         }
     }
 
     fn moves_for_status(self) -> bool {
-        matches!(self, Self::Spec | Self::Review)
+        matches!(self, Self::Spec | Self::Review | Self::Skill)
     }
 }
 
@@ -411,6 +414,8 @@ pub fn kind_for_id(id: &str) -> Option<ArtifactKind> {
         Some(ArtifactKind::Mcp)
     } else if id.starts_with("HANDOFF-") {
         Some(ArtifactKind::Handoff)
+    } else if id.starts_with("SKILL-") {
+        Some(ArtifactKind::Skill)
     } else {
         None
     }
@@ -470,6 +475,10 @@ pub fn allowed(kind: ArtifactKind, from: &str, to: &str) -> bool {
             (from, to),
             ("ready", "consumed") | ("ready", "superseded") | (_, "archived")
         ),
+        ArtifactKind::Skill => matches!(
+            (from, to),
+            ("proposed", "active") | ("proposed", "retired") | ("active", "retired")
+        ),
     }
 }
 
@@ -521,6 +530,7 @@ fn default_status(kind: ArtifactKind) -> &'static str {
         | ArtifactKind::McpProposal => "proposed",
         ArtifactKind::Mcp => "specified",
         ArtifactKind::Handoff => "ready",
+        ArtifactKind::Skill => "proposed",
     }
 }
 
@@ -534,6 +544,7 @@ fn template_name(kind: ArtifactKind) -> &'static str {
         ArtifactKind::Mcp => "mcp-spec.md",
         ArtifactKind::McpProposal => "mcp-proposal.md",
         ArtifactKind::Handoff => "session-handoff.md",
+        ArtifactKind::Skill => "skill.md",
     }
 }
 

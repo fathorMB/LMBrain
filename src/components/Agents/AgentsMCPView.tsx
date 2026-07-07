@@ -16,6 +16,8 @@ const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }
   { name: "adr_reject", category: "ADR", description: "Reject a proposed ADR (on operator request)." },
   { name: "agent_activate", category: "Agent", description: "Activate a proposed agent profile (on operator request)." },
   { name: "agent_deactivate", category: "Agent", description: "Deactivate an agent profile (on operator request)." },
+  { name: "skill_activate", category: "Skill", description: "Activate a proposed project-scoped skill (on operator request)." },
+  { name: "skill_retire", category: "Skill", description: "Retire a project-scoped skill that should no longer be recommended." },
   { name: "lmbrain_create", category: "Create", description: "Create an artifact with an allocated ID." },
   { name: "lmbrain_set_recommended_agent", category: "Setter", description: "Set a spec's recommended agent." },
   { name: "lmbrain_set_agent_mnemonic_name", category: "Setter", description: "Set an agent profile's mnemonic human name." },

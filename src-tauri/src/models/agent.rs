@@ -39,6 +39,7 @@ pub struct AgentProfile {
     pub review_focus: Option<Vec<String>>,
     pub context_pack: Option<String>,
     pub constraints: Option<Vec<String>>,
+    pub skills: Option<Vec<String>>,
     pub body: String,
     pub path: String,
     pub created: String,

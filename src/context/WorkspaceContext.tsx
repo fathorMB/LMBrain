@@ -21,6 +21,7 @@ import type {
   Review,
   SessionInfo,
   SessionMode,
+  Skill,
   Spec,
   WikiPage,
   WikiTree,
@@ -45,6 +46,7 @@ export interface WorkspaceState {
   agentProposals: AgentProposal[];
   mcpRecords: McpRecord[];
   mcpProposals: McpProposal[];
+  skills: Skill[];
   handoffs: Handoff[];
   diagnostics: KitDiagnostic[];
   wikiTree: WikiTree | null;
@@ -74,6 +76,7 @@ export type Action =
   | { type: "SET_AGENT_PROPOSALS"; proposals: AgentProposal[] }
   | { type: "SET_MCP_RECORDS"; records: McpRecord[] }
   | { type: "SET_MCP_PROPOSALS"; proposals: McpProposal[] }
+  | { type: "SET_SKILLS"; skills: Skill[] }
   | { type: "SET_HANDOFFS"; handoffs: Handoff[] }
   | { type: "SET_WIKI_TREE"; tree: WikiTree }
   | { type: "SET_WIKI_PAGE"; page: WikiPage | null }
@@ -104,6 +107,7 @@ const initialState: WorkspaceState = {
   agentProposals: [],
   mcpRecords: [],
   mcpProposals: [],
+  skills: [],
   handoffs: [],
   diagnostics: [],
   wikiTree: null,
@@ -201,6 +205,8 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, mcpRecords: action.records };
     case "SET_MCP_PROPOSALS":
       return { ...state, mcpProposals: action.proposals };
+    case "SET_SKILLS":
+      return { ...state, skills: action.skills };
     case "SET_HANDOFFS":
       return { ...state, handoffs: action.handoffs };
     case "SET_WIKI_TREE":
@@ -271,6 +277,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         agentProposals,
         mcpRecords,
         mcpProposals,
+        skills,
         handoffs,
         diagnostics,
       ] = await Promise.all([
@@ -282,6 +289,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         commands.getAgentProposals(),
         commands.getMcpRecords(),
         commands.getMcpProposals(),
+        commands.getSkills(),
         commands.getHandoffs(),
         commands.getDiagnostics(),
       ]);
@@ -297,6 +305,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           agentProposals,
           mcpRecords,
           mcpProposals,
+          skills,
           handoffs,
           diagnostics,
         },

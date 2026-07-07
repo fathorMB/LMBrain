@@ -23,6 +23,7 @@ Important areas:
 - `src/components/Pulse/`: project pulse and recommended actions.
 - `src/components/Wiki/`: Markdown tree and page viewer.
 - `src/components/Design/`: design mockup browser and isolated HTML preview.
+- `src/components/Skills/`: dedicated project-scoped skill browser.
 - `src/components/Taskboard/`: spec board.
 - `src/components/Sessions/`: tab-based session workspace with xterm terminal integration.
 - `src/context/WorkspaceContext.tsx`: workspace state, navigation, session tab state (`SessionInfo[]`, `activeSessionId`), and data refresh.
@@ -40,7 +41,7 @@ The backend reads `.lmbrain/` artifacts, parses Markdown/frontmatter, builds dia
 
 ## Artifact Model
 
-The app treats `.lmbrain/` as the project source of truth. Key artifact families include specs, reviews, decisions, agent profiles and proposals, MCP records/proposals, handoffs, roadmap, status, and knowledge pages.
+The app treats `.lmbrain/` as the project source of truth. Key artifact families include specs, reviews, decisions, agent profiles and proposals, project-scoped skills, MCP records/proposals, handoffs, roadmap, status, and knowledge pages.
 
 ### Agent profiles (v3 specialization metadata)
 
@@ -58,6 +59,14 @@ All fields are optional. Existing v2 profiles without these fields continue to p
 ### Agent proposals (v3 improvement loop)
 
 Agent proposals now support a `proposal_type` field (`new-profile` or `improvement`), a `target_profile` field for improvement proposals targeting existing profiles, and an optional `proposed_mnemonic_name` for profiles that will be materialized later. Improvement proposals follow the same lifecycle as new-profile proposals but require operator approval before behavior-affecting changes become active.
+
+### Project-scoped skills
+
+Skills are `SKILL-*` Markdown artifacts under `.lmbrain/skills/<status>/`. They document reusable project procedures such as build, test, diagnostic, release, and review runbooks.
+
+Skills are not executable capabilities. LMBrain parses and displays skill commands, includes applicable active skills in context packs, and reports reference diagnostics, but it does not run commands automatically.
+
+The app exposes skills through a dedicated `Skills` page rather than adding them to `Agents & MCP`. Specs and agent profiles may reference skills through optional `skills: []` frontmatter.
 
 ### Milestone intelligence (v3)
 
@@ -102,6 +111,7 @@ The server exposes specific tools such as:
 - `review_accept`;
 - `adr_accept`, `adr_reject`;
 - `agent_activate`, `agent_deactivate`;
+- `skill_activate`, `skill_retire`;
 - `lmbrain_create`;
 - `lmbrain_set_recommended_agent`;
 - `lmbrain_set_agent_mnemonic_name`;
@@ -112,8 +122,8 @@ The server exposes specific tools such as:
 ### V3 context-pack tools (added in kit 2.2.7)
 
 - `lmbrain_project_digest` — compact project overview: title/status, current milestone, ready/review specs, blockers, ready handoffs, active decisions, diagnostics summary, and version/health warnings. Returns JSON and Markdown summary. No required parameters.
-- `lmbrain_spec_context` — spec handoff context: spec metadata, acceptance criteria checklist, linked decisions, recommended agent profile summary, related reviews, referenced milestone, explicit files/areas, and diagnostics affecting the handoff. Returns JSON and Markdown summary. Requires `spec` parameter (ID or path).
-- `lmbrain_review_context` — review context: acceptance criteria, implementation evidence, linked accepted/proposed reviews, relevant decisions, and verification commands claimed by the specialist. Returns JSON and Markdown summary. Requires `spec` parameter (ID or path).
+- `lmbrain_spec_context` — spec handoff context: spec metadata, acceptance criteria checklist, linked decisions, recommended agent profile summary, applicable active skills, related reviews, referenced milestone, explicit files/areas, and diagnostics affecting the handoff. Returns JSON and Markdown summary. Requires `spec` parameter (ID or path).
+- `lmbrain_review_context` — review context: acceptance criteria, implementation evidence, linked accepted/proposed reviews, relevant decisions, verification commands claimed by the specialist, and applicable verification/review skills. Returns JSON and Markdown summary. Requires `spec` parameter (ID or path).
 
 All context-pack tools are read-only. They resolve references through existing ID/path logic and report missing links as structured warnings. They are backed by `lmbrain-core/src/context.rs`.
 

@@ -18,6 +18,7 @@ import type {
   Roadmap,
   SessionInfo,
   SessionMode,
+  Skill,
   Spec,
   WikiPage,
   WikiTree,
@@ -92,6 +93,10 @@ export async function getMcpRecords(): Promise<McpRecord[]> {
 
 export async function getMcpProposals(): Promise<McpProposal[]> {
   return invoke("get_mcp_proposals");
+}
+
+export async function getSkills(): Promise<Skill[]> {
+  return invoke("get_skills");
 }
 
 export async function getHandoffs(): Promise<Handoff[]> {

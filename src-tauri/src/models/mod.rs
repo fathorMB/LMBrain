@@ -8,6 +8,7 @@ pub mod pulse;
 pub mod review;
 pub mod roadmap;
 pub mod session;
+pub mod skill;
 pub mod spec;
 pub mod wiki;
 pub mod workspace;

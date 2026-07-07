@@ -422,6 +422,118 @@ tags: [proposal]
 }
 
 #[test]
+fn test_build_skills_parses_project_scoped_skill() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let skill_dir = dir.path().join(".lmbrain").join("skills").join("active");
+    fs::create_dir_all(&skill_dir).unwrap();
+
+    fs::write(
+        skill_dir.join("SKILL-001-build-and-test.md"),
+        r#"---
+id: SKILL-001
+title: "Build and test"
+status: active
+scope: project
+kind: verification
+risk: medium
+applies_to: [AGENT-FULLSTACK-DESKTOP]
+domains: [build, test]
+commands: [pnpm test, cargo test --workspace]
+requires_operator_approval: false
+links: []
+created: 2026-07-07
+updated: 2026-07-07
+tags: [verification]
+---
+# Build and test
+"#,
+    )
+    .unwrap();
+
+    let skills = contract::build_skills(dir.path()).unwrap();
+    assert_eq!(skills.len(), 1);
+    let skill = &skills[0];
+    assert_eq!(skill.id, "SKILL-001");
+    assert_eq!(skill.status.as_str(), "active");
+    assert_eq!(skill.kind.as_deref(), Some("verification"));
+    assert_eq!(skill.risk.as_deref(), Some("medium"));
+    assert_eq!(skill.commands, vec!["pnpm test", "cargo test --workspace"]);
+}
+
+#[test]
+fn test_build_diagnostics_flags_unresolved_skill_references() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let lmbrain = dir.path().join(".lmbrain");
+    fs::create_dir_all(lmbrain.join("skills/active")).unwrap();
+    fs::create_dir_all(lmbrain.join("agents/profiles")).unwrap();
+
+    fs::write(
+        lmbrain.join("specs/ready/SPEC-SKILL.md"),
+        r#"---
+id: SPEC-SKILL
+title: Skill ref
+status: ready
+skills: ["SKILL-MISSING"]
+links: []
+created: 2026-07-07
+updated: 2026-07-07
+tags: []
+---
+# Skill ref
+"#,
+    )
+    .unwrap();
+    fs::write(
+        lmbrain.join("agents/profiles/AGENT-SKILL.md"),
+        r#"---
+id: AGENT-SKILL
+title: Agent Skill
+status: active
+skills: ["SKILL-MISSING"]
+links: []
+created: 2026-07-07
+updated: 2026-07-07
+tags: []
+---
+# Agent Skill
+"#,
+    )
+    .unwrap();
+    fs::write(
+        lmbrain.join("skills/active/SKILL-001.md"),
+        r#"---
+id: SKILL-001
+title: Diagnostic Skill
+status: active
+risk: spicy
+applies_to: ["AGENT-MISSING"]
+links: []
+created: 2026-07-07
+updated: 2026-07-07
+tags: []
+---
+# Diagnostic Skill
+"#,
+    )
+    .unwrap();
+
+    let diags = contract::build_diagnostics(dir.path());
+    let messages = diags.iter().map(|d| d.message.as_str()).collect::<Vec<_>>();
+    assert!(messages
+        .iter()
+        .any(|m| m.contains("spec SPEC-SKILL references skill 'SKILL-MISSING'")));
+    assert!(messages
+        .iter()
+        .any(|m| m.contains("agent AGENT-SKILL references skill 'SKILL-MISSING'")));
+    assert!(messages.iter().any(|m| m.contains("Invalid skill risk")));
+    assert!(messages
+        .iter()
+        .any(|m| m.contains("skill SKILL-001 applies to 'AGENT-MISSING'")));
+}
+
+#[test]
 fn test_build_diagnostics_area_domain_mismatch() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());

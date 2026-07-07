@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.5.0 - 2026-07-07
+
+### Added
+
+- **Project-scoped skills.** The kit now includes `SKILL-*` procedure artifacts under `.lmbrain/skills/`, a skill template, a dedicated app page, context-pack inclusion, lifecycle tools, and governance guidance for reusable build, test, diagnostic, release, and review runbooks.
+
 ## 2.4.1 - 2026-07-07
 
 ### Added

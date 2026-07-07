@@ -113,6 +113,8 @@ When a context pack includes a warning (e.g. missing reference, unresolved agent
 - Identify MCP capability gaps, document proposals and specs, and state permissions and risks.
 - Never install, configure, enable, or use a new external MCP without explicit user approval.
 - Every agent profile uses `activation: manual`.
+- Create project-scoped skills for recurring operational procedures such as build, test, diagnostics, release checks, or review workflows. Skills are Markdown runbooks, not executable tools; do not imply that LMBrain will run commands automatically.
+- Keep risky skills proposed until the operator approves them. Mark `requires_operator_approval: true` for destructive, credentialed, release-affecting, expensive, or otherwise sensitive procedures.
 
 ## Technical judgement
 

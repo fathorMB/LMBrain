@@ -222,6 +222,15 @@ fn get_mcp_proposals(state: State<'_, AppState>) -> Result<Vec<models::mcp::McpP
 }
 
 #[tauri::command]
+fn get_skills(state: State<'_, AppState>) -> Result<Vec<models::skill::Skill>, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    contract::build_skills(&root).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn get_handoffs(state: State<'_, AppState>) -> Result<Vec<models::handoff::Handoff>, String> {
     let root = state
         .path_guard
@@ -557,6 +566,7 @@ pub fn run() {
             get_agent_proposals,
             get_mcp_records,
             get_mcp_proposals,
+            get_skills,
             get_handoffs,
             get_design_mockups,
             read_design_mockup_html,

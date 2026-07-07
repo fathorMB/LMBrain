@@ -122,6 +122,14 @@ fn tools() -> Vec<Value> {
             "agent_deactivate",
             "Deactivate an agent profile (on operator request).",
         ),
+        (
+            "skill_activate",
+            "Activate a proposed project-scoped skill (on operator request).",
+        ),
+        (
+            "skill_retire",
+            "Retire a project-scoped skill that should no longer be recommended.",
+        ),
     ] {
         entries.push(transition_tool(name, description));
     }
@@ -187,7 +195,7 @@ fn create_tool() -> Value {
             "type":"object",
             "required":["kind","title"],
             "properties":{
-                "kind":{"type":"string","enum":["spec","review","adr","agent","agent-proposal","mcp","mcp-proposal","handoff"]},
+                "kind":{"type":"string","enum":["spec","review","adr","agent","agent-proposal","mcp","mcp-proposal","handoff","skill"]},
                 "title":{"type":"string"},
                 "status":{"type":"string"},
                 "fields":{"type":"array","items":{"type":"array","items":{"type":"string"},"minItems":2,"maxItems":2}}
@@ -420,6 +428,8 @@ fn specific_status(name: &str) -> Option<&'static str> {
         "adr_reject" => Some("rejected"),
         "agent_activate" => Some("active"),
         "agent_deactivate" => Some("inactive"),
+        "skill_activate" => Some("active"),
+        "skill_retire" => Some("retired"),
         _ => None,
     }
 }
@@ -488,11 +498,29 @@ mod tests {
         assert!(names.contains(&"adr_reject".to_string()));
         assert!(names.contains(&"agent_activate".to_string()));
         assert!(names.contains(&"agent_deactivate".to_string()));
+        assert!(names.contains(&"skill_activate".to_string()));
+        assert!(names.contains(&"skill_retire".to_string()));
         assert!(!names.iter().any(|name| name.starts_with("task_")));
         assert!(names.contains(&"spec_done".to_string()));
         assert!(names.contains(&"spec_discard".to_string()));
         assert!(names.contains(&"review_accept".to_string()));
         assert!(names.contains(&"lmbrain_set_agent_mnemonic_name".to_string()));
+    }
+
+    #[test]
+    fn create_tool_accepts_skill_kind() {
+        let tools = super::tools();
+        let tool = tools
+            .iter()
+            .find(|tool| tool.get("name").and_then(Value::as_str) == Some("lmbrain_create"))
+            .expect("lmbrain_create tool not found");
+        let enum_values = tool
+            .pointer("/inputSchema/properties/kind/enum")
+            .and_then(Value::as_array)
+            .expect("kind enum missing");
+        assert!(enum_values
+            .iter()
+            .any(|value| value.as_str() == Some("skill")));
     }
 
     #[test]

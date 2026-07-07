@@ -49,6 +49,7 @@ pub struct Spec {
     pub area: Option<String>,
     pub milestone: Option<String>,
     pub recommended_agent: Option<String>,
+    pub skills: Vec<String>,
     pub body: String,
     pub path: String,
     pub created: String,

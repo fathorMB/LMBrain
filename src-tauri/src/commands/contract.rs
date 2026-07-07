@@ -17,6 +17,7 @@ use crate::models::roadmap::{
     Milestone, MilestoneAdrSummary, MilestoneDetail, MilestoneOverview, MilestoneReviewSummary,
     MilestoneSpecSummary, Roadmap,
 };
+use crate::models::skill::{Skill, SkillStatus};
 use crate::models::spec::{Spec, SpecStatus};
 use crate::models::wiki::{WikiNode, WikiNodeKind, WikiTree};
 use crate::models::workspace::{DiagnosticSeverity, KitDiagnostic};
@@ -56,6 +57,7 @@ pub fn build_specs(root: &Path) -> Result<Vec<Spec>, AppError> {
                 area: fm_string(&parsed.frontmatter, "area"),
                 milestone: fm_string(&parsed.frontmatter, "milestone"),
                 recommended_agent: fm_string(&parsed.frontmatter, "recommended_agent"),
+                skills: fm_string_array(&parsed.frontmatter, "skills"),
                 body: common.body,
                 path: common.path,
                 created: common.created,
@@ -153,6 +155,7 @@ pub fn build_agents(root: &Path) -> Result<Vec<AgentProfile>, AppError> {
                 review_focus: parser::fm_string_array_opt(&parsed.frontmatter, "review_focus"),
                 context_pack: fm_string(&parsed.frontmatter, "context_pack"),
                 constraints: parser::fm_string_array_opt(&parsed.frontmatter, "constraints"),
+                skills: parser::fm_string_array_opt(&parsed.frontmatter, "skills"),
                 body: common.body,
                 path: common.path,
                 created: common.created,
@@ -226,6 +229,45 @@ pub fn build_mcp_proposals(root: &Path) -> Result<Vec<McpProposal>, AppError> {
                 id: common.id,
                 title: common.title,
                 status: parse_mcp_proposal_status(&parsed.frontmatter),
+                body: common.body,
+                path: common.path,
+                created: common.created,
+                updated: common.updated,
+                tags: common.tags,
+                links: common.links,
+                malformed: common.malformed,
+            })
+        },
+    )
+}
+
+/// Build skills from the skills status directories.
+pub fn build_skills(root: &Path) -> Result<Vec<Skill>, AppError> {
+    let statuses = [
+        SkillStatus::Active,
+        SkillStatus::Proposed,
+        SkillStatus::Retired,
+    ];
+    build_status_dir_artifacts(
+        &root.join(".lmbrain/skills"),
+        &statuses,
+        |status| status.as_str(),
+        |status, parsed, path| {
+            let common = common_fields(parsed, path);
+            Ok(Skill {
+                id: common.id,
+                title: common.title,
+                status: status.clone(),
+                scope: fm_string(&parsed.frontmatter, "scope"),
+                kind: fm_string(&parsed.frontmatter, "kind"),
+                risk: fm_string(&parsed.frontmatter, "risk"),
+                applies_to: fm_string_array(&parsed.frontmatter, "applies_to"),
+                domains: fm_string_array(&parsed.frontmatter, "domains"),
+                commands: fm_string_array(&parsed.frontmatter, "commands"),
+                requires_operator_approval: parser::fm_bool(
+                    &parsed.frontmatter,
+                    "requires_operator_approval",
+                ),
                 body: common.body,
                 path: common.path,
                 created: common.created,
@@ -752,7 +794,9 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
                         .map(|name| name.to_string_lossy().to_string())
                         .unwrap_or_default();
 
-                    if (artifact_type == "specs" || artifact_type == "reviews")
+                    if (artifact_type == "specs"
+                        || artifact_type == "reviews"
+                        || artifact_type == "skills")
                         && !lmbrain_core::invariants::folder_matches_status(&file_path)
                     {
                         diagnostics.push(KitDiagnostic {
@@ -777,7 +821,26 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
 
     if let Ok(specs) = build_specs(root) {
         let agents = build_agents(root).unwrap_or_default();
+        let skills = build_skills(root).unwrap_or_default();
         for spec in &specs {
+            for skill_id in &spec.skills {
+                if !skills.iter().any(|skill| skill.id == *skill_id) {
+                    let rel_path = Path::new(&spec.path)
+                        .strip_prefix(&lmbrain)
+                        .ok()
+                        .map(|path| path.to_string_lossy().to_string())
+                        .unwrap_or_else(|| spec.path.clone());
+                    diagnostics.push(KitDiagnostic {
+                        message: format!(
+                            "Missing reference: spec {} references skill '{}', which is not an existing skill",
+                            spec.id, skill_id
+                        ),
+                        severity: DiagnosticSeverity::Warning,
+                        path: Some(rel_path),
+                    });
+                }
+            }
+
             let Some(agent) = spec
                 .recommended_agent
                 .as_deref()
@@ -827,6 +890,69 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
                             });
                         }
                     }
+                }
+            }
+        }
+
+        for agent in &agents {
+            if let Some(agent_skills) = &agent.skills {
+                for skill_id in agent_skills {
+                    if !skills.iter().any(|skill| skill.id == *skill_id) {
+                        let rel_path = Path::new(&agent.path)
+                            .strip_prefix(&lmbrain)
+                            .ok()
+                            .map(|path| path.to_string_lossy().to_string())
+                            .unwrap_or_else(|| agent.path.clone());
+                        diagnostics.push(KitDiagnostic {
+                            message: format!(
+                                "Missing reference: agent {} references skill '{}', which is not an existing skill",
+                                agent.id, skill_id
+                            ),
+                            severity: DiagnosticSeverity::Warning,
+                            path: Some(rel_path),
+                        });
+                    }
+                }
+            }
+        }
+
+        for skill in &skills {
+            if let Some(risk) = &skill.risk {
+                if !matches!(risk.as_str(), "low" | "medium" | "high") {
+                    let rel_path = Path::new(&skill.path)
+                        .strip_prefix(&lmbrain)
+                        .ok()
+                        .map(|path| path.to_string_lossy().to_string())
+                        .unwrap_or_else(|| skill.path.clone());
+                    diagnostics.push(KitDiagnostic {
+                        message: format!(
+                            "Invalid skill risk: skill {} uses '{}', expected low, medium, or high",
+                            skill.id, risk
+                        ),
+                        severity: DiagnosticSeverity::Warning,
+                        path: Some(rel_path),
+                    });
+                }
+            }
+
+            for target in &skill.applies_to {
+                if target == "all" {
+                    continue;
+                }
+                if !agents.iter().any(|agent| agent.id == *target) {
+                    let rel_path = Path::new(&skill.path)
+                        .strip_prefix(&lmbrain)
+                        .ok()
+                        .map(|path| path.to_string_lossy().to_string())
+                        .unwrap_or_else(|| skill.path.clone());
+                    diagnostics.push(KitDiagnostic {
+                        message: format!(
+                            "Missing reference: skill {} applies to '{}', which is not an existing agent profile",
+                            skill.id, target
+                        ),
+                        severity: DiagnosticSeverity::Warning,
+                        path: Some(rel_path),
+                    });
                 }
             }
         }

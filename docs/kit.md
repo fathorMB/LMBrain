@@ -18,7 +18,7 @@ Initialization refuses to overwrite an existing `.lmbrain/`.
 - `OPERATOR.md`: human operator guide.
 - `README.md`: kit entry point.
 - `CHANGELOG.md`, `MIGRATIONS.md`, `VERSION`: kit versioning and upgrade information.
-- `templates/`: templates for specs, reviews, ADRs, agent profiles/proposals, MCP proposals/specs, and handoffs.
+- `templates/`: templates for specs, reviews, ADRs, agent profiles/proposals, skills, MCP proposals/specs, and handoffs.
 - `design/`: operator-loaded design mockups used as support material for specs and implementation handoffs.
 
 ## Artifact Directories
@@ -29,6 +29,7 @@ The kit includes directories for:
 - `reviews/<status>/`
 - `decisions/`
 - `agents/`
+- `skills/`
 - `design/`
 - `mcp/`
 - `handoffs/`
@@ -38,6 +39,8 @@ The kit includes directories for:
 Status-directory artifacts must keep filesystem location and frontmatter `status` aligned. LMBrain surfaces diagnostics for mismatches and related consistency problems.
 
 `design/` is intentionally not a managed artifact directory. It stores self-contained HTML/CSS/JS mockups and optional README/manifest metadata that the Project Lead may reference from specs.
+
+`skills/` stores `SKILL-*` project-scoped procedures in `active/`, `proposed/`, and `retired/`. Skills are Markdown runbooks for manually started agents; LMBrain displays their commands and includes applicable active skills in context packs, but does not execute them.
 
 ## Spec Board
 
@@ -58,7 +61,7 @@ The kit includes context-pack MCP tools for token-efficient agent workflow:
 
 - **Project Lead bootstrap:** Use `lmbrain_project_digest` instead of reading the entire `.lmbrain/` directory.
 - **Specialist handoff:** Use `lmbrain_spec_context` for a compact spec context before expanding to full artifacts.
-- **Review:** Use `lmbrain_review_context` for acceptance criteria, evidence, and linked reviews.
+- **Review:** Use `lmbrain_review_context` for acceptance criteria, evidence, linked reviews, and verification/review skills.
 
 Context packs are derived views only. Source artifacts remain the system of record. See `CONTRACT.md` for the full context-pack contract.
 
@@ -80,6 +83,16 @@ All profiles use `activation: manual`. The Project Lead recommends the most spec
 ### Controlled improvement loop
 
 Improvement proposals use the existing `agents/proposals/` mechanism with `proposal_type: improvement` and a `target_profile` field. The Project Lead may create improvement proposals from accepted reviews, repeated remediation findings, implementation evidence, diagnostics, or operator feedback. Operator approval is required before any behavior-affecting profile change becomes active.
+
+## Project-scoped skills
+
+The kit supports reusable agent procedures as `SKILL-*` artifacts:
+
+- `skills/proposed/` for drafts;
+- `skills/active/` for procedures available to handoffs and context packs;
+- `skills/retired/` for obsolete procedures.
+
+Specs and agent profiles may reference skills with `skills: []`. A skill may also declare `applies_to`, `domains`, `commands`, `risk`, and `requires_operator_approval`. Commands are documented instructions for agents to run manually in their assigned environment.
 
 ## Versioning
 
