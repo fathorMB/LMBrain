@@ -19,7 +19,7 @@ import { CommandPalette } from "../CommandPalette";
 import { ArtifactDetailModal } from "./ArtifactDetailModal";
 
 export function AppShell() {
-  const { state } = useWorkspace();
+  const { state, dispatch } = useWorkspace();
 
   if (state.screen === "picker") {
     return <RepositoryPicker />;
@@ -72,6 +72,43 @@ export function AppShell() {
       <Sidebar />
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <TopBar />
+        {state.workspaceNotice && (
+          <div
+            role="alert"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              padding: "8px 14px",
+              borderBottom: "1px solid rgba(224,162,58,.35)",
+              background: "rgba(224,162,58,.10)",
+              color: "#d9b86d",
+              fontSize: 12,
+              flexShrink: 0,
+            }}
+          >
+            <i className="material-symbols-outlined" style={{ fontSize: 17 }}>
+              warning
+            </i>
+            <span style={{ flex: 1 }}>{state.workspaceNotice}</span>
+            <button
+              type="button"
+              aria-label="Dismiss workspace warning"
+              onClick={() => dispatch({ type: "SET_WORKSPACE_NOTICE", notice: null })}
+              style={{
+                border: "none",
+                background: "transparent",
+                color: "inherit",
+                cursor: "pointer",
+                padding: 2,
+              }}
+            >
+              <i className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                close
+              </i>
+            </button>
+          </div>
+        )}
         <div
           style={{
             flex: 1,

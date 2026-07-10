@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { listOllamaModels } from "../../lib/commands";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import type { OllamaModel, SessionMode, SessionInfo } from "../../types";
+import type { AgentHost, ModelRoute, OllamaModel, SessionInfo } from "../../types";
 import { SessionTerminal } from "./SessionTerminal";
 
 interface SessionsViewProps {
@@ -16,7 +16,8 @@ export function SessionsView({ active }: SessionsViewProps) {
     setActiveSession,
   } = useWorkspace();
   const [modalOpen, setModalOpen] = useState(false);
-  const [mode, setMode] = useState<SessionMode>("claude");
+  const [host, setHost] = useState<AgentHost>("claude");
+  const [route, setRoute] = useState<ModelRoute>("native");
   const [model, setModel] = useState("");
   const [label, setLabel] = useState("");
   const [models, setModels] = useState<OllamaModel[]>([]);
@@ -24,8 +25,6 @@ export function SessionsView({ active }: SessionsViewProps) {
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const activeSession = state.sessions.find((s) => s.id === state.activeSessionId) ?? null;
 
   const refreshModels = async () => {
     setModelsLoading(true);
@@ -52,17 +51,24 @@ export function SessionsView({ active }: SessionsViewProps) {
     }
   };
 
-  const selectMode = (next: SessionMode) => {
-    setMode(next);
-    if (next === "ollama") {
+  const selectHost = (next: AgentHost) => {
+    setHost(next);
+    if (next === "pi") {
+      setRoute("ollama");
       ensureModelsLoaded();
+      return;
     }
+    if (next === "codex") {
+      setRoute("native");
+      return;
+    }
+    if (route === "ollama") ensureModelsLoaded();
   };
 
   const openModal = () => {
     setSubmitError(null);
     setModalOpen(true);
-    if (mode === "ollama") {
+    if (route === "ollama") {
       ensureModelsLoaded();
     }
   };
@@ -72,10 +78,11 @@ export function SessionsView({ active }: SessionsViewProps) {
     setSubmitError(null);
     try {
       await createSession({
-        mode,
-        model: mode === "ollama" ? model : undefined,
+        host,
+        route,
+        model: route === "ollama" ? model : undefined,
         codex_bin:
-          mode === "codex"
+          host === "codex"
             ? localStorage.getItem("lmbrain.codexBin")?.trim() || undefined
             : undefined,
         label,
@@ -130,8 +137,8 @@ export function SessionsView({ active }: SessionsViewProps) {
         >
           Sessions
         </div>
-        <button onClick={openModal} style={primaryButtonStyle}>
-          <i className="material-symbols-outlined" style={{ fontSize: 16 }}>
+        <button type="button" aria-label="New session" onClick={openModal} style={primaryButtonStyle}>
+          <i className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 16 }}>
             add
           </i>
           New session
@@ -171,18 +178,26 @@ export function SessionsView({ active }: SessionsViewProps) {
           <EmptySessionsState active={active} onCreate={openModal} />
         )}
 
-        {activeSession && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <SessionTerminal sessionId={activeSession.id} active={active} />
-          </div>
-        )}
+        {state.sessions.map((session) => {
+          const sessionActive = session.id === state.activeSessionId;
+          return (
+            <div
+              key={session.id}
+              aria-hidden={!sessionActive}
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: sessionActive ? "flex" : "none",
+                flexDirection: "column",
+              }}
+            >
+              <SessionTerminal
+                sessionId={session.id}
+                active={active && sessionActive}
+              />
+            </div>
+          );
+        })}
       </div>
 
       {/* New session modal */}
@@ -225,14 +240,20 @@ export function SessionsView({ active }: SessionsViewProps) {
               Start session
             </div>
 
-            <div style={fieldLabelStyle}>Launch mode</div>
+            <div style={fieldLabelStyle}>Agent</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-              <ModeButton label="Claude" selected={mode === "claude"} onClick={() => selectMode("claude")} />
-              <ModeButton label="Ollama" selected={mode === "ollama"} onClick={() => selectMode("ollama")} />
-              <ModeButton label="Codex" selected={mode === "codex"} onClick={() => selectMode("codex")} />
+              <ModeButton label="Claude" selected={host === "claude"} onClick={() => selectHost("claude")} />
+              <ModeButton label="Codex" selected={host === "codex"} onClick={() => selectHost("codex")} />
+              <ModeButton label="Pi" selected={host === "pi"} onClick={() => selectHost("pi")} />
             </div>
 
-            {mode === "ollama" && (
+            <div style={fieldLabelStyle}>Connection</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {host !== "pi" && <ModeButton label="Native" selected={route === "native"} onClick={() => setRoute("native")} />}
+              {host !== "codex" && <ModeButton label="Ollama" selected={route === "ollama"} onClick={() => { setRoute("ollama"); ensureModelsLoaded(); }} />}
+            </div>
+
+            {route === "ollama" && (
               <>
                 <div style={fieldLabelStyle}>Model</div>
                 <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
@@ -303,10 +324,10 @@ export function SessionsView({ active }: SessionsViewProps) {
               </button>
               <button
                 onClick={handleCreateSession}
-                disabled={submitting || (mode === "ollama" && !model)}
+                disabled={submitting || (route === "ollama" && !model)}
                 style={{
                   ...primaryButtonStyle,
-                  opacity: submitting || (mode === "ollama" && !model) ? 0.6 : 1,
+                  opacity: submitting || (route === "ollama" && !model) ? 0.6 : 1,
                 }}
               >
                 {submitting ? "Starting..." : "Start session"}
@@ -377,7 +398,7 @@ function SessionTab({
           minWidth: 0,
         }}
       >
-        {session.label || session.mode}
+        {session.label || session.host}
       </div>
       <div
         style={{
@@ -388,7 +409,7 @@ function SessionTab({
         }}
       >
         {session.status === "running"
-          ? session.mode
+          ? session.host
           : session.exit_code === null
             ? "exited"
             : `exit ${session.exit_code}`}
@@ -492,7 +513,7 @@ function EmptySessionsState({
             color: "var(--text-tertiary)",
           }}
         >
-          Start Claude Code, Codex, or route Claude Code through Ollama with a tools-capable model.
+          Start Claude Code, Codex, or Pi through Ollama with a tools-capable model.
         </div>
         <div style={{ marginTop: 22 }}>
           <button onClick={onCreate} style={primaryButtonStyle}>
@@ -516,6 +537,7 @@ function ModeButton({
   return (
     <button
       onClick={onClick}
+      aria-pressed={selected}
       style={{
         flex: 1,
         borderRadius: 12,

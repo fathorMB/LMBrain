@@ -2,10 +2,17 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub enum SessionMode {
+pub enum AgentHost {
     Claude,
-    Ollama,
     Codex,
+    Pi,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ModelRoute {
+    Native,
+    Ollama,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -17,7 +24,8 @@ pub enum SessionStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionStartRequest {
-    pub mode: SessionMode,
+    pub host: AgentHost,
+    pub route: ModelRoute,
     pub model: Option<String>,
     pub label: Option<String>,
     pub codex_bin: Option<String>,
@@ -27,7 +35,8 @@ pub struct SessionStartRequest {
 pub struct SessionInfo {
     pub id: String,
     pub label: String,
-    pub mode: SessionMode,
+    pub host: AgentHost,
+    pub route: ModelRoute,
     pub model: Option<String>,
     pub status: SessionStatus,
     pub exit_code: Option<i32>,

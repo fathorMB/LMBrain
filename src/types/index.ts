@@ -452,13 +452,15 @@ export interface GitInfo {
   current_commit: string | null;
 }
 
-export type SessionMode = "claude" | "ollama" | "codex";
+export type AgentHost = "claude" | "codex" | "pi";
+export type ModelRoute = "native" | "ollama";
 export type SessionStatus = "running" | "exited";
 
 export interface SessionInfo {
   id: string;
   label: string;
-  mode: SessionMode;
+  host: AgentHost;
+  route: ModelRoute;
   model: string | null;
   status: SessionStatus;
   exit_code: number | null;
@@ -468,6 +470,13 @@ export interface OllamaModel {
   name: string;
   cloud: boolean;
   capabilities: string[];
+}
+
+export type PiPreparationStatus = "ready" | "installed" | "unavailable";
+
+export interface PiPreparationResult {
+  status: PiPreparationStatus;
+  message: string;
 }
 
 // SessionWindowGeometry and SessionWindowState were removed in v3.

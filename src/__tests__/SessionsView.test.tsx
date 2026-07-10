@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { SessionsView } from "../components/Sessions/SessionsView";
+import { listOllamaModels } from "../lib/commands";
 import type { SessionInfo } from "../types";
 
 const mockWorkspace = vi.hoisted(() => ({
@@ -12,7 +13,8 @@ const mockWorkspace = vi.hoisted(() => ({
 const runningSession: SessionInfo = {
   id: "session-1",
   label: "Frontend debugging",
-  mode: "claude",
+  host: "claude",
+  route: "native",
   model: null,
   status: "running",
   exit_code: null,
@@ -21,7 +23,8 @@ const runningSession: SessionInfo = {
 const exitedSession: SessionInfo = {
   id: "session-2",
   label: "Backend work",
-  mode: "codex",
+  host: "codex",
+  route: "native",
   model: null,
   status: "exited",
   exit_code: 0,
@@ -30,7 +33,8 @@ const exitedSession: SessionInfo = {
 const failedSession: SessionInfo = {
   id: "session-3",
   label: "Failed task",
-  mode: "ollama",
+  host: "claude",
+  route: "ollama",
   model: "llama3",
   status: "exited",
   exit_code: 1,
@@ -53,12 +57,20 @@ vi.mock("../hooks/useWorkspace", () => ({
 }));
 
 vi.mock("../components/Sessions/SessionTerminal", () => ({
-  SessionTerminal: ({ sessionId }: { sessionId: string }) => (
-    <div data-testid={`terminal-${sessionId}`} />
+  SessionTerminal: ({ sessionId, active }: { sessionId: string; active: boolean }) => (
+    <div data-testid={`terminal-${sessionId}`} data-active={String(active)} />
   ),
 }));
 
 describe("SessionsView", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(listOllamaModels).mockResolvedValue([
+      { name: "qwen3.5:cloud", cloud: true, capabilities: ["tools"] },
+    ]);
+    mockWorkspace.createSession.mockResolvedValue("session-pi");
+  });
+
   it("renders tabs for each session", () => {
     render(<SessionsView active />);
 
@@ -70,8 +82,15 @@ describe("SessionsView", () => {
   it("shows the active tab with a terminal", () => {
     render(<SessionsView active />);
 
-    // The active session's terminal should be rendered
-    expect(screen.getByTestId("terminal-session-1")).toBeDefined();
+    expect(screen.getByTestId("terminal-session-1").dataset.active).toBe("true");
+  });
+
+  it("keeps inactive session terminals mounted to preserve scrollback", () => {
+    render(<SessionsView active />);
+
+    expect(screen.getByTestId("terminal-session-1").dataset.active).toBe("true");
+    expect(screen.getByTestId("terminal-session-2").dataset.active).toBe("false");
+    expect(screen.getByTestId("terminal-session-3").dataset.active).toBe("false");
   });
 
   it("switching tabs calls setActiveSession", () => {
@@ -126,5 +145,39 @@ describe("SessionsView", () => {
 
     expect(overlay).not.toBeNull();
     expect(Number(overlay?.style.zIndex)).toBe(100);
+  });
+
+  it("loads Ollama models when Pi is selected and submits the Pi route", async () => {
+    render(<SessionsView active />);
+
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pi" }));
+
+    await waitFor(() => expect(listOllamaModels).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole("option", { name: "qwen3.5:cloud" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    await waitFor(() =>
+      expect(mockWorkspace.createSession).toHaveBeenCalledWith({
+        host: "pi",
+        route: "ollama",
+        model: "qwen3.5:cloud",
+        codex_bin: undefined,
+        label: "",
+      })
+    );
+  });
+
+  it("keeps the modal open and shows Pi launch errors", async () => {
+    mockWorkspace.createSession.mockRejectedValueOnce("Pi MCP prerequisite is missing");
+    render(<SessionsView active />);
+
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pi" }));
+    await screen.findByRole("option", { name: "qwen3.5:cloud" });
+    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+
+    expect(await screen.findByText("Pi MCP prerequisite is missing")).toBeDefined();
+    expect(screen.getByRole("dialog", { name: "Start session" })).toBeDefined();
   });
 });

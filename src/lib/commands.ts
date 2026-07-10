@@ -13,12 +13,14 @@ import type {
   McpRecord,
   MilestoneOverview,
   ParsedDocument,
+  PiPreparationResult,
   ProjectStatistics,
   PulseData,
   Review,
   Roadmap,
   SessionInfo,
-  SessionMode,
+  AgentHost,
+  ModelRoute,
   Skill,
   Spec,
   WikiPage,
@@ -40,6 +42,10 @@ export async function initializeWorkspaceKit(path: string): Promise<WorkspaceInf
 
 export async function listRecentWorkspaces(): Promise<WorkspaceSummary[]> {
   return invoke("list_recent_workspaces");
+}
+
+export async function preparePiIntegration(): Promise<PiPreparationResult> {
+  return invoke("prepare_pi_integration");
 }
 
 export async function removeRecentWorkspace(path: string): Promise<void> {
@@ -172,7 +178,8 @@ export async function watcherStatus(): Promise<boolean> {
 }
 
 export interface SessionStartRequest {
-  mode: SessionMode;
+  host: AgentHost;
+  route: ModelRoute;
   model?: string;
   label?: string;
   codex_bin?: string;

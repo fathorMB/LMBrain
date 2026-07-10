@@ -60,6 +60,43 @@ trust_level = "trusted"
 
 The user config is personal. LMBrain preserves existing content and only adds a missing trust entry.
 
+## Pi through Ollama
+
+Pi sessions are launched only through the operator-selected local Ollama
+daemon using `ollama launch pi --model <model>`. LMBrain does not install or
+upgrade Pi, Ollama, or models. Pi reads the same root `AGENTS.md` instruction
+pointer as other hosts.
+
+Pi's core distribution does not include an MCP client. During visible workspace
+preparation, LMBrain therefore checks and, only when missing, installs the
+operator-approved exact project-local package pin:
+
+```text
+pi install npm:pi-mcp-extension@1.5.0 -l --approve
+```
+
+The command never targets global settings and never selects an unpinned version.
+LMBrain first verifies both project `.pi/settings.json` and an offline `pi list`,
+so an already-ready project is not reinstalled. Installation failure does not
+block workspace access: Pulse opens with a persistent Pi warning. LMBrain also
+safely merges only `mcpServers.lmbrain` into generated `.pi/mcp.json`, preserving
+unrelated servers and settings. Immediately before Pi PTY creation it repeats a
+defensive offline readiness check.
+
+Pi sessions run with `PI_OFFLINE=1`, `PI_SKIP_VERSION_CHECK=1`, and
+`PI_TELEMETRY=0` so session startup cannot install/update Pi packages or perform
+Pi update/telemetry network operations. Model traffic still goes through the
+operator's Ollama daemon; cloud-backed Ollama models remain remote inference.
+
+Troubleshooting starts with the non-mutating checks: confirm `ollama` and `pi` are on
+the desktop app's `PATH`, confirm `http://localhost:11434/api/tags` lists the
+selected model with `tools`, and run `pi list` in the workspace to inspect the
+exact package pin. To roll back Pi support for a project, close Pi sessions and
+run `pi remove npm:pi-mcp-extension -l`; the next workspace open will reinstall
+the approved dependency unless automatic preparation is removed by policy. The
+generated `.pi/mcp.json` contains no credential and may be deleted while LMBrain
+is closed, although workspace open will recreate it.
+
 ## AGENTS.md
 
 LMBrain scaffolds a concise managed block in root `AGENTS.md` so Codex can discover the project-brain instructions. The block points to `.lmbrain/AGENT.md`, `.lmbrain/CONTRACT.md`, and `.lmbrain/QUALITY.md`.
@@ -68,7 +105,8 @@ LMBrain scaffolds a concise managed block in root `AGENTS.md` so Codex can disco
 
 ## V3 context-pack tools
 
-All supported agent hosts can use the new context-pack MCP tools:
+All MCP-enabled agent hosts (Claude Code, Codex, and a correctly provisioned Pi
+session) can use the new context-pack MCP tools:
 
 - `lmbrain_project_digest` — project overview (no parameters)
 - `lmbrain_spec_context` — spec handoff context (requires `spec` parameter)

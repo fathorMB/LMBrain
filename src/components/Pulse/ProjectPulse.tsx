@@ -1,46 +1,10 @@
 import { useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { buildHandoffPrompt, buildMigrationPrompt } from "../../lib/handoffPrompt";
+import { buildDiagnosticFixPrompt } from "../../lib/diagnosticPrompt";
 import { InlineRichText } from "../../lib/inlineRichText";
 import { useWikiNavigation } from "../../hooks/useWikiNavigation";
-import type { PulseData, Handoff, Adr, KitDiagnostic } from "../../types";
-
-function generateFixPrompt(d: KitDiagnostic): string {
-  const path = d.path || "unknown file";
-  const msg = d.message;
-  
-  if (msg.toLowerCase().includes("malformed") || msg.toLowerCase().includes("yaml") || msg.toLowerCase().includes("frontmatter")) {
-    return `Please fix the malformed frontmatter in the file: ${path}
-The parser error message is: ${msg}
-
-Instructions:
-1. Fix the frontmatter block at the top of the file so that it is valid YAML.
-2. Make sure any values containing a colon are enclosed in quotes (e.g. title: "React UI: list").
-3. Ensure that references use bare IDs rather than [[wikilinks]].
-4. Do not modify the body content of the file or any other files.
-5. Preserve all intended field values.`;
-  }
-  
-  if (msg.toLowerCase().includes("mismatch") || msg.toLowerCase().includes("status")) {
-    return `There is a status mismatch in the file: ${path}
-The status in the frontmatter does not match its directory location.
-Conflict details: ${msg}
-
-Instructions:
-Please align the status:
-Either:
-- Update the status field in the frontmatter to match the folder the file resides in.
-Or:
-- Move the file to the folder corresponding to its frontmatter status.
-Do not make any other changes to the file or its body.`;
-  }
-
-  return `Please fix the issue in the file: ${path}
-Error details: ${msg}
-
-Instructions:
-Resolve the reported error while preserving the rest of the file content and structure.`;
-}
+import type { PulseData, Handoff, Adr } from "../../types";
 
 const getMigrationStatusLabelAndColor = (status: string | undefined): { label: string; color: string } => {
   switch (status) {
@@ -355,7 +319,7 @@ export function ProjectPulse() {
                         >
                           <textarea
                             readOnly
-                            value={generateFixPrompt(d)}
+                            value={buildDiagnosticFixPrompt(d)}
                             style={{
                               width: "100%",
                               height: 120,
@@ -372,7 +336,7 @@ export function ProjectPulse() {
                           />
                           <button
                             onClick={() => {
-                              navigator.clipboard.writeText(generateFixPrompt(d));
+                              navigator.clipboard.writeText(buildDiagnosticFixPrompt(d));
                               setCopiedIndex(i);
                               setTimeout(() => setCopiedIndex(null), 2000);
                             }}

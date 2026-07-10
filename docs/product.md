@@ -25,7 +25,7 @@ LMBrain does not automatically start agents and does not require a remote servic
 ## Main Views
 
 - Pulse: current project state, diagnostics, and recommended actions.
-- Insights: read-only artifact inventory, spec flow, diagnostics, and review-quality statistics.
+- Insights: read-only artifact inventory, spec flow, review-quality statistics, and full-width reliability checks that disclose missing review metadata and expandable contract diagnostics. Each diagnostic can copy the same corrective agent prompt used by Pulse; diagnostic remediation remains operator-controlled.
 - Wiki: file tree and Markdown rendering for the `.lmbrain/` workspace.
 - Board: specifications grouped by status.
 - Design: operator-loaded self-contained HTML/CSS/JS mockups from `.lmbrain/design/`.

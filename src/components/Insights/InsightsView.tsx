@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { useWorkspace } from "../../hooks/useWorkspace";
 import { getProjectStatistics } from "../../lib/commands";
+import { buildDiagnosticFixPrompt } from "../../lib/diagnosticPrompt";
 import type {
   ArtifactFamilyStats,
+  KitDiagnostic,
   ProjectStatistics,
   ReviewDimensionStat,
   StatusCount,
@@ -27,6 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export function InsightsView() {
+  const { state: workspaceState } = useWorkspace();
   const [stats, setStats] = useState<ProjectStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,42 +141,16 @@ export function InsightsView() {
           </section>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(300px, .45fr)", gap: 16 }}>
-          <section style={panelStyle}>
-            <SectionTitle icon="timeline" title="Review Trend" />
-            {review.trend.length === 0 ? (
-              <EmptyText label="No dated reviews available." />
-            ) : (
-              <div style={{ display: "flex", alignItems: "end", gap: 8, height: 170, paddingTop: 10 }}>
-                {review.trend.map((point) => {
-                  const max = Math.max(...review.trend.map((item) => item.total_reviews), 1);
-                  const height = Math.max(8, Math.round((point.total_reviews / max) * 120));
-                  return (
-                    <div key={point.period} style={{ flex: 1, minWidth: 42, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                      <div title={`${point.total_reviews} reviews`} style={{ width: "100%", maxWidth: 42, height, background: "rgba(124,108,246,.38)", border: "1px solid rgba(124,108,246,.55)", borderRadius: 5, position: "relative", overflow: "hidden" }}>
-                        {point.changes_requested_reviews > 0 && (
-                          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: `${(point.changes_requested_reviews / point.total_reviews) * 100}%`, background: "rgba(224,88,74,.75)" }} />
-                        )}
-                      </div>
-                      <div style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--text-tertiary)" }}>
-                        {point.period}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <section style={panelStyle}>
-            <SectionTitle icon="troubleshoot" title="Diagnostics By Area" />
-            {stats.diagnostics.by_family.length === 0 ? (
-              <EmptyText label="No diagnostics." />
-            ) : (
-              <StatusList statuses={stats.diagnostics.by_family} />
-            )}
-          </section>
-        </div>
+        <section style={panelStyle}>
+          <SectionTitle icon="verified" title="Insight Reliability" />
+          <InsightReliability
+            reviewsWithoutSpec={review.reviews_without_spec}
+            reviewsWithoutCreated={review.reviews_without_created}
+            errors={stats.diagnostics.errors}
+            warnings={stats.diagnostics.warnings}
+            diagnostics={workspaceState.diagnostics}
+          />
+        </section>
       </div>
     </div>
   );
@@ -284,6 +262,151 @@ function DimensionTable({ rows, emptyLabel }: { rows: ReviewDimensionStat[]; emp
     </div>
   );
 }
+
+function InsightReliability({
+  reviewsWithoutSpec,
+  reviewsWithoutCreated,
+  errors,
+  warnings,
+  diagnostics,
+}: {
+  reviewsWithoutSpec: number;
+  reviewsWithoutCreated: number;
+  errors: number;
+  warnings: number;
+  diagnostics: KitDiagnostic[];
+}) {
+  const issueCount = reviewsWithoutSpec + reviewsWithoutCreated + errors;
+  const summary = issueCount > 0 ? "Needs attention" : warnings > 0 ? "Review recommended" : "Reliable inputs";
+  const summaryColor = issueCount > 0 ? "#e0584a" : warnings > 0 ? "#e0a23a" : "#46b07d";
+  const checks = [
+    { label: "Reviews without spec link", value: reviewsWithoutSpec, detail: "Affects spec-based review rates", tone: reviewsWithoutSpec > 0 ? "error" : "ok" },
+    { label: "Reviews without valid date", value: reviewsWithoutCreated, detail: "Excluded from review history", tone: reviewsWithoutCreated > 0 ? "error" : "ok" },
+    { label: "Diagnostic errors", value: errors, detail: "Contract violations need attention", tone: errors > 0 ? "error" : "ok" },
+    { label: "Diagnostic warnings", value: warnings, detail: "Potential data-quality issues", tone: warnings > 0 ? "warning" : "ok" },
+  ];
+
+  const severityOrder: Record<KitDiagnostic["severity"], number> = { error: 0, warning: 1, info: 2 };
+  const orderedDiagnostics = [...diagnostics].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 24, marginBottom: 15 }}>
+        <div>
+          <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7, color: summaryColor, fontSize: 14, fontWeight: 750 }}>
+            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: summaryColor }} />
+            {summary}
+          </div>
+          <p style={{ ...panelDescriptionStyle, marginBottom: 0, maxWidth: 680 }}>
+            These checks show whether missing metadata or contract diagnostics may make the metrics incomplete.
+          </p>
+        </div>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-tertiary)", whiteSpace: "nowrap" }}>
+          {diagnostics.length} workspace diagnostic{diagnostics.length === 1 ? "" : "s"}
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
+        {checks.map((check) => {
+          const color = check.tone === "error" ? "#e0584a" : check.tone === "warning" ? "#e0a23a" : "#46b07d";
+          return (
+            <div key={check.label} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "3px 12px", padding: "11px 12px", border: "1px solid rgba(255,255,255,.07)", borderRadius: 7, background: "rgba(255,255,255,.025)" }}>
+              <span style={{ fontSize: 11.5, color: "var(--text-secondary)" }}>{check.label}</span>
+              <span style={{ gridRow: "1 / span 2", gridColumn: 2, alignSelf: "center", fontFamily: "var(--font-mono)", fontSize: 18, fontWeight: 800, color }}>{check.value}</span>
+              <span style={{ fontSize: 10.5, color: "var(--text-tertiary)" }}>{check.detail}</span>
+            </div>
+          );
+        })}
+      </div>
+      {orderedDiagnostics.length > 0 ? (
+        <details style={{ marginTop: 12, border: "1px solid rgba(255,255,255,.08)", borderRadius: 7, background: "rgba(255,255,255,.02)", overflow: "hidden" }}>
+          <summary style={{ cursor: "pointer", padding: "11px 13px", color: "var(--text-secondary)", fontSize: 12, fontWeight: 700, userSelect: "none" }}>
+            Diagnostic details ({orderedDiagnostics.length})
+          </summary>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7, padding: "0 12px 12px" }}>
+            {orderedDiagnostics.map((diagnostic, index) => (
+              <DiagnosticDetail key={`${diagnostic.path ?? "workspace"}-${index}`} diagnostic={diagnostic} />
+            ))}
+          </div>
+        </details>
+      ) : (
+        <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 7, background: "rgba(70,176,125,.06)", color: "#70c99a", fontSize: 11.5 }}>
+          No workspace diagnostics to inspect.
+        </div>
+      )}
+      <div style={{ marginTop: 11, fontSize: 11, lineHeight: 1.45, color: "var(--text-tertiary)" }}>
+        Review and resolve diagnostic issues in <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>Project Pulse</span>.
+      </div>
+    </div>
+  );
+}
+
+function DiagnosticDetail({ diagnostic }: { diagnostic: KitDiagnostic }) {
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const presentation = diagnostic.severity === "error"
+    ? { color: "#e0584a", background: "rgba(224,88,74,.07)", border: "rgba(224,88,74,.18)", icon: "error" }
+    : diagnostic.severity === "warning"
+      ? { color: "#e0a23a", background: "rgba(224,162,58,.07)", border: "rgba(224,162,58,.18)", icon: "warning" }
+      : { color: "#5b8def", background: "rgba(91,141,239,.07)", border: "rgba(91,141,239,.18)", icon: "info" };
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: "3px 9px", padding: "10px 11px", border: `1px solid ${presentation.border}`, borderRadius: 7, background: presentation.background }}>
+      <i className="material-symbols-outlined" aria-hidden="true" style={{ gridRow: "1 / span 2", fontSize: 16, color: presentation.color, marginTop: 1 }}>
+        {presentation.icon}
+      </i>
+      <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+        <span style={{ marginRight: 8, color: presentation.color, fontSize: 10, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase" }}>
+          {diagnostic.severity}
+        </span>
+        <span style={{ color: "var(--text-secondary)", fontSize: 12, lineHeight: 1.5 }}>{diagnostic.message}</span>
+        </div>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(buildDiagnosticFixPrompt(diagnostic));
+              setCopyState("copied");
+              setTimeout(() => setCopyState("idle"), 2000);
+            } catch {
+              setCopyState("error");
+            }
+          }}
+          style={{
+            flex: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            padding: "4px 8px",
+            border: "1px solid rgba(255,255,255,.11)",
+            borderRadius: 6,
+            background: "rgba(255,255,255,.055)",
+            color: copyState === "error" ? "#e0584a" : "var(--text-secondary)",
+            fontSize: 10.5,
+            fontWeight: 650,
+            cursor: "pointer",
+          }}
+        >
+          <i className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 13 }}>
+            {copyState === "copied" ? "check" : copyState === "error" ? "error" : "content_copy"}
+          </i>
+          {copyState === "copied" ? "Copied!" : copyState === "error" ? "Copy failed" : "Copy fix prompt"}
+        </button>
+      </div>
+      {diagnostic.path && (
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--text-tertiary)", overflowWrap: "anywhere" }}>
+          {diagnostic.path}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const panelDescriptionStyle = {
+  margin: "0 0 11px",
+  fontSize: 11.5,
+  lineHeight: 1.5,
+  color: "var(--text-tertiary)",
+} as const;
 
 function EmptyText({ label }: { label: string }) {
   return <div style={{ fontSize: 12.5, color: "var(--text-tertiary)" }}>{label}</div>;

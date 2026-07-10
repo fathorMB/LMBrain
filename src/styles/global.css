@@ -168,3 +168,13 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+@keyframes lmbrain-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.lmbrain-loading-spinner {
+  display: inline-block;
+  animation: lmbrain-loading-spin 0.9s linear infinite;
+}

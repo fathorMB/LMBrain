@@ -12,9 +12,12 @@ use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 use crate::commands::mcp_registration::resolve_mcp_command_for_root;
+use crate::commands::pi_registration::{
+    has_pinned_pi_mcp_extension, PI_MCP_EXTENSION_SOURCE,
+};
 use crate::errors::AppError;
 use crate::models::session::{
-    OllamaModel, SessionExitPayload, SessionInfo, SessionMode, SessionOutputPayload,
+    AgentHost, ModelRoute, OllamaModel, SessionExitPayload, SessionInfo, SessionOutputPayload,
     SessionStartRequest, SessionStatus,
 };
 
@@ -67,6 +70,7 @@ impl SessionManager {
     ) -> Result<String, AppError> {
         let id = Uuid::new_v4().to_string();
         let label = default_label(&request);
+        let cmd = build_command(&request, cwd)?;
 
         let pty_system = native_pty_system();
         let pair = pty_system
@@ -78,7 +82,6 @@ impl SessionManager {
             })
             .map_err(|err| AppError::Session(err.to_string()))?;
 
-        let cmd = build_command(&request, cwd)?;
         let child = pair
             .slave
             .spawn_command(cmd)
@@ -102,7 +105,8 @@ impl SessionManager {
                     info: SessionInfo {
                         id: id.clone(),
                         label,
-                        mode: request.mode.clone(),
+                        host: request.host.clone(),
+                        route: request.route.clone(),
                         model: request.model.clone(),
                         status: SessionStatus::Running,
                         exit_code: None,
@@ -219,33 +223,170 @@ pub fn list_ollama_models() -> Result<Vec<OllamaModel>, AppError> {
     fetch_ollama_models_from_api().or_else(|_| list_ollama_models_from_cli())
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct LaunchSpec {
+    program: String,
+    args: Vec<String>,
+}
+
+pub fn preflight_session(cwd: &Path, request: &SessionStartRequest) -> Result<(), AppError> {
+    validate_route(request)?;
+
+    if matches!(request.route, ModelRoute::Ollama) {
+        require_command_on_path("ollama")?;
+        let model = required_ollama_model(request)?;
+        let available = fetch_ollama_models_from_api().map_err(|_| {
+            AppError::Session(
+                "Ollama is not reachable at http://localhost:11434. Start it outside LMBrain and retry."
+                    .into(),
+            )
+        })?;
+        if !available.iter().any(|entry| entry.name == model) {
+            return Err(AppError::Session(format!(
+                "Ollama model `{model}` is unavailable or does not advertise tool support"
+            )));
+        }
+    }
+
+    if matches!(request.host, AgentHost::Pi) {
+        let pi = require_command_on_path("pi")?;
+        let output = Command::new(&pi)
+            .arg("list")
+            .arg("--approve")
+            .current_dir(cwd)
+            .env("PI_OFFLINE", "1")
+            .env("PI_SKIP_VERSION_CHECK", "1")
+            .env("PI_TELEMETRY", "0")
+            .output()
+            .map_err(|err| {
+                AppError::Session(format!(
+                    "Unable to inspect Pi packages with `{}`: {err}",
+                    pi.to_string_lossy()
+                ))
+            })?;
+        let package_list = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        if !output.status.success() || !has_pinned_pi_mcp_extension(&package_list) {
+            return Err(AppError::Session(format!(
+                "Pi MCP integration is not ready. Reopen the workspace to retry automatic preparation, or run `pi install {PI_MCP_EXTENSION_SOURCE} -l --approve` in this workspace, then retry."
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 fn build_command(request: &SessionStartRequest, cwd: &Path) -> Result<CommandBuilder, AppError> {
-    let mut builder = match request.mode {
-        SessionMode::Claude => {
-            let mut command = CommandBuilder::new("claude");
-            configure_lmbrain_mcp_environment(&mut command, cwd);
-            command
-        }
-        SessionMode::Ollama => {
-            let model = request
-                .model
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| AppError::Session("An Ollama model is required".into()))?;
-            let mut command = CommandBuilder::new("ollama");
-            command.arg("launch");
-            command.arg("claude");
-            command.arg("--model");
-            command.arg(model);
-            command
-        }
-        SessionMode::Codex => {
-            CommandBuilder::new(resolve_codex_command(request.codex_bin.as_deref()))
-        }
-    };
+    let spec = launch_spec(request)?;
+    let mut builder = CommandBuilder::new(spec.program);
+    for arg in spec.args {
+        builder.arg(arg);
+    }
+    if matches!(
+        (&request.host, &request.route),
+        (AgentHost::Claude, ModelRoute::Native)
+    ) {
+        configure_lmbrain_mcp_environment(&mut builder, cwd);
+    }
+    if matches!(
+        (&request.host, &request.route),
+        (AgentHost::Pi, ModelRoute::Ollama)
+    ) {
+        builder.env("PI_OFFLINE", "1");
+        builder.env("PI_SKIP_VERSION_CHECK", "1");
+        builder.env("PI_TELEMETRY", "0");
+    }
     builder.cwd(cwd);
     Ok(builder)
+}
+
+fn launch_spec(request: &SessionStartRequest) -> Result<LaunchSpec, AppError> {
+    validate_route(request)?;
+    let spec = match (&request.host, &request.route) {
+        (AgentHost::Claude, ModelRoute::Native) => LaunchSpec {
+            program: "claude".into(),
+            args: Vec::new(),
+        },
+        (AgentHost::Claude, ModelRoute::Ollama) => LaunchSpec {
+            program: "ollama".into(),
+            args: vec![
+                "launch".into(),
+                "claude".into(),
+                "--model".into(),
+                required_ollama_model(request)?.to_string(),
+            ],
+        },
+        (AgentHost::Pi, ModelRoute::Ollama) => LaunchSpec {
+            program: "ollama".into(),
+            args: vec![
+                "launch".into(),
+                "pi".into(),
+                "--model".into(),
+                required_ollama_model(request)?.to_string(),
+            ],
+        },
+        (AgentHost::Codex, ModelRoute::Native) => LaunchSpec {
+            program: resolve_codex_command(request.codex_bin.as_deref()),
+            args: Vec::new(),
+        },
+        _ => unreachable!("validated session route"),
+    };
+    Ok(spec)
+}
+
+fn required_ollama_model(request: &SessionStartRequest) -> Result<&str, AppError> {
+    request
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::Session("An Ollama model is required".into()))
+}
+
+fn require_command_on_path(command: &str) -> Result<PathBuf, AppError> {
+    command_on_path(command).ok_or_else(|| {
+        AppError::Session(format!(
+            "Required executable `{command}` was not found on PATH. Install it outside LMBrain and retry."
+        ))
+    })
+}
+
+fn command_on_path(command: &str) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    let names: Vec<String> = if cfg!(windows) {
+        vec![
+            format!("{command}.exe"),
+            format!("{command}.cmd"),
+            format!("{command}.bat"),
+            command.to_string(),
+        ]
+    } else {
+        vec![command.to_string()]
+    };
+    std::env::split_paths(&path)
+        .flat_map(|dir| names.iter().map(move |name| dir.join(name)))
+        .find(|candidate| candidate.is_file())
+}
+
+fn validate_route(request: &SessionStartRequest) -> Result<(), AppError> {
+    let valid = matches!(
+        (&request.host, &request.route),
+        (AgentHost::Claude, ModelRoute::Native)
+            | (AgentHost::Claude, ModelRoute::Ollama)
+            | (AgentHost::Codex, ModelRoute::Native)
+            | (AgentHost::Pi, ModelRoute::Ollama)
+    );
+    if valid {
+        Ok(())
+    } else {
+        Err(AppError::Session(format!(
+            "Unsupported session route: {:?} via {:?}",
+            request.host, request.route
+        )))
+    }
 }
 
 fn configure_lmbrain_mcp_environment(command: &mut CommandBuilder, cwd: &Path) {
@@ -276,16 +417,24 @@ fn default_label(request: &SessionStartRequest) -> String {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
-        .unwrap_or_else(|| match request.mode {
-            SessionMode::Claude => "Claude".to_string(),
-            SessionMode::Ollama => request
+        .unwrap_or_else(|| match (&request.host, &request.route) {
+            (AgentHost::Claude, ModelRoute::Native) => "Claude".to_string(),
+            (AgentHost::Claude, ModelRoute::Ollama) => request
                 .model
                 .as_deref()
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
                 .map(|model| format!("Claude via {model}"))
                 .unwrap_or_else(|| "Claude via Ollama".to_string()),
-            SessionMode::Codex => "Codex".to_string(),
+            (AgentHost::Codex, ModelRoute::Native) => "Codex".to_string(),
+            (AgentHost::Pi, ModelRoute::Ollama) => request
+                .model
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|model| format!("Pi via {model}"))
+                .unwrap_or_else(|| "Pi via Ollama".to_string()),
+            _ => "Agent session".to_string(),
         })
 }
 
@@ -549,10 +698,10 @@ fn is_cloud_model(name: &str, host: Option<&str>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        default_label, is_cloud_model, newest_desktop_codex_command_in, parse_ollama_list_output,
-        resolve_codex_command,
+        default_label, is_cloud_model, launch_spec, newest_desktop_codex_command_in,
+        parse_ollama_list_output, resolve_codex_command, validate_route, LaunchSpec,
     };
-    use crate::models::session::{SessionMode, SessionStartRequest};
+    use crate::models::session::{AgentHost, ModelRoute, SessionStartRequest};
 
     #[test]
     fn parses_ollama_list_rows() {
@@ -567,20 +716,30 @@ mod tests {
     #[test]
     fn derives_default_labels_from_mode() {
         let native = SessionStartRequest {
-            mode: SessionMode::Claude,
+            host: AgentHost::Claude,
+            route: ModelRoute::Native,
             model: None,
             label: None,
             codex_bin: None,
         };
         let ollama = SessionStartRequest {
-            mode: SessionMode::Ollama,
+            host: AgentHost::Claude,
+            route: ModelRoute::Ollama,
             model: Some("glm-5.1:cloud".into()),
             label: None,
             codex_bin: None,
         };
         let codex = SessionStartRequest {
-            mode: SessionMode::Codex,
+            host: AgentHost::Codex,
+            route: ModelRoute::Native,
             model: None,
+            label: None,
+            codex_bin: None,
+        };
+        let pi = SessionStartRequest {
+            host: AgentHost::Pi,
+            route: ModelRoute::Ollama,
+            model: Some("qwen3.5:cloud".into()),
             label: None,
             codex_bin: None,
         };
@@ -588,6 +747,59 @@ mod tests {
         assert_eq!(default_label(&native), "Claude");
         assert_eq!(default_label(&ollama), "Claude via glm-5.1:cloud");
         assert_eq!(default_label(&codex), "Codex");
+        assert_eq!(default_label(&pi), "Pi via qwen3.5:cloud");
+    }
+
+    #[test]
+    fn builds_pi_ollama_launch_spec_with_discrete_arguments() {
+        let request = SessionStartRequest {
+            host: AgentHost::Pi,
+            route: ModelRoute::Ollama,
+            model: Some(" qwen3.5:cloud ".into()),
+            label: None,
+            codex_bin: None,
+        };
+        assert_eq!(
+            launch_spec(&request).unwrap(),
+            LaunchSpec {
+                program: "ollama".into(),
+                args: vec![
+                    "launch".into(),
+                    "pi".into(),
+                    "--model".into(),
+                    "qwen3.5:cloud".into(),
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_unsupported_host_route_combinations_and_missing_models() {
+        let pi_native = SessionStartRequest {
+            host: AgentHost::Pi,
+            route: ModelRoute::Native,
+            model: None,
+            label: None,
+            codex_bin: None,
+        };
+        let codex_ollama = SessionStartRequest {
+            host: AgentHost::Codex,
+            route: ModelRoute::Ollama,
+            model: Some("qwen".into()),
+            label: None,
+            codex_bin: None,
+        };
+        let pi_without_model = SessionStartRequest {
+            host: AgentHost::Pi,
+            route: ModelRoute::Ollama,
+            model: Some("  ".into()),
+            label: None,
+            codex_bin: None,
+        };
+
+        assert!(validate_route(&pi_native).is_err());
+        assert!(validate_route(&codex_ollama).is_err());
+        assert!(launch_spec(&pi_without_model).is_err());
     }
 
     #[test]

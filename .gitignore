@@ -27,5 +27,9 @@ Thumbs.db
 /.lmbrain/
 /AGENTS.md
 /.mcp.json
+/.pi/mcp.json
+/.pi/mcp.json.tmp
+/.pi/mcp.json.bak
+/.pi/npm/
 /.codex/
 /.claude/

@@ -58,6 +58,7 @@ fn open_workspace(
     let mcp_command = commands::mcp_registration::resolve_mcp_command_for_root(root);
     let _ = commands::mcp_registration::register_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
+    let _ = commands::pi_registration::register_pi_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::ensure_codex_workspace_trusted(root);
     let _ = commands::codex_registration::scaffold_agents_md(root);
 
@@ -90,6 +91,7 @@ fn initialize_workspace_kit(
     let mcp_command = commands::mcp_registration::resolve_mcp_command_for_root(root);
     let _ = commands::mcp_registration::register_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
+    let _ = commands::pi_registration::register_pi_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::ensure_codex_workspace_trusted(root);
     let _ = commands::codex_registration::scaffold_agents_md(root);
     Ok(info)
@@ -105,6 +107,21 @@ fn bundled_kit_path(app: &AppHandle) -> Result<PathBuf, Box<dyn std::error::Erro
 #[tauri::command]
 fn list_recent_workspaces(state: State<'_, AppState>) -> Vec<WorkspaceSummary> {
     state.workspace_service.list_recent()
+}
+
+#[tauri::command]
+async fn prepare_pi_integration(
+    state: State<'_, AppState>,
+) -> Result<commands::pi_registration::PiPreparationResult, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        commands::pi_registration::prepare_pi_mcp_extension(&root)
+    })
+    .await
+    .map_err(|error| format!("Pi preparation worker failed: {error}"))
 }
 
 #[tauri::command]
@@ -421,10 +438,25 @@ fn session_start(
         .path_guard
         .get_root()
         .ok_or_else(|| "No workspace open".to_string())?;
-    if matches!(request.mode, models::session::SessionMode::Claude) {
+    if matches!(request.host, models::session::AgentHost::Pi) {
+        let mcp_command = commands::mcp_registration::resolve_mcp_command_for_root(&root);
+        commands::pi_registration::register_pi_mcp_server(&root, &mcp_command)
+            .map_err(|err| format!("Unable to register LMBrain tools for Pi: {err}"))?;
+    }
+    if matches!(
+        (&request.host, &request.route),
+        (
+            models::session::AgentHost::Claude,
+            models::session::ModelRoute::Native,
+        ) | (
+            models::session::AgentHost::Claude,
+            models::session::ModelRoute::Ollama,
+        )
+    ) {
         let mcp_command = commands::mcp_registration::resolve_mcp_command_for_root(&root);
         let _ = commands::mcp_registration::register_mcp_server(&root, &mcp_command);
     }
+    commands::sessions::preflight_session(&root, &request).map_err(|err| err.to_string())?;
     state
         .sessions
         .start(&root, app, request)
@@ -565,6 +597,7 @@ pub fn run() {
             open_workspace,
             initialize_workspace_kit,
             list_recent_workspaces,
+            prepare_pi_integration,
             remove_recent_workspace,
             read_file,
             list_directory,

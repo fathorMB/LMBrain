@@ -5,7 +5,8 @@ import type { SessionInfo } from "../types";
 const sessionA: SessionInfo = {
   id: "a",
   label: "Session A",
-  mode: "claude",
+  host: "claude",
+  route: "native",
   model: null,
   status: "running",
   exit_code: null,
@@ -14,7 +15,8 @@ const sessionA: SessionInfo = {
 const sessionB: SessionInfo = {
   id: "b",
   label: "Session B",
-  mode: "codex",
+  host: "codex",
+  route: "native",
   model: null,
   status: "running",
   exit_code: null,
@@ -23,7 +25,8 @@ const sessionB: SessionInfo = {
 const sessionC: SessionInfo = {
   id: "c",
   label: "Session C",
-  mode: "ollama",
+  host: "claude",
+  route: "ollama",
   model: "llama3",
   status: "exited",
   exit_code: 0,

@@ -1,8 +1,9 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { sessionAttach, sessionResize, sessionWrite } from "../../lib/commands";
+import { terminalClipboardAction } from "../../lib/terminalClipboard";
 
 interface SessionTerminalProps {
   sessionId: string;
@@ -14,6 +15,62 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
+  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [clipboardFeedback, setClipboardFeedback] = useState<string | null>(null);
+
+  const showClipboardFeedback = useCallback((message: string) => {
+    setClipboardFeedback(message);
+    if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+    feedbackTimeoutRef.current = setTimeout(() => {
+      setClipboardFeedback(null);
+      feedbackTimeoutRef.current = null;
+    }, 2400);
+  }, []);
+
+  const copySelection = useCallback(async () => {
+    const selection = terminalRef.current?.getSelection() ?? "";
+    if (!selection) {
+      showClipboardFeedback("Select terminal text before copying.");
+      return;
+    }
+    if (!navigator.clipboard) {
+      showClipboardFeedback("Clipboard access is unavailable.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(selection);
+      showClipboardFeedback("Selection copied.");
+    } catch {
+      showClipboardFeedback("Could not copy the terminal selection.");
+    }
+  }, [showClipboardFeedback]);
+
+  const pasteClipboard = useCallback(async () => {
+    const term = terminalRef.current;
+    if (!term || !navigator.clipboard) {
+      showClipboardFeedback("Clipboard access is unavailable.");
+      return;
+    }
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) {
+        showClipboardFeedback("Clipboard is empty.");
+        return;
+      }
+      term.paste(text);
+      term.focus();
+      showClipboardFeedback("Clipboard pasted.");
+    } catch {
+      showClipboardFeedback("Could not read from the clipboard.");
+    }
+  }, [showClipboardFeedback]);
+
+  useEffect(
+    () => () => {
+      if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -79,6 +136,17 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
     const dataDisposable = term.onData((data) => {
       sessionWrite(sessionId, data).catch(() => {});
     });
+    term.attachCustomKeyEventHandler((event) => {
+      const action = terminalClipboardAction(event, term.hasSelection());
+      if (!action) return true;
+      event.preventDefault();
+      if (action === "copy") {
+        void copySelection();
+      } else {
+        void pasteClipboard();
+      }
+      return false;
+    });
     const handleWheel = (event: WheelEvent) => {
       if (event.ctrlKey || event.metaKey) {
         return;
@@ -140,7 +208,7 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
       fitAddonRef.current = null;
       lastSizeRef.current = null;
     };
-  }, [sessionId]);
+  }, [copySelection, pasteClipboard, sessionId]);
 
   useEffect(() => {
     if (!active) {
@@ -167,20 +235,62 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
   }, [active, sessionId]);
 
   return (
-    // No padding on the measured container: with a global `box-sizing: border-box`,
-    // padding here inflates FitAddon's height measurement and renders one extra row
-    // that overflows past the window. Padding lives on an inner wrapper instead.
     <div
       style={{
         flex: 1,
         minHeight: 0,
         overflow: "hidden",
         background: "#120f18",
-        padding: "8px 10px",
         boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+      <div
+        style={{
+          minHeight: 34,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "4px 10px",
+          borderBottom: "1px solid rgba(57, 49, 70, 0.55)",
+          background: "rgba(17, 14, 23, 0.96)",
+          color: "var(--text-muted)",
+          fontSize: 10.5,
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0 }}>
+          Copy: select + Ctrl+C, Ctrl+Shift+C, or Cmd+C · Paste: Ctrl+Shift+V or Cmd+V
+        </span>
+        {clipboardFeedback && (
+          <span role="status" aria-live="polite" style={{ color: "var(--text-secondary)" }}>
+            {clipboardFeedback}
+          </span>
+        )}
+        <button type="button" onClick={() => void copySelection()} style={clipboardButtonStyle}>
+          Copy
+        </button>
+        <button type="button" onClick={() => void pasteClipboard()} style={clipboardButtonStyle}>
+          Paste
+        </button>
+      </div>
+      {/* Keep padding outside the measured xterm element so FitAddon cannot overcount a row. */}
+      <div style={{ flex: 1, minHeight: 0, padding: "8px 10px", boxSizing: "border-box" }}>
+        <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+      </div>
     </div>
   );
 }
+
+const clipboardButtonStyle = {
+  border: "1px solid #30283d",
+  borderRadius: 7,
+  background: "#191520",
+  color: "var(--text-secondary)",
+  fontSize: 10.5,
+  fontWeight: 600,
+  padding: "4px 8px",
+  cursor: "pointer",
+  flexShrink: 0,
+} as const;

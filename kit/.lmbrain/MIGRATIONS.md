@@ -4,7 +4,22 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.5.1`.
+The current released kit is `2.6.0`.
+
+### 2.6.0 (Pi sessions and workspace/session UX - app-derived)
+
+`2.6.0` adds Pi as an operator-started agent host through Ollama, visible workspace preparation with exact project-local Pi MCP dependency bootstrap, persistent session scrollback/clipboard controls, and actionable Insights reliability details. The Markdown artifact contract and existing project frontmatter are unchanged.
+
+Supported source versions: `2.5.1` and earlier released 2.x kits.
+
+When upgrading an existing brain to `2.6.0`:
+
+1. No `.lmbrain/` file moves, directory additions, or frontmatter edits are required.
+2. Open the project with LMBrain `2.6.0` and allow workspace validation to complete. Pi preparation is optional to core workspace access and may create or update project-local `.pi/settings.json`, `.pi/mcp.json`, and `.pi/npm/` state without changing `.lmbrain/` artifacts.
+3. Review project-owned `.pi/settings.json` before committing it. Generated `.pi/mcp.json` and `.pi/npm/` content should remain ignored according to the repository policy.
+4. Validate that existing artifacts parse, status directories match frontmatter, and controlled MCP tools remain available for the agent hosts the project uses.
+5. Update `.lmbrain/VERSION` to `2.6.0` only after validation succeeds.
+6. Roll back by restoring the prior application and `.lmbrain/VERSION`. Preserve project-owned Pi settings; remove generated Pi integration state only after reviewing it separately.
 
 ### 2.5.1 (project insights statistics - app-derived)
 

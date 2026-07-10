@@ -4,6 +4,18 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.6.0 - 2026-07-10
+
+### Added
+
+- **Pi sessions through Ollama.** LMBrain can launch operator-controlled Pi sessions through local or cloud-backed Ollama models, register the repository-scoped `lmbrain-mcp` server, and prepare the exact project-local pinned MCP extension during visible workspace opening.
+- **Workspace preparation feedback.** Opening a project now reports staged progress; optional Pi preparation failures remain visible without blocking access to Pulse.
+- **Actionable Insights reliability.** Insights replaces ambiguous temporal/path summaries with full-width metric-integrity checks, expandable diagnostic detail, and copyable corrective prompts shared with Pulse.
+
+### Fixed
+
+- **Session scrollback and clipboard.** Session terminals preserve scrollback and selection across tab/view changes and expose clear copy/paste controls and platform-standard shortcuts.
+
 ## 2.5.1 - 2026-07-07
 
 ### Added

@@ -378,6 +378,65 @@ export function RepositoryPicker() {
           the source of truth
         </div>
       </div>
+      {state.loading && (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-label="Preparing workspace"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(8, 7, 11, 0.78)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <div
+            style={{
+              width: 420,
+              maxWidth: "calc(100vw - 48px)",
+              padding: "28px 30px",
+              borderRadius: 18,
+              border: "1px solid #332d40",
+              background: "#15121b",
+              boxShadow: "0 30px 90px rgba(0,0,0,.55)",
+              textAlign: "center",
+            }}
+          >
+            <i
+              className="material-symbols-outlined lmbrain-loading-spinner"
+              style={{ fontSize: 34, color: "#8f7df8" }}
+            >
+              progress_activity
+            </i>
+            <div style={{ marginTop: 14, fontSize: 17, fontWeight: 700 }}>
+              Preparing project brain
+            </div>
+            <div style={{ marginTop: 8, color: "#aaa3b2", fontSize: 13 }}>
+              {state.loadingMessage}
+            </div>
+            {state.loadingPath && (
+              <div
+                style={{
+                  marginTop: 12,
+                  color: "#706a76",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10.5,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+                title={state.loadingPath}
+              >
+                {state.loadingPath}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

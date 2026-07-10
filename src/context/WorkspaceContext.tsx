@@ -20,7 +20,8 @@ import type {
   PulseData,
   Review,
   SessionInfo,
-  SessionMode,
+  AgentHost,
+  ModelRoute,
   Skill,
   Spec,
   WikiPage,
@@ -57,6 +58,9 @@ export interface WorkspaceState {
   cmdkOpen: boolean;
   watcherActive: boolean;
   loading: boolean;
+  loadingMessage: string;
+  loadingPath: string | null;
+  workspaceNotice: string | null;
   error: string | null;
   detailArtifact: DetailArtifact | null;
 }
@@ -83,7 +87,8 @@ export type Action =
   | { type: "SET_SELECTED_SPEC"; spec: Spec | null }
   | { type: "SET_CMDK"; open: boolean }
   | { type: "SET_WATCHER"; active: boolean }
-  | { type: "SET_LOADING"; loading: boolean }
+  | { type: "SET_LOADING"; loading: boolean; message?: string; path?: string | null }
+  | { type: "SET_WORKSPACE_NOTICE"; notice: string | null }
   | { type: "SET_ERROR"; error: string | null }
   | { type: "SET_DETAIL_ARTIFACT"; artifact: DetailArtifact | null }
   | { type: "SET_SESSIONS"; sessions: SessionInfo[] }
@@ -118,6 +123,9 @@ const initialState: WorkspaceState = {
   cmdkOpen: false,
   watcherActive: false,
   loading: false,
+  loadingMessage: "Preparing workspace...",
+  loadingPath: null,
+  workspaceNotice: null,
   error: null,
   detailArtifact: null,
 };
@@ -220,7 +228,14 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
     case "SET_WATCHER":
       return { ...state, watcherActive: action.active };
     case "SET_LOADING":
-      return { ...state, loading: action.loading };
+      return {
+        ...state,
+        loading: action.loading,
+        loadingMessage: action.message ?? state.loadingMessage,
+        loadingPath: action.loading ? (action.path ?? state.loadingPath) : null,
+      };
+    case "SET_WORKSPACE_NOTICE":
+      return { ...state, workspaceNotice: action.notice };
     case "SET_ERROR":
       return { ...state, error: action.error };
     case "SET_DETAIL_ARTIFACT":
@@ -249,7 +264,7 @@ export interface WorkspaceContextValue {
   closeCmdk: () => void;
   goToPicker: () => Promise<void>;
   openDetailArtifact: (artifact: DetailArtifact | null) => void;
-  createSession: (request: { mode: SessionMode; model?: string; label?: string; codex_bin?: string }) => Promise<string>;
+  createSession: (request: { host: AgentHost; route: ModelRoute; model?: string; label?: string; codex_bin?: string }) => Promise<string>;
   closeSession: (id: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
   setActiveSession: (id: string | null) => void;
@@ -352,8 +367,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const openWorkspace = useCallback(
     async (path: string) => {
-      dispatch({ type: "SET_LOADING", loading: true });
+      dispatch({
+        type: "SET_LOADING",
+        loading: true,
+        message: "Validating workspace...",
+        path,
+      });
       dispatch({ type: "SET_ERROR", error: null });
+      dispatch({ type: "SET_WORKSPACE_NOTICE", notice: null });
       try {
         const info = await commands.openWorkspace(path);
         dispatch({ type: "SET_WORKSPACE", info });
@@ -362,6 +383,27 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        dispatch({
+          type: "SET_LOADING",
+          loading: true,
+          message: "Preparing Pi agent integration...",
+        });
+        try {
+          const preparation = await commands.preparePiIntegration();
+          if (preparation.status === "unavailable") {
+            dispatch({ type: "SET_WORKSPACE_NOTICE", notice: preparation.message });
+          }
+        } catch (error) {
+          dispatch({
+            type: "SET_WORKSPACE_NOTICE",
+            notice:
+              typeof error === "string"
+                ? error
+                : "Pi integration could not be prepared; the workspace remains available.",
+          });
+        }
+
+        dispatch({ type: "SET_LOADING", loading: true, message: "Reading Git state..." });
         try {
           const gitInfo = await commands.getGitInfo();
           dispatch({ type: "SET_GIT_INFO", info: gitInfo });
@@ -372,9 +414,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const workspaces = await commands.listRecentWorkspaces();
         dispatch({ type: "SET_RECENT", workspaces });
 
+        dispatch({ type: "SET_LOADING", loading: true, message: "Loading project data..." });
         await loadAllDataInternal();
+        dispatch({ type: "SET_LOADING", loading: true, message: "Restoring sessions..." });
         await refreshSessions();
 
+        dispatch({ type: "SET_LOADING", loading: true, message: "Starting file watcher..." });
         try {
           await commands.startWatcher();
           dispatch({ type: "SET_WATCHER", active: true });
@@ -382,6 +427,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           // Watcher is optional
         }
 
+        dispatch({ type: "SET_LOADING", loading: true, message: "Opening Project Pulse..." });
         dispatch({ type: "SET_SCREEN", screen: "app" });
       } catch (err) {
         dispatch({
@@ -397,7 +443,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const initializeWorkspaceKit = useCallback(
     async (path: string) => {
-      dispatch({ type: "SET_LOADING", loading: true });
+      dispatch({
+        type: "SET_LOADING",
+        loading: true,
+        message: "Initializing LMBrain kit...",
+        path,
+      });
       dispatch({ type: "SET_ERROR", error: null });
       try {
         await commands.initializeWorkspaceKit(path);
@@ -434,19 +485,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const createSession = useCallback(
-    async (request: { mode: SessionMode; model?: string; label?: string; codex_bin?: string }) => {
+    async (request: { host: AgentHost; route: ModelRoute; model?: string; label?: string; codex_bin?: string }) => {
       const id = await commands.sessionStart(request);
       const info = (await commands.sessionList()).find((session) => session.id === id);
       const session: SessionInfo = info ?? {
         id,
         label:
           request.label?.trim() ||
-          (request.mode === "ollama" && request.model
+          (request.host === "claude" && request.route === "ollama" && request.model
             ? `Claude via ${request.model}`
-            : request.mode === "codex"
+            : request.host === "pi" && request.model
+              ? `Pi via ${request.model}`
+              : request.host === "codex"
               ? "Codex"
               : "Claude"),
-        mode: request.mode,
+        host: request.host,
+        route: request.route,
         model: request.model ?? null,
         status: "running",
         exit_code: null,
