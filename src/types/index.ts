@@ -452,7 +452,38 @@ export interface GitInfo {
   current_commit: string | null;
 }
 
-export type AgentHost = "claude" | "codex" | "pi";
+export type AgentHost = "claude" | "codex" | "pi" | "opencode";
+export type HarnessProbeState = "installed" | "missing" | "error";
+
+export interface HarnessStatus {
+  host: AgentHost;
+  label: string;
+  state: HarnessProbeState;
+  executable: string | null;
+  version: string | null;
+  detail: string | null;
+  probed_at: string;
+  install_url: string;
+  install_command: string;
+}
+
+export interface HarnessUpdateRequest {
+  host: AgentHost;
+  codex_bin?: string;
+}
+
+export interface HarnessUpdateResult {
+  host: AgentHost;
+  success: boolean;
+  already_current: boolean;
+  before: HarnessStatus;
+  after: HarnessStatus;
+  exit_code: number | null;
+  timed_out: boolean;
+  stdout: string;
+  stderr: string;
+}
+
 export type ModelRoute = "native" | "ollama";
 export type SessionStatus = "running" | "exited";
 
@@ -529,6 +560,7 @@ export interface WikiPage {
 export type AppView =
   | "pulse"
   | "sessions"
+  | "harnesses"
   | "wiki"
   | "taskboard"
   | "spec"

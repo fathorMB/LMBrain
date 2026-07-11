@@ -4,6 +4,27 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.7.0 - 2026-07-11
+
+### Added
+
+- **Local Harnesses management.** A dedicated page probes the exact user-level Claude Code, Codex, Pi, and OpenCode executables, reports versions and paths, and runs only their supported self-updaters after explicit confirmation. Updates are serialized, blocked by matching active sessions, bounded by timeout/output limits, and verified with a post-update probe.
+- **OpenCode sessions through Ollama.** LMBrain launches OpenCode with operator-selected Ollama models, requires a preinstalled CLI, and registers `lmbrain-mcp` through OpenCode's native project configuration without an extension dependency.
+
+### Changed
+
+- **Missing harness guidance.** Missing installations show official documentation and copyable user-level install commands; LMBrain never installs a missing harness automatically or guesses a package manager.
+
+## 2.6.1 - 2026-07-10
+
+### Added
+
+- **Explicit current-view refresh.** A header action reloads shared workspace data and view-local queries with visible success/failure feedback while preserving running session terminals.
+
+### Fixed
+
+- **Codex session scrolling.** LMBrain launches Codex with its supported inline `--no-alt-screen` mode so conversation output remains in xterm's normal scrollback; buffer-aware wheel routing remains in place for other full-screen TUIs.
+
 ## 2.6.0 - 2026-07-10
 
 ### Added

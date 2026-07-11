@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { sessionAttach, sessionResize, sessionWrite } from "../../lib/commands";
 import { terminalClipboardAction } from "../../lib/terminalClipboard";
+import { shouldDelegateTerminalWheel, terminalWheelRows } from "../../lib/terminalWheel";
 
 interface SessionTerminalProps {
   sessionId: string;
@@ -147,15 +148,15 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
       }
       return false;
     });
-    const handleWheel = (event: WheelEvent) => {
-      if (event.ctrlKey || event.metaKey) {
-        return;
+    term.attachCustomWheelEventHandler((event) => {
+      if (shouldDelegateTerminalWheel(term.buffer.active.type, event)) {
+        return true;
       }
-      const rows = Math.max(1, Math.ceil(Math.abs(event.deltaY) / 36));
+      const rows = terminalWheelRows(event.deltaY);
       term.scrollLines(event.deltaY > 0 ? rows : -rows);
       event.preventDefault();
-    };
-    container.addEventListener("wheel", handleWheel, { passive: false });
+      return false;
+    });
     const handlePointerDown = () => term.focus();
     container.addEventListener("pointerdown", handlePointerDown);
 
@@ -200,7 +201,6 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
     return () => {
       resizeObserver.disconnect();
       dataDisposable.dispose();
-      container.removeEventListener("wheel", handleWheel);
       container.removeEventListener("pointerdown", handlePointerDown);
       outputUnlisten.then((fn) => fn());
       term.dispose();

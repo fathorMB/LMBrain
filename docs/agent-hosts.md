@@ -76,6 +76,28 @@ pi install npm:pi-mcp-extension@1.5.0 -l --approve
 ```
 
 The command never targets global settings and never selects an unpinned version.
+
+## OpenCode through Ollama
+
+OpenCode sessions use `ollama launch opencode --model <model>`. LMBrain requires
+the `opencode` executable to already be present, preventing session startup from
+becoming an implicit installation flow. OpenCode supports MCP natively; LMBrain
+safely merges only `mcp.lmbrain` into project-local `opencode.json`, preserving
+unrelated provider, permission, agent, and MCP configuration. No OpenCode
+package, credential, global config, or permission policy is installed or changed.
+
+## User-level harness lifecycle
+
+The Local Harnesses page manages only the agent CLI itself, not project packages or authentication. It probes the exact resolved executable with `--version` and exposes these explicitly confirmed self-update commands:
+
+- Claude Code: `claude update`
+- Codex: `codex update`
+- Pi: `pi update --self --no-approve`
+- OpenCode: `opencode upgrade`
+
+LMBrain passes fixed argv directly to the resolved executable, runs outside the workspace, never elevates privileges, and never guesses npm/Homebrew/native ownership. Only one update may run at a time, and sessions using the selected host must be closed first. A zero updater exit is not sufficient: LMBrain probes the executable again and reports the verified before/after version and path. Missing harnesses receive official installation guidance but are not installed automatically.
+
+Pi's project-local pinned MCP extension is a separate integration dependency. Updating Pi itself never updates project extensions or changes `.pi/settings.json`.
 LMBrain first verifies both project `.pi/settings.json` and an offline `pi list`,
 so an already-ready project is not reinstalled. Installation failure does not
 block workspace access: Pulse opens with a persistent Pi warning. LMBrain also
@@ -105,8 +127,8 @@ LMBrain scaffolds a concise managed block in root `AGENTS.md` so Codex can disco
 
 ## V3 context-pack tools
 
-All MCP-enabled agent hosts (Claude Code, Codex, and a correctly provisioned Pi
-session) can use the new context-pack MCP tools:
+All MCP-enabled agent hosts (Claude Code, Codex, OpenCode, and a correctly
+provisioned Pi session) can use the new context-pack MCP tools:
 
 - `lmbrain_project_digest` — project overview (no parameters)
 - `lmbrain_spec_context` — spec handoff context (requires `spec` parameter)
@@ -128,6 +150,7 @@ These files are machine-specific and should not be committed:
 - `.mcp.json`
 - `.codex/`
 - `.claude/`
+- `opencode.json`
 - `AGENTS.md`
 - root `.lmbrain/` dogfooding state
 

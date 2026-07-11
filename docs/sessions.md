@@ -8,10 +8,11 @@ Supported host/connection combinations:
 - Claude through Ollama: `ollama launch claude --model <model>`;
 - native Codex: `codex`.
 - Pi through Ollama: `ollama launch pi --model <model>`.
+- OpenCode through Ollama: `ollama launch opencode --model <model>`.
 
-The session contract separates the agent host (`claude`, `codex`, or `pi`)
+The session contract separates the agent host (`claude`, `codex`, `pi`, or `opencode`)
 from the connection route (`native` or `ollama`). Claude supports both,
-Codex supports native only, and Pi supports Ollama only. Unsupported
+Codex supports native only, while Pi and OpenCode support Ollama only. Unsupported
 combinations are rejected before a PTY is opened.
 
 Pi requires the audited project-local package pin
@@ -22,6 +23,10 @@ offline/non-mutating readiness checks for the `ollama` and `pi` executables,
 the Ollama API and selected tool-capable model, and the exact Pi MCP extension
 version. The modal stays open and displays an actionable error when a check
 fails.
+
+OpenCode needs no extension. It consumes LMBrain's native local MCP entry from
+project `opencode.json`; preflight requires the OpenCode executable before
+invoking Ollama, preventing implicit installation prompts.
 
 ## Backend
 
@@ -57,6 +62,12 @@ preserves in-memory scrollback, selection, and output accumulated while another
 tab or app view is active. History is still process-memory state and does not
 survive closing the tab or restarting LMBrain.
 
+Wheel handling is buffer-aware. Normal terminal output scrolls xterm's local
+history; when a full-screen application such as Codex activates the alternate
+buffer, LMBrain delegates wheel events back to xterm so the TUI can receive its
+mouse scrolling protocol. Modifier-assisted wheel gestures are also left to
+xterm/the host.
+
 Each terminal shows Copy and Paste controls plus shortcut guidance:
 
 - select text and press `Ctrl+C`, or use `Ctrl+Shift+C` / macOS `Cmd+C`, to copy;
@@ -88,6 +99,12 @@ Native Codex sessions resolve the executable from:
 2. a configured path passed from settings/local storage;
 3. the newest Desktop Codex binary under `%LOCALAPPDATA%\OpenAI\Codex\bin\*\codex.exe`;
 4. `codex.exe` or `codex` on `PATH`.
+
+LMBrain launches the interactive Codex CLI with its supported
+`--no-alt-screen` option. Inline mode preserves conversation output in xterm's
+normal scrollback buffer, so the embedded terminal can scroll and select the
+full transcript consistently. This option affects only LMBrain-launched Codex
+sessions and does not modify the user's Codex configuration.
 
 ## Scope
 

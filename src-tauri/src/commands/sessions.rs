@@ -12,9 +12,7 @@ use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
 use crate::commands::mcp_registration::resolve_mcp_command_for_root;
-use crate::commands::pi_registration::{
-    has_pinned_pi_mcp_extension, PI_MCP_EXTENSION_SOURCE,
-};
+use crate::commands::pi_registration::{has_pinned_pi_mcp_extension, PI_MCP_EXTENSION_SOURCE};
 use crate::errors::AppError;
 use crate::models::session::{
     AgentHost, ModelRoute, OllamaModel, SessionExitPayload, SessionInfo, SessionOutputPayload,
@@ -206,6 +204,18 @@ impl SessionManager {
         inner.sessions.clear();
     }
 
+    pub fn running_labels_for_host(&self, host: &AgentHost) -> Vec<String> {
+        let inner = self.lock_inner();
+        inner
+            .sessions
+            .values()
+            .filter(|session| {
+                session.info.host == *host && session.info.status == SessionStatus::Running
+            })
+            .map(|session| session.info.label.clone())
+            .collect()
+    }
+
     fn lock_inner(&self) -> MutexGuard<'_, SessionManagerInner> {
         self.inner
             .lock()
@@ -276,6 +286,10 @@ pub fn preflight_session(cwd: &Path, request: &SessionStartRequest) -> Result<()
         }
     }
 
+    if matches!(request.host, AgentHost::Opencode) {
+        require_command_on_path("opencode")?;
+    }
+
     Ok(())
 }
 
@@ -328,9 +342,18 @@ fn launch_spec(request: &SessionStartRequest) -> Result<LaunchSpec, AppError> {
                 required_ollama_model(request)?.to_string(),
             ],
         },
+        (AgentHost::Opencode, ModelRoute::Ollama) => LaunchSpec {
+            program: "ollama".into(),
+            args: vec![
+                "launch".into(),
+                "opencode".into(),
+                "--model".into(),
+                required_ollama_model(request)?.to_string(),
+            ],
+        },
         (AgentHost::Codex, ModelRoute::Native) => LaunchSpec {
             program: resolve_codex_command(request.codex_bin.as_deref()),
-            args: Vec::new(),
+            args: vec!["--no-alt-screen".into()],
         },
         _ => unreachable!("validated session route"),
     };
@@ -354,7 +377,7 @@ fn require_command_on_path(command: &str) -> Result<PathBuf, AppError> {
     })
 }
 
-fn command_on_path(command: &str) -> Option<PathBuf> {
+pub(crate) fn command_on_path(command: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     let names: Vec<String> = if cfg!(windows) {
         vec![
@@ -378,6 +401,7 @@ fn validate_route(request: &SessionStartRequest) -> Result<(), AppError> {
             | (AgentHost::Claude, ModelRoute::Ollama)
             | (AgentHost::Codex, ModelRoute::Native)
             | (AgentHost::Pi, ModelRoute::Ollama)
+            | (AgentHost::Opencode, ModelRoute::Ollama)
     );
     if valid {
         Ok(())
@@ -434,6 +458,13 @@ fn default_label(request: &SessionStartRequest) -> String {
                 .filter(|value| !value.is_empty())
                 .map(|model| format!("Pi via {model}"))
                 .unwrap_or_else(|| "Pi via Ollama".to_string()),
+            (AgentHost::Opencode, ModelRoute::Ollama) => request
+                .model
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|model| format!("OpenCode via {model}"))
+                .unwrap_or_else(|| "OpenCode via Ollama".to_string()),
             _ => "Agent session".to_string(),
         })
 }
@@ -743,11 +774,19 @@ mod tests {
             label: None,
             codex_bin: None,
         };
+        let opencode = SessionStartRequest {
+            host: AgentHost::Opencode,
+            route: ModelRoute::Ollama,
+            model: Some("qwen3-coder:cloud".into()),
+            label: None,
+            codex_bin: None,
+        };
 
         assert_eq!(default_label(&native), "Claude");
         assert_eq!(default_label(&ollama), "Claude via glm-5.1:cloud");
         assert_eq!(default_label(&codex), "Codex");
         assert_eq!(default_label(&pi), "Pi via qwen3.5:cloud");
+        assert_eq!(default_label(&opencode), "OpenCode via qwen3-coder:cloud");
     }
 
     #[test]
@@ -769,6 +808,47 @@ mod tests {
                     "--model".into(),
                     "qwen3.5:cloud".into(),
                 ],
+            }
+        );
+    }
+
+    #[test]
+    fn builds_opencode_ollama_launch_spec_with_discrete_arguments() {
+        let request = SessionStartRequest {
+            host: AgentHost::Opencode,
+            route: ModelRoute::Ollama,
+            model: Some(" qwen3-coder:cloud ".into()),
+            label: None,
+            codex_bin: None,
+        };
+        assert_eq!(
+            launch_spec(&request).unwrap(),
+            LaunchSpec {
+                program: "ollama".into(),
+                args: vec![
+                    "launch".into(),
+                    "opencode".into(),
+                    "--model".into(),
+                    "qwen3-coder:cloud".into(),
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn launches_codex_inline_to_preserve_xterm_scrollback() {
+        let request = SessionStartRequest {
+            host: AgentHost::Codex,
+            route: ModelRoute::Native,
+            model: None,
+            label: None,
+            codex_bin: Some("codex-custom".into()),
+        };
+        assert_eq!(
+            launch_spec(&request).unwrap(),
+            LaunchSpec {
+                program: "codex-custom".into(),
+                args: vec!["--no-alt-screen".into()],
             }
         );
     }
@@ -796,10 +876,18 @@ mod tests {
             label: None,
             codex_bin: None,
         };
+        let opencode_native = SessionStartRequest {
+            host: AgentHost::Opencode,
+            route: ModelRoute::Native,
+            model: None,
+            label: None,
+            codex_bin: None,
+        };
 
         assert!(validate_route(&pi_native).is_err());
         assert!(validate_route(&codex_ollama).is_err());
         assert!(launch_spec(&pi_without_model).is_err());
+        assert!(validate_route(&opencode_native).is_err());
     }
 
     #[test]

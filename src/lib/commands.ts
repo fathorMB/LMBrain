@@ -9,6 +9,9 @@ import type {
   FileContent,
   GitInfo,
   Handoff,
+  HarnessStatus,
+  HarnessUpdateRequest,
+  HarnessUpdateResult,
   McpProposal,
   McpRecord,
   MilestoneOverview,
@@ -211,6 +214,14 @@ export async function sessionList(): Promise<SessionInfo[]> {
 
 export async function listOllamaModels(): Promise<OllamaModel[]> {
   return invoke("list_ollama_models");
+}
+
+export async function probeHarnesses(codexBin?: string): Promise<HarnessStatus[]> {
+  return invoke("probe_harnesses", { codexBin });
+}
+
+export async function updateHarness(request: HarnessUpdateRequest): Promise<HarnessUpdateResult> {
+  return invoke("update_harness", { request });
 }
 
 export async function setArtifactStatus(path: string, targetStatus: string): Promise<string> {

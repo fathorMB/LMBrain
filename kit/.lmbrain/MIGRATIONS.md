@@ -4,7 +4,33 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.6.0`.
+The current released kit is `2.7.0`.
+
+### 2.7.0 (local harness lifecycle - app-only feature)
+
+`2.7.0` adds the Local Harnesses page for probing and explicitly updating user-level Claude Code, Codex, Pi, and OpenCode installations. It also adds OpenCode sessions through Ollama and generated project-local `opencode.json` MCP registration. Harness binaries, authentication, and update state remain outside the project; the Markdown artifact contract is unchanged.
+
+When upgrading an existing `2.6.x` brain to `2.7.0`:
+
+1. No `.lmbrain/` files, directories, frontmatter, or project dependencies need to change.
+2. Open Local Harnesses and confirm that each installed executable path/version matches the binary the operator expects LMBrain to launch.
+3. If a custom Codex executable is configured in Settings, verify the Codex card reports that exact path.
+4. Do not run a harness update while matching sessions are active. LMBrain enforces this gate, but operators should still review the confirmation and updater output.
+5. Opening a workspace may create or merge ignored `opencode.json` with only the `mcp.lmbrain` entry; review existing OpenCode project configuration before removing the ignore rule or committing it.
+6. Update `.lmbrain/VERSION` to `2.7.0` after validation.
+7. Roll back by restoring LMBrain `2.6.x`, deleting only LMBrain's `mcp.lmbrain` OpenCode entry if desired, and restoring the prior `.lmbrain/VERSION`. Harness updates already completed are user-level operations and must be rolled back through that harness's supported installation process if necessary.
+
+### 2.6.1 (Codex alternate-buffer scrolling - app-only fix)
+
+`2.6.1` launches Codex in its supported inline mode to preserve xterm scrollback, keeps buffer-aware wheel routing for other full-screen terminal applications, and adds an explicit current-view data refresh in the app header. The Markdown artifact contract and project configuration are unchanged.
+
+When upgrading an existing `2.6.0` brain to `2.6.1`:
+
+1. No file moves, frontmatter edits, configuration changes, or generated-state cleanup are required.
+2. Open a Codex session and verify that mouse-wheel input scrolls the TUI conversation while ordinary terminal output still scrolls local xterm history.
+3. Use the header refresh on a view with a resolved diagnostic and verify that stale warnings disappear without restarting sessions or the application.
+4. Update `.lmbrain/VERSION` to `2.6.1` after validation.
+5. Roll back by restoring LMBrain `2.6.0` and the prior `.lmbrain/VERSION`; no artifact rollback is required.
 
 ### 2.6.0 (Pi sessions and workspace/session UX - app-derived)
 

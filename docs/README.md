@@ -7,8 +7,8 @@ This directory documents the current LMBrain solution. It intentionally does not
 - [Product](product.md) - what LMBrain is and what it ships.
 - [Architecture](architecture.md) - app, backend, core, and MCP structure.
 - [Kit](kit.md) - the reusable `.lmbrain` template and artifact model.
-- [Agent Hosts](agent-hosts.md) - Claude Code and Codex registration.
-- [Sessions](sessions.md) - interactive Claude, Ollama, and Codex terminals.
+- [Agent Hosts](agent-hosts.md) - Claude Code, Codex, Pi, and OpenCode registration.
+- [Sessions](sessions.md) - interactive Claude, Codex, Pi, and OpenCode terminals.
 - [Development](development.md) - local setup, repository map, and checks.
 - [Release](release.md) - version alignment, CI, installers, and releases.
 

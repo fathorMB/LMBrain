@@ -6,6 +6,7 @@ pub enum AgentHost {
     Claude,
     Codex,
     Pi,
+    Opencode,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

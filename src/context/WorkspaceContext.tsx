@@ -258,6 +258,7 @@ export interface WorkspaceContextValue {
   openWorkspace: (path: string) => Promise<void>;
   initializeWorkspaceKit: (path: string) => Promise<void>;
   loadAllData: () => Promise<void>;
+  refreshWorkspaceData: () => Promise<void>;
   navigateTo: (view: AppView) => void;
   openSpec: (spec: Spec) => void;
   toggleCmdk: () => void;
@@ -281,9 +282,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_SESSIONS", sessions: infos });
   }, []);
 
-  const loadAllDataInternal = useCallback(async () => {
-    try {
-      const [
+  const fetchWorkspaceData = useCallback(async (): Promise<Partial<WorkspaceState>> => {
+    const [
         pulseData,
         specs,
         reviews,
@@ -295,7 +295,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         skills,
         handoffs,
         diagnostics,
-      ] = await Promise.all([
+    ] = await Promise.all([
         commands.getPulseData(),
         commands.getSpecs(),
         commands.getReviews(),
@@ -307,32 +307,54 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         commands.getSkills(),
         commands.getHandoffs(),
         commands.getDiagnostics(),
-      ]);
+    ]);
 
-      dispatch({
-        type: "MERGE_DATA",
-        data: {
-          pulseData,
-          specs,
-          reviews,
-          adrs,
-          agents,
-          agentProposals,
-          mcpRecords,
-          mcpProposals,
-          skills,
-          handoffs,
-          diagnostics,
-        },
-      });
+    return {
+      pulseData,
+      specs,
+      reviews,
+      adrs,
+      agents,
+      agentProposals,
+      mcpRecords,
+      mcpProposals,
+      skills,
+      handoffs,
+      diagnostics,
+    };
+  }, []);
+
+  const loadAllDataInternal = useCallback(async () => {
+    try {
+      dispatch({ type: "MERGE_DATA", data: await fetchWorkspaceData() });
     } catch (err) {
       console.error("Failed to load data:", err);
     }
-  }, []);
+  }, [fetchWorkspaceData]);
 
   const loadAllData = useCallback(async () => {
     await loadAllDataInternal();
   }, [loadAllDataInternal]);
+
+  const refreshWorkspaceData = useCallback(async () => {
+    const [data, gitInfo, wikiPage] = await Promise.all([
+      fetchWorkspaceData(),
+      commands.getGitInfo(),
+      state.wikiPage ? commands.getWikiPage(state.wikiPage.path) : Promise.resolve(null),
+    ]);
+    const selectedSpec = state.selectedSpec
+      ? data.specs?.find((spec) => spec.id === state.selectedSpec?.id) ?? null
+      : null;
+    dispatch({
+      type: "MERGE_DATA",
+      data: {
+        ...data,
+        gitInfo,
+        selectedSpec,
+        wikiPage,
+      },
+    });
+  }, [fetchWorkspaceData, state.selectedSpec, state.wikiPage]);
 
   useEffect(() => {
     commands.listRecentWorkspaces().then((workspaces) => {
@@ -494,8 +516,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           request.label?.trim() ||
           (request.host === "claude" && request.route === "ollama" && request.model
             ? `Claude via ${request.model}`
-            : request.host === "pi" && request.model
-              ? `Pi via ${request.model}`
+            : (request.host === "pi" || request.host === "opencode") && request.model
+              ? `${request.host === "pi" ? "Pi" : "OpenCode"} via ${request.model}`
               : request.host === "codex"
               ? "Codex"
               : "Claude"),
@@ -546,6 +568,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         openWorkspace,
         initializeWorkspaceKit,
         loadAllData,
+        refreshWorkspaceData,
         navigateTo,
         openSpec,
         toggleCmdk,

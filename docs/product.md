@@ -22,6 +22,11 @@ The main product idea is simple: a repository owns its project state as Markdown
 
 LMBrain does not automatically start agents and does not require a remote service.
 
+The application header provides an explicit current-view refresh. It reloads
+shared workspace artifacts, diagnostics, Git metadata, and view-local queries
+without restarting the watcher, agent processes, or persistent session
+terminals. Refresh success and failure are shown directly in the header.
+
 ## Main Views
 
 - Pulse: current project state, diagnostics, and recommended actions.
@@ -33,8 +38,9 @@ LMBrain does not automatically start agents and does not require a remote servic
 - Reviews and Decisions: project governance artifacts.
 - Agents & MCP: agent profiles, proposals, MCP records, and built-in MCP tools.
 - Sessions: floating interactive terminals for supported agent CLIs.
+- Local Harnesses: user-level Claude Code, Codex, Pi, and OpenCode installation status, exact paths/versions, and explicitly confirmed self-updates with logs and post-update verification.
 - Settings: local preferences and agent binary paths.
 
 ## Local-First Boundaries
 
-LMBrain reads and writes local files selected by the user. Repository state remains versionable Markdown. Generated host configuration such as `.mcp.json`, `.codex/`, and `AGENTS.md` is workspace-local and machine-specific, so it is ignored in this repository.
+LMBrain reads and writes local files selected by the user. Repository state remains versionable Markdown. Generated host configuration such as `.mcp.json`, `.codex/`, `opencode.json`, and `AGENTS.md` is workspace-local and machine-specific, so it is ignored in this repository.

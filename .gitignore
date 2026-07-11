@@ -31,5 +31,8 @@ Thumbs.db
 /.pi/mcp.json.tmp
 /.pi/mcp.json.bak
 /.pi/npm/
+/opencode.json
+/opencode.json.tmp
+/opencode.json.bak
 /.codex/
 /.claude/

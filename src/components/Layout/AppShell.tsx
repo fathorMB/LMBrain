@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { useWorkspace } from "../../hooks/useWorkspace";
@@ -15,11 +16,13 @@ import { SettingsView } from "../Settings/SettingsView";
 import { RoadmapView } from "../Roadmap/RoadmapView";
 import { InsightsView } from "../Insights/InsightsView";
 import { SessionsView } from "../Sessions/SessionsView";
+import { HarnessesView } from "../Harnesses/HarnessesView";
 import { CommandPalette } from "../CommandPalette";
 import { ArtifactDetailModal } from "./ArtifactDetailModal";
 
 export function AppShell() {
   const { state, dispatch } = useWorkspace();
+  const [viewRefreshRevision, setViewRefreshRevision] = useState(0);
 
   if (state.screen === "picker") {
     return <RepositoryPicker />;
@@ -31,6 +34,8 @@ export function AppShell() {
         return <ProjectPulse />;
       case "sessions":
         return null;
+      case "harnesses":
+        return <HarnessesView />;
       case "wiki":
         return <WikiView />;
       case "taskboard":
@@ -71,7 +76,7 @@ export function AppShell() {
     >
       <Sidebar />
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
-        <TopBar />
+        <TopBar onViewReload={() => setViewRefreshRevision((revision) => revision + 1)} />
         {state.workspaceNotice && (
           <div
             role="alert"
@@ -118,6 +123,7 @@ export function AppShell() {
           }}
         >
           <div
+            key={`${state.view}-${viewRefreshRevision}`}
             style={{
               height: "100%",
               minHeight: 0,

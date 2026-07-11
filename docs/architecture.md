@@ -24,6 +24,7 @@ Important areas:
 - `src/components/Wiki/`: Markdown tree and page viewer.
 - `src/components/Design/`: design mockup browser and isolated HTML preview.
 - `src/components/Insights/`: read-only project statistics and review-quality metrics.
+- `src/components/Harnesses/`: local-machine harness probe/update status and explicit update UX.
 - `src/components/Skills/`: dedicated project-scoped skill browser.
 - `src/components/Taskboard/`: spec board.
 - `src/components/Sessions/`: tab-based session workspace with xterm terminal integration.
@@ -72,6 +73,13 @@ The app exposes skills through a dedicated `Skills` page rather than adding them
 ### Project insights
 
 The Insights page is backed by `get_project_statistics`, a Tauri command that derives read-only metrics from parsed LMBrain artifacts. It reports artifact inventory, spec flow, diagnostics, and review-quality statistics.
+
+Local Harnesses is backed by `commands::harnesses`. Read-only probes resolve the same executables used by Sessions and execute only `--version`. Mutating updates are fixed per host, serialized by `HarnessManager`, rejected while matching sessions run, executed off the command thread with bounded time/output, and followed by an authoritative re-probe. No updater is run through an interpolated shell command.
+
+OpenCode uses the same `AgentHost`/`ModelRoute` boundary as Pi and is launched
+through Ollama. `commands::opencode_registration` owns the idempotent,
+structure-preserving merge of the native local MCP entry in project
+`opencode.json`; provider selection remains owned by `ollama launch`.
 
 Review-quality metrics are spec-centric where possible. The main change-request rate is calculated as distinct specs with at least one `changes-requested` review divided by distinct reviewed specs. First-pass acceptance is calculated only for reviewed specs whose linked reviews have valid `created` dates, and missing dates or missing `spec` links are surfaced as explicit counts rather than inferred.
 

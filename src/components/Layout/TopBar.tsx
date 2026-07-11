@@ -1,8 +1,37 @@
+import { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 
-export function TopBar() {
-  const { state, toggleCmdk } = useWorkspace();
+export function TopBar({ onViewReload }: { onViewReload: () => void }) {
+  const { state, toggleCmdk, refreshWorkspaceData, refreshSessions } = useWorkspace();
   const { gitInfo, watcherActive } = state;
+  const [refreshStatus, setRefreshStatus] = useState<"idle" | "refreshing" | "success" | "error">("idle");
+  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+    },
+    []
+  );
+
+  const handleRefresh = async () => {
+    if (refreshStatus === "refreshing") return;
+    if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+    setRefreshStatus("refreshing");
+    try {
+      await refreshWorkspaceData();
+      if (state.view === "sessions") {
+        await refreshSessions();
+      } else {
+        onViewReload();
+      }
+      setRefreshStatus("success");
+      feedbackTimeoutRef.current = setTimeout(() => setRefreshStatus("idle"), 1800);
+    } catch (error) {
+      console.error("Failed to refresh current view:", error);
+      setRefreshStatus("error");
+    }
+  };
 
   return (
     <div
@@ -84,6 +113,46 @@ export function TopBar() {
       </div>
 
       <div style={{ flex: 1 }} />
+
+      {refreshStatus === "success" && (
+        <span role="status" style={{ fontSize: 11, color: "var(--green)" }}>
+          Updated
+        </span>
+      )}
+      {refreshStatus === "error" && (
+        <span role="alert" style={{ fontSize: 11, color: "var(--red)" }}>
+          Refresh failed
+        </span>
+      )}
+
+      <button
+        type="button"
+        aria-label={refreshStatus === "error" ? "Refresh failed. Retry current view" : "Refresh current view"}
+        title="Refresh current view"
+        disabled={refreshStatus === "refreshing"}
+        onClick={() => void handleRefresh()}
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 9,
+          background: "#141118",
+          border: "1px solid #262330",
+          color: refreshStatus === "error" ? "var(--red)" : "var(--text-secondary)",
+          cursor: refreshStatus === "refreshing" ? "wait" : "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: refreshStatus === "refreshing" ? 0.7 : 1,
+        }}
+      >
+        <i
+          className={`material-symbols-outlined${refreshStatus === "refreshing" ? " lmbrain-loading-spinner" : ""}`}
+          aria-hidden="true"
+          style={{ fontSize: 18 }}
+        >
+          refresh
+        </i>
+      </button>
 
       {/* Search bar */}
       <div

@@ -180,4 +180,25 @@ describe("SessionsView", () => {
     expect(await screen.findByText("Pi MCP prerequisite is missing")).toBeDefined();
     expect(screen.getByRole("dialog", { name: "Start session" })).toBeDefined();
   });
+
+  it("loads Ollama models and submits the OpenCode route", async () => {
+    render(<SessionsView active />);
+
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    fireEvent.click(screen.getByRole("button", { name: "OpenCode" }));
+
+    await screen.findByRole("option", { name: "qwen3.5:cloud" });
+    expect(screen.queryByRole("button", { name: "Native" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+
+    await waitFor(() =>
+      expect(mockWorkspace.createSession).toHaveBeenCalledWith({
+        host: "opencode",
+        route: "ollama",
+        model: "qwen3.5:cloud",
+        codex_bin: undefined,
+        label: "",
+      })
+    );
+  });
 });

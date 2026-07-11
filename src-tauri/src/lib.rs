@@ -8,11 +8,13 @@ use commands::contract;
 use commands::design;
 use commands::filesystem::PathGuard;
 use commands::git;
+use commands::harnesses::HarnessManager;
 use commands::sessions::SessionManager;
 use commands::watcher::FileWatcherService;
 use commands::workspace::WorkspaceService;
 use models::design::{DesignMockup, DesignMockupHtml};
 use models::file::{FileContent, GitInfo, ParsedDocument};
+use models::harness::{HarnessStatus, HarnessUpdateRequest, HarnessUpdateResult};
 use models::pulse::PulseData;
 use models::session::{OllamaModel, SessionInfo, SessionStartRequest};
 use models::workspace::{WorkspaceInfo, WorkspaceSummary};
@@ -25,6 +27,7 @@ pub struct AppState {
     pub workspace_service: WorkspaceService,
     pub watcher: FileWatcherService,
     pub sessions: SessionManager,
+    pub harnesses: HarnessManager,
 }
 
 // ─── Tauri Commands ───────────────────────────────────────────────
@@ -59,6 +62,7 @@ fn open_workspace(
     let _ = commands::mcp_registration::register_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
     let _ = commands::pi_registration::register_pi_mcp_server(root, &mcp_command);
+    let _ = commands::opencode_registration::register_opencode_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::ensure_codex_workspace_trusted(root);
     let _ = commands::codex_registration::scaffold_agents_md(root);
 
@@ -92,6 +96,7 @@ fn initialize_workspace_kit(
     let _ = commands::mcp_registration::register_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
     let _ = commands::pi_registration::register_pi_mcp_server(root, &mcp_command);
+    let _ = commands::opencode_registration::register_opencode_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::ensure_codex_workspace_trusted(root);
     let _ = commands::codex_registration::scaffold_agents_md(root);
     Ok(info)
@@ -443,6 +448,11 @@ fn session_start(
         commands::pi_registration::register_pi_mcp_server(&root, &mcp_command)
             .map_err(|err| format!("Unable to register LMBrain tools for Pi: {err}"))?;
     }
+    if matches!(request.host, models::session::AgentHost::Opencode) {
+        let mcp_command = commands::mcp_registration::resolve_mcp_command_for_root(&root);
+        commands::opencode_registration::register_opencode_mcp_server(&root, &mcp_command)
+            .map_err(|err| format!("Unable to register LMBrain tools for OpenCode: {err}"))?;
+    }
     if matches!(
         (&request.host, &request.route),
         (
@@ -502,6 +512,33 @@ fn session_list(state: State<'_, AppState>) -> Vec<SessionInfo> {
 #[tauri::command]
 fn list_ollama_models() -> Result<Vec<OllamaModel>, String> {
     commands::sessions::list_ollama_models().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn probe_harnesses(codex_bin: Option<String>) -> Result<Vec<HarnessStatus>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        commands::harnesses::probe_all(codex_bin.as_deref())
+    })
+    .await
+    .map_err(|error| format!("Harness probe worker failed: {error}"))
+}
+
+#[tauri::command]
+async fn update_harness(
+    state: State<'_, AppState>,
+    request: HarnessUpdateRequest,
+) -> Result<HarnessUpdateResult, String> {
+    let running = state.sessions.running_labels_for_host(&request.host);
+    if let Some(error) = commands::harnesses::active_session_error(&request.host, &running) {
+        return Err(error);
+    }
+    let lease = state.harnesses.try_begin(&request.host)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _lease = lease;
+        commands::harnesses::update_harness(&request.host, request.codex_bin.as_deref())
+    })
+    .await
+    .map_err(|error| format!("Harness update worker failed: {error}"))?
 }
 
 #[tauri::command]
@@ -589,6 +626,7 @@ pub fn run() {
                 workspace_service,
                 watcher: FileWatcherService::new(),
                 sessions: SessionManager::new(),
+                harnesses: HarnessManager::new(),
             });
 
             Ok(())
@@ -634,6 +672,8 @@ pub fn run() {
             session_attach,
             session_list,
             list_ollama_models,
+            probe_harnesses,
+            update_harness,
             set_artifact_status,
         ])
         .run(tauri::generate_context!())

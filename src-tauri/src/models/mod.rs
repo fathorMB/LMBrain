@@ -3,6 +3,7 @@ pub mod agent;
 pub mod design;
 pub mod file;
 pub mod handoff;
+pub mod harness;
 pub mod mcp;
 pub mod pulse;
 pub mod review;

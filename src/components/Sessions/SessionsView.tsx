@@ -53,7 +53,7 @@ export function SessionsView({ active }: SessionsViewProps) {
 
   const selectHost = (next: AgentHost) => {
     setHost(next);
-    if (next === "pi") {
+    if (next === "pi" || next === "opencode") {
       setRoute("ollama");
       ensureModelsLoaded();
       return;
@@ -245,11 +245,12 @@ export function SessionsView({ active }: SessionsViewProps) {
               <ModeButton label="Claude" selected={host === "claude"} onClick={() => selectHost("claude")} />
               <ModeButton label="Codex" selected={host === "codex"} onClick={() => selectHost("codex")} />
               <ModeButton label="Pi" selected={host === "pi"} onClick={() => selectHost("pi")} />
+              <ModeButton label="OpenCode" selected={host === "opencode"} onClick={() => selectHost("opencode")} />
             </div>
 
             <div style={fieldLabelStyle}>Connection</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-              {host !== "pi" && <ModeButton label="Native" selected={route === "native"} onClick={() => setRoute("native")} />}
+              {host !== "pi" && host !== "opencode" && <ModeButton label="Native" selected={route === "native"} onClick={() => setRoute("native")} />}
               {host !== "codex" && <ModeButton label="Ollama" selected={route === "ollama"} onClick={() => { setRoute("ollama"); ensureModelsLoaded(); }} />}
             </div>
 
@@ -513,7 +514,7 @@ function EmptySessionsState({
             color: "var(--text-tertiary)",
           }}
         >
-          Start Claude Code, Codex, or Pi through Ollama with a tools-capable model.
+          Start Claude Code, Codex, Pi, or OpenCode through Ollama with a tools-capable model.
         </div>
         <div style={{ marginTop: 22 }}>
           <button onClick={onCreate} style={primaryButtonStyle}>
