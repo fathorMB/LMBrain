@@ -298,21 +298,15 @@ fn terminate_process_tree(child: &mut std::process::Child) {
 
 #[cfg(unix)]
 fn terminate_process_tree(child: &mut std::process::Child) {
-    let process_group = format!("-{}", child.id());
-    let _ = Command::new("kill")
-        .args(["-TERM", &process_group])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
+    let pgid = child.id() as libc::pid_t;
+    unsafe {
+        libc::kill(-pgid, libc::SIGTERM);
+    }
     thread::sleep(Duration::from_millis(250));
     if child.try_wait().ok().flatten().is_none() {
-        let _ = Command::new("kill")
-            .args(["-KILL", &process_group])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+        unsafe {
+            libc::kill(-pgid, libc::SIGKILL);
+        }
     }
     let _ = child.kill();
 }
@@ -528,34 +522,40 @@ mod tests {
 
     #[test]
     fn process_runner_terminates_on_timeout() {
-        let executable = std::env::current_exe().unwrap();
-        let output = run_process(
-            &executable,
-            &[
-                "--exact",
-                "commands::harnesses::tests::long_running_child",
-                "--ignored",
-            ],
-            Duration::from_millis(100),
-        )
-        .unwrap();
+        let (program, args) = if cfg!(unix) {
+            (std::path::PathBuf::from("sleep"), vec!["2".to_string()])
+        } else {
+            (
+                std::env::current_exe().unwrap(),
+                vec![
+                    "--exact".to_string(),
+                    "commands::harnesses::tests::long_running_child".to_string(),
+                    "--ignored".to_string(),
+                ],
+            )
+        };
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = run_process(&program, &args_ref, Duration::from_millis(100)).unwrap();
         assert!(output.timed_out);
     }
 
     #[test]
     fn process_runner_bounds_captured_output() {
-        let executable = std::env::current_exe().unwrap();
-        let output = run_process(
-            &executable,
-            &[
-                "--exact",
-                "commands::harnesses::tests::large_output_child",
-                "--ignored",
-                "--nocapture",
-            ],
-            Duration::from_secs(5),
-        )
-        .unwrap();
+        let (program, args) = if cfg!(unix) {
+            (std::path::PathBuf::from("sh"), vec!["-c".to_string(), format!("yes x | head -c {}", MAX_CAPTURE_BYTES + 1024)])
+        } else {
+            (
+                std::env::current_exe().unwrap(),
+                vec![
+                    "--exact".to_string(),
+                    "commands::harnesses::tests::large_output_child".to_string(),
+                    "--ignored".to_string(),
+                    "--nocapture".to_string(),
+                ],
+            )
+        };
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = run_process(&program, &args_ref, Duration::from_secs(5)).unwrap();
         assert_eq!(output.exit_code, Some(0));
         assert!(output.stdout.len() <= MAX_CAPTURE_BYTES + 40);
         assert!(output.stdout.contains("[output truncated by LMBrain]"));

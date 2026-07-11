@@ -1893,6 +1893,7 @@ version = "2.7.0"
 dependencies = [
  "chrono",
  "glob",
+ "libc",
  "lmbrain-core",
  "log",
  "notify",

@@ -34,6 +34,7 @@ portable-pty = "0.9"
 ureq = "2.12"
 toml_edit = "0.22"
 percent-encoding = "2"
+libc = "0.2"
 lmbrain-core = { path = "../lmbrain-core" }
 
 [dev-dependencies]
