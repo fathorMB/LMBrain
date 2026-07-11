@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.7.1 - 2026-07-11
+
+### Fixed
+
+- **Rust test suite hangs on Linux.** Refactored process-tree termination to use direct system calls and swapped test executable spawns with lightweight standard Unix tools to prevent deadlock in headless CI runners.
+
 ## 2.7.0 - 2026-07-11
 
 ### Added
