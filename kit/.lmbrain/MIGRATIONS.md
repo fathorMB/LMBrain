@@ -4,7 +4,17 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.7.2`.
+The current released kit is `2.7.3`.
+
+### 2.7.3 (Windows installer test reliability)
+
+`2.7.3` removes an environment dependency from the Windows installer test gate. Runtime behavior, project configuration, and the Markdown artifact contract are unchanged.
+
+When upgrading from `2.7.2`:
+
+1. No `.lmbrain/` artifacts, frontmatter, or configuration need migration.
+2. Update `.lmbrain/VERSION` to `2.7.3` after validating the release.
+3. Roll back by restoring LMBrain `2.7.2` and the prior `.lmbrain/VERSION`; no artifact rollback is required.
 
 ### 2.7.2 (OpenCode environment and packaged terminal fixes)
 

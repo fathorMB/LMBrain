@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.7.3 - 2026-07-12
+
+### Fixed
+
+- **Windows installer release gate.** OpenCode executable-resolution tests now use isolated npm-shim fixtures instead of requiring OpenCode to be installed on the GitHub-hosted Windows runner.
+
 ## 2.7.2 - 2026-07-12
 
 ### Fixed

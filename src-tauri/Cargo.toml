@@ -1,6 +1,6 @@
 [package]
 name = "lmbrain"
-version = "2.7.2"
+version = "2.7.3"
 description = "LMBrain - Local Markdown Project Brain"
 authors = ["LMBrain"]
 license = "MIT"
