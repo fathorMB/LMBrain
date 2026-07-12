@@ -484,6 +484,65 @@ export interface HarnessUpdateResult {
   stderr: string;
 }
 
+export type HarnessApprovalState = "unconfigured" | "approval-required" | "approved" | "stale";
+
+export interface HarnessApprovalStatus {
+  state: HarnessApprovalState;
+  manifest_digest: string | null;
+  approved_digest: string | null;
+  approved_at: string | null;
+  workspace_fingerprint: string;
+}
+
+export type HarnessPreviewAction = "preserved" | "added" | "changed" | "conflicted";
+
+export interface HarnessNativeFilePreview {
+  path: string;
+  owned_paths: string[];
+  action: HarnessPreviewAction;
+  detail: string;
+}
+
+export interface HarnessToolReadiness {
+  tool: string;
+  available: boolean;
+  resolved_path: string | null;
+}
+
+export interface HarnessHostPlan {
+  host: "claude-code" | "codex" | "pi" | "open-code";
+  effective: {
+    enabled: boolean;
+    required_tools: string[];
+    environment: Record<string, string>;
+    lsp?: { required: boolean };
+  };
+  supported_capabilities: string[];
+  tools: HarnessToolReadiness[];
+  lsp: { configured: boolean; prerequisite_ready: boolean; state: "configured" | "prerequisite-ready" | "active" | "inactive-lazy" | "failed" | "unknown" } | null;
+  native_files: HarnessNativeFilePreview[];
+  ready: boolean;
+}
+
+export interface HarnessConfigurationPlan {
+  manifest_digest: string;
+  hosts: HarnessHostPlan[];
+  has_conflicts: boolean;
+}
+
+export interface HarnessApplyResult {
+  manifest_digest: string;
+  changed: boolean;
+  files: Array<{ path: string; content_digest: string }>;
+}
+
+export interface HarnessDriftEntry {
+  path: string;
+  state: "changed" | "missing";
+  expected_digest: string;
+  actual_digest: string | null;
+}
+
 export type ModelRoute = "native" | "ollama";
 export type SessionStatus = "running" | "exited";
 

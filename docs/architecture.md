@@ -24,7 +24,8 @@ Important areas:
 - `src/components/Wiki/`: Markdown tree and page viewer.
 - `src/components/Design/`: design mockup browser and isolated HTML preview.
 - `src/components/Insights/`: read-only project statistics and review-quality metrics.
-- `src/components/Harnesses/`: local-machine harness probe/update status and explicit update UX.
+- `src/components/Harnesses/`: local-machine harness probe/update status embedded in Settings.
+- `src/components/Settings/`: addressable General, Harnesses, Project environment, and About tabs.
 - `src/components/Skills/`: dedicated project-scoped skill browser.
 - `src/components/Taskboard/`: spec board.
 - `src/components/Sessions/`: tab-based session workspace with xterm terminal integration.
@@ -38,8 +39,11 @@ Important areas:
 - `PathGuard`: scopes file access to the selected workspace.
 - `FileWatcherService`: watches the workspace and emits refresh events.
 - `SessionManager`: owns PTY-backed interactive sessions.
+- `HarnessApprovalStore`: machine-local digest-bound approval and applied-content state with corruption quarantine.
 
 The backend reads `.lmbrain/` artifacts, parses Markdown/frontmatter, builds diagnostics, starts and stops watchers, registers MCP host files, and exposes session commands.
+
+Harness governance uses strict Tauri-free manifest parsing and hashing in `lmbrain-core`, controlled read/validate/set verbs in `lmbrain-mcp`, and Tauri planner, approval, materializer, and drift services. Application requires an approved digest and commits affected native files as a locked staged batch with rollback.
 
 ## Artifact Model
 
@@ -136,6 +140,7 @@ The server exposes specific tools such as:
 - `lmbrain_get_artifact`;
 - `lmbrain_validate`;
 - `lmbrain_list_ready_handoffs`.
+- `harness_config_get`, `harness_config_validate`, `harness_config_set`.
 
 ### V3 context-pack tools (added in kit 2.2.7)
 

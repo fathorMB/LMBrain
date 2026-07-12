@@ -242,6 +242,25 @@ Body"#;
     );
 }
 
+#[test]
+fn test_build_diagnostics_reports_invalid_harness_manifest_but_not_missing_optional_manifest() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let missing = contract::build_diagnostics(dir.path());
+    assert!(!missing.iter().any(|diagnostic| diagnostic.path.as_deref() == Some("HARNESSES.json")));
+
+    fs::write(
+        dir.path().join(".lmbrain/HARNESSES.json"),
+        r#"{"schema_version":1,"hosts":{},"command":"pwsh"}"#,
+    )
+    .unwrap();
+    let invalid = contract::build_diagnostics(dir.path());
+    assert!(invalid.iter().any(|diagnostic| {
+        diagnostic.path.as_deref() == Some("HARNESSES.json")
+            && diagnostic.message.contains("Invalid project harness manifest")
+    }));
+}
+
 // ─── V3 agent metadata tests ──────────────────────────────────────
 
 #[test]

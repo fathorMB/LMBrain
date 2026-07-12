@@ -13,6 +13,20 @@ The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable
 - The filesystem and `status` frontmatter must agree where a status directory exists.
 - `lmbrain-core` is the executable source of truth for controlled creation, transitions, setters, invariant checks, atomic writes, and audit entries. Agents invoke it through the repository-scoped `lmbrain-mcp` server rather than editing managed frontmatter by hand.
 
+## Project harness manifest
+
+`.lmbrain/HARNESSES.json` is the optional, versioned source of project harness intent. Schema version 1 contains a `hosts` object keyed by `claude-code`, `codex`, `pi`, or `open-code`. Each host may declare `enabled`, portable `required_tools`, non-secret `environment` values, and—only where supported—an `lsp.required` policy.
+
+The manifest is strict: unknown fields, arbitrary commands, scripts, hooks, absolute machine paths, traversal, secret-like environment keys, and unsupported host capabilities are invalid. Machine-local executable selection and credentials never belong in it. Repository intent does not authorize effects: materialization requires a separate operator approval bound to the canonical manifest digest and workspace identity.
+
+Controlled MCP access uses `harness_config_get`, `harness_config_validate`, and `harness_config_set`. The setter replaces the complete validated manifest atomically and records digest-only audit evidence; it never grants approval or materializes native harness files.
+
+Operator approval is machine-local application state keyed by canonical workspace fingerprint and canonical manifest digest. Approval requires the exact previewed digest, becomes stale after any material manifest change, and is not reused when a workspace identity changes. Corrupt approval state is quarantined and fails closed.
+
+Planning is read-only and deterministic. It reports the effective host configuration, supported capability keys, required-tool readiness, LMBrain-owned native paths, and whether each target would be added, changed, preserved, or blocked by a structural conflict. Planning never grants approval or writes a native host file.
+
+Application requires a currently approved digest and uses the same workspace mutation lock as manifest replacement. All changed native files are staged before replacement; structural conflicts stop before writing, and a failed batch restores the prior files. Successful application records machine-local content hashes for read-only drift reporting. Repeating an unchanged application is a no-op.
+
 ## IDs and locations
 
 | Artifact | Prefix | Location |

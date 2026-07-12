@@ -1,5 +1,6 @@
 use std::process::Command;
 
+use crate::commands::process::hide_console;
 use crate::models::file::GitInfo;
 
 /// Read-only Git metadata reader.
@@ -17,26 +18,25 @@ pub fn get_git_info(repo_path: &str) -> GitInfo {
 }
 
 fn get_branch(repo_path: &str) -> Option<String> {
-    Command::new("git")
-        .args(["-C", repo_path, "rev-parse", "--abbrev-ref", "HEAD"])
-        .output()
-        .ok()
-        .and_then(|o| {
-            if o.status.success() {
-                String::from_utf8(o.stdout)
-                    .ok()
-                    .map(|s| s.trim().to_string())
-            } else {
-                None
-            }
-        })
+    let mut command = Command::new("git");
+    command.args(["-C", repo_path, "rev-parse", "--abbrev-ref", "HEAD"]);
+    hide_console(&mut command);
+    command.output().ok().and_then(|o| {
+        if o.status.success() {
+            String::from_utf8(o.stdout)
+                .ok()
+                .map(|s| s.trim().to_string())
+        } else {
+            None
+        }
+    })
 }
 
 fn get_is_clean(repo_path: &str) -> Option<bool> {
-    let status = Command::new("git")
-        .args(["-C", repo_path, "status", "--porcelain"])
-        .output()
-        .ok()?;
+    let mut command = Command::new("git");
+    command.args(["-C", repo_path, "status", "--porcelain"]);
+    hide_console(&mut command);
+    let status = command.output().ok()?;
 
     if !status.status.success() {
         return None;
@@ -47,17 +47,16 @@ fn get_is_clean(repo_path: &str) -> Option<bool> {
 }
 
 fn get_current_commit(repo_path: &str) -> Option<String> {
-    Command::new("git")
-        .args(["-C", repo_path, "rev-parse", "--short", "HEAD"])
-        .output()
-        .ok()
-        .and_then(|o| {
-            if o.status.success() {
-                String::from_utf8(o.stdout)
-                    .ok()
-                    .map(|s| s.trim().to_string())
-            } else {
-                None
-            }
-        })
+    let mut command = Command::new("git");
+    command.args(["-C", repo_path, "rev-parse", "--short", "HEAD"]);
+    hide_console(&mut command);
+    command.output().ok().and_then(|o| {
+        if o.status.success() {
+            String::from_utf8(o.stdout)
+                .ok()
+                .map(|s| s.trim().to_string())
+        } else {
+            None
+        }
+    })
 }

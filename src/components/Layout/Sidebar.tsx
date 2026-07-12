@@ -11,7 +11,6 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: "pulse", icon: "monitoring", label: "Project Pulse", badge: null },
   { key: "sessions", icon: "terminal", label: "Sessions", badge: null },
-  { key: "harnesses", icon: "construction", label: "Local Harnesses", badge: null },
   { key: "wiki", icon: "menu_book", label: "Wiki", badge: null },
   { key: "taskboard", icon: "view_kanban", label: "Board", badge: null },
   { key: "roadmap", icon: "flag", label: "Roadmap", badge: null },

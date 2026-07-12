@@ -8,6 +8,7 @@ use std::process::Command;
 use serde::Serialize;
 use serde_json::{json, Value};
 
+use crate::commands::process::hide_console;
 use crate::errors::AppError;
 
 pub const PI_MCP_EXTENSION_NAME: &str = "pi-mcp-extension";
@@ -37,9 +38,9 @@ pub fn build_pi_mcp_config(
         Some(text) if !text.trim().is_empty() => serde_json::from_str(text)?,
         _ => json!({}),
     };
-    let object = value.as_object_mut().ok_or_else(|| {
-        AppError::Serialization(".pi/mcp.json must contain a JSON object".into())
-    })?;
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| AppError::Serialization(".pi/mcp.json must contain a JSON object".into()))?;
     let servers = object.entry("mcpServers").or_insert_with(|| json!({}));
     let servers = servers.as_object_mut().ok_or_else(|| {
         AppError::Serialization(".pi/mcp.json mcpServers must be a JSON object".into())
@@ -117,7 +118,8 @@ pub fn prepare_pi_mcp_extension(root: &Path) -> PiPreparationResult {
         };
     }
 
-    let output = Command::new(&pi)
+    let mut command = Command::new(&pi);
+    command
         .arg("install")
         .arg(PI_MCP_EXTENSION_SOURCE)
         .arg("-l")
@@ -125,8 +127,9 @@ pub fn prepare_pi_mcp_extension(root: &Path) -> PiPreparationResult {
         .current_dir(root)
         .env("PI_SKIP_VERSION_CHECK", "1")
         .env("PI_TELEMETRY", "0")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output();
+        .env("GIT_TERMINAL_PROMPT", "0");
+    hide_console(&mut command);
+    let output = command.output();
 
     let output = match output {
         Ok(output) => output,
@@ -157,14 +160,16 @@ pub fn prepare_pi_mcp_extension(root: &Path) -> PiPreparationResult {
 }
 
 fn pi_list_has_pinned_extension(pi: &Path, root: &Path) -> bool {
-    let output = Command::new(pi)
+    let mut command = Command::new(pi);
+    command
         .arg("list")
         .arg("--approve")
         .current_dir(root)
         .env("PI_OFFLINE", "1")
         .env("PI_SKIP_VERSION_CHECK", "1")
-        .env("PI_TELEMETRY", "0")
-        .output();
+        .env("PI_TELEMETRY", "0");
+    hide_console(&mut command);
+    let output = command.output();
     match output {
         Ok(output) if output.status.success() => has_pinned_pi_mcp_extension(&format!(
             "{}\n{}",
@@ -259,7 +264,8 @@ mod tests {
 
     #[test]
     fn preserves_unrelated_pi_configuration_and_is_idempotent() {
-        let existing = r#"{"settings":{"maxRetries":3},"mcpServers":{"other":{"command":"other"}}}"#;
+        let existing =
+            r#"{"settings":{"maxRetries":3},"mcpServers":{"other":{"command":"other"}}}"#;
         let first = build_pi_mcp_config(Some(existing), "lmbrain-mcp", "/ws").unwrap();
         let second = build_pi_mcp_config(Some(&first), "lmbrain-mcp", "/ws").unwrap();
         let value: Value = serde_json::from_str(&second).unwrap();
@@ -271,12 +277,7 @@ mod tests {
     #[test]
     fn rejects_non_object_configuration() {
         assert!(build_pi_mcp_config(Some("[]"), "lmbrain-mcp", "/ws").is_err());
-        assert!(build_pi_mcp_config(
-            Some(r#"{"mcpServers":[]}"#),
-            "lmbrain-mcp",
-            "/ws"
-        )
-        .is_err());
+        assert!(build_pi_mcp_config(Some(r#"{"mcpServers":[]}"#), "lmbrain-mcp", "/ws").is_err());
     }
 
     #[test]
@@ -287,7 +288,9 @@ mod tests {
         assert!(!has_pinned_pi_mcp_extension(
             "installed npm:pi-mcp-extension@1.4.0"
         ));
-        assert!(!has_pinned_pi_mcp_extension("installed another-package@1.5.0"));
+        assert!(!has_pinned_pi_mcp_extension(
+            "installed another-package@1.5.0"
+        ));
         assert!(!has_pinned_pi_mcp_extension(
             "pi-mcp-extension (global)\nanother-package@1.5.0"
         ));
@@ -309,8 +312,7 @@ mod tests {
 
         let path = register_pi_mcp_server(dir.path(), "/bin/lmbrain-mcp").unwrap();
         register_pi_mcp_server(dir.path(), "/bin/lmbrain-mcp").unwrap();
-        let value: Value =
-            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let value: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
 
         assert_eq!(value["mcpServers"]["other"]["command"], "other");
         assert_eq!(

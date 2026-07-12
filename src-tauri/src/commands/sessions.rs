@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::commands::mcp_registration::resolve_mcp_command_for_root;
 use crate::commands::pi_registration::{has_pinned_pi_mcp_extension, PI_MCP_EXTENSION_SOURCE};
+use crate::commands::process::hide_console;
 use crate::errors::AppError;
 use crate::models::session::{
     AgentHost, ModelRoute, OllamaModel, SessionExitPayload, SessionInfo, SessionOutputPayload,
@@ -261,20 +262,21 @@ pub fn preflight_session(cwd: &Path, request: &SessionStartRequest) -> Result<()
 
     if matches!(request.host, AgentHost::Pi) {
         let pi = require_command_on_path("pi")?;
-        let output = Command::new(&pi)
+        let mut command = Command::new(&pi);
+        command
             .arg("list")
             .arg("--approve")
             .current_dir(cwd)
             .env("PI_OFFLINE", "1")
             .env("PI_SKIP_VERSION_CHECK", "1")
-            .env("PI_TELEMETRY", "0")
-            .output()
-            .map_err(|err| {
-                AppError::Session(format!(
-                    "Unable to inspect Pi packages with `{}`: {err}",
-                    pi.to_string_lossy()
-                ))
-            })?;
+            .env("PI_TELEMETRY", "0");
+        hide_console(&mut command);
+        let output = command.output().map_err(|err| {
+            AppError::Session(format!(
+                "Unable to inspect Pi packages with `{}`: {err}",
+                pi.to_string_lossy()
+            ))
+        })?;
         let package_list = format!(
             "{}\n{}",
             String::from_utf8_lossy(&output.stdout),
@@ -747,8 +749,10 @@ fn fetch_ollama_models_from_api() -> Result<Vec<OllamaModel>, AppError> {
 }
 
 fn list_ollama_models_from_cli() -> Result<Vec<OllamaModel>, AppError> {
-    let output = Command::new("ollama")
-        .arg("list")
+    let mut command = Command::new("ollama");
+    command.arg("list");
+    hide_console(&mut command);
+    let output = command
         .output()
         .map_err(|err| AppError::Session(err.to_string()))?;
 

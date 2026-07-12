@@ -9,6 +9,9 @@ use commands::design;
 use commands::filesystem::PathGuard;
 use commands::git;
 use commands::harnesses::HarnessManager;
+use commands::harness_approval::{HarnessApprovalState, HarnessApprovalStatus, HarnessApprovalStore};
+use commands::harness_planner::HarnessConfigurationPlan;
+use commands::harness_materializer::{HarnessApplyResult, HarnessDriftEntry};
 use commands::sessions::SessionManager;
 use commands::watcher::FileWatcherService;
 use commands::workspace::WorkspaceService;
@@ -28,6 +31,7 @@ pub struct AppState {
     pub watcher: FileWatcherService,
     pub sessions: SessionManager,
     pub harnesses: HarnessManager,
+    pub harness_approvals: HarnessApprovalStore,
 }
 
 // ─── Tauri Commands ───────────────────────────────────────────────
@@ -161,6 +165,56 @@ fn parse_markdown(state: State<'_, AppState>, path: String) -> Result<ParsedDocu
         .map_err(|e| e.to_string())?;
     let parsed = commands::parser::parse_markdown_file(&path, &content.content);
     Ok(parsed)
+}
+
+#[tauri::command]
+fn get_harness_approval_status(state: State<'_, AppState>) -> Result<HarnessApprovalStatus, String> {
+    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
+    state.harness_approvals.status(&root)
+}
+
+#[tauri::command]
+fn approve_harness_manifest(
+    state: State<'_, AppState>,
+    expected_digest: String,
+) -> Result<HarnessApprovalStatus, String> {
+    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
+    state.harness_approvals.approve(&root, &expected_digest)
+}
+
+#[tauri::command]
+fn revoke_harness_manifest_approval(
+    state: State<'_, AppState>,
+) -> Result<HarnessApprovalStatus, String> {
+    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
+    state.harness_approvals.revoke(&root)
+}
+
+#[tauri::command]
+fn plan_harness_configuration(state: State<'_, AppState>) -> Result<HarnessConfigurationPlan, String> {
+    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
+    let command = commands::mcp_registration::resolve_mcp_command_for_root(&root);
+    commands::harness_planner::plan_harness_configuration(&root, &command)
+}
+
+#[tauri::command]
+fn apply_harness_configuration(state: State<'_, AppState>) -> Result<HarnessApplyResult, String> {
+    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
+    let approval = state.harness_approvals.status(&root)?;
+    if approval.state != HarnessApprovalState::Approved { return Err("current harness manifest requires operator approval".into()); }
+    let command = commands::mcp_registration::resolve_mcp_command_for_root(&root);
+    let approved_digest = approval.manifest_digest.as_deref().ok_or("approved manifest digest missing")?;
+    let result = commands::harness_materializer::apply_harness_configuration(&root, &command, approved_digest)?;
+    let files = result.files.iter().map(|file| (file.path.clone(), file.content_digest.clone())).collect::<Vec<_>>();
+    state.harness_approvals.record_application(&root, &result.manifest_digest, &files)?;
+    Ok(result)
+}
+
+#[tauri::command]
+fn get_harness_drift(state: State<'_, AppState>) -> Result<Vec<HarnessDriftEntry>, String> {
+    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
+    let applied = state.harness_approvals.applied_files(&root)?;
+    Ok(commands::harness_materializer::detect_drift(&root, &applied))
 }
 
 #[tauri::command]
@@ -619,6 +673,8 @@ pub fn run() {
             workspace_service
                 .initialize(&app_data_dir)
                 .expect("Failed to initialize workspace service");
+            let harness_approvals = HarnessApprovalStore::initialize(&app_data_dir)
+                .expect("Failed to initialize harness approval store");
 
             // Store application state
             app.manage(AppState {
@@ -627,6 +683,7 @@ pub fn run() {
                 watcher: FileWatcherService::new(),
                 sessions: SessionManager::new(),
                 harnesses: HarnessManager::new(),
+                harness_approvals,
             });
 
             Ok(())
@@ -640,6 +697,12 @@ pub fn run() {
             read_file,
             list_directory,
             parse_markdown,
+            get_harness_approval_status,
+            approve_harness_manifest,
+            revoke_harness_manifest_approval,
+            plan_harness_configuration,
+            apply_harness_configuration,
+            get_harness_drift,
             get_pulse_data,
             get_specs,
             get_reviews,

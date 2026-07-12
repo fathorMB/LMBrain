@@ -10,6 +10,10 @@ import type {
   GitInfo,
   Handoff,
   HarnessStatus,
+  HarnessApprovalStatus,
+  HarnessConfigurationPlan,
+  HarnessApplyResult,
+  HarnessDriftEntry,
   HarnessUpdateRequest,
   HarnessUpdateResult,
   McpProposal,
@@ -222,6 +226,30 @@ export async function probeHarnesses(codexBin?: string): Promise<HarnessStatus[]
 
 export async function updateHarness(request: HarnessUpdateRequest): Promise<HarnessUpdateResult> {
   return invoke("update_harness", { request });
+}
+
+export async function getHarnessApprovalStatus(): Promise<HarnessApprovalStatus> {
+  return invoke("get_harness_approval_status");
+}
+
+export async function approveHarnessManifest(expectedDigest: string): Promise<HarnessApprovalStatus> {
+  return invoke("approve_harness_manifest", { expectedDigest });
+}
+
+export async function revokeHarnessManifestApproval(): Promise<HarnessApprovalStatus> {
+  return invoke("revoke_harness_manifest_approval");
+}
+
+export async function planHarnessConfiguration(): Promise<HarnessConfigurationPlan> {
+  return invoke("plan_harness_configuration");
+}
+
+export async function applyHarnessConfiguration(): Promise<HarnessApplyResult> {
+  return invoke("apply_harness_configuration");
+}
+
+export async function getHarnessDrift(): Promise<HarnessDriftEntry[]> {
+  return invoke("get_harness_drift");
 }
 
 export async function setArtifactStatus(path: string, targetStatus: string): Promise<string> {

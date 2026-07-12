@@ -16,7 +16,6 @@ import { SettingsView } from "../Settings/SettingsView";
 import { RoadmapView } from "../Roadmap/RoadmapView";
 import { InsightsView } from "../Insights/InsightsView";
 import { SessionsView } from "../Sessions/SessionsView";
-import { HarnessesView } from "../Harnesses/HarnessesView";
 import { CommandPalette } from "../CommandPalette";
 import { ArtifactDetailModal } from "./ArtifactDetailModal";
 
@@ -35,7 +34,7 @@ export function AppShell() {
       case "sessions":
         return null;
       case "harnesses":
-        return <HarnessesView />;
+        return <SettingsView initialTab="harnesses" />;
       case "wiki":
         return <WikiView />;
       case "taskboard":

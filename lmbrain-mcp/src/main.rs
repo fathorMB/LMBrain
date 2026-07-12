@@ -4,6 +4,10 @@ use std::{
 };
 
 use lmbrain_core::context::{build_project_digest, build_review_context, build_spec_context};
+use lmbrain_core::{
+    canonical_manifest_digest, load_harness_manifest, parse_harness_manifest,
+    set_harness_manifest, HarnessManifestError,
+};
 use lmbrain_core::transitions::{
     create, set_agent_mnemonic_name, set_recommended_agent, transition, ArtifactKind,
     CreateRequest, MutationOptions,
@@ -165,9 +169,33 @@ fn tools() -> Vec<Value> {
             "lmbrain_review_context",
             "Review context: acceptance criteria, implementation evidence, linked accepted/proposed reviews, relevant decisions, and verification commands claimed by the specialist. Returns JSON and Markdown summary. Does not mutate artifacts.",
         ),
+        harness_get_tool(),
+        harness_candidate_tool("harness_config_validate", "Validate a complete candidate project harness manifest without writing it."),
+        harness_candidate_tool("harness_config_set", "Atomically replace the complete project harness manifest after strict validation and append digest-only audit evidence. This does not approve or materialize native configuration."),
     ]);
 
     entries
+}
+
+fn harness_get_tool() -> Value {
+    json!({
+        "name": "harness_config_get",
+        "description": "Read and validate project harness intent. A missing optional manifest is reported as unconfigured.",
+        "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
+    })
+}
+
+fn harness_candidate_tool(name: &str, description: &str) -> Value {
+    json!({
+        "name": name,
+        "description": description,
+        "inputSchema": {
+            "type": "object",
+            "required": ["manifest"],
+            "properties": {"manifest": {"type": "object"}},
+            "additionalProperties": false
+        }
+    })
 }
 
 fn transition_tool(name: &str, description: &str) -> Value {
@@ -412,8 +440,36 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             let ctx = build_review_context(root, spec)?;
             Ok(text(json!(ctx)))
         }
+        "harness_config_get" => match load_harness_manifest(root) {
+            Ok(manifest) => Ok(text(json!({
+                "configured": true,
+                "digest": canonical_manifest_digest(&manifest).map_err(|error| error.to_string())?,
+                "manifest": manifest
+            }))),
+            Err(HarnessManifestError::Missing(_)) => Ok(text(json!({"configured": false}))),
+            Err(error) => Err(error.to_string()),
+        },
+        "harness_config_validate" => {
+            let manifest = candidate_manifest(args)?;
+            Ok(text(json!({
+                "valid": true,
+                "digest": canonical_manifest_digest(&manifest).map_err(|error| error.to_string())?,
+                "manifest": manifest
+            })))
+        }
+        "harness_config_set" => {
+            let manifest = candidate_manifest(args)?;
+            set_harness_manifest(root, &manifest)
+                .map(|result| text(json!(result)))
+                .map_err(|error| error.to_string())
+        }
         _ => Err("unknown tool".into()),
     }
+}
+
+fn candidate_manifest(args: &Value) -> Result<lmbrain_core::HarnessManifest, String> {
+    let candidate = args.get("manifest").ok_or("manifest missing")?;
+    parse_harness_manifest(&candidate.to_string()).map_err(|error| error.to_string())
 }
 
 fn specific_status(name: &str) -> Option<&'static str> {
@@ -532,6 +588,21 @@ mod tests {
         assert!(names.contains(&"lmbrain_project_digest".to_string()));
         assert!(names.contains(&"lmbrain_spec_context".to_string()));
         assert!(names.contains(&"lmbrain_review_context".to_string()));
+        assert!(names.contains(&"harness_config_get".to_string()));
+        assert!(names.contains(&"harness_config_validate".to_string()));
+        assert!(names.contains(&"harness_config_set".to_string()));
+    }
+
+    #[test]
+    fn harness_set_validates_and_writes_without_materializing_host_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join(".lmbrain")).unwrap();
+        let args = serde_json::json!({"manifest":{"schema_version":1,"hosts":{}}});
+        let response = super::call(&dir.path().to_path_buf(), &serde_json::json!({"name":"harness_config_set","arguments":args})).unwrap();
+        assert!(response.to_string().contains("manifest_digest") || response.to_string().contains("digest"));
+        assert!(dir.path().join(".lmbrain/HARNESSES.json").exists());
+        assert!(!dir.path().join("opencode.json").exists());
+        assert!(!dir.path().join(".mcp.json").exists());
     }
 
     #[test]

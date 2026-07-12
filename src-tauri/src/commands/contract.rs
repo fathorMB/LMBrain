@@ -1242,6 +1242,17 @@ pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
         }
     }
 
+    let harness_manifest = lmbrain.join("HARNESSES.json");
+    if harness_manifest.exists() {
+        if let Err(error) = lmbrain_core::load_harness_manifest(root) {
+            diagnostics.push(KitDiagnostic {
+                message: format!("Invalid project harness manifest: {error}"),
+                severity: DiagnosticSeverity::Warning,
+                path: Some("HARNESSES.json".into()),
+            });
+        }
+    }
+
     if let Ok(specs) = build_specs(root) {
         let agents = build_agents(root).unwrap_or_default();
         let skills = build_skills(root).unwrap_or_default();

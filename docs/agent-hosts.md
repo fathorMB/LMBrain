@@ -99,7 +99,7 @@ OpenCode TUI prioritizes agent mentions in its bare `@` popup.
 
 ## User-level harness lifecycle
 
-The Local Harnesses page manages only the agent CLI itself, not project packages or authentication. It probes the exact resolved executable with `--version` and exposes these explicitly confirmed self-update commands:
+The Settings → Harnesses tab manages only the agent CLI itself, not project packages or authentication. It probes the exact resolved executable with `--version` and exposes these explicitly confirmed self-update commands:
 
 - Claude Code: `claude update`
 - Codex: `codex update`
@@ -129,6 +129,14 @@ run `pi remove npm:pi-mcp-extension -l`; the next workspace open will reinstall
 the approved dependency unless automatic preparation is removed by policy. The
 generated `.pi/mcp.json` contains no credential and may be deleted while LMBrain
 is closed, although workspace open will recreate it.
+
+## Governed project harness environment
+
+LMBrain 2.8 adds the optional `.lmbrain/HARNESSES.json` source of project intent. Its strict schema permits enabled hosts, portable required-tool identifiers, non-secret environment values, and supported LSP requirements. It rejects unknown fields, secret-like keys, commands, scripts, hooks, absolute paths, traversal, oversized input, and host-incompatible capabilities.
+
+Settings → Project environment shows the effective configuration and deterministic native-file plan before any write. Repository intent remains inert until the operator approves the canonical manifest digest for the current machine/workspace identity. Apply uses a shared mutation lock, staged multi-file replacement, structural ownership, rollback, and machine-local applied-content hashes for drift detection.
+
+The MCP server exposes `harness_config_get`, `harness_config_validate`, and `harness_config_set`. These tools never approve or apply native host configuration.
 
 ## AGENTS.md
 

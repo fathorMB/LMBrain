@@ -15,7 +15,14 @@ export function HarnessesView() {
   const [results, setResults] = useState<Partial<Record<AgentHost, HarnessUpdateResult>>>({});
   const [updateErrors, setUpdateErrors] = useState<Partial<Record<AgentHost, string>>>({});
   const [copiedHost, setCopiedHost] = useState<AgentHost | null>(null);
-  const codexBin = localStorage.getItem(CODEX_BIN_SETTING)?.trim() || undefined;
+  const [codexBinValue, setCodexBinValue] = useState(() => localStorage.getItem(CODEX_BIN_SETTING) ?? "");
+  const codexBin = codexBinValue.trim() || undefined;
+  const updateCodexBin = (value: string) => {
+    setCodexBinValue(value);
+    const trimmed = value.trim();
+    if (trimmed) localStorage.setItem(CODEX_BIN_SETTING, trimmed);
+    else localStorage.removeItem(CODEX_BIN_SETTING);
+  };
 
   const loadStatuses = useCallback(async () => {
     setLoading(true);
@@ -97,6 +104,12 @@ export function HarnessesView() {
           <i className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 16, color: "#72a1ff" }}>shield</i>
           LMBrain never updates these tools automatically. A confirmed update may access the network and change software in your user profile. Matching running sessions must be closed first.
         </div>
+
+        <label style={{ display: "block", padding: 12, marginBottom: 16, border: "1px solid var(--border-secondary)", borderRadius: 8, background: "var(--bg-tertiary)" }}>
+          <span style={{ display: "block", marginBottom: 4, fontSize: 12.5, fontWeight: 700 }}>Codex executable override</span>
+          <span style={{ display: "block", marginBottom: 8, fontSize: 11.5, color: "var(--text-tertiary)" }}>Machine-local path used by both probing and new Codex sessions.</span>
+          <input aria-label="Codex executable override" value={codexBinValue} onChange={(event) => updateCodexBin(event.target.value)} placeholder="Optional path to codex executable" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", borderRadius: 7, border: "1px solid var(--border-secondary)", background: "var(--bg-primary)", color: "var(--text-primary)" }} />
+        </label>
 
         {loadError && <div role="alert" style={errorBannerStyle}>{loadError}</div>}
 

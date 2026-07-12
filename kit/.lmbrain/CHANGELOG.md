@@ -4,6 +4,23 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.8.0 - Unreleased
+
+### Added
+
+- **Governed project harness intent.** The kit defines the strict, versioned `.lmbrain/HARNESSES.json` contract. It excludes secrets, machine paths, commands, scripts, hooks, and unsupported host capabilities; repository intent requires separate digest-bound local approval before materialization.
+- **Controlled harness-manifest mutations.** MCP read, validate, and set verbs expose project intent without accepting ad-hoc commands; writes are validated, atomic, serialized, and accompanied by digest-only audit evidence.
+- **Machine-local harness approval.** Repository harness intent remains inert until the operator approves the current manifest digest for the canonical workspace identity. Changed manifests become stale, moved workspaces do not reuse approval, and corrupt local approval state is quarantined.
+- **Read-only harness planning.** LMBrain derives deterministic per-host capability, tool-readiness, native-file ownership, preservation, change, and conflict previews without modifying host configuration.
+- **Approved atomic harness application.** Native project configuration is applied only for the approved manifest digest under a shared mutation lock, with staged batch replacement, rollback, idempotence, preservation, and machine-local applied-content hashes for drift detection.
+- **Functional Settings workspace.** Settings now provides addressable General, Harnesses, Project environment, and About tabs. Local Harnesses and the machine-local Codex override move out of primary workspace navigation, while project preview, approval, apply, drift, and Lead guidance are presented together.
+
+### Fixed
+
+- **Silent Windows harness probes.** Harness version probes, update subprocesses, and timeout cleanup run without flashing transient console windows.
+- **Silent Windows workspace preparation.** Read-only Git metadata, Pi readiness/install verification, and Ollama fallback discovery no longer flash helper console windows while opening a project or preparing sessions.
+- **Harness prompt copy feedback.** Project environment now confirms successful clipboard copies and reports clipboard failures instead of leaving the action visually silent.
+
 ## 2.7.3 - 2026-07-12
 
 ### Fixed

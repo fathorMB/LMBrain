@@ -282,17 +282,29 @@ fn configure_process_group(command: &mut Command) {
     command.process_group(0);
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn configure_process_group(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    command.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW);
+}
+
+#[cfg(all(not(unix), not(windows)))]
 fn configure_process_group(_command: &mut Command) {}
 
 #[cfg(windows)]
 fn terminate_process_tree(child: &mut std::process::Child) {
-    let _ = Command::new("taskkill.exe")
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut command = Command::new("taskkill.exe");
+    command
         .args(["/PID", &child.id().to_string(), "/T", "/F"])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .status();
+        .creation_flags(CREATE_NO_WINDOW);
+    let _ = command.status();
     let _ = child.kill();
 }
 

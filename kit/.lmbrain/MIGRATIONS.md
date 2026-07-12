@@ -6,6 +6,10 @@ This document describes how to update an existing LMBrain kit between released v
 
 The current released kit is `2.7.3`.
 
+### 2.8.0 (project harness governance — planned additive migration)
+
+Supported source versions are `2.7.x`. Add `.lmbrain/HARNESSES.json` only when the operator chooses to adopt project harness governance; opening an existing project must not create or apply it. The initial safe manifest is `{ "schema_version": 1, "hosts": {} }`. Review all host requirements and the native-file preview before granting the machine-local digest-bound approval. Validate schema diagnostics and confirm that no native harness configuration changes before explicit approval. Roll back by revoking local approval and removing the manifest only after confirming it contains no project intent that must be preserved.
+
 ### 2.7.3 (Windows installer test reliability)
 
 `2.7.3` removes an environment dependency from the Windows installer test gate. Runtime behavior, project configuration, and the Markdown artifact contract are unchanged.
