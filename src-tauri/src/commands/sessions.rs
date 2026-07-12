@@ -405,32 +405,42 @@ fn required_ollama_model(request: &SessionStartRequest) -> Result<&str, AppError
 
 fn resolve_opencode_command() -> Option<PathBuf> {
     let resolved = command_on_path("opencode")?;
-    if cfg!(windows)
-        && resolved
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .is_some_and(|extension| matches!(extension.to_ascii_lowercase().as_str(), "cmd" | "bat"))
-    {
-        let package_root = resolved
-            .parent()?
+
+    #[cfg(windows)]
+    let resolved = resolve_windows_opencode_command(resolved, std::env::consts::ARCH);
+
+    Some(resolved)
+}
+
+#[cfg(any(windows, test))]
+fn resolve_windows_opencode_command(resolved: PathBuf, arch: &str) -> PathBuf {
+    let is_npm_shim = resolved
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| matches!(extension.to_ascii_lowercase().as_str(), "cmd" | "bat"));
+    if !is_npm_shim {
+        return resolved;
+    }
+
+    let Some(parent) = resolved.parent() else {
+        return resolved;
+    };
+    let package_root = parent.join("node_modules").join("opencode-ai");
+    let platform_package = match arch {
+        "aarch64" => "opencode-windows-arm64",
+        _ => "opencode-windows-x64",
+    };
+    for package in [platform_package, "opencode-windows-x64-baseline"] {
+        let native = package_root
             .join("node_modules")
-            .join("opencode-ai");
-        let platform_package = match std::env::consts::ARCH {
-            "aarch64" => "opencode-windows-arm64",
-            _ => "opencode-windows-x64",
-        };
-        for package in [platform_package, "opencode-windows-x64-baseline"] {
-            let native = package_root
-                .join("node_modules")
-                .join(package)
-                .join("bin")
-                .join("opencode.exe");
-            if native.is_file() {
-                return Some(native);
-            }
+            .join(package)
+            .join("bin")
+            .join("opencode.exe");
+        if native.is_file() {
+            return native;
         }
     }
-    Some(resolved)
+    resolved
 }
 
 fn require_command_on_path(command: &str) -> Result<PathBuf, AppError> {
@@ -797,7 +807,7 @@ mod tests {
     use super::{
         default_label, is_cloud_model, launch_spec, newest_desktop_codex_command_in,
         opencode_ollama_config, parse_ollama_list_output, resolve_codex_command,
-        resolve_opencode_command, validate_route, LaunchSpec,
+        resolve_opencode_command, resolve_windows_opencode_command, validate_route, LaunchSpec,
     };
     use crate::models::session::{AgentHost, ModelRoute, SessionStartRequest};
 
@@ -936,17 +946,43 @@ mod tests {
 
     #[test]
     fn resolves_native_opencode_binary_behind_windows_npm_shim() {
-        if !cfg!(windows) {
-            return;
-        }
-        let resolved = resolve_opencode_command().expect("OpenCode is not installed");
-        assert_eq!(
-            resolved.extension().and_then(|extension| extension.to_str()),
-            Some("exe")
-        );
-        assert!(resolved.is_file());
+        let temp = tempfile::tempdir().unwrap();
+        let shim = temp.path().join("opencode.cmd");
+        std::fs::write(&shim, "@echo off").unwrap();
+        let native = temp
+            .path()
+            .join("node_modules/opencode-ai/node_modules/opencode-windows-x64/bin/opencode.exe");
+        std::fs::create_dir_all(native.parent().unwrap()).unwrap();
+        std::fs::write(&native, []).unwrap();
+
+        assert_eq!(resolve_windows_opencode_command(shim, "x86_64"), native);
     }
 
+    #[test]
+    fn resolves_baseline_opencode_binary_when_arch_package_is_absent() {
+        let temp = tempfile::tempdir().unwrap();
+        let shim = temp.path().join("opencode.bat");
+        std::fs::write(&shim, "@echo off").unwrap();
+        let native = temp.path().join(
+            "node_modules/opencode-ai/node_modules/opencode-windows-x64-baseline/bin/opencode.exe",
+        );
+        std::fs::create_dir_all(native.parent().unwrap()).unwrap();
+        std::fs::write(&native, []).unwrap();
+
+        assert_eq!(resolve_windows_opencode_command(shim, "aarch64"), native);
+    }
+
+    #[test]
+    fn preserves_opencode_shim_when_native_binary_is_absent() {
+        let temp = tempfile::tempdir().unwrap();
+        let shim = temp.path().join("opencode.cmd");
+        std::fs::write(&shim, "@echo off").unwrap();
+
+        assert_eq!(
+            resolve_windows_opencode_command(shim.clone(), "x86_64"),
+            shim
+        );
+    }
 
     #[test]
     fn launches_codex_inline_to_preserve_xterm_scrollback() {
