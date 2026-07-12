@@ -194,6 +194,7 @@ export function SessionsView({ active }: SessionsViewProps) {
               <SessionTerminal
                 sessionId={session.id}
                 active={active && sessionActive}
+                host={session.host}
               />
             </div>
           );

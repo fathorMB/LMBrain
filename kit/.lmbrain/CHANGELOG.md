@@ -4,6 +4,16 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.7.2 - 2026-07-12
+
+### Fixed
+
+- **OpenCode project discovery.** LMBrain starts OpenCode directly with the absolute workspace positional and a session-scoped Ollama provider, so file `@` autocomplete and project-scoped language tooling cannot lose the selected repository in a nested Windows launcher.
+- **Deterministic OpenCode file completion.** Generated configuration exposes the project as the preserved `@workspace/` local reference when no operator-owned alias exists.
+- **OpenCode LSP bootstrap.** Generated OpenCode configuration enables built-in LSP integration when no operator policy exists, while preserving explicit disabled or customized LSP configuration.
+- **Packaged session scrolling.** The terminal renderer moves to xterm 6, OpenCode embedded sessions avoid nested mouse capture, and every session exposes Page up, Page down, and Bottom controls. OpenCode wheel and toolbar navigation use its documented alternate message bindings instead of unreliable PageUp CSI forwarding through Windows ConPTY.
+- **Compact Project Pulse.** The duplicated Current focus body is no longer rendered above the operational cards; the complete status remains available through the `STATUS.md` Quick Link.
+
 ## 2.7.1 - 2026-07-11
 
 ### Fixed

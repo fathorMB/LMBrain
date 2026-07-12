@@ -79,12 +79,23 @@ The command never targets global settings and never selects an unpinned version.
 
 ## OpenCode through Ollama
 
-OpenCode sessions use `ollama launch opencode --model <model>`. LMBrain requires
+OpenCode sessions run `opencode <workspace> --model ollama/<model>` with a
+session-scoped inline provider pointing to `http://localhost:11434/v1`. LMBrain requires
 the `opencode` executable to already be present, preventing session startup from
 becoming an implicit installation flow. OpenCode supports MCP natively; LMBrain
 safely merges only `mcp.lmbrain` into project-local `opencode.json`, preserving
 unrelated provider, permission, agent, and MCP configuration. No OpenCode
 package, credential, global config, or permission policy is installed or changed.
+
+LMBrain passes the absolute workspace as OpenCode's project positional and also
+sets the child cwd, avoiding nested-launcher process-state ambiguity. Generated
+configuration also adds `lsp: true` when the key is absent. Explicit `lsp: false`
+and custom LSP objects remain operator-owned and are never overwritten. Built-in
+OpenCode LSPs may download supported servers into the OpenCode user cache;
+operators can disable that upstream behavior with `OPENCODE_DISABLE_LSP_DOWNLOAD`.
+LMBrain also adds a non-destructive `references.workspace` entry when absent, so
+`@workspace/` provides deterministic project-file autocomplete even when the
+OpenCode TUI prioritizes agent mentions in its bare `@` popup.
 
 ## User-level harness lifecycle
 

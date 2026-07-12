@@ -155,6 +155,16 @@ describe("ProjectPulse Diagnostics Fix Prompt", () => {
     });
   });
 
+  it("keeps status available as a quick link without rendering its focus inline", async () => {
+    render(<ProjectPulse />);
+
+    expect(screen.queryByText("Current focus:")).toBeNull();
+    expect(screen.queryByText("M-01", { selector: "p *" })).toBeNull();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Open STATUS.md")).toBeDefined(),
+    );
+  });
+
   it("renders kit version metadata and handles Copy migration prompt click", async () => {
     render(<ProjectPulse />);
 

@@ -20,6 +20,26 @@ pub fn build_opencode_config(
     let object = value.as_object_mut().ok_or_else(|| {
         AppError::Serialization("opencode.json must contain a JSON object".into())
     })?;
+    // OpenCode disables every built-in LSP when this key is absent. Enable its
+    // built-ins for LMBrain workspaces, but never override an explicit operator
+    // choice (`false`) or custom per-server object.
+    object.entry("lsp").or_insert(Value::Bool(true));
+    let references = object.entry("references").or_insert_with(|| json!({}));
+    if !references.is_object() {
+        return Err(AppError::Serialization(
+            "opencode.json references must be a JSON object".into(),
+        ));
+    }
+    references
+        .as_object_mut()
+        .expect("references is an object")
+        .entry("workspace")
+        .or_insert_with(|| {
+            json!({
+                "path": ".",
+                "description": "LMBrain project workspace"
+            })
+        });
     let mcp = object.entry("mcp").or_insert_with(|| json!({}));
     if !mcp.is_object() {
         return Err(AppError::Serialization(
@@ -83,6 +103,8 @@ mod tests {
         assert_eq!(value["mcp"]["lmbrain"]["command"][0], "/bin/lmbrain-mcp");
         assert_eq!(value["mcp"]["lmbrain"]["command"][1], "--root");
         assert_eq!(value["mcp"]["lmbrain"]["command"][2], "/workspace");
+        assert_eq!(value["lsp"], true);
+        assert_eq!(value["references"]["workspace"]["path"], ".");
     }
 
     #[test]
@@ -101,6 +123,40 @@ mod tests {
         assert!(build_opencode_config(Some("{"), "lmbrain-mcp", "/ws").is_err());
         assert!(build_opencode_config(Some("[]"), "lmbrain-mcp", "/ws").is_err());
         assert!(build_opencode_config(Some(r#"{"mcp":[]}"#), "lmbrain-mcp", "/ws").is_err());
+    }
+
+    #[test]
+    fn preserves_explicit_lsp_policy_and_customization() {
+        let disabled = build_opencode_config(Some(r#"{"lsp":false}"#), "lmbrain-mcp", "/ws")
+            .unwrap();
+        let customized = build_opencode_config(
+            Some(r#"{"lsp":{"rust":{"command":["rust-analyzer"]}}}"#),
+            "lmbrain-mcp",
+            "/ws",
+        )
+        .unwrap();
+        let disabled: Value = serde_json::from_str(&disabled).unwrap();
+        let customized: Value = serde_json::from_str(&customized).unwrap();
+        assert_eq!(disabled["lsp"], false);
+        assert_eq!(customized["lsp"]["rust"]["command"][0], "rust-analyzer");
+    }
+
+    #[test]
+    fn preserves_existing_workspace_reference_and_rejects_invalid_references() {
+        let existing = build_opencode_config(
+            Some(r#"{"references":{"workspace":{"path":"./custom"}}}"#),
+            "lmbrain-mcp",
+            "/ws",
+        )
+        .unwrap();
+        let existing: Value = serde_json::from_str(&existing).unwrap();
+        assert_eq!(existing["references"]["workspace"]["path"], "./custom");
+        assert!(build_opencode_config(
+            Some(r#"{"references":[]}"#),
+            "lmbrain-mcp",
+            "/ws"
+        )
+        .is_err());
     }
 
     #[test]

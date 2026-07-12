@@ -38,6 +38,7 @@ terminals. Refresh success and failure are shown directly in the header.
 - Reviews and Decisions: project governance artifacts.
 - Agents & MCP: agent profiles, proposals, MCP records, and built-in MCP tools.
 - Sessions: floating interactive terminals for supported agent CLIs.
+- Session terminals expose consistent wheel and page navigation across normal and full-screen buffers, including packaged Windows builds.
 - Local Harnesses: user-level Claude Code, Codex, Pi, and OpenCode installation status, exact paths/versions, and explicitly confirmed self-updates with logs and post-update verification.
 - Settings: local preferences and agent binary paths.
 

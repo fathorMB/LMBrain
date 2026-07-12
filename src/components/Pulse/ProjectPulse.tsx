@@ -100,29 +100,13 @@ export function ProjectPulse() {
             </div>
           </div>
 
-          {pulse.focus && (
-            <p
-              style={{
-                fontSize: 14.5,
-                lineHeight: 1.5,
-                color: "#b6b1bb",
-                margin: "8px 0 22px",
-                maxWidth: 680,
-              }}
-            >
-              Current focus:{" "}
-              <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>
-                <InlineRichText text={pulse.focus} onWikilinkClick={navigateToWiki} />
-              </span>
-            </p>
-          )}
-
           {/* Metrics */}
           <div
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(4,1fr)",
               gap: 11,
+              marginTop: 22,
               marginBottom: 22,
             }}
           >

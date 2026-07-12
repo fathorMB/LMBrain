@@ -57,8 +57,8 @@ vi.mock("../hooks/useWorkspace", () => ({
 }));
 
 vi.mock("../components/Sessions/SessionTerminal", () => ({
-  SessionTerminal: ({ sessionId, active }: { sessionId: string; active: boolean }) => (
-    <div data-testid={`terminal-${sessionId}`} data-active={String(active)} />
+  SessionTerminal: ({ sessionId, active, host }: { sessionId: string; active: boolean; host: string }) => (
+    <div data-testid={`terminal-${sessionId}`} data-active={String(active)} data-host={host} />
   ),
 }));
 

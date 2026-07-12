@@ -4,14 +4,22 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { sessionAttach, sessionResize, sessionWrite } from "../../lib/commands";
 import { terminalClipboardAction } from "../../lib/terminalClipboard";
-import { shouldDelegateTerminalWheel, terminalWheelRows } from "../../lib/terminalWheel";
+import {
+  OPENCODE_SCROLL_TO_BOTTOM,
+  shouldDelegateTerminalWheel,
+  terminalPageAction,
+  terminalWheelRows,
+  tuiWheelInput,
+} from "../../lib/terminalWheel";
+import type { AgentHost } from "../../types";
 
 interface SessionTerminalProps {
   sessionId: string;
   active: boolean;
+  host: AgentHost;
 }
 
-export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
+export function SessionTerminal({ sessionId, active, host }: SessionTerminalProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -65,6 +73,43 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
       showClipboardFeedback("Could not read from the clipboard.");
     }
   }, [showClipboardFeedback]);
+
+  const scrollPage = useCallback(
+    (direction: -1 | 1) => {
+      const term = terminalRef.current;
+      if (!term) return;
+      const action = terminalPageAction(
+        host === "codex" ? term.buffer.active.type : "alternate",
+        direction,
+        host === "opencode" ? "opencode" : undefined
+      );
+      if (action.kind === "local") {
+        term.scrollPages(action.pages);
+      } else {
+        // Full-screen TUIs own their alternate-buffer history. Send the standard
+        // Page Up/Down sequence directly instead of pretending xterm has local
+        // scrollback for a buffer that deliberately has none.
+        void sessionWrite(sessionId, action.data);
+      }
+      term.focus();
+    },
+    [host, sessionId]
+  );
+
+  const scrollToBottom = useCallback(() => {
+    const term = terminalRef.current;
+    if (!term) return;
+    if (host === "codex" && term.buffer.active.type === "normal") {
+      term.scrollToBottom();
+    } else if (host === "opencode") {
+      void sessionWrite(sessionId, OPENCODE_SCROLL_TO_BOTTOM);
+    } else {
+      // End is the portable TUI fallback; applications may map it to the latest
+      // item while Page Down remains available for incremental navigation.
+      void sessionWrite(sessionId, "\u001b[F");
+    }
+    term.focus();
+  }, [host, sessionId]);
 
   useEffect(
     () => () => {
@@ -149,6 +194,23 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
       return false;
     });
     term.attachCustomWheelEventHandler((event) => {
+      if (host === "opencode") {
+        const rows = terminalWheelRows(event.deltaY);
+        void sessionWrite(
+          sessionId,
+          tuiWheelInput("opencode", event.deltaY > 0 ? 1 : -1, rows)
+        );
+        event.preventDefault();
+        return false;
+      }
+      if (host !== "codex") {
+        void sessionWrite(
+          sessionId,
+          tuiWheelInput(host, event.deltaY > 0 ? 1 : -1, 1)
+        );
+        event.preventDefault();
+        return false;
+      }
       if (shouldDelegateTerminalWheel(term.buffer.active.type, event)) {
         return true;
       }
@@ -208,7 +270,7 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
       fitAddonRef.current = null;
       lastSizeRef.current = null;
     };
-  }, [copySelection, pasteClipboard, sessionId]);
+  }, [copySelection, host, pasteClipboard, sessionId]);
 
   useEffect(() => {
     if (!active) {
@@ -263,6 +325,11 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
         <span style={{ flex: 1, minWidth: 0 }}>
           Copy: select + Ctrl+C, Ctrl+Shift+C, or Cmd+C · Paste: Ctrl+Shift+V or Cmd+V
         </span>
+        {host === "opencode" && (
+          <span style={{ color: "var(--text-secondary)", flexShrink: 0 }}>
+            Files: @workspace/
+          </span>
+        )}
         {clipboardFeedback && (
           <span role="status" aria-live="polite" style={{ color: "var(--text-secondary)" }}>
             {clipboardFeedback}
@@ -273,6 +340,16 @@ export function SessionTerminal({ sessionId, active }: SessionTerminalProps) {
         </button>
         <button type="button" onClick={() => void pasteClipboard()} style={clipboardButtonStyle}>
           Paste
+        </button>
+        <span aria-hidden="true" style={{ width: 1, height: 18, background: "#30283d" }} />
+        <button type="button" aria-label="Scroll session up one page" onClick={() => scrollPage(-1)} style={clipboardButtonStyle}>
+          Page up
+        </button>
+        <button type="button" aria-label="Scroll session down one page" onClick={() => scrollPage(1)} style={clipboardButtonStyle}>
+          Page down
+        </button>
+        <button type="button" aria-label="Scroll session to bottom" onClick={scrollToBottom} style={clipboardButtonStyle}>
+          Bottom
         </button>
       </div>
       {/* Keep padding outside the measured xterm element so FitAddon cannot overcount a row. */}

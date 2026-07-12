@@ -4,7 +4,25 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.7.0`.
+The current released kit is `2.7.2`.
+
+### 2.7.2 (OpenCode environment and packaged terminal fixes)
+
+`2.7.2` explicitly anchors OpenCode to the selected workspace while routing its
+model through a session-scoped local Ollama provider,
+enables OpenCode built-in LSP integration when the project has no existing LSP
+policy, and updates the embedded terminal scrolling contract. The Markdown
+artifact contract is unchanged.
+
+When upgrading from `2.7.0` or `2.7.1`:
+
+1. No `.lmbrain/` artifacts or frontmatter need migration.
+2. Reopen the workspace so LMBrain can merge `lsp: true` into generated `opencode.json`; an existing `lsp: false` or custom `lsp` object is preserved.
+3. OpenCode may download supported built-in language servers into its user cache. Set `OPENCODE_DISABLE_LSP_DOWNLOAD=true` outside LMBrain if automatic LSP downloads are not allowed.
+4. Start an OpenCode session and verify `@` file completion is rooted at the selected workspace.
+5. Verify mouse-wheel and explicit Page up/Page down controls in the packaged Windows app.
+6. Update `.lmbrain/VERSION` to `2.7.2` after validation.
+7. Roll back by restoring LMBrain `2.7.1` and the prior `.lmbrain/VERSION`; remove the generated `lsp` key only if it was introduced by LMBrain and the project does not want LSP integration.
 
 ### 2.7.0 (local harness lifecycle - app-only feature)
 

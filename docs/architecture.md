@@ -79,7 +79,10 @@ Local Harnesses is backed by `commands::harnesses`. Read-only probes resolve the
 OpenCode uses the same `AgentHost`/`ModelRoute` boundary as Pi and is launched
 through Ollama. `commands::opencode_registration` owns the idempotent,
 structure-preserving merge of the native local MCP entry in project
-`opencode.json`; provider selection remains owned by `ollama launch`.
+`opencode.json` plus a default-on LSP policy when no operator policy exists;
+provider selection is supplied as session-scoped inline configuration for the
+local Ollama OpenAI-compatible API. LMBrain starts OpenCode directly with the
+selected workspace positional, avoiding nested-process cwd ambiguity on Windows.
 
 Review-quality metrics are spec-centric where possible. The main change-request rate is calculated as distinct specs with at least one `changes-requested` review divided by distinct reviewed specs. First-pass acceptance is calculated only for reviewed specs whose linked reviews have valid `created` dates, and missing dates or missing `spec` links are surfaced as explicit counts rather than inferred.
 

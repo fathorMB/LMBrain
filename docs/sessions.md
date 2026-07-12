@@ -8,7 +8,7 @@ Supported host/connection combinations:
 - Claude through Ollama: `ollama launch claude --model <model>`;
 - native Codex: `codex`.
 - Pi through Ollama: `ollama launch pi --model <model>`.
-- OpenCode through Ollama: `ollama launch opencode --model <model>`.
+- OpenCode through Ollama: `opencode <workspace> --model ollama/<model>` with a session-scoped provider for the local Ollama API.
 
 The session contract separates the agent host (`claude`, `codex`, `pi`, or `opencode`)
 from the connection route (`native` or `ollama`). Claude supports both,
@@ -25,8 +25,14 @@ version. The modal stays open and displays an actionable error when a check
 fails.
 
 OpenCode needs no extension. It consumes LMBrain's native local MCP entry from
-project `opencode.json`; preflight requires the OpenCode executable before
-invoking Ollama, preventing implicit installation prompts.
+project `opencode.json`; preflight requires both OpenCode and the local Ollama API.
+LMBrain starts OpenCode directly with the absolute workspace positional and
+`ollama/<model>`, while `OPENCODE_CONFIG_CONTENT` provides the official
+OpenAI-compatible provider at `http://localhost:11434/v1`. Project file search
+and LSP roots therefore no longer depend on a nested Windows launcher.
+Generated OpenCode configuration includes `@workspace/` as an explicit local
+reference, providing deterministic project-file completion independently of the
+ordering used by OpenCode's bare `@` suggestion popup.
 
 ## Backend
 
@@ -67,6 +73,15 @@ history; when a full-screen application such as Codex activates the alternate
 buffer, LMBrain delegates wheel events back to xterm so the TUI can receive its
 mouse scrolling protocol. Modifier-assisted wheel gestures are also left to
 xterm/the host.
+
+LMBrain uses xterm 6 for corrected alternate-buffer wheel and viewport handling.
+Embedded OpenCode sessions disable OpenCode mouse capture so xterm remains the
+single owner of wheel and selection behavior. The session toolbar provides Page
+up, Page down, and Bottom controls: normal buffers scroll locally, while
+Claude and Pi always receive PTY PageUp/PageDown navigation because their TUI
+history is application-owned even when xterm reports the normal buffer. OpenCode
+uses its documented alternate message bindings (`Ctrl+Alt+B/F`, `Y/E`, and `G`)
+because PageUp CSI events are not handled reliably through Windows ConPTY.
 
 Each terminal shows Copy and Paste controls plus shortcut guidance:
 
