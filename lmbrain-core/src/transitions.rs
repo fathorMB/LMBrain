@@ -10,6 +10,7 @@ use thiserror::Error;
 use crate::{
     frontmatter::{atomic_write, Document, FrontmatterError},
     invariants,
+    mutation_lock::ArtifactMutationLock,
     path::{PathError, PathGuard},
 };
 
@@ -115,11 +116,24 @@ pub fn transition(
     require_force_reason(&options)?;
 
     let guard = PathGuard::new(root)?;
+    let artifact = artifact.as_ref();
     let path = guard.resolve_existing(artifact)?;
-    let mut document = Document::parse(&fs::read_to_string(&path)?)?;
+    let initial = Document::parse(&fs::read_to_string(&path)?)?;
+    let initial_id = initial
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
+    let path = guard.resolve_existing(artifact)?;
+    let current_source = fs::read_to_string(&path)?;
+    let mut document = Document::parse(&current_source)?;
     let id = document
         .value("id")
         .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    if id != initial_id {
+        return Err(TransitionError::Invariant(format!(
+            "artifact changed identity while waiting for its mutation lock: expected {initial_id}, found {id}"
+        )));
+    }
     let from = document
         .value("status")
         .ok_or_else(|| TransitionError::Missing("status".into()))?;
@@ -148,6 +162,11 @@ pub fn transition(
     }
 
     let destination = destination_for(kind, &path, target)?;
+    if fs::read_to_string(&path)? != current_source {
+        return Err(TransitionError::Invariant(
+            "artifact changed while the lifecycle mutation was being prepared".into(),
+        ));
+    }
     atomic_write(&destination, &document.render())?;
     if destination != path {
         fs::remove_file(&path)?;
@@ -213,11 +232,24 @@ fn set_field(
     require_force_reason(&options)?;
 
     let guard = PathGuard::new(root)?;
+    let artifact = artifact.as_ref();
     let path = guard.resolve_existing(artifact)?;
-    let mut document = Document::parse(&fs::read_to_string(&path)?)?;
+    let initial = Document::parse(&fs::read_to_string(&path)?)?;
+    let initial_id = initial
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
+    let path = guard.resolve_existing(artifact)?;
+    let current_source = fs::read_to_string(&path)?;
+    let mut document = Document::parse(&current_source)?;
     let id = document
         .value("id")
         .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    if id != initial_id {
+        return Err(TransitionError::Invariant(format!(
+            "artifact changed identity while waiting for its mutation lock: expected {initial_id}, found {id}"
+        )));
+    }
     if let Some(expected_kind) = expected_kind {
         let actual_kind = kind_for_id(&id)
             .ok_or_else(|| TransitionError::Missing("recognized artifact ID".into()))?;
@@ -239,6 +271,11 @@ fn set_field(
         document.append_override_reason(reason);
     }
 
+    if fs::read_to_string(&path)? != current_source {
+        return Err(TransitionError::Invariant(
+            "artifact changed while the field mutation was being prepared".into(),
+        ));
+    }
     atomic_write(&path, &document.render())?;
     Ok(MutationResult {
         id,

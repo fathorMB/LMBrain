@@ -4,7 +4,18 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.8.0`.
+The current released kit is `2.9.1`.
+
+### 2.9.1 (verification transcript data-loss fix)
+
+Supported source version is `2.9.0`; no manual artifact rewrite is required.
+
+1. Update the application, `lmbrain-core`, and `lmbrain-mcp` together.
+2. Keep agent-authored evidence in `### Verification transcript`. On the next `spec_verify` run, LMBrain migrates the legacy generated transcript into its own delimited region and preserves manual evidence before or after it.
+3. If verification reports that the spec moved or its `verification_gates` changed while gates were running, inspect the current artifact and rerun. LMBrain intentionally leaves the current file untouched.
+4. Update `.lmbrain/VERSION` to `2.9.1` after validation.
+
+Rollback restores 2.9.0 code but must retain all transcript evidence. A transcript containing the 2.9.1 managed-region comments remains readable Markdown, although 2.9.0 must not be used to regenerate it because that version replaces the full section.
 
 ### 2.9.0 (verification integrity and governed agent improvement)
 

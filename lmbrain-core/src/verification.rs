@@ -17,6 +17,7 @@ use thiserror::Error;
 use crate::{
     frontmatter::{atomic_write, Document},
     harness_manifest::workspace_identity,
+    mutation_lock::ArtifactMutationLock,
 };
 
 pub const VERIFICATION_MANIFEST_PATH: &str = ".lmbrain/verification.toml";
@@ -27,6 +28,8 @@ const MAX_TIMEOUT_SECONDS: u64 = 3600;
 const DEFAULT_TIMEOUT_SECONDS: u64 = 900;
 const DEFAULT_OUTPUT_BYTES: usize = 128 * 1024;
 const MAX_OUTPUT_BYTES: usize = 2 * 1024 * 1024;
+const GENERATED_TRANSCRIPT_START: &str = "<!-- lmbrain-generated-verification:start -->";
+const GENERATED_TRANSCRIPT_END: &str = "<!-- lmbrain-generated-verification:end -->";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -122,6 +125,8 @@ pub enum VerificationError {
     Io(#[from] std::io::Error),
     #[error("cannot parse artifact: {0}")]
     Artifact(String),
+    #[error("spec changed while verification was running: {0}")]
+    ConcurrentModification(String),
     #[error("cannot launch verification gate '{gate}': {source}")]
     Launch {
         gate: String,
@@ -302,8 +307,11 @@ pub fn execute_spec_verification(
         return Err(VerificationError::ApprovalRequired);
     }
 
-    let mut document = Document::parse(&fs::read_to_string(&canonical_spec)?)
+    let document = Document::parse(&fs::read_to_string(&canonical_spec)?)
         .map_err(|error| VerificationError::Artifact(error.to_string()))?;
+    let spec_id = document
+        .value("id")
+        .ok_or_else(|| VerificationError::Artifact("missing spec id".into()))?;
     let required = document.string_array("verification_gates");
     if required.is_empty() {
         return Err(VerificationError::NoRequiredGates);
@@ -333,22 +341,73 @@ pub fn execute_spec_verification(
         &results,
         Some(&transcript_hash),
     );
-    document.body = replace_transcript(&document.body, &transcript)?;
-    document.append_activity(&format!(
-        "spec_verify generated transcript {} for workspace {}",
-        transcript_hash, source_fingerprint
-    ));
-    atomic_write(&canonical_spec, &document.render())
-        .map_err(|error| VerificationError::Artifact(error.to_string()))?;
+    write_verification_transcript(
+        &canonical_root,
+        &canonical_spec,
+        &spec_id,
+        &document.string_array("verification_gates"),
+        &transcript,
+        &transcript_hash,
+        &source_fingerprint,
+    )?;
     let all_expectations_met = results.iter().all(|result| result.expectation_met);
     Ok(VerificationRunReport {
-        spec_id: document.value("id").unwrap_or_default(),
+        spec_id,
         manifest_digest,
         workspace_fingerprint: source_fingerprint,
         transcript_hash,
         all_expectations_met,
         results,
     })
+}
+
+fn write_verification_transcript(
+    root: &Path,
+    canonical_spec: &Path,
+    spec_id: &str,
+    required_gates: &[String],
+    transcript: &str,
+    transcript_hash: &str,
+    source_fingerprint: &str,
+) -> Result<(), VerificationError> {
+    let _lock = ArtifactMutationLock::acquire(root, spec_id)?;
+    if !canonical_spec.exists()
+        || canonical_spec
+            .canonicalize()
+            .map(|path| path != canonical_spec)
+            .unwrap_or(true)
+    {
+        return Err(VerificationError::ConcurrentModification(
+            "the spec was moved, replaced, or deleted; verification evidence was not written"
+                .into(),
+        ));
+    }
+
+    let current_source = fs::read_to_string(canonical_spec)?;
+    let mut current = Document::parse(&current_source)
+        .map_err(|error| VerificationError::Artifact(error.to_string()))?;
+    if current.value("id").as_deref() != Some(spec_id) {
+        return Err(VerificationError::ConcurrentModification(
+            "the artifact at the original path has a different id".into(),
+        ));
+    }
+    if current.string_array("verification_gates") != required_gates {
+        return Err(VerificationError::ConcurrentModification(
+            "verification_gates changed; rerun verification against the new gate contract".into(),
+        ));
+    }
+
+    current.body = replace_transcript(&current.body, transcript)?;
+    current.append_activity(&format!(
+        "spec_verify generated transcript {transcript_hash} for workspace {source_fingerprint}"
+    ));
+    if fs::read_to_string(canonical_spec)? != current_source {
+        return Err(VerificationError::ConcurrentModification(
+            "the spec changed again while verification evidence was being merged".into(),
+        ));
+    }
+    atomic_write(canonical_spec, &current.render())
+        .map_err(|error| VerificationError::Artifact(error.to_string()))
 }
 
 pub fn transcript_state(root: &Path, body: &str) -> TranscriptState {
@@ -361,22 +420,25 @@ pub fn transcript_state(root: &Path, body: &str) -> TranscriptState {
     if !has_nonempty_fence(section) {
         return TranscriptState::Empty;
     }
-    let Some(recorded) = metadata(section, "workspace-fingerprint") else {
+    let Some(generated) = generated_transcript(section) else {
+        if section.contains("generated-by: lmbrain-verify")
+            || section.contains(GENERATED_TRANSCRIPT_START)
+            || section.contains(GENERATED_TRANSCRIPT_END)
+        {
+            return TranscriptState::GeneratedStale;
+        }
         return TranscriptState::HandAuthored;
     };
-    let Some(recorded_manifest) = metadata(section, "manifest-digest") else {
+    let Some(recorded) = metadata(generated, "workspace-fingerprint") else {
+        return TranscriptState::HandAuthored;
+    };
+    let Some(recorded_manifest) = metadata(generated, "manifest-digest") else {
         return TranscriptState::GeneratedStale;
     };
-    let Some(recorded_hash) = metadata(section, "transcript-hash") else {
+    let Some(recorded_hash) = metadata(generated, "transcript-hash") else {
         return TranscriptState::GeneratedStale;
     };
-    let without_hash = section
-        .lines()
-        .filter(|line| !line.trim().starts_with("<!-- transcript-hash:"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    let canonical_transcript = format!("{}\n", without_hash.trim_matches('\n'));
-    if hex_digest(canonical_transcript.as_bytes()) != recorded_hash {
+    if !transcript_hash_matches(generated, &recorded_hash) {
         return TranscriptState::GeneratedStale;
     }
     let current_manifest = load_verification_manifest(root)
@@ -401,8 +463,11 @@ pub fn transcript_state_for_document(root: &Path, document: &Document) -> Transc
     let Some(section) = section_at_level(implementation, "Verification transcript", 3) else {
         return TranscriptState::GeneratedStale;
     };
+    let Some(generated) = generated_transcript(section) else {
+        return TranscriptState::GeneratedStale;
+    };
     let expected = gate_contract_digest(&document.string_array("verification_gates"));
-    match metadata(section, "gate-contract-digest") {
+    match metadata(generated, "gate-contract-digest") {
         Some(recorded) if recorded == expected => TranscriptState::GeneratedFresh,
         _ => TranscriptState::GeneratedStale,
     }
@@ -631,7 +696,7 @@ fn replace_transcript(body: &str, transcript: &str) -> Result<String, Verificati
         .skip(implementation + 1)
         .find(|(_, line)| line.trim() == "### Verification transcript")
         .map(|(index, _)| index);
-    let mut output = Vec::new();
+    let mut output: Vec<String> = Vec::new();
     if let Some(start) = existing {
         let end = lines
             .iter()
@@ -640,11 +705,34 @@ fn replace_transcript(body: &str, transcript: &str) -> Result<String, Verificati
             .find(|(_, line)| line.trim_start().starts_with("### "))
             .map(|(index, _)| index)
             .unwrap_or(lines.len());
-        output.extend_from_slice(&lines[..start]);
-        output.push("### Verification transcript");
-        output.push("");
-        output.extend(transcript.lines());
-        output.extend_from_slice(&lines[end..]);
+        let section = lines[start + 1..end].join("\n");
+        let start_count = section.matches(GENERATED_TRANSCRIPT_START).count();
+        let end_count = section.matches(GENERATED_TRANSCRIPT_END).count();
+        if start_count != end_count || start_count > 1 {
+            return Err(VerificationError::Artifact(
+                "verification transcript has an incomplete or duplicate LMBrain-managed region"
+                    .into(),
+            ));
+        }
+        let managed = format!(
+            "{GENERATED_TRANSCRIPT_START}\n{}\n{GENERATED_TRANSCRIPT_END}",
+            transcript.trim_matches('\n')
+        );
+        let updated = if let Some((range_start, range_end)) = generated_transcript_range(&section) {
+            format!(
+                "{}{}{}",
+                &section[..range_start],
+                managed,
+                &section[range_end..]
+            )
+        } else if section.trim().is_empty() {
+            format!("\n{managed}\n")
+        } else {
+            format!("{}\n\n{managed}\n", section.trim_end_matches('\n'))
+        };
+        output.extend(lines[..=start].iter().map(|line| (*line).to_string()));
+        output.extend(updated.lines().map(str::to_string));
+        output.extend(lines[end..].iter().map(|line| (*line).to_string()));
     } else {
         let end = lines
             .iter()
@@ -653,14 +741,59 @@ fn replace_transcript(body: &str, transcript: &str) -> Result<String, Verificati
             .find(|(_, line)| line.trim_start().starts_with("## "))
             .map(|(index, _)| index)
             .unwrap_or(lines.len());
-        output.extend_from_slice(&lines[..end]);
-        output.push("");
-        output.push("### Verification transcript");
-        output.push("");
-        output.extend(transcript.lines());
-        output.extend_from_slice(&lines[end..]);
+        output.extend(lines[..end].iter().map(|line| (*line).to_string()));
+        output.push(String::new());
+        output.push("### Verification transcript".into());
+        output.push(String::new());
+        output.push(GENERATED_TRANSCRIPT_START.into());
+        output.extend(transcript.trim_matches('\n').lines().map(str::to_string));
+        output.push(GENERATED_TRANSCRIPT_END.into());
+        output.extend(lines[end..].iter().map(|line| (*line).to_string()));
     }
     Ok(format!("{}\n", output.join("\n")))
+}
+
+fn generated_transcript(section: &str) -> Option<&str> {
+    if let Some(start) = section.find(GENERATED_TRANSCRIPT_START) {
+        let content_start = start + GENERATED_TRANSCRIPT_START.len();
+        let end = section[content_start..].find(GENERATED_TRANSCRIPT_END)? + content_start;
+        return Some(section[content_start..end].trim_matches('\n'));
+    }
+    generated_transcript_range(section).map(|(start, end)| section[start..end].trim_matches('\n'))
+}
+
+fn generated_transcript_range(section: &str) -> Option<(usize, usize)> {
+    if let Some(start) = section.find(GENERATED_TRANSCRIPT_START) {
+        let after_start = start + GENERATED_TRANSCRIPT_START.len();
+        let end = section[after_start..].find(GENERATED_TRANSCRIPT_END)?
+            + after_start
+            + GENERATED_TRANSCRIPT_END.len();
+        return Some((start, end));
+    }
+
+    let start = section.find("<!-- generated-by: lmbrain-verify@")?;
+    let legacy = &section[start..];
+    let recorded_hash = metadata(legacy, "transcript-hash")?;
+    let mut candidate_ends = legacy
+        .match_indices('\n')
+        .map(|(offset, _)| offset + 1)
+        .collect::<Vec<_>>();
+    if candidate_ends.last().copied() != Some(legacy.len()) {
+        candidate_ends.push(legacy.len());
+    }
+    candidate_ends.into_iter().find_map(|end| {
+        transcript_hash_matches(&legacy[..end], &recorded_hash).then_some((start, start + end))
+    })
+}
+
+fn transcript_hash_matches(transcript: &str, recorded_hash: &str) -> bool {
+    let without_hash = transcript
+        .lines()
+        .filter(|line| !line.trim().starts_with("<!-- transcript-hash:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let canonical = format!("{}\n", without_hash.trim_matches('\n'));
+    hex_digest(canonical.as_bytes()) == recorded_hash
 }
 
 fn section_at_level<'a>(body: &'a str, heading: &str, level: usize) -> Option<&'a str> {
@@ -896,7 +1029,7 @@ mod tests {
                 .path()
                 .join(format!(".lmbrain/specs/working/SPEC-{name}.md"));
             fs::write(&spec, format!(
-                "---\nid: SPEC-{name}\nstatus: working\nverification_gates: [sample]\n---\n\n## Implementation evidence\n\n### Verification transcript\n"
+                "---\nid: SPEC-{name}\nstatus: working\nverification_gates: [sample]\n---\n\n## Implementation evidence\n\n### Verification transcript\n\n```text\n$ manual-check\nmanual result\n```\n"
             )).unwrap();
             let approval = dir.path().join("local/approval.json");
             approve_verification_manifest(dir.path(), &approval).unwrap();
@@ -904,6 +1037,7 @@ mod tests {
             assert_eq!(report.all_expectations_met, expected_green);
             let source = fs::read_to_string(&spec).unwrap();
             assert!(source.contains("generated-by: lmbrain-verify"));
+            assert!(source.contains("$ manual-check\nmanual result"));
             assert!(source.contains(&format!("expectation_met: {expected_green}")));
             let document = Document::parse(&source).unwrap();
             assert_eq!(
@@ -924,8 +1058,159 @@ mod tests {
                 &format!("expectation_met: {expected_green}"),
                 &format!("expectation_met: {}", !expected_green),
             );
-            assert_eq!(transcript_state(dir.path(), &tampered), TranscriptState::GeneratedStale);
+            assert_eq!(
+                transcript_state(dir.path(), &tampered),
+                TranscriptState::GeneratedStale
+            );
         }
+    }
+
+    fn sample_transcript(fingerprint: &str) -> (String, String) {
+        let without_hash = render_transcript("manifest", fingerprint, "contract", &[], None);
+        let hash = hex_digest(without_hash.as_bytes());
+        let transcript = render_transcript("manifest", fingerprint, "contract", &[], Some(&hash));
+        (transcript, hash)
+    }
+
+    #[test]
+    fn generated_transcript_preserves_hand_authored_evidence() {
+        let body = "## Implementation evidence\n\n### Verification transcript\n\n```text\n$ manual-check\nmanual result\n```\n\n### Verification performed\nManual verification summary.\n";
+        let (transcript, _) = sample_transcript("first");
+        let updated = replace_transcript(body, &transcript).unwrap();
+
+        assert!(updated.contains("$ manual-check\nmanual result"));
+        assert!(updated.contains(GENERATED_TRANSCRIPT_START));
+        assert!(updated.contains(GENERATED_TRANSCRIPT_END));
+        assert!(updated.contains("### Verification performed\nManual verification summary."));
+    }
+
+    #[test]
+    fn generated_transcript_updates_only_its_managed_region() {
+        let body = "## Implementation evidence\n\n### Verification transcript\n\n```text\n$ manual-check\nmanual result\n```\n";
+        let (first, _) = sample_transcript("first");
+        let once = replace_transcript(body, &first).unwrap();
+        let (second, _) = sample_transcript("second");
+        let twice = replace_transcript(&once, &second).unwrap();
+
+        assert!(twice.contains("$ manual-check\nmanual result"));
+        assert!(!twice.contains("workspace-fingerprint: first"));
+        assert!(twice.contains("workspace-fingerprint: second"));
+        assert_eq!(twice.matches(GENERATED_TRANSCRIPT_START).count(), 1);
+        assert_eq!(twice.matches(GENERATED_TRANSCRIPT_END).count(), 1);
+    }
+
+    #[test]
+    fn legacy_generated_transcript_is_migrated_without_losing_manual_evidence() {
+        let (legacy, _) = sample_transcript("legacy");
+        let body = format!(
+            "## Implementation evidence\n\n### Verification transcript\n\n{legacy}\n```text\n$ manual-after-legacy\nmanual result\n```\n"
+        );
+        let (replacement, _) = sample_transcript("replacement");
+        let updated = replace_transcript(&body, &replacement).unwrap();
+
+        assert!(updated.contains("$ manual-after-legacy\nmanual result"));
+        assert!(!updated.contains("workspace-fingerprint: legacy"));
+        assert!(updated.contains("workspace-fingerprint: replacement"));
+    }
+
+    #[test]
+    fn verification_merge_uses_the_latest_spec_body() {
+        let dir = tempdir().unwrap();
+        let spec_dir = dir.path().join(".lmbrain/specs/working");
+        fs::create_dir_all(&spec_dir).unwrap();
+        let spec = spec_dir.join("SPEC-001.md");
+        fs::write(
+            &spec,
+            "---\nid: SPEC-001\nstatus: working\nverification_gates: [sample]\n---\n\n## Implementation evidence\n\n### Changes made\n\ninitial\n\n### Verification transcript\n",
+        )
+        .unwrap();
+        let canonical = spec.canonicalize().unwrap();
+        let latest = fs::read_to_string(&spec)
+            .unwrap()
+            .replace("initial", "initial\nlate agent edit");
+        fs::write(&spec, latest).unwrap();
+        let (transcript, hash) = sample_transcript("workspace");
+
+        write_verification_transcript(
+            dir.path(),
+            &canonical,
+            "SPEC-001",
+            &["sample".into()],
+            &transcript,
+            &hash,
+            "workspace",
+        )
+        .unwrap();
+
+        let updated = fs::read_to_string(spec).unwrap();
+        assert!(updated.contains("late agent edit"));
+        assert!(updated.contains(GENERATED_TRANSCRIPT_START));
+    }
+
+    #[test]
+    fn verification_does_not_recreate_a_spec_moved_during_gate_execution() {
+        let dir = tempdir().unwrap();
+        let working = dir.path().join(".lmbrain/specs/working");
+        let review = dir.path().join(".lmbrain/specs/review");
+        fs::create_dir_all(&working).unwrap();
+        fs::create_dir_all(&review).unwrap();
+        let spec = working.join("SPEC-001.md");
+        fs::write(
+            &spec,
+            "---\nid: SPEC-001\nstatus: working\nverification_gates: [sample]\n---\n\n## Implementation evidence\n\n### Verification transcript\n",
+        )
+        .unwrap();
+        let canonical = spec.canonicalize().unwrap();
+        let moved = review.join("SPEC-001.md");
+        fs::rename(&spec, &moved).unwrap();
+        let (transcript, hash) = sample_transcript("workspace");
+
+        let error = write_verification_transcript(
+            dir.path(),
+            &canonical,
+            "SPEC-001",
+            &["sample".into()],
+            &transcript,
+            &hash,
+            "workspace",
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            VerificationError::ConcurrentModification(_)
+        ));
+        assert!(!spec.exists());
+        assert!(moved.exists());
+    }
+
+    #[test]
+    fn verification_does_not_write_when_the_gate_contract_changes() {
+        let dir = tempdir().unwrap();
+        let spec_dir = dir.path().join(".lmbrain/specs/working");
+        fs::create_dir_all(&spec_dir).unwrap();
+        let spec = spec_dir.join("SPEC-001.md");
+        let changed = "---\nid: SPEC-001\nstatus: working\nverification_gates: [replacement]\n---\n\n## Implementation evidence\n\n### Verification transcript\n\n```text\n$ manual-check\nmanual result\n```\n";
+        fs::write(&spec, changed).unwrap();
+        let canonical = spec.canonicalize().unwrap();
+        let (transcript, hash) = sample_transcript("workspace");
+
+        let error = write_verification_transcript(
+            dir.path(),
+            &canonical,
+            "SPEC-001",
+            &["original".into()],
+            &transcript,
+            &hash,
+            "workspace",
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            VerificationError::ConcurrentModification(_)
+        ));
+        assert_eq!(fs::read_to_string(spec).unwrap(), changed);
     }
 
     #[test]

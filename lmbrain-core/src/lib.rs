@@ -4,6 +4,7 @@ pub mod frontmatter;
 pub mod harness_manifest;
 pub mod improvement;
 pub mod invariants;
+mod mutation_lock;
 pub mod path;
 pub mod transitions;
 pub mod verification;
@@ -30,8 +31,7 @@ pub use transitions::{
 pub use verification::{
     approve_verification_manifest, canonical_verification_manifest_digest,
     execute_spec_verification, load_verification_manifest, transcript_state,
-    transcript_state_for_document,
-    validate_verification_manifest, workspace_content_fingerprint, TranscriptState,
-    VerificationApproval, VerificationError, VerificationGate, VerificationManifest,
-    VerificationRunReport,
+    transcript_state_for_document, validate_verification_manifest, workspace_content_fingerprint,
+    TranscriptState, VerificationApproval, VerificationError, VerificationGate,
+    VerificationManifest, VerificationRunReport,
 };
