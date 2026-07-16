@@ -4,7 +4,20 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.7.3`.
+The current released kit is `2.8.0`.
+
+### 2.9.0 (verification integrity and governed agent improvement)
+
+Supported source versions are `2.8.x`; changes are additive except for the new submit invariant.
+
+1. Add `### Verification transcript` beneath `## Implementation evidence` in active spec templates and working specs before submission. Paste actual command/output in a fenced block; summaries are not execution evidence.
+2. Convert Required verification entries gradually to `ID | kind=... | owner=... | phase=... | evidence=... | text`. Legacy prose remains visible with warnings and is never silently rewritten.
+3. Optionally add `.lmbrain/verification.toml` with strict named direct-program gates and add `verification_gates` references to specs. Review the manifest, then approve its exact digest locally; repository content alone does not authorize execution.
+4. Optionally add `finding_categories` and `implementation_agent` to review frontmatter. Historical freeform reviews remain uncategorized rather than guessed.
+5. Improvement proposals created by 2.9 store target digests and additive patch fields. Approve explicitly and apply only while the target digest is current.
+6. Validate the project, run canonical Rust/frontend gates, then update `.lmbrain/VERSION` to `2.9.0`.
+
+Rollback restores 2.8.x and the prior template/version. Remove only unused verification policy after revoking its local approval; retain generated transcripts and applied proposal audit history.
 
 ### 2.8.0 (project harness governance — planned additive migration)
 

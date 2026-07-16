@@ -19,9 +19,11 @@ export function buildHandoffPrompt(
 **V3 context-economy workflow:**
 1. Read mandatory policy files (\`QUALITY.md\`, \`CONTRACT.md\`, \`AGENT.md\`) first.
 2. Use \`lmbrain_spec_context\` for a compact spec handoff context (linked decisions, agent profile, criteria, files).
-3. Use \`lmbrain_project_digest\` for project pulse and active work.
-4. Expand to full artifacts or source code only when the context pack points to them or direct verification requires it.
-5. Record evidence when you expand scope beyond the context pack.`;
+3. Read the assigned active agent profile and every applicable skill artifact in full before changing source; the context pack paths and digests identify the exact artifacts.
+4. Reconcile every structured verification requirement before implementation. \`before-submit\` gates belong in implementation evidence; \`before-done\` operator/playtest gates require an explicit owner and schedule and are not implementer transcript claims.
+5. Use \`lmbrain_project_digest\` for project pulse and active work.
+6. Expand to full artifacts or source code when the context pack warns about legacy/unstructured requirements or direct verification requires it.
+7. Record evidence when you expand scope beyond the context pack.`;
 }
 
 export function buildMigrationPrompt(

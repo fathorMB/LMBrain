@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   Adr,
   AgentProfile,
+  AgentImprovementInsights,
   AgentProposal,
   DesignMockup,
   DesignMockupHtml,
@@ -99,6 +100,10 @@ export async function getAgents(): Promise<AgentProfile[]> {
 
 export async function getAgentProposals(): Promise<AgentProposal[]> {
   return invoke("get_agent_proposals");
+}
+
+export async function getAgentImprovementInsights(): Promise<AgentImprovementInsights> {
+  return invoke("get_agent_improvement_insights");
 }
 
 export async function getMcpRecords(): Promise<McpRecord[]> {

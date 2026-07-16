@@ -395,6 +395,69 @@ fn force_reason_is_required_and_audited() {
 }
 
 #[test]
+fn spec_submit_requires_scoped_nonempty_verification_transcript() {
+    let d = tempdir().unwrap();
+    let root = d.path();
+    let cases = [
+        ("missing", "## Implementation evidence\n\n### Changes made\nDone\n"),
+        ("misplaced", "## Other\n\n### Verification transcript\n\n```text\nok\n```\n\n## Implementation evidence\nDone\n"),
+        ("empty", "## Implementation evidence\n\n### Verification transcript\n\n```text\n\n```\n"),
+    ];
+    for (name, body) in cases {
+        let path = format!(".lmbrain/specs/working/SPEC-{name}.md");
+        write(
+            root,
+            &path,
+            &format!("---\nid: SPEC-{name}\nstatus: working\n---\n\n{body}"),
+        );
+        let error = transition(root, &path, "review", MutationOptions::default()).unwrap_err();
+        assert!(
+            error.to_string().contains("Verification transcript"),
+            "{name}: {error}"
+        );
+    }
+
+    let path = ".lmbrain/specs/working/SPEC-valid.md";
+    write(root, path, "---\nid: SPEC-valid\nstatus: working\n---\n\n## Implementation evidence\n\n### Verification transcript\n\n```text\n$ cargo test\npassed\n```\n");
+    let result = transition(root, path, "review", MutationOptions::default()).unwrap();
+    assert_eq!(result.status, "review");
+}
+
+#[test]
+fn spec_submit_force_bypass_requires_reason_and_is_audited() {
+    let d = tempdir().unwrap();
+    let path = ".lmbrain/specs/working/SPEC-override.md";
+    write(
+        d.path(),
+        path,
+        "---\nid: SPEC-override\nstatus: working\n---\n\n## Implementation evidence\n",
+    );
+    assert!(transition(
+        d.path(),
+        path,
+        "review",
+        MutationOptions {
+            force: true,
+            reason: None
+        }
+    )
+    .is_err());
+    let result = transition(
+        d.path(),
+        path,
+        "review",
+        MutationOptions {
+            force: true,
+            reason: Some("operator accepts unavailable platform gate".into()),
+        },
+    )
+    .unwrap();
+    let output = fs::read_to_string(result.path).unwrap();
+    assert!(output.contains("Mutation override"));
+    assert!(output.contains("operator accepts unavailable platform gate"));
+}
+
+#[test]
 fn frontmatter_round_trip_keeps_comments_and_order() {
     let mut document = Document::parse(
         "---\n# comment\nid: SPEC-1\nstatus: backlog\nunknown: value # inline\n---\nbody\n",

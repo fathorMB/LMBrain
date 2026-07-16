@@ -82,7 +82,9 @@ All profiles use `activation: manual`. The Project Lead recommends the most spec
 
 ### Controlled improvement loop
 
-Improvement proposals use the existing `agents/proposals/` mechanism with `proposal_type: improvement` and a `target_profile` field. The Project Lead may create improvement proposals from accepted reviews, repeated remediation findings, implementation evidence, diagnostics, or operator feedback. Operator approval is required before any behavior-affecting profile change becomes active.
+Improvement proposals use the existing `agents/proposals/` mechanism with `proposal_type: improvement`, `target_profile`, target digest, evidence links, and a constrained additive patch. Deterministic signals require recurrence across distinct specs (or an integrity escalation), and scanning is read-only. Proposal creation is explicit; operator approval and a non-stale target digest are required before atomic application. Effectiveness metrics expose sample sizes and caveats rather than claiming causality.
+
+`.lmbrain/verification.toml` optionally declares named direct-execution gates. The repository manifest is inert until its exact digest is approved locally. `spec_verify` runs only gates referenced by the selected spec and writes real bounded output into its managed transcript section. It never runs during workspace open, refresh, watching, or submission.
 
 ## Project-scoped skills
 

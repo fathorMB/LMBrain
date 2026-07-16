@@ -70,13 +70,13 @@ Agent proposals now support a `proposal_type` field (`new-profile` or `improveme
 
 Skills are `SKILL-*` Markdown artifacts under `.lmbrain/skills/<status>/`. They document reusable project procedures such as build, test, diagnostic, release, and review runbooks.
 
-Skills are not executable capabilities. LMBrain parses and displays skill commands, includes applicable active skills in context packs, and reports reference diagnostics, but it does not run commands automatically.
+Skills are not executable capabilities. LMBrain parses and displays skill commands, falls back to fenced commands in the Procedure body when legacy frontmatter is empty, includes applicable active skills in context packs, and reports reference diagnostics, but it does not run skill commands automatically.
 
 The app exposes skills through a dedicated `Skills` page rather than adding them to `Agents & MCP`. Specs and agent profiles may reference skills through optional `skills: []` frontmatter.
 
 ### Project insights
 
-The Insights page is backed by `get_project_statistics`, a Tauri command that derives read-only metrics from parsed LMBrain artifacts. It reports artifact inventory, spec flow, diagnostics, and review-quality statistics.
+The Insights page is backed by `get_project_statistics`, while Agents & MCP also calls `get_agent_improvement_insights`. The latter deterministically aggregates categorized review evidence by profile and distinct spec, exposes fast-fail/cycle/first-pass/escalation metrics, and never mutates artifacts. Improvement proposal creation and application are separate governed MCP operations.
 
 Local Harnesses is backed by `commands::harnesses`. Read-only probes resolve the same executables used by Sessions and execute only `--version`. Mutating updates are fixed per host, serialized by `HarnessManager`, rejected while matching sessions run, executed off the command thread with bounded time/output, and followed by an authoritative re-probe. No updater is run through an interpolated shell command.
 
@@ -105,7 +105,7 @@ backlog -> ready -> working -> review -> done
 discarded
 ```
 
-`ready -> working` and `working -> review` are implementer-owned transitions. A spec stays in `review` while changes-requested findings are remediated; it is not moved back to `working`.
+`ready -> working` and `working -> review` are implementer-owned transitions. Submission mechanically requires a scoped non-empty Verification transcript and rejects stale kit-generated evidence. A spec stays in `review` while changes-requested findings are remediated; it is not moved back to `working`.
 
 Tasks are not a first-class board artifact in the current product.
 
@@ -148,6 +148,11 @@ The server exposes specific tools such as:
 - `lmbrain_spec_context` — spec handoff context: spec metadata, acceptance criteria checklist, linked decisions, recommended agent profile summary, applicable active skills, related reviews, referenced milestone, explicit files/areas, and diagnostics affecting the handoff. Returns JSON and Markdown summary. Requires `spec` parameter (ID or path).
 - `lmbrain_review_context` — review context: acceptance criteria, implementation evidence, linked accepted/proposed reviews, relevant decisions, verification commands claimed by the specialist, and applicable verification/review skills. Returns JSON and Markdown summary. Requires `spec` parameter (ID or path).
 
-All context-pack tools are read-only. They resolve references through existing ID/path logic and report missing links as structured warnings. They are backed by `lmbrain-core/src/context.rs`.
+All context-pack tools are read-only. They resolve references through existing ID/path logic and report missing links as structured warnings. Spec and review context include the lossless Required verification source, typed owner/phase/evidence requirements, profile guidance and digests, and applicable skill commands/digests. They are backed by `lmbrain-core/src/context.rs`.
+
+### Verification and governed improvement tools (2.9.0)
+
+- `verification_manifest_get`, `verification_manifest_approve`, `spec_verify` implement digest-bound named-gate execution and attributable transcript generation.
+- `agent_improvement_signals`, `agent_improvement_propose`, `agent_proposal_approve`/`reject`, and `agent_improvement_apply` implement a deterministic review-to-proposal-to-approved-additive-profile loop with stale-target protection.
 
 It intentionally does not expose task tools. Operator-governed transitions such as ADR decisions and agent activation are exposed as explicit tools so the Project Lead can execute them only after a direct operator instruction.

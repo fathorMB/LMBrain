@@ -23,6 +23,12 @@ Controlled MCP access uses `harness_config_get`, `harness_config_validate`, and 
 
 Operator approval is machine-local application state keyed by canonical workspace fingerprint and canonical manifest digest. Approval requires the exact previewed digest, becomes stale after any material manifest change, and is not reused when a workspace identity changes. Corrupt approval state is quarantined and fails closed.
 
+## Verification gates
+
+`.lmbrain/verification.toml` is an optional strict, versioned registry of named verification gates. Specs reference gates with `verification_gates`; MCP `spec_verify` accepts a spec identity, never an ad-hoc command. Execution requires machine-local operator approval bound to the canonical workspace identity and manifest digest. Gates use direct program/argv execution, confined cwd, a minimal environment, time/output limits, and process-tree termination. Generated transcripts record real green or red results, manifest digest, workspace fingerprint, tool version, and content hash.
+
+Every `working -> review` transition requires a non-empty fenced `### Verification transcript` nested inside `## Implementation evidence`. Hand-authored evidence passes only the structural gate and is unauthenticated. Generated evidence becomes stale after relevant workspace or manifest changes; force remains an explicit reasoned and audited operator override.
+
 Planning is read-only and deterministic. It reports the effective host configuration, supported capability keys, required-tool readiness, LMBrain-owned native paths, and whether each target would be added, changed, preserved, or blocked by a structural conflict. Planning never grants approval or writes a native host file.
 
 Application requires a currently approved digest and uses the same workspace mutation lock as manifest replacement. All changed native files are staged before replacement; structural conflicts stop before writing, and a failed batch restores the prior files. Successful application records machine-local content hashes for read-only drift reporting. Repeating an unchanged application is a no-op.
@@ -89,13 +95,15 @@ Context packs are read-only, derived views of the artifact directory. They are n
 - `lmbrain_spec_context` — spec handoff context for specialist orientation.
 - `lmbrain_review_context` — review context for reviewer orientation.
 
-Context packs resolve linked specs, ADRs, reviews, agent profiles, roadmap milestones, and diagnostics deterministically. They report missing references as structured warnings. They never mutate files.
+Context packs resolve linked specs, ADRs, reviews, agent profiles, roadmap milestones, required verification, applicable skills, and diagnostics deterministically. Spec/review packs preserve the canonical verification source, distinguish executable/manual/operator gates and lifecycle owners, include profile path/digest plus bounded operational guidance, and expose skill path/digest plus body-command fallback. They report lossy legacy syntax and missing references as structured warnings. They never mutate files.
 
 Agents must read mandatory policy files (`QUALITY.md`, `CONTRACT.md`, `AGENT.md`) before relying on context packs. They must expand to full source artifacts when a context pack warning indicates a missing or unresolved reference.
 
 ## Invariants
 
 - A spec reaches `done` only with its acceptance criteria checked, evidence recorded, and an accepted review.
+- A spec reaches `review` only with a structurally valid Verification transcript; stale generated evidence is rejected unless explicitly forced with an audited reason.
+- Improvement signals are read-only derived views. Profile changes require an evidence-linked proposal, explicit operator approval, a matching target digest, and additive atomic application; agents never self-approve.
 - `rejected` is a terminal "declined at proposal/decision time" status available on every proposable artifact (Spec, ADR, Agent proposal, MCP proposal). It is distinct from `changes-requested` (a review asking for revision and resubmission) and from `archived`/`superseded`/`deprecated` (retiring something that was once active). A rejected artifact records the rejection rationale in its body and is not silently reopened.
 - An `active` MCP needs a documented spec, permissions, and verification evidence.
 - An agent profile always has `activation: manual`; LMBrain never spawns agents.

@@ -4,7 +4,19 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
-## 2.8.0 - Unreleased
+## 2.9.0 - Unreleased
+
+### Added
+
+- **Attributable verification gates.** Optional strict `.lmbrain/verification.toml`, local digest approval, bounded direct execution, honest green/red transcripts, and stale-evidence detection are exposed through dedicated MCP verbs.
+- **Context-complete handoffs.** Spec and review packs include typed Required verification contracts, complete profile guidance/digests, and command-bearing skill summaries without conflating verification checklists with acceptance criteria.
+- **Governed profile learning.** Categorized review evidence produces read-only distinct-spec signals and effectiveness metrics; explicit proposals apply only after operator approval and stale-target validation.
+
+### Changed
+
+- **Submission integrity.** `spec_submit` now requires a non-empty fenced Verification transcript under Implementation evidence. Force bypasses remain reasoned and audited.
+
+## 2.8.0 - 2026-07-16
 
 ### Added
 

@@ -8,6 +8,7 @@ spec: SPEC-XXX
 reviewer: AGENT-LEAD
 review_requested_by: user
 implementation_agent: AGENT-XXX
+finding_categories: []
 related_tasks: []
 links: []
 created: YYYY-MM-DD
@@ -28,6 +29,8 @@ tags: [review]
 ## Production quality and documentation compliance
 
 ## Findings
+
+<!-- Stable form: FINDING-ID | category=... | severity=... | criterion=... | remediation=... -->
 
 ## Required follow-up
 

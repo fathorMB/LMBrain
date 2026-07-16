@@ -40,6 +40,8 @@ pub struct Review {
     pub status: ReviewStatus,
     pub spec_id: Option<String>,
     pub reviewer: Option<String>,
+    pub implementation_agent: Option<String>,
+    pub finding_categories: Vec<String>,
     pub findings: Vec<ReviewFinding>,
     pub body: String,
     pub path: String,

@@ -1,11 +1,12 @@
 use std::{
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
 };
 
 use serde::{Deserialize, Serialize};
 
-use crate::frontmatter::Document;
+use crate::{frontmatter::Document, verification::load_verification_manifest};
 
 // ─── Context-pack data structures ─────────────────────────────────
 
@@ -67,6 +68,8 @@ pub struct SpecContext {
     pub recommended_agent: Option<String>,
     pub agent_profile: Option<AgentProfileSummary>,
     pub acceptance_criteria: Vec<Criterion>,
+    pub required_verification: Vec<VerificationRequirement>,
+    pub required_verification_source: Option<String>,
     pub linked_decisions: Vec<CompactAdr>,
     pub related_reviews: Vec<CompactReview>,
     pub applicable_skills: Vec<SkillSummary>,
@@ -82,6 +85,18 @@ pub struct SpecContext {
 pub struct Criterion {
     pub text: String,
     pub checked: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerificationRequirement {
+    pub id: String,
+    pub text: String,
+    pub checked: bool,
+    pub kind: String,
+    pub owner: String,
+    pub phase: String,
+    pub evidence: String,
+    pub source: String,
 }
 
 /// Compact review reference.
@@ -104,6 +119,14 @@ pub struct AgentProfileSummary {
     pub can_implement: Option<bool>,
     pub can_review: Option<bool>,
     pub skills: Vec<String>,
+    pub domains: Vec<String>,
+    pub primary_files: Vec<String>,
+    pub review_focus: Vec<String>,
+    pub constraints: Vec<String>,
+    pub knowledge: Vec<String>,
+    pub path: String,
+    pub content_digest: String,
+    pub operational_guidance: String,
 }
 
 /// Compact skill reference for context packs.
@@ -117,6 +140,7 @@ pub struct SkillSummary {
     pub requires_operator_approval: Option<bool>,
     pub commands: Vec<String>,
     pub path: String,
+    pub content_digest: String,
 }
 
 /// Review context for reviewer orientation.
@@ -129,6 +153,8 @@ pub struct ReviewContext {
     pub linked_reviews: Vec<CompactReview>,
     pub relevant_decisions: Vec<CompactAdr>,
     pub verification_commands: Vec<String>,
+    pub required_verification: Vec<VerificationRequirement>,
+    pub required_verification_source: Option<String>,
     pub applicable_skills: Vec<SkillSummary>,
     pub warnings: Vec<String>,
     pub markdown: String,
@@ -242,12 +268,16 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
     let spec_tags = document.string_array("tags");
     let related_decisions = document.string_array("related_decisions");
 
-    // Parse acceptance criteria from body
-    let criteria = parse_criteria(&document.body);
+    // Parse only the named acceptance section. Other checklists have distinct semantics.
+    let criteria = parse_acceptance_criteria(&document.body);
+    let verification_refs = document.string_array("verification_gates");
+    let (required_verification, required_verification_source, requirement_warnings) =
+        parse_verification_requirements(&document.body, &verification_refs);
 
     // Resolve linked decisions
     let mut linked_decisions = Vec::new();
-    let mut warnings = Vec::new();
+    let mut warnings = requirement_warnings;
+    warnings.extend(verification_reference_warnings(root, &verification_refs));
     for adr_id in &related_decisions {
         match resolve_adr(&lmbrain, adr_id) {
             Some(adr) => linked_decisions.push(adr),
@@ -296,6 +326,7 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         &recommended_agent,
         &agent_profile,
         &criteria,
+        &required_verification,
         &linked_decisions,
         &related_reviews,
         &applicable_skills,
@@ -315,6 +346,8 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         recommended_agent,
         agent_profile,
         acceptance_criteria: criteria,
+        required_verification,
+        required_verification_source,
         linked_decisions,
         related_reviews,
         applicable_skills,
@@ -343,8 +376,11 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         .as_deref()
         .and_then(|agent| resolve_agent(&lmbrain, agent));
 
-    // Parse acceptance criteria
-    let criteria = parse_criteria(&document.body);
+    // Parse acceptance criteria and the complete verification contract.
+    let criteria = parse_acceptance_criteria(&document.body);
+    let verification_refs = document.string_array("verification_gates");
+    let (required_verification, required_verification_source, requirement_warnings) =
+        parse_verification_requirements(&document.body, &verification_refs);
 
     // Extract implementation evidence
     let implementation_evidence = extract_section(&document.body, "Implementation evidence");
@@ -355,7 +391,8 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
     // Resolve linked decisions
     let related_decisions: Vec<String> = document.string_array("related_decisions");
     let mut relevant_decisions = Vec::new();
-    let mut warnings = Vec::new();
+    let mut warnings = requirement_warnings;
+    warnings.extend(verification_reference_warnings(root, &verification_refs));
     for adr_id in &related_decisions {
         match resolve_adr(&lmbrain, adr_id) {
             Some(adr) => relevant_decisions.push(adr),
@@ -364,7 +401,16 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
     }
 
     // Extract verification commands
-    let verification_commands = extract_section_list(&document.body, "Required verification");
+    let verification_commands = required_verification
+        .iter()
+        .filter(|requirement| {
+            matches!(
+                requirement.kind.as_str(),
+                "command" | "manifest" | "executable" | "unstructured"
+            )
+        })
+        .map(|requirement| requirement.text.clone())
+        .collect::<Vec<_>>();
     let applicable_skills = resolve_applicable_skills(
         &lmbrain,
         &spec_skills,
@@ -383,6 +429,7 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         &linked_reviews,
         &relevant_decisions,
         &verification_commands,
+        &required_verification,
         &applicable_skills,
         &warnings,
     );
@@ -395,6 +442,8 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         linked_reviews,
         relevant_decisions,
         verification_commands,
+        required_verification,
+        required_verification_source,
         applicable_skills,
         warnings,
         markdown,
@@ -691,6 +740,11 @@ fn resolve_agent(lmbrain: &Path, agent_id: &str) -> Option<AgentProfileSummary> 
             if let Ok(source) = fs::read_to_string(&path) {
                 if let Ok(doc) = Document::parse(&source) {
                     if doc.value("id").as_deref() == Some(agent_id) {
+                        let rel_path = path
+                            .strip_prefix(lmbrain)
+                            .ok()
+                            .map(|p| format!(".lmbrain/{}", p.to_string_lossy().replace('\\', "/")))
+                            .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"));
                         return Some(AgentProfileSummary {
                             id: agent_id.to_string(),
                             title: doc.value("title").unwrap_or_default(),
@@ -700,6 +754,14 @@ fn resolve_agent(lmbrain: &Path, agent_id: &str) -> Option<AgentProfileSummary> 
                             can_implement: doc.bool("can_implement"),
                             can_review: doc.bool("can_review"),
                             skills: doc.string_array("skills"),
+                            domains: doc.string_array("domains"),
+                            primary_files: doc.string_array("primary_files"),
+                            review_focus: doc.string_array("review_focus"),
+                            constraints: doc.string_array("constraints"),
+                            knowledge: doc.string_array("knowledge"),
+                            path: rel_path,
+                            content_digest: crate::content_digest(source.as_bytes()),
+                            operational_guidance: bounded_guidance(&doc.body),
                         });
                     }
                 }
@@ -755,18 +817,16 @@ fn resolve_applicable_skills(
             .map(|kind| matches!(kind, "review" | "test" | "diagnostic" | "verification"))
             .unwrap_or(false);
 
-        if explicit
+        if (explicit
             || agent_default
             || applies_to_agent
             || domain_match
-            || (review_only && review_kind)
-        {
-            if !result
+            || (review_only && review_kind))
+            && !result
                 .iter()
                 .any(|skill: &SkillSummary| skill.id == summary.id)
-            {
-                result.push(summary);
-            }
+        {
+            result.push(summary);
         }
     }
     result
@@ -797,6 +857,10 @@ fn scan_skills(lmbrain: &Path) -> Vec<(SkillSummary, Vec<String>, Vec<String>)> 
                             .ok()
                             .map(|p| format!(".lmbrain/{}", p.to_string_lossy().replace('\\', "/")))
                             .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"));
+                        let mut commands = doc.string_array("commands");
+                        if commands.is_empty() {
+                            commands = extract_fenced_commands(&doc.body);
+                        }
                         skills.push((
                             SkillSummary {
                                 id,
@@ -805,8 +869,9 @@ fn scan_skills(lmbrain: &Path) -> Vec<(SkillSummary, Vec<String>, Vec<String>)> 
                                 kind: doc.value("kind"),
                                 risk: doc.value("risk"),
                                 requires_operator_approval: doc.bool("requires_operator_approval"),
-                                commands: doc.string_array("commands"),
+                                commands,
                                 path: rel_path,
+                                content_digest: crate::content_digest(source.as_bytes()),
                             },
                             doc.string_array("applies_to"),
                             doc.string_array("domains"),
@@ -917,6 +982,198 @@ fn parse_criteria(body: &str) -> Vec<Criterion> {
             Criterion { text, checked }
         })
         .collect()
+}
+
+fn parse_acceptance_criteria(body: &str) -> Vec<Criterion> {
+    extract_section(body, "Acceptance criteria")
+        .map(|section| parse_criteria(&section))
+        .unwrap_or_default()
+}
+
+fn parse_verification_requirements(
+    body: &str,
+    manifest_refs: &[String],
+) -> (Vec<VerificationRequirement>, Option<String>, Vec<String>) {
+    let source = extract_section(body, "Required verification");
+    let mut requirements = manifest_refs
+        .iter()
+        .map(|id| VerificationRequirement {
+            id: id.clone(),
+            text: format!("Manifest gate `{id}`"),
+            checked: false,
+            kind: "manifest".into(),
+            owner: "kit".into(),
+            phase: "before-submit".into(),
+            evidence: "kit-transcript".into(),
+            source: ".lmbrain/verification.toml".into(),
+        })
+        .collect::<Vec<_>>();
+    let mut warnings = Vec::new();
+    let Some(section) = source.as_deref() else {
+        if requirements.is_empty() {
+            warnings.push(
+                "Spec has no Required verification section or verification_gates references".into(),
+            );
+        }
+        return (requirements, source, warnings);
+    };
+
+    let mut parsed_any = false;
+    for (index, line) in section.lines().enumerate() {
+        let trimmed = line.trim();
+        let (checked, rest) = if let Some(rest) = trimmed.strip_prefix("- [ ] ") {
+            (false, rest)
+        } else if let Some(rest) = trimmed
+            .strip_prefix("- [x] ")
+            .or_else(|| trimmed.strip_prefix("- [X] "))
+        {
+            (true, rest)
+        } else if let Some(rest) = trimmed.strip_prefix("- ") {
+            (false, rest)
+        } else {
+            continue;
+        };
+        parsed_any = true;
+        let parts = rest.split('|').map(str::trim).collect::<Vec<_>>();
+        let structured = parts.len() >= 2
+            && parts[0]
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'));
+        if structured {
+            let mut fields = BTreeMap::new();
+            let mut text = String::new();
+            for part in parts.iter().skip(1) {
+                if let Some((key, value)) = part.split_once('=') {
+                    fields.insert(key.trim(), value.trim());
+                } else if !part.is_empty() {
+                    text = (*part).to_string();
+                }
+            }
+            requirements.push(VerificationRequirement {
+                id: parts[0].to_string(),
+                text: if text.is_empty() {
+                    rest.to_string()
+                } else {
+                    text
+                },
+                checked,
+                kind: fields.get("kind").copied().unwrap_or("manual").to_string(),
+                owner: fields.get("owner").copied().unwrap_or("agent").to_string(),
+                phase: fields
+                    .get("phase")
+                    .copied()
+                    .unwrap_or("before-submit")
+                    .to_string(),
+                evidence: fields
+                    .get("evidence")
+                    .copied()
+                    .unwrap_or("transcript")
+                    .to_string(),
+                source: "spec:Required verification".into(),
+            });
+        } else {
+            requirements.push(VerificationRequirement {
+                id: format!("legacy-{:03}", index + 1),
+                text: rest.to_string(),
+                checked,
+                kind: "unstructured".into(),
+                owner: "unspecified".into(),
+                phase: "unspecified".into(),
+                evidence: "unspecified".into(),
+                source: "spec:Required verification".into(),
+            });
+        }
+    }
+    if !parsed_any && !section.trim().is_empty() {
+        requirements.push(VerificationRequirement {
+            id: "legacy-unstructured".into(),
+            text: section.trim().to_string(),
+            checked: false,
+            kind: "unstructured".into(),
+            owner: "unspecified".into(),
+            phase: "unspecified".into(),
+            evidence: "unspecified".into(),
+            source: "spec:Required verification".into(),
+        });
+    }
+    let mut ids = BTreeSet::new();
+    for requirement in &requirements {
+        if !ids.insert(requirement.id.clone()) {
+            warnings.push(format!(
+                "Duplicate verification requirement id {}",
+                requirement.id
+            ));
+        }
+        if requirement.owner == "unspecified" || requirement.phase == "unspecified" {
+            warnings.push(format!(
+                "Verification requirement {} is unstructured or ownerless",
+                requirement.id
+            ));
+        }
+    }
+    (requirements, source, warnings)
+}
+
+fn verification_reference_warnings(root: &Path, references: &[String]) -> Vec<String> {
+    if references.is_empty() {
+        return Vec::new();
+    }
+    let mut warnings = Vec::new();
+    let mut seen = BTreeSet::new();
+    for reference in references {
+        if !seen.insert(reference) {
+            warnings.push(format!(
+                "Duplicate verification_gates reference {reference}"
+            ));
+        }
+    }
+    match load_verification_manifest(root) {
+        Ok(manifest) => {
+            let known = manifest
+                .gates
+                .into_iter()
+                .map(|gate| gate.id)
+                .collect::<BTreeSet<_>>();
+            for reference in seen {
+                if !known.contains(reference) {
+                    warnings.push(format!("verification_gates reference {reference} is absent from .lmbrain/verification.toml"));
+                }
+            }
+        }
+        Err(error) => warnings.push(format!("verification_gates cannot resolve: {error}")),
+    }
+    warnings
+}
+
+fn bounded_guidance(body: &str) -> String {
+    const LIMIT: usize = 8 * 1024;
+    if body.len() <= LIMIT {
+        body.trim().to_string()
+    } else {
+        let end = (0..=LIMIT)
+            .rev()
+            .find(|index| body.is_char_boundary(*index))
+            .unwrap_or(0);
+        format!(
+            "{}\n...[profile guidance truncated; read full artifact]",
+            &body[..end]
+        )
+    }
+}
+
+fn extract_fenced_commands(body: &str) -> Vec<String> {
+    let source = extract_section(body, "Procedure").unwrap_or_else(|| body.to_string());
+    let mut commands = Vec::new();
+    let mut fenced = false;
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("```") {
+            fenced = !fenced;
+        } else if fenced && !trimmed.is_empty() && !trimmed.starts_with('#') {
+            commands.push(trimmed.strip_prefix("$ ").unwrap_or(trimmed).to_string());
+        }
+    }
+    commands
 }
 
 fn extract_section(body: &str, heading: &str) -> Option<String> {
@@ -1094,6 +1351,7 @@ fn format_spec_context_md(
     recommended_agent: &Option<String>,
     agent_profile: &Option<AgentProfileSummary>,
     criteria: &[Criterion],
+    required_verification: &[VerificationRequirement],
     linked_decisions: &[CompactAdr],
     related_reviews: &[CompactReview],
     applicable_skills: &[SkillSummary],
@@ -1136,6 +1394,22 @@ fn format_spec_context_md(
         for c in criteria {
             let marker = if c.checked { "[x]" } else { "[ ]" };
             md.push_str(&format!("- {marker} {}\n", c.text));
+        }
+        md.push('\n');
+    }
+
+    if !required_verification.is_empty() {
+        md.push_str("## Required verification\n\n");
+        for requirement in required_verification {
+            let marker = if requirement.checked { "[x]" } else { "[ ]" };
+            md.push_str(&format!(
+                "- {marker} **{}** [{} / {} / {}]: {}\n",
+                requirement.id,
+                requirement.kind,
+                requirement.owner,
+                requirement.phase,
+                requirement.text
+            ));
         }
         md.push('\n');
     }
@@ -1222,6 +1496,7 @@ fn format_review_context_md(
     linked_reviews: &[CompactReview],
     relevant_decisions: &[CompactAdr],
     verification_commands: &[String],
+    required_verification: &[VerificationRequirement],
     applicable_skills: &[SkillSummary],
     warnings: &[String],
 ) -> String {
@@ -1269,6 +1544,21 @@ fn format_review_context_md(
         md.push_str("## Verification commands\n\n");
         for cmd in verification_commands {
             md.push_str(&format!("- `{cmd}`\n"));
+        }
+        md.push('\n');
+    }
+
+    if !required_verification.is_empty() {
+        md.push_str("## Verification requirements\n\n");
+        for requirement in required_verification {
+            md.push_str(&format!(
+                "- **{}** [{} / {} / {}]: {}\n",
+                requirement.id,
+                requirement.kind,
+                requirement.owner,
+                requirement.phase,
+                requirement.text
+            ));
         }
         md.push('\n');
     }
@@ -1321,6 +1611,7 @@ mod tests {
         fs::create_dir_all(lmbrain.join("handoffs/active")).unwrap();
         fs::create_dir_all(lmbrain.join("agents/profiles")).unwrap();
         fs::create_dir_all(lmbrain.join("knowledge")).unwrap();
+        fs::create_dir_all(lmbrain.join("skills/active")).unwrap();
 
         // STATUS.md
         fs::write(
@@ -1343,6 +1634,7 @@ priority: critical
 area: workflow
 milestone: M-03
 recommended_agent: AGENT-FULLSTACK-DESKTOP
+skills: [SKILL-VERIFY]
 related_decisions: [ADR-004]
 links: [ADR-004]
 created: 2026-07-02
@@ -1436,6 +1728,30 @@ tags: [rust, typescript, tauri]
 links: []
 ---
 # Fullstack Desktop Specialist
+
+## Operating guidance
+
+Never claim a gate that was not executed.
+"#,
+        )
+        .unwrap();
+
+        fs::write(
+            lmbrain.join("skills/active/SKILL-VERIFY.md"),
+            r#"---
+id: SKILL-VERIFY
+title: "Verification runbook"
+status: active
+kind: verification
+commands: []
+---
+# Verification runbook
+
+## Procedure
+
+```bash
+cargo test --workspace
+```
 "#,
         )
         .unwrap();
@@ -1508,10 +1824,21 @@ links: []
             Some("Sam Stacktrace")
         );
         assert_eq!(ctx.acceptance_criteria.len(), 2);
+        assert_eq!(ctx.required_verification.len(), 2);
         assert!(!ctx.acceptance_criteria[0].checked);
         assert!(ctx.explicit_files.iter().any(|f| f.contains("main.rs")));
         assert!(ctx.markdown.contains("Spec Context"));
         assert!(ctx.markdown.contains("Sam Stacktrace"));
+        assert!(ctx
+            .agent_profile
+            .as_ref()
+            .unwrap()
+            .operational_guidance
+            .contains("Never claim"));
+        assert!(ctx.applicable_skills[0]
+            .commands
+            .iter()
+            .any(|command| command.contains("cargo test --workspace")));
     }
 
     #[test]
@@ -1564,6 +1891,59 @@ links: []
             .iter()
             .any(|c| c.contains("cargo test")));
         assert!(ctx.markdown.contains("Review Context"));
+    }
+
+    #[test]
+    fn structured_verification_is_typed_and_does_not_inflate_acceptance_criteria() {
+        let dir = tempfile::tempdir().unwrap();
+        create_test_brain(dir.path());
+        let path = dir
+            .path()
+            .join(".lmbrain/specs/ready/SPEC-023-v3-context-economy.md");
+        let mut source = fs::read_to_string(&path).unwrap();
+        source = source.replace(
+            "- cargo test\n- pnpm lint",
+            "- [ ] rust-tests | kind=executable | owner=agent | phase=before-submit | evidence=transcript | Run Rust tests\n- [ ] windows-smoke | kind=operator | owner=operator | phase=before-done | evidence=observation | Smoke packaged Windows app",
+        );
+        source.push_str("\n## Implementation evidence\n\n### Handoff status\n- [ ] Ready for Project Lead review\n");
+        fs::write(&path, source).unwrap();
+        let context = build_spec_context(dir.path(), "SPEC-023").unwrap();
+        assert_eq!(context.acceptance_criteria.len(), 2);
+        assert_eq!(context.required_verification.len(), 2);
+        assert_eq!(context.required_verification[0].id, "rust-tests");
+        assert_eq!(context.required_verification[1].owner, "operator");
+        assert_eq!(context.required_verification[1].phase, "before-done");
+    }
+
+    #[test]
+    fn astranexus_derived_verification_shapes_never_disappear_from_handoff_context() {
+        let dir = tempfile::tempdir().unwrap();
+        create_test_brain(dir.path());
+        let shapes = [
+            "- cargo test --workspace",
+            "Run the Rust workspace tests and preserve the complete output.",
+            "- [ ] unit | kind=executable | owner=agent | phase=before-submit | evidence=transcript | Run unit tests",
+            "- [ ] smoke | kind=operator | owner=operator | phase=before-done | evidence=observation | Run packaged smoke",
+            "- pnpm lint\n- pnpm test",
+            "Database integration must be green before submission.",
+            "- [x] audit | kind=manual | owner=agent | phase=before-submit | evidence=artifact | Inspect the audit log",
+        ];
+        for (index, required) in shapes.iter().enumerate() {
+            let id = format!("SPEC-ASTRA-{index}");
+            fs::write(
+                dir.path().join(format!(".lmbrain/specs/ready/{id}.md")),
+                format!(
+                    "---\nid: {id}\ntitle: Astra-derived shape\nstatus: ready\n---\n\n## Acceptance criteria\n- [ ] Feature works\n\n## Required verification\n\n{required}\n\n## Implementation evidence\n\n### Handoff status\n- [ ] Ready for Project Lead review\n"
+                ),
+            ).unwrap();
+            let context = build_spec_context(dir.path(), &id).unwrap();
+            assert_eq!(context.acceptance_criteria.len(), 1, "shape {index}");
+            assert!(!context.required_verification.is_empty(), "shape {index}");
+            if required.contains("before-done") {
+                assert_eq!(context.required_verification[0].phase, "before-done");
+                assert_eq!(context.required_verification[0].owner, "operator");
+            }
+        }
     }
 
     #[test]

@@ -10,6 +10,7 @@ milestone:
 # References use IDs only (e.g. [TASK-001]); use [[wikilinks]] in prose
 recommended_agent: AGENT-XXX
 skills: []
+verification_gates: []
 related_tasks: []
 related_decisions: []
 links: []
@@ -43,6 +44,9 @@ tags: []
 
 ## Required verification
 
+<!-- Canonical form: ID | kind=executable|manual|operator | owner=agent|kit|operator | phase=before-submit|before-done | evidence=transcript|observation|artifact | requirement -->
+- [ ] GATE-ID | kind=manual | owner=agent | phase=before-submit | evidence=transcript | Describe the exact check
+
 ## Production quality and documentation
 - Follow [[QUALITY]]; this is production work, not a prototype.
 - Identify and update all relevant technical LMBrain knowledge pages delegated by this spec.
@@ -69,6 +73,14 @@ tags: []
 ### Files changed
 
 ### Verification performed
+
+### Verification transcript
+
+<!-- Required before spec_submit. Paste actual command/result output in a fenced block, or use approved `spec_verify` gates. Predictions and summaries are not execution evidence. -->
+
+```text
+
+```
 
 ### Deviations from the specification
 

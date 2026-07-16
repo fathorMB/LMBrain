@@ -4,13 +4,15 @@ use std::{
 };
 
 use lmbrain_core::context::{build_project_digest, build_review_context, build_spec_context};
-use lmbrain_core::{
-    canonical_manifest_digest, load_harness_manifest, parse_harness_manifest,
-    set_harness_manifest, HarnessManifestError,
-};
 use lmbrain_core::transitions::{
     create, set_agent_mnemonic_name, set_recommended_agent, transition, ArtifactKind,
     CreateRequest, MutationOptions,
+};
+use lmbrain_core::{
+    apply_improvement_proposal, approve_verification_manifest, build_agent_improvement_signals,
+    canonical_manifest_digest, canonical_verification_manifest_digest, create_improvement_proposal,
+    execute_spec_verification, load_harness_manifest, load_verification_manifest,
+    parse_harness_manifest, set_harness_manifest, HarnessManifestError, ImprovementProposalRequest,
 };
 use serde_json::{json, Value};
 
@@ -127,6 +129,14 @@ fn tools() -> Vec<Value> {
             "Deactivate an agent profile (on operator request).",
         ),
         (
+            "agent_proposal_approve",
+            "Approve an agent improvement proposal (on operator request).",
+        ),
+        (
+            "agent_proposal_reject",
+            "Reject an agent improvement proposal (on operator request).",
+        ),
+        (
             "skill_activate",
             "Activate a proposed project-scoped skill (on operator request).",
         ),
@@ -172,9 +182,80 @@ fn tools() -> Vec<Value> {
         harness_get_tool(),
         harness_candidate_tool("harness_config_validate", "Validate a complete candidate project harness manifest without writing it."),
         harness_candidate_tool("harness_config_set", "Atomically replace the complete project harness manifest after strict validation and append digest-only audit evidence. This does not approve or materialize native configuration."),
+        verification_manifest_tool(),
+        verification_approval_tool(),
+        spec_verify_tool(),
+        improvement_signals_tool(),
+        improvement_propose_tool(),
+        improvement_apply_tool(),
     ]);
 
     entries
+}
+
+fn verification_manifest_tool() -> Value {
+    json!({
+        "name": "verification_manifest_get",
+        "description": "Read and validate the versioned verification manifest and return its canonical digest. Does not execute gates.",
+        "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
+    })
+}
+
+fn verification_approval_tool() -> Value {
+    json!({
+        "name": "verification_manifest_approve",
+        "description": "Operator-only: approve the current verification manifest digest for this canonical workspace in machine-local state.",
+        "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
+    })
+}
+
+fn spec_verify_tool() -> Value {
+    json!({
+        "name": "spec_verify",
+        "description": "Execute only approved named verification gates referenced by a spec and atomically write an honest kit-generated transcript.",
+        "inputSchema": {
+            "type":"object",
+            "required":["path"],
+            "properties":{"path":{"type":"string","description":"Spec artifact path relative to repository root."}},
+            "additionalProperties":false
+        }
+    })
+}
+
+fn improvement_signals_tool() -> Value {
+    json!({
+        "name":"agent_improvement_signals",
+        "description":"Derive evidence-backed repeated finding signals and per-profile effectiveness metrics without mutating artifacts.",
+        "inputSchema":{"type":"object","properties":{},"additionalProperties":false}
+    })
+}
+
+fn improvement_propose_tool() -> Value {
+    json!({
+        "name":"agent_improvement_propose",
+        "description":"Project Lead only: materialize an explicit evidence-backed improvement proposal; never applies it.",
+        "inputSchema":{
+            "type":"object","required":["target_profile","category","evidence_reviews","evidence_specs"],
+            "properties":{
+                "target_profile":{"type":"string"},"category":{"type":"string"},
+                "evidence_reviews":{"type":"array","items":{"type":"string"}},
+                "evidence_specs":{"type":"array","items":{"type":"string"}},
+                "add_review_focus":{"type":"array","items":{"type":"string"}},
+                "add_skills":{"type":"array","items":{"type":"string"}},
+                "add_constraints":{"type":"array","items":{"type":"string"}},
+                "add_primary_files":{"type":"array","items":{"type":"string"}},
+                "guidance":{"type":"string"}
+            },"additionalProperties":false
+        }
+    })
+}
+
+fn improvement_apply_tool() -> Value {
+    json!({
+        "name":"agent_improvement_apply",
+        "description":"Operator-only: atomically apply an approved, non-stale constrained improvement proposal to its target profile.",
+        "inputSchema":{"type":"object","required":["path"],"properties":{"path":{"type":"string"}},"additionalProperties":false}
+    })
 }
 
 fn harness_get_tool() -> Value {
@@ -463,8 +544,72 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
                 .map(|result| text(json!(result)))
                 .map_err(|error| error.to_string())
         }
+        "verification_manifest_get" => {
+            let manifest = load_verification_manifest(root).map_err(|error| error.to_string())?;
+            let digest = canonical_verification_manifest_digest(&manifest)
+                .map_err(|error| error.to_string())?;
+            Ok(text(json!({"manifest": manifest, "digest": digest})))
+        }
+        "verification_manifest_approve" => {
+            let approval = approve_verification_manifest(root, &verification_approval_path(root))
+                .map_err(|error| error.to_string())?;
+            Ok(text(json!(approval)))
+        }
+        "spec_verify" => {
+            let relative = args
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?;
+            let report = execute_spec_verification(
+                root,
+                &root.join(relative),
+                &verification_approval_path(root),
+            )
+            .map_err(|error| error.to_string())?;
+            Ok(text(json!(report)))
+        }
+        "agent_improvement_signals" => {
+            let (signals, metrics) =
+                build_agent_improvement_signals(root).map_err(|error| error.to_string())?;
+            Ok(text(json!({"signals": signals, "metrics": metrics})))
+        }
+        "agent_improvement_propose" => {
+            let request: ImprovementProposalRequest =
+                serde_json::from_value(args.clone()).map_err(|error| error.to_string())?;
+            let path =
+                create_improvement_proposal(root, &request).map_err(|error| error.to_string())?;
+            Ok(text(json!({"path": path})))
+        }
+        "agent_improvement_apply" => {
+            let path = args
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?;
+            let result = apply_improvement_proposal(root, &root.join(path))
+                .map_err(|error| error.to_string())?;
+            Ok(text(json!(result)))
+        }
         _ => Err("unknown tool".into()),
     }
+}
+
+fn verification_approval_path(root: &std::path::Path) -> PathBuf {
+    if let Some(path) = std::env::var_os("LMBRAIN_VERIFICATION_APPROVAL_STORE") {
+        return PathBuf::from(path);
+    }
+    let base = std::env::var_os(if cfg!(windows) {
+        "LOCALAPPDATA"
+    } else {
+        "XDG_DATA_HOME"
+    })
+    .map(PathBuf::from)
+    .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")))
+    .unwrap_or_else(std::env::temp_dir);
+    let identity = lmbrain_core::workspace_identity(root)
+        .map(|identity| identity.fingerprint)
+        .unwrap_or_else(|_| "unknown-workspace".into());
+    base.join("lmbrain/verification-approvals")
+        .join(format!("{identity}.json"))
 }
 
 fn candidate_manifest(args: &Value) -> Result<lmbrain_core::HarnessManifest, String> {
@@ -484,6 +629,8 @@ fn specific_status(name: &str) -> Option<&'static str> {
         "adr_reject" => Some("rejected"),
         "agent_activate" => Some("active"),
         "agent_deactivate" => Some("inactive"),
+        "agent_proposal_approve" => Some("approved"),
+        "agent_proposal_reject" => Some("rejected"),
         "skill_activate" => Some("active"),
         "skill_retire" => Some("retired"),
         _ => None,
@@ -591,6 +738,36 @@ mod tests {
         assert!(names.contains(&"harness_config_get".to_string()));
         assert!(names.contains(&"harness_config_validate".to_string()));
         assert!(names.contains(&"harness_config_set".to_string()));
+        assert!(names.contains(&"verification_manifest_get".to_string()));
+        assert!(names.contains(&"verification_manifest_approve".to_string()));
+        assert!(names.contains(&"spec_verify".to_string()));
+        assert!(names.contains(&"agent_improvement_signals".to_string()));
+        assert!(names.contains(&"agent_improvement_propose".to_string()));
+        assert!(names.contains(&"agent_improvement_apply".to_string()));
+        assert!(names.contains(&"agent_proposal_approve".to_string()));
+        assert!(names.contains(&"agent_proposal_reject".to_string()));
+    }
+
+    #[test]
+    fn governed_execution_tools_do_not_accept_ad_hoc_commands() {
+        let tools = super::tools();
+        let verify = tools
+            .iter()
+            .find(|tool| tool.get("name").and_then(Value::as_str) == Some("spec_verify"))
+            .expect("spec_verify tool not found");
+        assert!(verify.pointer("/inputSchema/properties/path").is_some());
+        assert!(verify.pointer("/inputSchema/properties/command").is_none());
+
+        let apply = tools
+            .iter()
+            .find(|tool| {
+                tool.get("name").and_then(Value::as_str) == Some("agent_improvement_apply")
+            })
+            .expect("agent_improvement_apply tool not found");
+        assert!(apply.pointer("/inputSchema/properties/path").is_some());
+        assert!(apply
+            .pointer("/inputSchema/properties/raw_markdown")
+            .is_none());
     }
 
     #[test]
@@ -598,8 +775,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir(dir.path().join(".lmbrain")).unwrap();
         let args = serde_json::json!({"manifest":{"schema_version":1,"hosts":{}}});
-        let response = super::call(&dir.path().to_path_buf(), &serde_json::json!({"name":"harness_config_set","arguments":args})).unwrap();
-        assert!(response.to_string().contains("manifest_digest") || response.to_string().contains("digest"));
+        let response = super::call(
+            &dir.path().to_path_buf(),
+            &serde_json::json!({"name":"harness_config_set","arguments":args}),
+        )
+        .unwrap();
+        assert!(
+            response.to_string().contains("manifest_digest")
+                || response.to_string().contains("digest")
+        );
         assert!(dir.path().join(".lmbrain/HARNESSES.json").exists());
         assert!(!dir.path().join("opencode.json").exists());
         assert!(!dir.path().join(".mcp.json").exists());

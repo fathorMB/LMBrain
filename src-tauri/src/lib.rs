@@ -280,6 +280,17 @@ fn get_agent_proposals(
 }
 
 #[tauri::command]
+fn get_agent_improvement_insights(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    let (signals, metrics) =
+        lmbrain_core::build_agent_improvement_signals(&root).map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({ "signals": signals, "metrics": metrics }))
+}
+
+#[tauri::command]
 fn get_mcp_records(state: State<'_, AppState>) -> Result<Vec<models::mcp::McpRecord>, String> {
     let root = state
         .path_guard
@@ -709,6 +720,7 @@ pub fn run() {
             get_adrs,
             get_agents,
             get_agent_proposals,
+            get_agent_improvement_insights,
             get_mcp_records,
             get_mcp_proposals,
             get_skills,

@@ -55,6 +55,8 @@ At minimum, assess whether the change affects:
 
 Evidence must state what was actually verified, including commands or manual checks where useful. Do not claim tests passed, requirements were met, or documentation was updated without evidence.
 
+Before `spec_submit`, every agent-owned `before-submit` requirement must have attributable evidence in `### Verification transcript`. A command prediction, paraphrased outcome, or list of intended checks is not execution evidence. Prefer named operator-approved `spec_verify` gates when configured. A generated transcript proves only what the declared process returned for the recorded workspace fingerprint; reviewers still assess gate sufficiency and rerun independently.
+
 ## Exceptions
 
 An exception to this policy must be explicitly requested or approved by the human operator and recorded in the relevant spec or ADR with its scope, rationale, risk, and follow-up plan.

@@ -134,6 +134,33 @@ vi.mock("../lib/commands", () => ({
     approvedOrphanProposal,
     improvementProposal,
   ]),
+  getAgentImprovementInsights: vi.fn(async () => ({
+    signals: [{
+      target_profile: "AGENT-FRONTEND-UI",
+      category: "verification-transcript",
+      distinct_specs: ["SPEC-001", "SPEC-002"],
+      reviews: ["REVIEW-001", "REVIEW-002"],
+      threshold_met: true,
+      rationale: "repeated category",
+    }],
+    metrics: [{
+      profile: "AGENT-FRONTEND-UI",
+      reviewed_specs: 2,
+      accepted_specs: 0,
+      specs_with_changes_requested: 2,
+      transcript_fast_fail_reviews: 2,
+      review_cycles: 2,
+      lead_escalation_reviews: 0,
+      categorized_findings: 2,
+      uncategorized_reviews: 0,
+      first_pass_accepted_specs: 0,
+      first_pass_acceptance_rate: 0,
+      average_review_cycles: 1,
+      transcript_fast_fail_rate: 1,
+      lead_escalation_rate: 0,
+      data_quality_caveat: "Small sample.",
+    }],
+  })),
   getMcpRecords: vi.fn(async () => []),
   getMcpProposals: vi.fn(async () => []),
 }));
@@ -198,5 +225,12 @@ describe("AgentsMCPView", () => {
     // Should show "Improvement proposal" label
     const labelMatches = screen.getAllByText(/Improvement proposal/);
     expect(labelMatches.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders governed improvement metrics and threshold signals", async () => {
+    render(<AgentsMCPView />);
+    await waitFor(() => expect(screen.getByText("Governed improvement signals")).toBeDefined());
+    expect(screen.getByText(/2 specs · 2 cycles/)).toBeDefined();
+    expect(screen.getByText(/verification-transcript/)).toBeDefined();
   });
 });

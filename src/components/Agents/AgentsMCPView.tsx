@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { getAgentProposals, getAgents, getMcpRecords, getMcpProposals } from "../../lib/commands";
-import type { AgentProfile, AgentProposal, McpRecord, McpProposal } from "../../types";
+import { getAgentImprovementInsights, getAgentProposals, getAgents, getMcpRecords, getMcpProposals } from "../../lib/commands";
+import type { AgentImprovementInsights, AgentProfile, AgentProposal, McpRecord, McpProposal } from "../../types";
 
 // Built-in controlled-mutation tools exposed by the repository-scoped `lmbrain-mcp`
 // server. Keep in sync with `lmbrain-mcp/src/main.rs` (tools()).
@@ -16,6 +16,11 @@ const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }
   { name: "adr_reject", category: "ADR", description: "Reject a proposed ADR (on operator request)." },
   { name: "agent_activate", category: "Agent", description: "Activate a proposed agent profile (on operator request)." },
   { name: "agent_deactivate", category: "Agent", description: "Deactivate an agent profile (on operator request)." },
+  { name: "agent_proposal_approve", category: "Agent", description: "Approve a governed agent proposal on explicit operator request." },
+  { name: "agent_proposal_reject", category: "Agent", description: "Reject a governed agent proposal on explicit operator request." },
+  { name: "agent_improvement_signals", category: "Learning", description: "Aggregate repeated review categories and per-profile effectiveness metrics. Read-only." },
+  { name: "agent_improvement_propose", category: "Learning", description: "Create an evidence-linked additive profile improvement proposal." },
+  { name: "agent_improvement_apply", category: "Learning", description: "Apply an approved, non-stale improvement proposal atomically." },
   { name: "skill_activate", category: "Skill", description: "Activate a proposed project-scoped skill (on operator request)." },
   { name: "skill_retire", category: "Skill", description: "Retire a project-scoped skill that should no longer be recommended." },
   { name: "lmbrain_create", category: "Create", description: "Create an artifact with an allocated ID." },
@@ -28,10 +33,14 @@ const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }
   { name: "lmbrain_project_digest", category: "Context", description: "Compact project overview: title/status, milestone, ready/review specs, blockers, handoffs, active decisions, diagnostics. Read-only." },
   { name: "lmbrain_spec_context", category: "Context", description: "Spec handoff context: metadata, acceptance criteria, linked decisions, agent profile, files, diagnostics. Read-only." },
   { name: "lmbrain_review_context", category: "Context", description: "Review context: acceptance criteria, implementation evidence, linked reviews, decisions, verification commands. Read-only." },
+  { name: "verification_manifest_get", category: "Verification", description: "Inspect and validate the repository verification manifest. Read-only." },
+  { name: "verification_manifest_approve", category: "Verification", description: "Approve the exact manifest digest for this workspace." },
+  { name: "spec_verify", category: "Verification", description: "Execute approved named gates and write an attributable bounded transcript." },
 ];
 
 export function AgentsMCPView() {
   const { state, dispatch } = useWorkspace();
+  const [insights, setInsights] = useState<AgentImprovementInsights>({ signals: [], metrics: [] });
   const visibleAgentProposals = state.agentProposals.filter(
     (proposal) =>
       proposal.status === "proposed" ||
@@ -45,12 +54,14 @@ export function AgentsMCPView() {
       getAgentProposals(),
       getMcpRecords(),
       getMcpProposals(),
+      getAgentImprovementInsights(),
     ])
-      .then(([agents, agentProposals, records, proposals]) => {
+      .then(([agents, agentProposals, records, proposals, improvementInsights]) => {
         dispatch({ type: "SET_AGENTS", agents });
         dispatch({ type: "SET_AGENT_PROPOSALS", proposals: agentProposals });
         dispatch({ type: "SET_MCP_RECORDS", records });
         dispatch({ type: "SET_MCP_PROPOSALS", proposals });
+        setInsights(improvementInsights);
       })
       .catch(console.error);
   }, [dispatch]);
@@ -115,6 +126,30 @@ export function AgentsMCPView() {
             <AgentCard key={agent.id} agent={agent} />
           ))}
         </div>
+
+        {(insights.metrics.length > 0 || insights.signals.length > 0) && (
+          <>
+            <div style={{ fontSize: 11, letterSpacing: ".09em", textTransform: "uppercase", color: "#6c6671", fontWeight: 600, marginBottom: 11 }}>
+              Governed improvement signals
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 32 }}>
+              {insights.metrics.map((metric) => (
+                <div key={metric.profile} style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 11, padding: "12px 15px" }}>
+                  <div style={{ fontFamily: "var(--font-mono)", color: "#bcaef6", fontSize: 12, marginBottom: 5 }}>{metric.profile}</div>
+                  <div style={{ color: "var(--text-tertiary)", fontSize: 12 }}>
+                    {metric.reviewed_specs} specs · {metric.review_cycles} cycles · {metric.specs_with_changes_requested} changed · {metric.transcript_fast_fail_reviews} transcript fast-fails
+                  </div>
+                </div>
+              ))}
+              {insights.signals.filter((signal) => signal.threshold_met).map((signal) => (
+                <div key={`${signal.target_profile}:${signal.category}`} style={{ background: "rgba(224,162,58,.07)", border: "1px solid rgba(224,162,58,.25)", borderRadius: 11, padding: "12px 15px" }}>
+                  <div style={{ color: "#e0a23a", fontSize: 12.5, fontWeight: 650 }}>{signal.category} → {signal.target_profile}</div>
+                  <div style={{ color: "var(--text-tertiary)", fontSize: 12, marginTop: 4 }}>{signal.distinct_specs.length} distinct specs · proposal remains operator-governed</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Agent Proposals */}
         {visibleAgentProposals.length > 0 && (

@@ -90,6 +90,8 @@ export interface Review {
   status: ReviewStatus;
   spec_id: string | null;
   reviewer: string | null;
+  implementation_agent: string | null;
+  finding_categories: string[];
   findings: ReviewFinding[];
   body: string;
   path: string;
@@ -162,6 +164,38 @@ export interface AgentProposal {
   tags: string[];
   links: string[];
   malformed?: boolean;
+}
+
+export interface AgentImprovementSignal {
+  target_profile: string;
+  category: string;
+  distinct_specs: string[];
+  reviews: string[];
+  threshold_met: boolean;
+  rationale: string;
+}
+
+export interface AgentEffectivenessMetrics {
+  profile: string;
+  reviewed_specs: number;
+  accepted_specs: number;
+  specs_with_changes_requested: number;
+  transcript_fast_fail_reviews: number;
+  review_cycles: number;
+  lead_escalation_reviews: number;
+  categorized_findings: number;
+  uncategorized_reviews: number;
+  first_pass_accepted_specs: number;
+  first_pass_acceptance_rate: number;
+  average_review_cycles: number;
+  transcript_fast_fail_rate: number;
+  lead_escalation_rate: number;
+  data_quality_caveat: string;
+}
+
+export interface AgentImprovementInsights {
+  signals: AgentImprovementSignal[];
+  metrics: AgentEffectivenessMetrics[];
 }
 
 export type McpStatus = "specified" | "active" | "inactive" | "deprecated";

@@ -91,8 +91,8 @@ Agents should follow this tiered context-loading strategy to reduce token waste:
 
 **Relevant (use context-pack MCP tools for initial orientation):**
 - `lmbrain_project_digest` — project pulse, active work, roadmap, diagnostics
-- `lmbrain_spec_context` — spec handoff context (criteria, linked decisions, agent profile, files)
-- `lmbrain_review_context` — review context (criteria, evidence, linked reviews, decisions)
+- `lmbrain_spec_context` — spec handoff context (criteria, complete verification contract, full-profile digest/guidance, skills, files)
+- `lmbrain_review_context` — review context (criteria, complete verification contract, evidence, linked reviews, decisions)
 
 **Optional (expand only when the context pack points to them or verification requires it):**
 - Full artifact reads via `lmbrain_get_artifact`
@@ -108,7 +108,7 @@ When a context pack includes a warning (e.g. missing reference, unresolved agent
 **Approval authority.** Accepting or rejecting an **ADR**, approving a **spec**, accepting a **review**, and activating/deactivating an **agent profile** are operator-governed actions. The Project Lead may execute those transitions only on the operator's explicit request, using the controlled LMBrain MCP tool for the artifact type, and never self-approves its own proposals.
 
 - Recommend existing profiles before proposing a new one.
-- Create agent proposals only for recurring, bounded specialist work.
+- Create agent proposals only for recurring, bounded specialist work. Repeated review categories may be inspected with `agent_improvement_signals`, but scanning never creates or applies a proposal. Use `agent_improvement_propose` explicitly, then require operator approval before `agent_improvement_apply`; stale target digests fail closed.
 - When proposing or creating an agent profile, assign a `mnemonic_name`: a short human name that is memorable, lightly ironic, and aligned with the agent's role. Keep `title` as the formal role name; use `mnemonic_name` as the conversational label.
 - Identify MCP capability gaps, document proposals and specs, and state permissions and risks.
 - Never install, configure, enable, or use a new external MCP without explicit user approval.

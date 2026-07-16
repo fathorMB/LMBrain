@@ -10,6 +10,14 @@ reason: recurring-specialized-work
 proposal_type: new-profile
 # V3: target profile ID for improvement proposals (required when proposal_type is "improvement")
 target_profile:
+# Improvement proposals store the target content digest and an additive bounded patch.
+target_digest:
+finding_category:
+add_review_focus: []
+add_skills: []
+add_constraints: []
+add_primary_files: []
+applied: false
 # References use IDs only (e.g. [SPEC-001]); use [[wikilinks]] in prose
 recommended_for: []
 links: []

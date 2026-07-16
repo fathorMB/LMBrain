@@ -100,6 +100,11 @@ pub fn build_reviews(root: &Path) -> Result<Vec<Review>, AppError> {
                 status: status.clone(),
                 spec_id: fm_string(&parsed.frontmatter, "spec"),
                 reviewer: fm_string(&parsed.frontmatter, "reviewer"),
+                implementation_agent: fm_string(&parsed.frontmatter, "implementation_agent"),
+                finding_categories: parser::fm_string_array(
+                    &parsed.frontmatter,
+                    "finding_categories",
+                ),
                 findings: Vec::new(),
                 body: common.body,
                 path: common.path,

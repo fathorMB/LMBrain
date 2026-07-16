@@ -513,6 +513,21 @@ fn invariant_failure(
         {
             Some("a done spec requires an accepted review".into())
         }
+        (ArtifactKind::Spec, "review") => {
+            match crate::verification::transcript_state_for_document(root, document) {
+                crate::verification::TranscriptState::Missing => Some(
+                    "spec_submit requires ### Verification transcript inside ## Implementation evidence with the exact command and pasted output in a non-empty fenced block".into(),
+                ),
+                crate::verification::TranscriptState::Empty => Some(
+                    "spec_submit requires a non-empty fenced command/result block in ### Verification transcript".into(),
+                ),
+                crate::verification::TranscriptState::GeneratedStale => Some(
+                    "kit-generated verification evidence is stale for the current workspace; run spec_verify again or use an explicitly reasoned force override".into(),
+                ),
+                crate::verification::TranscriptState::HandAuthored
+                | crate::verification::TranscriptState::GeneratedFresh => None,
+            }
+        }
         (ArtifactKind::Handoff, "ready") if !invariants::single_ready_handoff(root, Some(path)) => {
             Some("only one ready handoff is allowed".into())
         }

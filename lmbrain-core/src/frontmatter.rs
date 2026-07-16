@@ -113,13 +113,25 @@ impl Document {
     pub fn append_activity(&mut self, action: &str) {
         let today = Local::now().format("%Y-%m-%d");
         if self.fields.contains_key("activity") {
-            self.frontmatter.push_str(&format!(
-                "{}  - date: {}{}    action: {}",
-                self.newline,
-                today,
-                self.newline,
-                yaml_scalar(action)
-            ));
+            let lines = self.frontmatter.lines().collect::<Vec<_>>();
+            let start = lines.iter().position(|line| line.trim() == "activity:");
+            if let Some(start) = start {
+                let end = lines
+                    .iter()
+                    .enumerate()
+                    .skip(start + 1)
+                    .find(|(_, line)| !line.trim().is_empty() && indent_width(line) == 0)
+                    .map(|(index, _)| index)
+                    .unwrap_or(lines.len());
+                let mut output = lines[..end]
+                    .iter()
+                    .map(|line| (*line).to_string())
+                    .collect::<Vec<_>>();
+                output.push(format!("  - date: {today}"));
+                output.push(format!("    action: {}", yaml_scalar(action)));
+                output.extend(lines[end..].iter().map(|line| (*line).to_string()));
+                self.frontmatter = output.join(self.newline);
+            }
         } else {
             self.frontmatter.push_str(&format!(
                 "{}activity:{}  - date: {}{}    action: {}",
@@ -636,7 +648,10 @@ mod tests {
     #[test]
     fn parses_block_scalar() {
         let document = parse("---\nnote: |\n  line one\n  line two\n---\n");
-        assert_eq!(document.value("note").as_deref(), Some("line one\nline two"));
+        assert_eq!(
+            document.value("note").as_deref(),
+            Some("line one\nline two")
+        );
     }
 
     #[test]
