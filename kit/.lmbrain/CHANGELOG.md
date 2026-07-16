@@ -4,7 +4,15 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
-## 2.9.0 - Unreleased
+## 2.9.1 - 2026-07-16
+
+### Fixed
+
+- **Verification preserves agent evidence.** `spec_verify` now owns only an explicitly delimited generated region inside `### Verification transcript`; hand-authored commands, output, and surrounding implementation evidence are preserved across first and repeated runs. Existing 2.9.0 generated transcripts migrate in place on the next run without deleting adjacent manual evidence.
+- **Verification no longer restores stale specs.** Gate execution re-reads and merges into the latest spec under a short per-artifact mutation lock. A moved/deleted spec or changed gate contract now fails with an explicit concurrency error instead of recreating an obsolete working copy or overwriting newer edits.
+- **Lifecycle mutations share artifact locks.** Status transitions and controlled field setters serialize their final read/write with verification transcript commits, closing the `spec_verify`/`spec_submit` lost-update race.
+
+## 2.9.0 - 2026-07-16
 
 ### Added
 

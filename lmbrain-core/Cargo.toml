@@ -1,6 +1,6 @@
 [package]
 name = "lmbrain-core"
-version = "1.4.0"
+version = "1.4.1"
 edition.workspace = true
 rust-version.workspace = true
 
@@ -12,6 +12,7 @@ sha2 = "0.10"
 thiserror = "2"
 toml = "0.8"
 regex = "1"
+fs2 = "0.4"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
