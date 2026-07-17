@@ -41,8 +41,6 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
   const [selectMode, setSelectMode] = useState(false);
   const [mouseTracking, setMouseTracking] = useState<MouseTrackingMode>("none");
   const [showHistorySearch, setShowHistorySearch] = useState(false);
-
-
   const showFeedback = useCallback((message: string) => {
     setFeedback(message);
     if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);

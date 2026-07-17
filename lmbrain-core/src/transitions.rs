@@ -85,6 +85,8 @@ impl ArtifactKind {
             Self::Handoff => &["ready"],
         }
     }
+
+
 }
 
 /// Frontmatter keys owned by the lifecycle engine; callers cannot set them
