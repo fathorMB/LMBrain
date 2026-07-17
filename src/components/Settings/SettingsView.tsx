@@ -1,3 +1,4 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useState } from "react";
 import { HarnessesView } from "../Harnesses/HarnessesView";
 import { useWorkspace } from "../../hooks/useWorkspace";
@@ -52,7 +53,18 @@ function GeneralPanel() {
 function AboutPanel() {
   const { state } = useWorkspace();
   const workspace = state.currentWorkspace;
-  return <Panel><h2>About</h2><Info label="Application" value="LMBrain 2.8.0 (development)" /><Info label="Project kit" value={workspace?.project_kit_version ?? workspace?.kit_version ?? "No workspace"} /><Info label="Bundled kit" value={workspace?.bundled_kit_version ?? "Unknown"} /></Panel>;
+  // The product version comes from the build metadata chain (package.json ->
+  // tauri.conf.json -> binary); component versions such as the MCP crate are
+  // deliberately not shown as the application version.
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getVersion()
+      .then((version) => { if (!cancelled) setAppVersion(version); })
+      .catch(() => { if (!cancelled) setAppVersion(null); });
+    return () => { cancelled = true; };
+  }, []);
+  return <Panel><h2>About</h2><Info label="Application" value={appVersion ? `LMBrain ${appVersion}` : "Unknown"} /><Info label="Project kit" value={workspace?.project_kit_version ?? workspace?.kit_version ?? "No workspace"} /><Info label="Bundled kit" value={workspace?.bundled_kit_version ?? "Unknown"} /></Panel>;
 }
 
 function ProjectEnvironmentPanel() {

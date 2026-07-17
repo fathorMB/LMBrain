@@ -4,6 +4,7 @@ import { SettingsView } from "../components/Settings/SettingsView";
 import { getHarnessApprovalStatus, getHarnessDrift, planHarnessConfiguration } from "../lib/commands";
 
 vi.mock("../hooks/useWorkspace", () => ({ useWorkspace: () => ({ state: { sessions: [], currentWorkspace: { project_kit_version: "2.7.3", bundled_kit_version: "2.8.0" } } }) }));
+vi.mock("@tauri-apps/api/app", () => ({ getVersion: vi.fn().mockResolvedValue("9.9.9-test") }));
 vi.mock("../lib/commands", () => ({
   getHarnessApprovalStatus: vi.fn(), getHarnessDrift: vi.fn(), planHarnessConfiguration: vi.fn(),
   approveHarnessManifest: vi.fn(), revokeHarnessManifestApproval: vi.fn(), applyHarnessConfiguration: vi.fn(),
@@ -23,11 +24,14 @@ describe("SettingsView", () => {
     expect(screen.queryByText("Auto-start agents")).toBeNull();
   });
 
-  it("routes tabs through the settings hash and exposes About versions", () => {
+  it("routes tabs through the settings hash and exposes About versions", async () => {
     render(<SettingsView />);
     fireEvent.click(screen.getByRole("tab", { name: "About" }));
     expect(window.location.hash).toBe("#settings/about");
     expect(screen.getByText("2.7.3")).toBeDefined();
+    // The product version follows package/build metadata, never a hardcode.
+    await screen.findByText("LMBrain 9.9.9-test");
+    expect(screen.queryByText(/2\.8\.0 \(development\)/)).toBeNull();
   });
 
   it("shows optional setup guidance for an unconfigured project", async () => {
