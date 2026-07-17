@@ -9,6 +9,8 @@ import type {
   DirEntry,
   FileContent,
   GitInfo,
+  GitDetails,
+  GitHubDashboard,
   Handoff,
   HarnessStatus,
   HarnessApprovalStatus,
@@ -260,3 +262,28 @@ export async function getHarnessDrift(): Promise<HarnessDriftEntry[]> {
 export async function setArtifactStatus(path: string, targetStatus: string): Promise<string> {
   return invoke("set_artifact_status", { path, targetStatus });
 }
+
+export async function getGitDetails(): Promise<GitDetails> {
+  return invoke("get_git_details");
+}
+
+export async function getGitHubPatConfigured(): Promise<boolean> {
+  return invoke("get_github_pat_configured");
+}
+
+export async function saveGitHubPat(token: string): Promise<void> {
+  return invoke("save_github_pat", { token });
+}
+
+export async function deleteGitHubPat(): Promise<void> {
+  return invoke("delete_github_pat");
+}
+
+export async function getGitHubDashboard(owner: string, repo: string): Promise<GitHubDashboard> {
+  return invoke("get_github_dashboard", { owner, repo });
+}
+
+export async function sessionGetTranscript(id: string): Promise<string> {
+  return invoke("session_get_transcript", { id });
+}
+

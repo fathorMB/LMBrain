@@ -18,13 +18,14 @@ const NAV_ITEMS: NavItem[] = [
   { key: "reviews", icon: "rate_review", label: "Reviews", badge: null },
   { key: "decisions", icon: "account_balance", label: "Decisions", badge: null },
   { key: "design", icon: "design_services", label: "Design", badge: null },
-  { key: "agents", icon: "smart_toy", label: "Agents & MCP", badge: null },
+  { key: "agents", icon: "smart_toy", label: "Agents", badge: null },
+  { key: "mcp", icon: "integration_instructions", label: "MCP", badge: null },
+  { key: "repository", icon: "schema", label: "Repository", badge: null },
   { key: "skills", icon: "psychology_alt", label: "Skills", badge: null },
 ];
 
 export function Sidebar() {
-  const { state, navigateTo, goToPicker, toggleCmdk } = useWorkspace();
-  const ws = state.currentWorkspace;
+  const { state, navigateTo, triggerLeaveWorkspace, toggleCmdk } = useWorkspace();
 
   return (
     <div
@@ -38,91 +39,6 @@ export function Sidebar() {
         padding: "11px 11px 9px",
       }}
     >
-      {/* Workspace switcher button */}
-      <button
-        onClick={goToPicker}
-        title="Switch workspace"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "8px 9px",
-          borderRadius: 10,
-          background: "#181520",
-          border: "1px solid #272330",
-          cursor: "pointer",
-          textAlign: "left",
-          width: "100%",
-          color: "var(--text-primary)",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "#1e1a27";
-          e.currentTarget.style.borderColor = "#352f42";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "#181520";
-          e.currentTarget.style.borderColor = "#272330";
-        }}
-      >
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 8,
-            background: "linear-gradient(150deg,#9384f8,#6a4ff0)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flex: "none",
-            boxShadow: "0 3px 10px -3px rgba(106,79,240,.6)",
-          }}
-        >
-          <i
-            className="material-symbols-outlined"
-            style={{ fontSize: 17, color: "#fff" }}
-          >
-            neurology
-          </i>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: "-.01em",
-              color: "var(--text-primary)",
-            }}
-          >
-            {ws?.name || "LMBrain"}
-          </div>
-          <div
-            style={{
-              fontSize: 10.5,
-              color: "var(--text-tertiary)",
-              fontFamily: "var(--font-mono)",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {ws?.path || "No workspace"}
-          </div>
-        </div>
-        <i
-          className="material-symbols-outlined"
-          style={{ fontSize: 18, color: "var(--text-tertiary)" }}
-        >
-          unfold_more
-        </i>
-      </button>
-
-      <div
-        style={{
-          height: 1,
-          background: "var(--border-primary)",
-          margin: "11px 2px",
-        }}
-      />
 
       <div
         style={{
@@ -275,6 +191,41 @@ export function Sidebar() {
           settings
         </i>
         Settings
+      </div>
+
+      {/* Leave Workspace */}
+      <div
+        onClick={triggerLeaveWorkspace}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 9,
+          padding: "8px 10px",
+          borderRadius: 9,
+          cursor: "pointer",
+          color: "#f87171",
+          fontSize: 13,
+          fontWeight: 500,
+          marginTop: 4,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "rgba(248, 113, 113, 0.08)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "transparent";
+        }}
+      >
+        <i
+          className="material-symbols-outlined"
+          style={{
+            fontSize: 19,
+            fontVariationSettings: "'wght' 300",
+            color: "#f87171",
+          }}
+        >
+          logout
+        </i>
+        Leave workspace
       </div>
     </div>
   );

@@ -144,6 +144,18 @@ fn tools() -> Vec<Value> {
             "skill_retire",
             "Retire a project-scoped skill that should no longer be recommended.",
         ),
+        (
+            "handoff_consume",
+            "Consume a ready session handoff (Project Lead only, after validation).",
+        ),
+        (
+            "handoff_supersede",
+            "Supersede a ready session handoff with a newer one.",
+        ),
+        (
+            "handoff_archive",
+            "Archive/retire a session handoff.",
+        ),
     ] {
         entries.push(transition_tool(name, description));
     }
@@ -635,6 +647,9 @@ fn specific_status(name: &str) -> Option<&'static str> {
         "agent_proposal_reject" => Some("rejected"),
         "skill_activate" => Some("active"),
         "skill_retire" => Some("retired"),
+        "handoff_consume" => Some("consumed"),
+        "handoff_supersede" => Some("superseded"),
+        "handoff_archive" => Some("archived"),
         _ => None,
     }
 }

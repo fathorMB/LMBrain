@@ -4,7 +4,18 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `2.9.2`.
+The current released kit is `3.0.0`.
+
+### 3.0.0 (Git & GitHub Dashboard and Session Transcript Search)
+
+Supported source version is `2.9.2`; existing workspaces require no content migration.
+
+1. Update the application, `lmbrain-core`, and `lmbrain-mcp` together.
+2. Setup GitHub Personal Access Token (PAT) in the new Repository dashboard to securely view remote Pull Requests and workflow runs.
+3. Use the new "Search logs" button inside terminal sessions to search log histories, select lines, and copy code blocks.
+4. Update `.lmbrain/VERSION` to `3.0.0` after validation.
+
+Rollback to 2.9.2 is safe: 3.0.0 writes no new artifact shapes.
 
 ### 2.9.2 (security and workflow correctness patch)
 

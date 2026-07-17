@@ -52,13 +52,24 @@ impl ArtifactKind {
             Self::AgentProposal => "agents/proposals",
             Self::Mcp => "mcp/specs",
             Self::McpProposal => "mcp/proposals",
-            Self::Handoff => "handoffs/active",
+            Self::Handoff => "handoffs",
             Self::Skill => "skills",
         }
     }
 
+    fn status_dir(self, status: &str) -> Result<String, TransitionError> {
+        match self {
+            Self::Handoff => match status {
+                "ready" => Ok("active".to_string()),
+                "consumed" | "superseded" | "archived" => Ok("archive".to_string()),
+                _ => Err(TransitionError::Invariant(format!("invalid handoff status: {status}"))),
+            },
+            _ => Ok(status.to_string()),
+        }
+    }
+
     fn moves_for_status(self) -> bool {
-        matches!(self, Self::Spec | Self::Review | Self::Skill)
+        matches!(self, Self::Spec | Self::Review | Self::Skill | Self::Handoff)
     }
 
     /// Statuses an artifact may be created with. Only initial lifecycle states
@@ -74,6 +85,8 @@ impl ArtifactKind {
             Self::Handoff => &["ready"],
         }
     }
+
+
 }
 
 /// Frontmatter keys owned by the lifecycle engine; callers cannot set them
@@ -356,7 +369,7 @@ pub fn create(
 
     let mut dir = guard.root().join(".lmbrain").join(request.kind.base());
     if request.kind.moves_for_status() {
-        dir = dir.join(&status);
+        dir = dir.join(request.kind.status_dir(&status)?);
     }
 
     let _lock = ArtifactMutationLock::acquire(guard.root(), "creation-allocation")?;
@@ -506,7 +519,9 @@ fn destination_for(
         .and_then(Path::parent)
         .ok_or_else(|| TransitionError::Missing("status directory".into()))?;
 
-    Ok(base.join(target).join(
+    let sub_dir = kind.status_dir(target)?;
+
+    Ok(base.join(sub_dir).join(
         path.file_name()
             .ok_or_else(|| TransitionError::Missing("file name".into()))?,
     ))

@@ -63,6 +63,7 @@ export interface WorkspaceState {
   workspaceNotice: string | null;
   error: string | null;
   detailArtifact: DetailArtifact | null;
+  showExitConfirm: boolean;
 }
 
 export type Action =
@@ -91,6 +92,7 @@ export type Action =
   | { type: "SET_WORKSPACE_NOTICE"; notice: string | null }
   | { type: "SET_ERROR"; error: string | null }
   | { type: "SET_DETAIL_ARTIFACT"; artifact: DetailArtifact | null }
+  | { type: "SET_EXIT_CONFIRM"; show: boolean }
   | { type: "SET_SESSIONS"; sessions: SessionInfo[] }
   | { type: "ADD_SESSION"; session: SessionInfo }
   | { type: "UPDATE_SESSION"; id: string; patch: Partial<SessionInfo> }
@@ -128,6 +130,7 @@ const initialState: WorkspaceState = {
   workspaceNotice: null,
   error: null,
   detailArtifact: null,
+  showExitConfirm: false,
 };
 
 // ─── Session reducer (exported for testing) ───────────────────────
@@ -240,6 +243,8 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, error: action.error };
     case "SET_DETAIL_ARTIFACT":
       return { ...state, detailArtifact: action.artifact };
+    case "SET_EXIT_CONFIRM":
+      return { ...state, showExitConfirm: action.show };
     case "SET_SESSIONS":
     case "ADD_SESSION":
     case "UPDATE_SESSION":
@@ -265,6 +270,8 @@ export interface WorkspaceContextValue {
   closeCmdk: () => void;
   goToPicker: () => Promise<void>;
   openDetailArtifact: (artifact: DetailArtifact | null) => void;
+  triggerLeaveWorkspace: () => void;
+  cancelLeaveWorkspace: () => void;
   createSession: (request: { host: AgentHost; route: ModelRoute; model?: string; label?: string; codex_bin?: string }) => Promise<string>;
   closeSession: (id: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
@@ -550,7 +557,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     await Promise.all(state.sessions.map((session) => commands.sessionKill(session.id).catch(() => {})));
     dispatch({ type: "CLEAR_SESSIONS" });
     dispatch({ type: "SET_SCREEN", screen: "picker" });
+    dispatch({ type: "SET_EXIT_CONFIRM", show: false });
   }, [state.sessions]);
+
+  const triggerLeaveWorkspace = useCallback(() => {
+    dispatch({ type: "SET_EXIT_CONFIRM", show: true });
+  }, []);
+
+  const cancelLeaveWorkspace = useCallback(() => {
+    dispatch({ type: "SET_EXIT_CONFIRM", show: false });
+  }, []);
 
   const openDetailArtifact = useCallback((artifact: DetailArtifact | null) => {
     dispatch({ type: "SET_DETAIL_ARTIFACT", artifact });
@@ -575,6 +591,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         closeCmdk,
         goToPicker,
         openDetailArtifact,
+        triggerLeaveWorkspace,
+        cancelLeaveWorkspace,
         createSession,
         closeSession,
         refreshSessions,

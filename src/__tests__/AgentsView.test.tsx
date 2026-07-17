@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { AgentsMCPView } from "../components/Agents/AgentsMCPView";
+import { AgentsView as AgentsMCPView } from "../components/Agents/AgentsView";
 import type { AgentProfile, AgentProposal } from "../types";
 
 const dispatch = vi.fn();
@@ -165,7 +165,7 @@ vi.mock("../lib/commands", () => ({
   getMcpProposals: vi.fn(async () => []),
 }));
 
-describe("AgentsMCPView", () => {
+describe("AgentsView", () => {
   it("hides materialized approvals while keeping unresolved agent proposals visible", async () => {
     render(<AgentsMCPView />);
 

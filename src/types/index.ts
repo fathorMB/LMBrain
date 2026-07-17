@@ -660,12 +660,16 @@ export type AppView =
   | "reviews"
   | "decisions"
   | "agents"
+  | "mcp"
+  | "repository"
   | "skills"
   | "insights"
   | "design"
   | "settings"
   | "roadmap"
   | "search";
+
+
 
 // ─── Event Types ─────────────────────────────────────────────────
 
@@ -678,3 +682,51 @@ export interface DetailArtifact {
   title: string;
   path: string;
 }
+
+// ─── Git & GitHub Types ──────────────────────────────────────────
+
+export interface GitFile {
+  path: string;
+  status: "staged" | "unstaged" | "untracked" | "conflicted" | "deleted" | "renamed";
+  original_path: string | null;
+}
+
+export interface GitDetails {
+  branch: string;
+  current_commit: string;
+  ahead: number;
+  behind: number;
+  remote_url: string | null;
+  owner: string | null;
+  repo: string | null;
+  files: GitFile[];
+}
+
+export interface GitHubPullRequest {
+  number: number;
+  title: string;
+  html_url: string;
+  state: string;
+  user: string;
+  draft: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GitHubWorkflowRun {
+  id: number;
+  name: string;
+  head_branch: string;
+  head_sha: string;
+  status: string;
+  conclusion: string | null;
+  html_url: string;
+  created_at: string;
+}
+
+export interface GitHubDashboard {
+  has_token: boolean;
+  pull_requests: GitHubPullRequest[];
+  workflow_runs: GitHubWorkflowRun[];
+}
+

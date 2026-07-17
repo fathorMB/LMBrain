@@ -4,6 +4,13 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 3.0.0 - 2026-07-17
+
+### Added
+
+- **Git locale & GitHub Dashboard.** Integrazione nativa read-only per mostrare lo stato Git locale, file modificati per stato e delta ahead/behind, integrando l'API GitHub per elencare le PR e i workflow runs con memorizzazione sicura del PAT nel keyring di sistema.
+- **Trascrizioni e Ricerca Log.** Storico delle sessioni terminali salvato in modo asincrono nel backend Rust (`full_transcript`), visualizzatore virtualizzato affiancato (`HistorySearchPanel.tsx`) con pulizia sequenze ANSI, ricerca case-insensitive, selezione multipla delle righe e copia bulk in clipboard.
+
 ## 2.9.2 - 2026-07-17
 
 ### Security

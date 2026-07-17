@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { sessionAttach, sessionResize, sessionWrite } from "../../lib/commands";
+import { HistorySearchPanel } from "./HistorySearchPanel";
 import { terminalClipboardAction } from "../../lib/terminalClipboard";
 import {
   restoreMouseTracking,
@@ -39,7 +40,7 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
   const [feedback, setFeedback] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [mouseTracking, setMouseTracking] = useState<MouseTrackingMode>("none");
-
+  const [showHistorySearch, setShowHistorySearch] = useState(false);
   const showFeedback = useCallback((message: string) => {
     setFeedback(message);
     if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
@@ -471,13 +472,32 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
         <button type="button" aria-label="Scroll session to bottom" onClick={scrollToBottom} style={clipboardButtonStyle}>
           Bottom
         </button>
+        <span aria-hidden="true" style={{ width: 1, height: 18, background: "#30283d" }} />
+        <button
+          type="button"
+          aria-pressed={showHistorySearch}
+          onClick={() => setShowHistorySearch((prev) => !prev)}
+          style={showHistorySearch ? selectModeActiveStyle : clipboardButtonStyle}
+        >
+          Search logs
+        </button>
       </div>
-      {/* Keep padding outside the measured xterm element so FitAddon cannot overcount a row. */}
-      <div style={{ flex: 1, minHeight: 0, padding: "8px 10px", boxSizing: "border-box" }}>
-        <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+      
+      <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
+        {/* Keep padding outside the measured xterm element so FitAddon cannot overcount a row. */}
+        <div style={{ flex: 1, minHeight: 0, padding: "8px 10px", boxSizing: "border-box" }}>
+          <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+        </div>
+        {showHistorySearch && (
+          <HistorySearchPanel
+            sessionId={sessionId}
+            onClose={() => setShowHistorySearch(false)}
+          />
+        )}
       </div>
     </div>
   );
+
 }
 
 const clipboardButtonStyle = {
