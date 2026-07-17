@@ -383,7 +383,8 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         parse_verification_requirements(&document.body, &verification_refs);
 
     // Extract implementation evidence
-    let implementation_evidence = extract_section(&document.body, "Implementation evidence");
+    let (implementation_evidence, evidence_warnings) =
+        extract_implementation_evidence(&document.body);
 
     // Resolve related reviews
     let linked_reviews = resolve_reviews_for_spec(&lmbrain, &spec_id);
@@ -392,6 +393,7 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
     let related_decisions: Vec<String> = document.string_array("related_decisions");
     let mut relevant_decisions = Vec::new();
     let mut warnings = requirement_warnings;
+    warnings.extend(evidence_warnings);
     warnings.extend(verification_reference_warnings(root, &verification_refs));
     for adr_id in &related_decisions {
         match resolve_adr(&lmbrain, adr_id) {
@@ -1145,6 +1147,41 @@ fn verification_reference_warnings(root: &Path, references: &[String]) -> Vec<St
     warnings
 }
 
+const EVIDENCE_LIMIT: usize = 32 * 1024;
+
+/// Extract `## Implementation evidence` for review context, emitting explicit
+/// warnings instead of silently returning incomplete evidence.
+fn extract_implementation_evidence(body: &str) -> (Option<String>, Vec<String>) {
+    let heading = "Implementation evidence";
+    match extract_section(body, heading) {
+        None => {
+            let warning = if has_section_heading(body, heading) {
+                "Implementation evidence section is present but empty".to_string()
+            } else {
+                "Spec has no Implementation evidence section".to_string()
+            };
+            (None, vec![warning])
+        }
+        Some(text) if text.len() > EVIDENCE_LIMIT => {
+            let end = (0..=EVIDENCE_LIMIT)
+                .rev()
+                .find(|index| text.is_char_boundary(*index))
+                .unwrap_or(0);
+            let bounded = format!(
+                "{}\n...[implementation evidence truncated; read the full spec artifact]",
+                text[..end].trim_end()
+            );
+            (
+                Some(bounded),
+                vec![format!(
+                    "Implementation evidence exceeds {EVIDENCE_LIMIT} bytes and was truncated; read the full spec artifact for complete evidence"
+                )],
+            )
+        }
+        Some(text) => (Some(text), Vec::new()),
+    }
+}
+
 fn bounded_guidance(body: &str) -> String {
     const LIMIT: usize = 8 * 1024;
     if body.len() <= LIMIT {
@@ -1176,62 +1213,102 @@ fn extract_fenced_commands(body: &str) -> Vec<String> {
     commands
 }
 
-fn extract_section(body: &str, heading: &str) -> Option<String> {
+/// Fence delimiters toggle a state in which heading-like lines are content.
+fn is_fence(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed.starts_with("```") || trimmed.starts_with("~~~")
+}
+
+/// Heading level of a Markdown ATX heading line (1-6), if any.
+fn heading_level_of(line: &str) -> Option<usize> {
+    let trimmed = line.trim();
+    let level = trimmed.chars().take_while(|ch| *ch == '#').count();
+    if !(1..=6).contains(&level) {
+        return None;
+    }
+    let rest = &trimmed[level..];
+    (rest.starts_with(' ') && !rest.trim().is_empty()).then_some(level)
+}
+
+/// Heading level of a line whose text equals `heading` exactly, if any.
+fn matching_heading_level(line: &str, heading: &str) -> Option<usize> {
+    let level = heading_level_of(line)?;
+    (line.trim()[level..].trim() == heading).then_some(level)
+}
+
+/// Collect the lines of the first non-empty section titled `heading`.
+///
+/// Heading-level aware: a match at level N includes nested deeper headings
+/// and stops only at the next heading of level <= N, so a `##` section keeps
+/// its `###` subsections. Heading-like lines inside fenced code blocks are
+/// treated as content, never as boundaries.
+fn section_body_lines<'a>(body: &'a str, heading: &str) -> Option<Vec<&'a str>> {
     let lines: Vec<&str> = body.lines().collect();
+    let mut in_fence = false;
     for (i, line) in lines.iter().enumerate() {
-        let trimmed = line.trim();
-        if trimmed == format!("# {heading}")
-            || trimmed == format!("## {heading}")
-            || trimmed == format!("### {heading}")
-        {
-            let mut content = Vec::new();
-            for next in lines.iter().skip(i + 1) {
-                let next_trimmed = next.trim();
-                if next_trimmed.starts_with("#") && !next_trimmed.starts_with("##") {
-                    break;
-                }
-                if next_trimmed.starts_with("##") {
-                    break;
-                }
-                if !next_trimmed.is_empty() {
-                    content.push(*next);
-                }
-            }
-            if !content.is_empty() {
-                return Some(content.join("\n").trim().to_string());
-            }
+        if is_fence(line) {
+            in_fence = !in_fence;
+            continue;
         }
+        if in_fence {
+            continue;
+        }
+        let Some(level) = matching_heading_level(line, heading) else {
+            continue;
+        };
+        let mut content = Vec::new();
+        let mut content_fence = false;
+        for next in &lines[i + 1..] {
+            if is_fence(next) {
+                content_fence = !content_fence;
+                content.push(*next);
+                continue;
+            }
+            if !content_fence {
+                if let Some(next_level) = heading_level_of(next) {
+                    if next_level <= level {
+                        break;
+                    }
+                }
+            }
+            content.push(*next);
+        }
+        if content.iter().any(|entry| !entry.trim().is_empty()) {
+            return Some(content);
+        }
+        // An empty match keeps searching so a stray duplicate heading cannot
+        // shadow the real populated section further down.
     }
     None
 }
 
-fn extract_section_list(body: &str, heading: &str) -> Vec<String> {
-    let lines: Vec<&str> = body.lines().collect();
-    for (i, line) in lines.iter().enumerate() {
-        let trimmed = line.trim();
-        if trimmed == format!("# {heading}")
-            || trimmed == format!("## {heading}")
-            || trimmed == format!("### {heading}")
-        {
-            let mut items = Vec::new();
-            for next in lines.iter().skip(i + 1) {
-                let next_trimmed = next.trim();
-                if next_trimmed.starts_with("#") && !next_trimmed.starts_with("##") {
-                    break;
-                }
-                if next_trimmed.starts_with("##") {
-                    break;
-                }
-                if let Some(item) = next_trimmed.strip_prefix("- ") {
-                    items.push(item.trim().to_string());
-                } else if let Some(item) = next_trimmed.strip_prefix("* ") {
-                    items.push(item.trim().to_string());
-                }
-            }
-            return items;
+fn has_section_heading(body: &str, heading: &str) -> bool {
+    let mut in_fence = false;
+    body.lines().any(|line| {
+        if is_fence(line) {
+            in_fence = !in_fence;
+            return false;
         }
-    }
-    Vec::new()
+        !in_fence && matching_heading_level(line, heading).is_some()
+    })
+}
+
+fn extract_section(body: &str, heading: &str) -> Option<String> {
+    section_body_lines(body, heading).map(|lines| lines.join("\n").trim().to_string())
+}
+
+fn extract_section_list(body: &str, heading: &str) -> Vec<String> {
+    section_body_lines(body, heading)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            trimmed
+                .strip_prefix("- ")
+                .or_else(|| trimmed.strip_prefix("* "))
+                .map(|item| item.trim().to_string())
+        })
+        .collect()
 }
 
 fn scan_md_files(dir: &Path) -> Vec<PathBuf> {
@@ -1944,6 +2021,112 @@ links: []
                 assert_eq!(context.required_verification[0].owner, "operator");
             }
         }
+    }
+
+    fn write_review_spec(dir: &std::path::Path, id: &str, body: &str) {
+        fs::write(
+            dir.join(format!(".lmbrain/specs/review/{id}.md")),
+            format!("---\nid: {id}\ntitle: Evidence shapes\nstatus: review\n---\n\n{body}"),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn review_context_keeps_nested_evidence_subsections() {
+        let dir = tempfile::tempdir().unwrap();
+        create_test_brain(dir.path());
+        fs::create_dir_all(dir.path().join(".lmbrain/specs/review")).unwrap();
+        // The AstraNexus SPEC-049 shape: a template placeholder paragraph
+        // followed by the real evidence in nested ### subsections.
+        write_review_spec(
+            dir.path(),
+            "SPEC-049",
+            "## Acceptance criteria\n- [x] Works\n\n## Implementation evidence\n\n> Filled in by the specialist after completion.\n\n### Changes made\nRefactored the session module.\n\n### Verification transcript\n\n```text\n$ cargo test\n## not a heading, fenced\nok\n```\n\n#### Notes\nDeep nesting is preserved.\n\n## Next section\nUnrelated.\n",
+        );
+
+        let ctx = build_review_context(dir.path(), "SPEC-049").unwrap();
+        let evidence = ctx.implementation_evidence.expect("evidence missing");
+        assert!(evidence.contains("Changes made"), "{evidence}");
+        assert!(evidence.contains("Refactored the session module"));
+        assert!(evidence.contains("Verification transcript"));
+        assert!(evidence.contains("## not a heading, fenced"));
+        assert!(evidence.contains("Deep nesting is preserved"));
+        assert!(!evidence.contains("Unrelated"));
+        assert!(
+            !ctx.warnings.iter().any(|w| w.contains("evidence")),
+            "unexpected evidence warnings: {:?}",
+            ctx.warnings
+        );
+    }
+
+    #[test]
+    fn review_context_warns_on_missing_or_empty_evidence() {
+        let dir = tempfile::tempdir().unwrap();
+        create_test_brain(dir.path());
+        fs::create_dir_all(dir.path().join(".lmbrain/specs/review")).unwrap();
+
+        write_review_spec(dir.path(), "SPEC-050", "## Acceptance criteria\n- [x] Works\n");
+        let ctx = build_review_context(dir.path(), "SPEC-050").unwrap();
+        assert!(ctx.implementation_evidence.is_none());
+        assert!(ctx
+            .warnings
+            .iter()
+            .any(|w| w.contains("no Implementation evidence section")));
+
+        write_review_spec(
+            dir.path(),
+            "SPEC-051",
+            "## Acceptance criteria\n- [x] Works\n\n## Implementation evidence\n\n## Next\nother\n",
+        );
+        let ctx = build_review_context(dir.path(), "SPEC-051").unwrap();
+        assert!(ctx.implementation_evidence.is_none());
+        assert!(ctx
+            .warnings
+            .iter()
+            .any(|w| w.contains("present but empty")));
+    }
+
+    #[test]
+    fn review_context_truncates_oversized_evidence_with_warning() {
+        let dir = tempfile::tempdir().unwrap();
+        create_test_brain(dir.path());
+        fs::create_dir_all(dir.path().join(".lmbrain/specs/review")).unwrap();
+        let huge = "evidence line\n".repeat(4000); // ~56 KB
+        write_review_spec(
+            dir.path(),
+            "SPEC-052",
+            &format!("## Implementation evidence\n\n{huge}"),
+        );
+        let ctx = build_review_context(dir.path(), "SPEC-052").unwrap();
+        let evidence = ctx.implementation_evidence.unwrap();
+        assert!(evidence.len() < huge.len());
+        assert!(evidence.contains("[implementation evidence truncated"));
+        assert!(ctx.warnings.iter().any(|w| w.contains("truncated")));
+    }
+
+    #[test]
+    fn extract_section_is_level_aware_and_fence_safe() {
+        let body = "## Target\n\n### Nested\ncontent\n\n```sh\n## fenced heading\n```\n\n## After\nother\n";
+        let section = super::extract_section(body, "Target").unwrap();
+        assert!(section.contains("Nested"));
+        assert!(section.contains("## fenced heading"));
+        assert!(!section.contains("other"));
+
+        // A heading inside a fence never starts a section.
+        let fenced = "```\n## Target\nnot me\n```\n\n## Target\nreal\n";
+        assert_eq!(super::extract_section(fenced, "Target").unwrap(), "real");
+
+        // An empty first match does not shadow a later populated one.
+        let duplicated = "## Target\n\n## Middle\nx\n\n## Target\nfound\n";
+        assert_eq!(
+            super::extract_section(duplicated, "Target").unwrap(),
+            "found"
+        );
+
+        // Lists keep collecting through nested headings, stop at same level.
+        let listing = "## Files and areas involved\n- src/a.rs\n\n### More\n- src/b.rs\n\n## Stop\n- src/c.rs\n";
+        let items = super::extract_section_list(listing, "Files and areas involved");
+        assert_eq!(items, vec!["src/a.rs".to_string(), "src/b.rs".into()]);
     }
 
     #[test]
