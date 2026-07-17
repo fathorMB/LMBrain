@@ -25,6 +25,7 @@ pub use improvement::{
     AgentEffectivenessMetrics, AgentImprovementSignal, ImprovementApplyResult, ImprovementError,
     ImprovementProposalRequest,
 };
+pub use path::{read_artifact, ArtifactReadError};
 pub use transitions::{
     ArtifactKind, CreateRequest, MutationOptions, MutationResult, TransitionError,
 };

@@ -471,14 +471,12 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         .map(|result| text(json!(result)))
         .map_err(|error| error.to_string()),
         "lmbrain_get_artifact" => {
-            let source = std::fs::read_to_string(
-                root.join(
-                    args.get("path")
-                        .and_then(Value::as_str)
-                        .ok_or("path missing")?,
-                ),
-            )
-            .map_err(|error| error.to_string())?;
+            let relative = args
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?;
+            let source =
+                lmbrain_core::read_artifact(root, relative).map_err(|error| error.to_string())?;
             Ok(text(json!({ "artifact": source })))
         }
         "lmbrain_list_ready_handoffs" => {
@@ -787,6 +785,44 @@ mod tests {
         assert!(dir.path().join(".lmbrain/HARNESSES.json").exists());
         assert!(!dir.path().join("opencode.json").exists());
         assert!(!dir.path().join(".mcp.json").exists());
+    }
+
+    #[test]
+    fn get_artifact_reads_workspace_files_and_rejects_escapes() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain/specs/backlog")).unwrap();
+        std::fs::write(
+            dir.path().join(".lmbrain/specs/backlog/SPEC-001-demo.md"),
+            "---\nid: SPEC-001\n---\n\n# Demo\n",
+        )
+        .unwrap();
+        let root = dir.path().to_path_buf();
+
+        let ok = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "lmbrain_get_artifact",
+                "arguments": {"path": ".lmbrain/specs/backlog/SPEC-001-demo.md"}
+            }),
+        )
+        .unwrap();
+        assert!(ok.to_string().contains("SPEC-001"));
+
+        for escape in ["../outside.md", "/etc/passwd", r"..\outside.md"] {
+            let error = super::call(
+                &root,
+                &serde_json::json!({
+                    "name": "lmbrain_get_artifact",
+                    "arguments": {"path": escape}
+                }),
+            )
+            .unwrap_err();
+            let canonical = root.canonicalize().unwrap();
+            assert!(
+                !error.contains(&lmbrain_core::path::clean_path(&canonical).display().to_string()),
+                "error leaks host workspace path: {error}"
+            );
+        }
     }
 
     #[test]
