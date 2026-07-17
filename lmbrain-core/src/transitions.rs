@@ -60,7 +60,27 @@ impl ArtifactKind {
     fn moves_for_status(self) -> bool {
         matches!(self, Self::Spec | Self::Review | Self::Skill)
     }
+
+    /// Statuses an artifact may be created with. Only initial lifecycle states
+    /// are allowed; anything further must go through governed transitions.
+    pub fn creation_statuses(self) -> &'static [&'static str] {
+        match self {
+            Self::Spec => &["backlog"],
+            Self::Review => &["pending"],
+            Self::Adr | Self::Agent | Self::AgentProposal | Self::McpProposal | Self::Skill => {
+                &["proposed"]
+            }
+            Self::Mcp => &["specified"],
+            Self::Handoff => &["ready"],
+        }
+    }
 }
+
+/// Frontmatter keys owned by the lifecycle engine; callers cannot set them
+/// through `CreateRequest::fields`. The artifact kind itself is not listed
+/// because it is carried by the allocated ID prefix, never by a field
+/// ("kind" remains available as an ordinary domain field, e.g. skill kind).
+const RESERVED_CREATION_FIELDS: &[&str] = &["id", "title", "status", "created", "updated", "activity"];
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MutationOptions {
@@ -101,6 +121,16 @@ pub enum TransitionError {
     },
     #[error("invariant failed: {0}")]
     Invariant(String),
+    #[error("invalid creation status '{status}' for {kind:?} artifacts; allowed: {allowed}")]
+    InvalidCreationStatus {
+        kind: ArtifactKind,
+        status: String,
+        allowed: String,
+    },
+    #[error("field '{0}' is core-owned lifecycle metadata and cannot be set at creation")]
+    ReservedField(String),
+    #[error("invalid creation field: {0}")]
+    InvalidField(String),
     #[error("force requires a non-empty reason")]
     MissingForceReason,
     #[error(transparent)]
@@ -295,32 +325,60 @@ pub fn create(
         .clone()
         .unwrap_or_else(|| default_status(request.kind).into());
 
+    // Fail closed before any filesystem mutation: an invalid request must not
+    // leave directories, files, activity entries, or lock residue behind.
+    if !request
+        .kind
+        .creation_statuses()
+        .contains(&status.as_str())
+    {
+        return Err(TransitionError::InvalidCreationStatus {
+            kind: request.kind,
+            status,
+            allowed: request.kind.creation_statuses().join(", "),
+        });
+    }
+    for (key, value) in &request.fields {
+        if RESERVED_CREATION_FIELDS.contains(&key.trim().to_ascii_lowercase().as_str()) {
+            return Err(TransitionError::ReservedField(key.clone()));
+        }
+        if !valid_field_key(key) {
+            return Err(TransitionError::InvalidField(format!(
+                "field key '{key}' must start with a letter and use only letters, digits, '_' or '-'"
+            )));
+        }
+        if value.contains('\n') || value.contains('\r') {
+            return Err(TransitionError::InvalidField(format!(
+                "field '{key}' value must not contain line breaks"
+            )));
+        }
+    }
+
     let mut dir = guard.root().join(".lmbrain").join(request.kind.base());
     if request.kind.moves_for_status() {
         dir = dir.join(&status);
     }
-    fs::create_dir_all(&dir)?;
 
-    let lock = guard.root().join(".lmbrain/.mutation-allocation.lock");
-    let mut attempts = 0;
-    while fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&lock)
-        .is_err()
+    let _lock = ArtifactMutationLock::acquire(guard.root(), "creation-allocation")?;
+
+    if request.kind == ArtifactKind::Handoff
+        && status == "ready"
+        && !invariants::single_ready_handoff(guard.root(), None)
     {
-        attempts += 1;
-        if attempts > 100 {
-            return Err(TransitionError::Invariant(
-                "could not acquire ID allocation lock".into(),
-            ));
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        return Err(TransitionError::Invariant(
+            "only one ready handoff is allowed".into(),
+        ));
     }
 
-    let result = create_locked(guard.root(), &dir, request, status);
-    let _ = fs::remove_file(lock);
-    result
+    create_locked(guard.root(), &dir, request, status)
+}
+
+fn valid_field_key(key: &str) -> bool {
+    let mut chars = key.chars();
+    chars
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic())
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
 }
 
 fn create_locked(
@@ -334,6 +392,11 @@ fn create_locked(
         request.kind.prefix(),
         next_id(root, request.kind)
     );
+    if id_exists(root, &id) {
+        return Err(TransitionError::Invariant(format!(
+            "allocated ID {id} already exists in the workspace"
+        )));
+    }
     let path = dir.join(format!("{}-{}.md", id, slug(&request.title)));
 
     let template = root
@@ -361,6 +424,9 @@ fn create_locked(
         document.set(&key, &value);
     }
     document.append_activity("created");
+    // The status directory is only materialized once the request has fully
+    // validated, so a rejected create leaves no filesystem residue.
+    fs::create_dir_all(dir)?;
     atomic_write(&path, &document.render())?;
 
     Ok(MutationResult {
@@ -369,6 +435,31 @@ fn create_locked(
         path,
         forced: false,
     })
+}
+
+fn id_exists(root: &Path, id: &str) -> bool {
+    fn scan(dir: &Path, id: &str) -> bool {
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    if scan(&path, id) {
+                        return true;
+                    }
+                } else if fs::read_to_string(&path)
+                    .ok()
+                    .and_then(|source| Document::parse(&source).ok())
+                    .and_then(|document| document.value("id"))
+                    .as_deref()
+                    == Some(id)
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+    scan(&root.join(".lmbrain"), id)
 }
 
 fn next_id(root: &Path, kind: ArtifactKind) -> u32 {

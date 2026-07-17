@@ -121,6 +121,42 @@ normal scrollback buffer, so the embedded terminal can scroll and select the
 full transcript consistently. This option affects only LMBrain-launched Codex
 sessions and does not modify the user's Codex configuration.
 
+## Terminal scroll and selection policy
+
+Scroll gestures are resolved at event time from the active xterm buffer and
+the mouse-tracking mode the TUI actually enabled, never from a per-host
+assumption:
+
+- Normal buffer: local xterm scrollback for every host (wheel, Page, Bottom).
+- Alternate buffer with mouse tracking enabled: wheel events delegate to
+  xterm's native mouse reports so the TUI scrolls itself.
+- Alternate buffer without tracking: Pi uses Page Up/Down and End; OpenCode
+  uses its documented Ctrl+Alt bindings; Codex delegates to xterm's
+  alternate-screen arrow emulation; Claude Code and unknown hosts degrade
+  visibly with a hint instead of swallowing the gesture.
+
+**Select text** suspends mouse reporting locally in xterm (the harness is not
+told), enables ordinary drag selection, and restores the exact prior tracking
+mode on exit — re-asserting the suspension if the harness re-enables tracking
+mid-selection and exiting cleanly on buffer switches. Shift+drag remains the
+quick alternative while a TUI captures the mouse. **Copy visible** copies the
+current viewport only — xterm's scrollback size never implies chat history
+while a harness owns the alternate screen; the durable transcript is deferred
+to 3.0.0.
+
+### Manual harness verification checklist
+
+Run before release on Windows for each supported harness (Claude Code, Codex,
+Pi, OpenCode):
+
+- [ ] Mouse wheel up/down scrolls (or visibly explains why not).
+- [ ] Page up / Page down / Bottom buttons behave per the policy above.
+- [ ] Shift+drag selects while the TUI tracks the mouse.
+- [ ] Select text mode: drag-select works, exit restores TUI mouse behavior.
+- [ ] Copy with a selection; Copy visible without one.
+- [ ] Ctrl+C without a selection interrupts the harness (SIGINT).
+- [ ] Clipboard failures show a specific, actionable message.
+
 ## Scope
 
 Sessions are ephemeral. They live while the app is open and are not restored after restart.

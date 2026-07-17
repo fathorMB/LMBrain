@@ -86,6 +86,8 @@ Improvement proposals use the existing `agents/proposals/` mechanism with `propo
 
 `.lmbrain/verification.toml` optionally declares named direct-execution gates. The repository manifest is inert until its exact digest is approved locally. `spec_verify` runs only gates referenced by the selected spec and writes real bounded output into its managed transcript section. It never runs during workspace open, refresh, watching, or submission.
 
+Verification evidence is snapshot-checked: a workspace content fingerprint is captured before the first gate and again after the final gate, and both are recorded in the transcript. If they differ, the transcript is explicitly marked invalidated with the reason, the run reports failure, and the evidence can never satisfy submission freshness checks — even if the workspace later matches the post-gate fingerprint. Note the artifact mutation lock only protects the final transcript write, not the gate-execution interval; full isolated-worktree/per-gate input scoping is deferred to 3.0.0.
+
 ## Project-scoped skills
 
 The kit supports reusable agent procedures as `SKILL-*` artifacts:

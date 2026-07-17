@@ -415,21 +415,25 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
                 .and_then(Value::as_str)
                 .ok_or("title missing")?
                 .to_owned();
-            let fields = args
-                .get("fields")
-                .and_then(Value::as_array)
-                .map(|items| {
-                    items
-                        .iter()
-                        .filter_map(|pair| {
-                            Some((
-                                pair.get(0)?.as_str()?.to_owned(),
-                                pair.get(1)?.as_str()?.to_owned(),
-                            ))
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
+            let fields = match args.get("fields") {
+                None | Some(Value::Null) => Vec::new(),
+                Some(Value::Array(items)) => items
+                    .iter()
+                    .map(|pair| {
+                        let key = pair.get(0).and_then(Value::as_str);
+                        let value = pair.get(1).and_then(Value::as_str);
+                        match (key, value, pair.as_array().map(Vec::len)) {
+                            (Some(key), Some(value), Some(2)) => {
+                                Ok((key.to_owned(), value.to_owned()))
+                            }
+                            _ => Err(format!(
+                                "each field must be a [key, value] pair of strings, got {pair}"
+                            )),
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                Some(other) => return Err(format!("fields must be an array, got {other}")),
+            };
 
             create(
                 root,
@@ -471,14 +475,12 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         .map(|result| text(json!(result)))
         .map_err(|error| error.to_string()),
         "lmbrain_get_artifact" => {
-            let source = std::fs::read_to_string(
-                root.join(
-                    args.get("path")
-                        .and_then(Value::as_str)
-                        .ok_or("path missing")?,
-                ),
-            )
-            .map_err(|error| error.to_string())?;
+            let relative = args
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?;
+            let source =
+                lmbrain_core::read_artifact(root, relative).map_err(|error| error.to_string())?;
             Ok(text(json!({ "artifact": source })))
         }
         "lmbrain_list_ready_handoffs" => {
@@ -787,6 +789,82 @@ mod tests {
         assert!(dir.path().join(".lmbrain/HARNESSES.json").exists());
         assert!(!dir.path().join("opencode.json").exists());
         assert!(!dir.path().join(".mcp.json").exists());
+    }
+
+    #[test]
+    fn get_artifact_reads_workspace_files_and_rejects_escapes() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain/specs/backlog")).unwrap();
+        std::fs::write(
+            dir.path().join(".lmbrain/specs/backlog/SPEC-001-demo.md"),
+            "---\nid: SPEC-001\n---\n\n# Demo\n",
+        )
+        .unwrap();
+        let root = dir.path().to_path_buf();
+
+        let ok = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "lmbrain_get_artifact",
+                "arguments": {"path": ".lmbrain/specs/backlog/SPEC-001-demo.md"}
+            }),
+        )
+        .unwrap();
+        assert!(ok.to_string().contains("SPEC-001"));
+
+        for escape in ["../outside.md", "/etc/passwd", r"..\outside.md"] {
+            let error = super::call(
+                &root,
+                &serde_json::json!({
+                    "name": "lmbrain_get_artifact",
+                    "arguments": {"path": escape}
+                }),
+            )
+            .unwrap_err();
+            let canonical = root.canonicalize().unwrap();
+            assert!(
+                !error.contains(&lmbrain_core::path::clean_path(&canonical).display().to_string()),
+                "error leaks host workspace path: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn create_dispatch_fails_closed_on_invalid_status_reserved_and_malformed_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain")).unwrap();
+        let root = dir.path().to_path_buf();
+        let call = |arguments: serde_json::Value| {
+            super::call(
+                &root,
+                &serde_json::json!({"name":"lmbrain_create","arguments":arguments}),
+            )
+        };
+
+        let ok = call(serde_json::json!({"kind":"spec","title":"Valid"})).unwrap();
+        assert!(ok.to_string().contains("SPEC-001"));
+
+        let status = call(serde_json::json!({"kind":"spec","title":"Bad","status":"../escape"}))
+            .unwrap_err();
+        assert!(status.contains("invalid creation status"), "{status}");
+
+        let reserved = call(serde_json::json!({
+            "kind":"spec","title":"Bad","fields":[["id","SPEC-999"]]
+        }))
+        .unwrap_err();
+        assert!(reserved.contains("core-owned"), "{reserved}");
+
+        let malformed = call(serde_json::json!({
+            "kind":"spec","title":"Bad","fields":[["only-key"]]
+        }))
+        .unwrap_err();
+        assert!(malformed.contains("[key, value]"), "{malformed}");
+
+        let nonstring = call(serde_json::json!({
+            "kind":"spec","title":"Bad","fields":[["key", 42]]
+        }))
+        .unwrap_err();
+        assert!(nonstring.contains("[key, value]"), "{nonstring}");
     }
 
     #[test]
