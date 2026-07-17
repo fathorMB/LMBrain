@@ -91,9 +91,17 @@ pub struct VerificationGateResult {
 pub struct VerificationRunReport {
     pub spec_id: String,
     pub manifest_digest: String,
+    /// Fingerprint captured after the final gate; kept under the historical
+    /// name so 2.9.1 freshness checks keep working.
     pub workspace_fingerprint: String,
+    /// Fingerprint captured before the first gate ran.
+    pub workspace_fingerprint_before: String,
     pub transcript_hash: String,
     pub all_expectations_met: bool,
+    /// True when the workspace changed between the pre- and post-gate
+    /// fingerprints; such evidence is never publishable as fresh.
+    pub invalidated: bool,
+    pub invalidation_reason: Option<String>,
     pub results: Vec<VerificationGateResult>,
 }
 
@@ -318,6 +326,11 @@ pub fn execute_spec_verification(
     }
     let gate_contract_digest = gate_contract_digest(&required);
     let by_id: BTreeMap<_, _> = manifest.gates.iter().map(|gate| (&gate.id, gate)).collect();
+    // The final artifact lock only protects the transcript write below; the
+    // gate-execution interval itself is snapshot-checked by comparing a
+    // fingerprint taken before the first gate with one taken after the last.
+    // Full isolated-worktree/per-gate input scoping is deferred to 3.0.0.
+    let pre_fingerprint = workspace_content_fingerprint(&canonical_root)?;
     let mut results = Vec::new();
     for id in required {
         let gate = by_id
@@ -326,19 +339,27 @@ pub fn execute_spec_verification(
         results.push(run_gate(&canonical_root, gate)?);
     }
     let source_fingerprint = workspace_content_fingerprint(&canonical_root)?;
+    let invalidation_reason = (pre_fingerprint != source_fingerprint).then(|| {
+        "workspace content changed during gate execution; evidence is not snapshot-consistent"
+            .to_string()
+    });
     let transcript_without_hash = render_transcript(
         &manifest_digest,
+        &pre_fingerprint,
         &source_fingerprint,
         &gate_contract_digest,
         &results,
+        invalidation_reason.as_deref(),
         None,
     );
     let transcript_hash = hex_digest(transcript_without_hash.as_bytes());
     let transcript = render_transcript(
         &manifest_digest,
+        &pre_fingerprint,
         &source_fingerprint,
         &gate_contract_digest,
         &results,
+        invalidation_reason.as_deref(),
         Some(&transcript_hash),
     );
     write_verification_transcript(
@@ -350,13 +371,17 @@ pub fn execute_spec_verification(
         &transcript_hash,
         &source_fingerprint,
     )?;
-    let all_expectations_met = results.iter().all(|result| result.expectation_met);
+    let all_expectations_met =
+        invalidation_reason.is_none() && results.iter().all(|result| result.expectation_met);
     Ok(VerificationRunReport {
         spec_id,
         manifest_digest,
         workspace_fingerprint: source_fingerprint,
+        workspace_fingerprint_before: pre_fingerprint,
         transcript_hash,
         all_expectations_met,
+        invalidated: invalidation_reason.is_some(),
+        invalidation_reason,
         results,
     })
 }
@@ -432,6 +457,17 @@ pub fn transcript_state(root: &Path, body: &str) -> TranscriptState {
     let Some(recorded) = metadata(generated, "workspace-fingerprint") else {
         return TranscriptState::HandAuthored;
     };
+    // Evidence explicitly invalidated at generation time (the workspace
+    // changed between the pre- and post-gate fingerprints) is never fresh,
+    // even when the current workspace matches the recorded post fingerprint.
+    if metadata(generated, "invalidated").is_some() {
+        return TranscriptState::GeneratedStale;
+    }
+    if metadata(generated, "workspace-fingerprint-before")
+        .is_some_and(|before| before != recorded)
+    {
+        return TranscriptState::GeneratedStale;
+    }
     let Some(recorded_manifest) = metadata(generated, "manifest-digest") else {
         return TranscriptState::GeneratedStale;
     };
@@ -654,15 +690,22 @@ fn terminate_process_tree(child: &mut std::process::Child) {
 
 fn render_transcript(
     manifest_digest: &str,
+    pre_fingerprint: &str,
     fingerprint: &str,
     gate_contract_digest: &str,
     results: &[VerificationGateResult],
+    invalidation_reason: Option<&str>,
     hash: Option<&str>,
 ) -> String {
+    // `workspace-fingerprint` keeps carrying the post-gate value so 2.9.1
+    // freshness checks stay valid; the pre-gate value is additive metadata.
     let mut text = format!(
-        "<!-- generated-by: lmbrain-verify@{} -->\n<!-- manifest-digest: {manifest_digest} -->\n<!-- gate-contract-digest: {gate_contract_digest} -->\n<!-- workspace-fingerprint: {fingerprint} -->\n",
+        "<!-- generated-by: lmbrain-verify@{} -->\n<!-- manifest-digest: {manifest_digest} -->\n<!-- gate-contract-digest: {gate_contract_digest} -->\n<!-- workspace-fingerprint-before: {pre_fingerprint} -->\n<!-- workspace-fingerprint: {fingerprint} -->\n",
         env!("CARGO_PKG_VERSION")
     );
+    if let Some(reason) = invalidation_reason {
+        text.push_str(&format!("<!-- invalidated: {reason} -->\n"));
+    }
     if let Some(hash) = hash {
         text.push_str(&format!("<!-- transcript-hash: {hash} -->\n"));
     }
@@ -1065,10 +1108,101 @@ mod tests {
         }
     }
 
+    #[test]
+    fn workspace_mutation_during_gates_invalidates_the_transcript() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".lmbrain/specs/working")).unwrap();
+        fs::write(dir.path().join("source.txt"), "original").unwrap();
+        let mut configured = manifest(if cfg!(windows) { "cmd" } else { "sh" });
+        configured.gates[0].args = if cfg!(windows) {
+            vec!["/C".into(), "echo mutated>> source.txt".into()]
+        } else {
+            vec!["-c".into(), "echo mutated >> source.txt".into()]
+        };
+        fs::write(
+            dir.path().join(VERIFICATION_MANIFEST_PATH),
+            toml::to_string(&configured).unwrap(),
+        )
+        .unwrap();
+        let spec = dir.path().join(".lmbrain/specs/working/SPEC-mut.md");
+        fs::write(&spec, "---\nid: SPEC-mut\nstatus: working\nverification_gates: [sample]\n---\n\n## Implementation evidence\n\n### Verification transcript\n").unwrap();
+        let approval = dir.path().join("local/approval.json");
+        approve_verification_manifest(dir.path(), &approval).unwrap();
+
+        let report = execute_spec_verification(dir.path(), &spec, &approval).unwrap();
+        assert!(report.invalidated);
+        assert!(
+            !report.all_expectations_met,
+            "a run that mutated the workspace must not publish success"
+        );
+        assert_ne!(report.workspace_fingerprint_before, report.workspace_fingerprint);
+        assert!(report
+            .invalidation_reason
+            .as_deref()
+            .unwrap()
+            .contains("changed during gate execution"));
+
+        let source = fs::read_to_string(&spec).unwrap();
+        assert!(source.contains("workspace-fingerprint-before:"));
+        assert!(source.contains("<!-- invalidated: workspace content changed"));
+        // The decisive regression: the current workspace now matches the
+        // recorded post-gate fingerprint, yet the evidence must stay stale.
+        assert_eq!(
+            workspace_content_fingerprint(dir.path()).unwrap(),
+            report.workspace_fingerprint
+        );
+        let document = Document::parse(&source).unwrap();
+        assert_eq!(
+            transcript_state(dir.path(), &document.body),
+            TranscriptState::GeneratedStale
+        );
+        assert_eq!(
+            transcript_state_for_document(dir.path(), &document),
+            TranscriptState::GeneratedStale
+        );
+    }
+
+    #[test]
+    fn quiescent_gates_record_matching_fingerprints_and_stay_fresh() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".lmbrain/specs/working")).unwrap();
+        let mut configured = manifest("rustc");
+        configured.gates[0].args = vec!["--version".into()];
+        fs::write(
+            dir.path().join(VERIFICATION_MANIFEST_PATH),
+            toml::to_string(&configured).unwrap(),
+        )
+        .unwrap();
+        let spec = dir.path().join(".lmbrain/specs/working/SPEC-quiet.md");
+        fs::write(&spec, "---\nid: SPEC-quiet\nstatus: working\nverification_gates: [sample]\n---\n\n## Implementation evidence\n\n### Verification transcript\n").unwrap();
+        let approval = dir.path().join("local/approval.json");
+        approve_verification_manifest(dir.path(), &approval).unwrap();
+
+        let report = execute_spec_verification(dir.path(), &spec, &approval).unwrap();
+        assert!(!report.invalidated);
+        assert!(report.invalidation_reason.is_none());
+        assert_eq!(report.workspace_fingerprint_before, report.workspace_fingerprint);
+        assert!(report.all_expectations_met);
+        let document = Document::parse(&fs::read_to_string(&spec).unwrap()).unwrap();
+        assert_eq!(
+            transcript_state_for_document(dir.path(), &document),
+            TranscriptState::GeneratedFresh
+        );
+    }
+
     fn sample_transcript(fingerprint: &str) -> (String, String) {
-        let without_hash = render_transcript("manifest", fingerprint, "contract", &[], None);
+        let without_hash =
+            render_transcript("manifest", fingerprint, fingerprint, "contract", &[], None, None);
         let hash = hex_digest(without_hash.as_bytes());
-        let transcript = render_transcript("manifest", fingerprint, "contract", &[], Some(&hash));
+        let transcript = render_transcript(
+            "manifest",
+            fingerprint,
+            fingerprint,
+            "contract",
+            &[],
+            None,
+            Some(&hash),
+        );
         (transcript, hash)
     }
 
