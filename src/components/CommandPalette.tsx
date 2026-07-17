@@ -4,7 +4,7 @@ import { searchContent } from "../lib/commands";
 import type { SearchResult } from "../lib/commands";
 
 export function CommandPalette() {
-  const { state, navigateTo, closeCmdk, goToPicker } = useWorkspace();
+  const { state, navigateTo, closeCmdk, triggerLeaveWorkspace } = useWorkspace();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -248,7 +248,10 @@ export function CommandPalette() {
               </span>
             </div>
             <div
-              onClick={() => goToPicker()}
+              onClick={() => {
+                triggerLeaveWorkspace();
+                closeCmdk();
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",

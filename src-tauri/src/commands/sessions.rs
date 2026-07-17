@@ -45,6 +45,7 @@ struct ManagedSession {
     /// lost and the terminal stays blank. Replayed verbatim on attach.
     pre_attach: String,
     attached: bool,
+    full_transcript: String,
 }
 
 impl Default for SessionManager {
@@ -116,6 +117,7 @@ impl SessionManager {
                     killer,
                     pre_attach: String::new(),
                     attached: false,
+                    full_transcript: String::new(),
                 },
             );
         }
@@ -217,6 +219,16 @@ impl SessionManager {
             .map(|session| session.info.label.clone())
             .collect()
     }
+
+    pub fn get_transcript(&self, id: &str) -> Result<String, AppError> {
+        let inner = self.lock_inner();
+        let session = inner
+            .sessions
+            .get(id)
+            .ok_or_else(|| AppError::Session(format!("Unknown session: {id}")))?;
+        Ok(session.full_transcript.clone())
+    }
+
 
     fn lock_inner(&self) -> MutexGuard<'_, SessionManagerInner> {
         self.inner
@@ -635,22 +647,26 @@ fn spawn_output_reader(
                     let data = String::from_utf8_lossy(&pending[..valid_len]).to_string();
                     pending.drain(..valid_len);
 
-                    // Under the lock: if the terminal has attached, emit live;
-                    // otherwise buffer until attach replays it. If the session is
-                    // gone, stop reading.
-                    let emit = {
-                        let mut inner = sessions
-                            .lock()
-                            .unwrap_or_else(|poisoned| poisoned.into_inner());
-                        match inner.sessions.get_mut(&id) {
-                            Some(session) if session.attached => true,
-                            Some(session) => {
-                                session.pre_attach.push_str(&data);
-                                false
-                            }
-                            None => break,
-                        }
-                    };
+                     // Under the lock: if the terminal has attached, emit live;
+                     // otherwise buffer until attach replays it. If the session is
+                     // gone, stop reading. Accrue to full_transcript in both cases.
+                     let emit = {
+                         let mut inner = sessions
+                             .lock()
+                             .unwrap_or_else(|poisoned| poisoned.into_inner());
+                         match inner.sessions.get_mut(&id) {
+                             Some(session) => {
+                                 session.full_transcript.push_str(&data);
+                                 if session.attached {
+                                     true
+                                 } else {
+                                     session.pre_attach.push_str(&data);
+                                     false
+                                 }
+                             }
+                             None => break,
+                         }
+                     };
                     if emit {
                         let _ = app.emit(
                             SESSION_OUTPUT_EVENT,

@@ -476,6 +476,35 @@ fn get_git_info(state: State<'_, AppState>) -> Result<GitInfo, String> {
 }
 
 #[tauri::command]
+fn get_git_details(state: State<'_, AppState>) -> Result<commands::git_details::GitDetails, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    commands::git_details::get_git_details(&root.to_string_lossy())
+}
+
+#[tauri::command]
+fn get_github_pat_configured() -> bool {
+    commands::github_integration::get_github_pat().is_some()
+}
+
+#[tauri::command]
+fn save_github_pat(token: String) -> Result<(), String> {
+    commands::github_integration::save_github_pat(&token)
+}
+
+#[tauri::command]
+fn delete_github_pat() -> Result<(), String> {
+    commands::github_integration::delete_github_pat()
+}
+
+#[tauri::command]
+fn get_github_dashboard(owner: String, repo: String) -> Result<commands::github_integration::GitHubDashboard, String> {
+    commands::github_integration::get_github_dashboard(&owner, &repo)
+}
+
+#[tauri::command]
 fn start_watcher(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let root = state
         .path_guard
@@ -573,6 +602,15 @@ fn session_attach(state: State<'_, AppState>, id: String) -> Result<String, Stri
 fn session_list(state: State<'_, AppState>) -> Vec<SessionInfo> {
     state.sessions.list()
 }
+
+#[tauri::command]
+fn session_get_transcript(state: State<'_, AppState>, id: String) -> Result<String, String> {
+    state
+        .sessions
+        .get_transcript(&id)
+        .map_err(|err| err.to_string())
+}
+
 
 #[tauri::command]
 fn list_ollama_models() -> Result<Vec<OllamaModel>, String> {
@@ -737,6 +775,11 @@ pub fn run() {
             get_wiki_tree,
             get_wiki_page,
             get_git_info,
+            get_git_details,
+            get_github_pat_configured,
+            save_github_pat,
+            delete_github_pat,
+            get_github_dashboard,
             start_watcher,
             stop_watcher,
             watcher_status,
@@ -746,6 +789,7 @@ pub fn run() {
             session_kill,
             session_attach,
             session_list,
+            session_get_transcript,
             list_ollama_models,
             probe_harnesses,
             update_harness,

@@ -9,7 +9,8 @@ import { TaskboardView } from "../Taskboard/TaskboardView";
 import { SpecDetail } from "../Spec/SpecDetail";
 import { ReviewsList } from "../Reviews/ReviewsList";
 import { DecisionsList } from "../Decisions/DecisionsList";
-import { AgentsMCPView } from "../Agents/AgentsMCPView";
+import { AgentsView } from "../Agents/AgentsView";
+import { McpView } from "../Agents/McpView";
 import { SkillsView } from "../Skills/SkillsView";
 import { DesignView } from "../Design/DesignView";
 import { SettingsView } from "../Settings/SettingsView";
@@ -18,6 +19,8 @@ import { InsightsView } from "../Insights/InsightsView";
 import { SessionsView } from "../Sessions/SessionsView";
 import { CommandPalette } from "../CommandPalette";
 import { ArtifactDetailModal } from "./ArtifactDetailModal";
+import { LeaveWorkspaceModal } from "./LeaveWorkspaceModal";
+import { RepositoryView } from "../Repository/RepositoryView";
 
 export function AppShell() {
   const { state, dispatch } = useWorkspace();
@@ -46,7 +49,11 @@ export function AppShell() {
       case "decisions":
         return <DecisionsList />;
       case "agents":
-        return <AgentsMCPView />;
+        return <AgentsView />;
+      case "mcp":
+        return <McpView />;
+      case "repository":
+        return <RepositoryView />;
       case "skills":
         return <SkillsView />;
       case "design":
@@ -149,6 +156,9 @@ export function AppShell() {
 
       {/* Artifact Detail Modal */}
       {state.detailArtifact && <ArtifactDetailModal key={state.detailArtifact.path} />}
+
+      {/* Leave Workspace Confirmation Modal */}
+      {state.showExitConfirm && <LeaveWorkspaceModal />}
     </div>
   );
 }

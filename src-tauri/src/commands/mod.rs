@@ -15,3 +15,6 @@ pub mod process;
 pub mod sessions;
 pub mod watcher;
 pub mod workspace;
+pub mod git_details;
+pub mod github_integration;
+
