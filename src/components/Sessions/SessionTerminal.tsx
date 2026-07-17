@@ -5,12 +5,17 @@ import { Terminal } from "@xterm/xterm";
 import { sessionAttach, sessionResize, sessionWrite } from "../../lib/commands";
 import { terminalClipboardAction } from "../../lib/terminalClipboard";
 import {
-  OPENCODE_SCROLL_TO_BOTTOM,
-  shouldDelegateTerminalWheel,
+  restoreMouseTracking,
+  SUSPEND_MOUSE_TRACKING,
+  visibleViewportText,
+} from "../../lib/terminalSelection";
+import {
+  terminalBottomAction,
   terminalPageAction,
+  terminalWheelAction,
   terminalWheelRows,
-  tuiWheelInput,
 } from "../../lib/terminalWheel";
+import type { MouseTrackingMode } from "../../lib/terminalWheel";
 import type { AgentHost } from "../../types";
 
 interface SessionTerminalProps {
@@ -19,97 +24,150 @@ interface SessionTerminalProps {
   host: AgentHost;
 }
 
+function trackingMode(term: Terminal): MouseTrackingMode {
+  return (term.modes.mouseTrackingMode ?? "none") as MouseTrackingMode;
+}
+
 export function SessionTerminal({ sessionId, active, host }: SessionTerminalProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [clipboardFeedback, setClipboardFeedback] = useState<string | null>(null);
+  const selectModeRef = useRef(false);
+  const trackingSnapshotRef = useRef<MouseTrackingMode>("none");
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [mouseTracking, setMouseTracking] = useState<MouseTrackingMode>("none");
 
-  const showClipboardFeedback = useCallback((message: string) => {
-    setClipboardFeedback(message);
+  const showFeedback = useCallback((message: string) => {
+    setFeedback(message);
     if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
     feedbackTimeoutRef.current = setTimeout(() => {
-      setClipboardFeedback(null);
+      setFeedback(null);
       feedbackTimeoutRef.current = null;
-    }, 2400);
+    }, 3200);
   }, []);
 
   const copySelection = useCallback(async () => {
-    const selection = terminalRef.current?.getSelection() ?? "";
+    const term = terminalRef.current;
+    const selection = term?.getSelection() ?? "";
     if (!selection) {
-      showClipboardFeedback("Select terminal text before copying.");
+      showFeedback(
+        term && trackingMode(term) !== "none"
+          ? "No selection — the TUI captures the mouse: Shift+drag or use Select text."
+          : "Select terminal text before copying, or use Copy visible."
+      );
       return;
     }
     if (!navigator.clipboard) {
-      showClipboardFeedback("Clipboard access is unavailable.");
+      showFeedback("Clipboard access is unavailable in this WebView.");
       return;
     }
     try {
       await navigator.clipboard.writeText(selection);
-      showClipboardFeedback("Selection copied.");
+      showFeedback("Selection copied.");
     } catch {
-      showClipboardFeedback("Could not copy the terminal selection.");
+      showFeedback("The WebView blocked the clipboard write; try Ctrl+Shift+C.");
     }
-  }, [showClipboardFeedback]);
+  }, [showFeedback]);
+
+  // Fallback that needs no selection: copies exactly the visible viewport,
+  // not the scrollback and not the complete conversation.
+  const copyVisible = useCallback(async () => {
+    const term = terminalRef.current;
+    if (!term) return;
+    const text = visibleViewportText(term);
+    if (!text.trim()) {
+      showFeedback("The visible terminal output is empty.");
+      return;
+    }
+    if (!navigator.clipboard) {
+      showFeedback("Clipboard access is unavailable in this WebView.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      showFeedback("Visible output copied — current viewport only, not the full conversation.");
+    } catch {
+      showFeedback("The WebView blocked the clipboard write.");
+    }
+  }, [showFeedback]);
 
   const pasteClipboard = useCallback(async () => {
     const term = terminalRef.current;
     if (!term || !navigator.clipboard) {
-      showClipboardFeedback("Clipboard access is unavailable.");
+      showFeedback("Clipboard access is unavailable in this WebView.");
       return;
     }
     try {
       const text = await navigator.clipboard.readText();
       if (!text) {
-        showClipboardFeedback("Clipboard is empty.");
+        showFeedback("Clipboard is empty.");
         return;
       }
       term.paste(text);
       term.focus();
-      showClipboardFeedback("Clipboard pasted.");
+      showFeedback("Clipboard pasted.");
     } catch {
-      showClipboardFeedback("Could not read from the clipboard.");
+      showFeedback("Could not read from the clipboard.");
     }
-  }, [showClipboardFeedback]);
+  }, [showFeedback]);
+
+  // Suspend mouse reporting locally in xterm (the harness is not told) so
+  // ordinary drag selection works inside full-screen TUIs; restore the exact
+  // prior tracking mode when the mode ends.
+  const toggleSelectMode = useCallback(() => {
+    const term = terminalRef.current;
+    if (!term) return;
+    if (selectModeRef.current) {
+      selectModeRef.current = false;
+      setSelectMode(false);
+      const restore = restoreMouseTracking(trackingSnapshotRef.current);
+      if (restore) term.write(restore);
+      setMouseTracking(trackingSnapshotRef.current);
+    } else {
+      trackingSnapshotRef.current = trackingMode(term);
+      selectModeRef.current = true;
+      setSelectMode(true);
+      if (trackingSnapshotRef.current !== "none") {
+        term.write(SUSPEND_MOUSE_TRACKING);
+      }
+      setMouseTracking("none");
+    }
+    term.focus();
+  }, []);
 
   const scrollPage = useCallback(
     (direction: -1 | 1) => {
       const term = terminalRef.current;
       if (!term) return;
-      const action = terminalPageAction(
-        host === "codex" ? term.buffer.active.type : "alternate",
-        direction,
-        host === "opencode" ? "opencode" : undefined
-      );
+      const action = terminalPageAction(host, term.buffer.active.type, direction);
       if (action.kind === "local") {
-        term.scrollPages(action.pages);
-      } else {
-        // Full-screen TUIs own their alternate-buffer history. Send the standard
-        // Page Up/Down sequence directly instead of pretending xterm has local
-        // scrollback for a buffer that deliberately has none.
+        term.scrollPages(direction);
+      } else if (action.kind === "input") {
         void sessionWrite(sessionId, action.data);
+      } else if (action.kind === "unsupported") {
+        showFeedback(action.hint);
       }
       term.focus();
     },
-    [host, sessionId]
+    [host, sessionId, showFeedback]
   );
 
   const scrollToBottom = useCallback(() => {
     const term = terminalRef.current;
     if (!term) return;
-    if (host === "codex" && term.buffer.active.type === "normal") {
+    const action = terminalBottomAction(host, term.buffer.active.type);
+    if (action.kind === "local") {
       term.scrollToBottom();
-    } else if (host === "opencode") {
-      void sessionWrite(sessionId, OPENCODE_SCROLL_TO_BOTTOM);
-    } else {
-      // End is the portable TUI fallback; applications may map it to the latest
-      // item while Page Down remains available for incremental navigation.
-      void sessionWrite(sessionId, "\u001b[F");
+    } else if (action.kind === "input") {
+      void sessionWrite(sessionId, action.data);
+    } else if (action.kind === "unsupported") {
+      showFeedback(action.hint);
     }
     term.focus();
-  }, [host, sessionId]);
+  }, [host, sessionId, showFeedback]);
 
   useEffect(
     () => () => {
@@ -194,33 +252,64 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
       return false;
     });
     term.attachCustomWheelEventHandler((event) => {
-      if (host === "opencode") {
-        const rows = terminalWheelRows(event.deltaY);
-        void sessionWrite(
-          sessionId,
-          tuiWheelInput("opencode", event.deltaY > 0 ? 1 : -1, rows)
-        );
-        event.preventDefault();
-        return false;
-      }
-      if (host !== "codex") {
-        void sessionWrite(
-          sessionId,
-          tuiWheelInput(host, event.deltaY > 0 ? 1 : -1, 1)
-        );
-        event.preventDefault();
-        return false;
-      }
-      if (shouldDelegateTerminalWheel(term.buffer.active.type, event)) {
+      if (event.ctrlKey || event.metaKey) {
         return true;
       }
+      if (selectModeRef.current) {
+        // Keep the viewport stable while a selection is being made in a
+        // full-screen TUI; the normal buffer can still scroll locally.
+        if (term.buffer.active.type === "normal") {
+          return true;
+        }
+        event.preventDefault();
+        return false;
+      }
       const rows = terminalWheelRows(event.deltaY);
-      term.scrollLines(event.deltaY > 0 ? rows : -rows);
+      const action = terminalWheelAction(
+        host,
+        term.buffer.active.type,
+        trackingMode(term),
+        event.deltaY > 0 ? 1 : -1,
+        rows
+      );
+      if (action.kind === "delegate") {
+        return true;
+      }
       event.preventDefault();
+      if (action.kind === "local") {
+        term.scrollLines(event.deltaY > 0 ? rows : -rows);
+      } else if (action.kind === "input") {
+        void sessionWrite(sessionId, action.data);
+      } else {
+        showFeedback(action.hint);
+      }
       return false;
+    });
+    // Leaving Select text mode on buffer switches keeps the snapshot from
+    // going stale while the harness redraws or exits its alternate screen.
+    const bufferDisposable = term.buffer.onBufferChange(() => {
+      if (selectModeRef.current) {
+        toggleSelectMode();
+      }
     });
     const handlePointerDown = () => term.focus();
     container.addEventListener("pointerdown", handlePointerDown);
+
+    const applyOutput = (data: string) => {
+      term.write(data, () => {
+        const mode = trackingMode(term);
+        if (selectModeRef.current) {
+          if (mode !== "none") {
+            // The harness re-enabled tracking mid-selection: remember its
+            // latest desire for restore, then re-assert the local suspension.
+            trackingSnapshotRef.current = mode;
+            term.write(SUSPEND_MOUSE_TRACKING);
+          }
+        } else {
+          setMouseTracking(mode);
+        }
+      });
+    };
 
     // Live events are buffered until the backstop snapshot has been written, so the
     // replayed pre-attach output (e.g. a TUI's first frame) always lands before any
@@ -232,7 +321,7 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
         return;
       }
       if (attached) {
-        terminalRef.current?.write(event.payload.data);
+        applyOutput(event.payload.data);
       } else {
         pendingLive.push(event.payload.data);
       }
@@ -243,15 +332,14 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
     outputUnlisten
       .then(() => sessionAttach(sessionId))
       .then((snapshot) => {
-        const term = terminalRef.current;
-        if (!term) {
+        if (!terminalRef.current) {
           return;
         }
         if (snapshot) {
-          term.write(snapshot);
+          applyOutput(snapshot);
         }
         for (const chunk of pendingLive) {
-          term.write(chunk);
+          applyOutput(chunk);
         }
         pendingLive.length = 0;
         attached = true;
@@ -263,14 +351,17 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
     return () => {
       resizeObserver.disconnect();
       dataDisposable.dispose();
+      bufferDisposable.dispose();
       container.removeEventListener("pointerdown", handlePointerDown);
       outputUnlisten.then((fn) => fn());
       term.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
       lastSizeRef.current = null;
+      selectModeRef.current = false;
+      setSelectMode(false);
     };
-  }, [copySelection, host, pasteClipboard, sessionId]);
+  }, [copySelection, host, pasteClipboard, sessionId, showFeedback, toggleSelectMode]);
 
   useEffect(() => {
     if (!active) {
@@ -295,6 +386,12 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
       }
     });
   }, [active, sessionId]);
+
+  const hint = selectMode
+    ? "Select text active — drag to select, Ctrl+C or Copy to copy; wheel is paused in full-screen TUIs."
+    : mouseTracking !== "none"
+      ? "The TUI captures the mouse — Shift+drag to select (Windows/Linux) or use Select text."
+      : "Copy: select + Ctrl+C, Ctrl+Shift+C, or Cmd+C · Paste: Ctrl+Shift+V or Cmd+V";
 
   return (
     <div
@@ -322,21 +419,35 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
           flexShrink: 0,
         }}
       >
-        <span style={{ flex: 1, minWidth: 0 }}>
-          Copy: select + Ctrl+C, Ctrl+Shift+C, or Cmd+C · Paste: Ctrl+Shift+V or Cmd+V
-        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>{hint}</span>
         {host === "opencode" && (
           <span style={{ color: "var(--text-secondary)", flexShrink: 0 }}>
             Files: @workspace/
           </span>
         )}
-        {clipboardFeedback && (
+        {feedback && (
           <span role="status" aria-live="polite" style={{ color: "var(--text-secondary)" }}>
-            {clipboardFeedback}
+            {feedback}
           </span>
         )}
+        <button
+          type="button"
+          aria-pressed={selectMode}
+          onClick={toggleSelectMode}
+          style={selectMode ? selectModeActiveStyle : clipboardButtonStyle}
+        >
+          Select text
+        </button>
         <button type="button" onClick={() => void copySelection()} style={clipboardButtonStyle}>
           Copy
+        </button>
+        <button
+          type="button"
+          aria-label="Copy the visible terminal viewport"
+          onClick={() => void copyVisible()}
+          style={clipboardButtonStyle}
+        >
+          Copy visible
         </button>
         <button type="button" onClick={() => void pasteClipboard()} style={clipboardButtonStyle}>
           Paste
@@ -370,4 +481,11 @@ const clipboardButtonStyle = {
   padding: "4px 8px",
   cursor: "pointer",
   flexShrink: 0,
+} as const;
+
+const selectModeActiveStyle = {
+  ...clipboardButtonStyle,
+  border: "1px solid var(--accent-primary, #8f7ae5)",
+  color: "var(--text-primary)",
+  background: "#241d33",
 } as const;
