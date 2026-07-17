@@ -4,6 +4,20 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 2.9.2 - 2026-07-17
+
+### Security
+
+- **Workspace path boundaries for artifact reads.** `lmbrain_get_artifact` resolves caller paths through the canonical workspace guard. Absolute and rooted paths, parent traversal with either separator, and symlink/junction escapes are rejected — traversal lexically before any filesystem access — and typed errors never disclose host filesystem paths.
+- **Hardened artifact creation.** `lmbrain_create` accepts only initial lifecycle statuses per artifact kind and validates the derived status directory; traversal, separators, and unknown statuses fail closed. Core-owned fields (`id`, `title`, `status`, `created`, `updated`, `activity`) are reserved, field keys and values that could inject frontmatter lines are rejected, and unique-ID plus single-ready-handoff invariants run under the allocation lock before any write. Invalid requests leave no directories, files, activity entries, or lock residue. The public tool schema is unchanged; values previously accepted accidentally now fail with typed errors.
+
+### Fixed
+
+- **Snapshot-consistent verification evidence.** `spec_verify` fingerprints the workspace before the first gate and after the final gate and records both. When they differ the transcript is explicitly invalidated with the reason, the run reports failure, and the evidence can never satisfy submission freshness checks — even when the workspace later matches the post-gate fingerprint. The artifact lock protects only the transcript write; isolated verification worktrees remain deferred to 3.0.0.
+- **Review context keeps nested evidence.** Markdown section extraction is heading-level aware: a `##` section retains its `###` and deeper subsections, heading-like lines inside code fences are content, and an empty duplicate heading no longer hides a later populated section. Missing, empty, or truncated implementation evidence now produces explicit warnings instead of silently incomplete context.
+- **Displayed version provenance.** Settings/About resolves the application version from build metadata instead of a hardcoded string; app, kit, and MCP component versions stay distinguishable.
+- **Embedded terminal scrolling, selection, and copy.** Scroll gestures are resolved at event time from the active buffer and mouse-tracking state per harness; unmapped combinations degrade visibly instead of swallowing input. A Select text mode suspends mouse reporting locally for ordinary drag selection and restores the exact prior mode; Copy visible copies the current viewport without a selection; copy failures are individually actionable.
+
 ## 2.9.1 - 2026-07-16
 
 ### Fixed
