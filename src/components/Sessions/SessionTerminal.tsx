@@ -295,15 +295,24 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
     const handlePointerDown = () => term.focus();
     container.addEventListener("pointerdown", handlePointerDown);
 
+    // Output must be routed through the ref, never the effect-local terminal:
+    // under StrictMode double-mounting and on unmount races, session-output
+    // events and the attach snapshot can resolve after THIS mount's terminal
+    // was disposed, and they must land on the live terminal instead. Writing
+    // to a disposed terminal both loses the TUI's first frame (blank session)
+    // and crashes the WebView on close.
     const applyOutput = (data: string) => {
-      term.write(data, () => {
-        const mode = trackingMode(term);
+      const current = terminalRef.current;
+      if (!current) return;
+      current.write(data, () => {
+        if (terminalRef.current !== current) return;
+        const mode = trackingMode(current);
         if (selectModeRef.current) {
           if (mode !== "none") {
             // The harness re-enabled tracking mid-selection: remember its
             // latest desire for restore, then re-assert the local suspension.
             trackingSnapshotRef.current = mode;
-            term.write(SUSPEND_MOUSE_TRACKING);
+            current.write(SUSPEND_MOUSE_TRACKING);
           }
         } else {
           setMouseTracking(mode);
