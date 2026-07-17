@@ -457,6 +457,205 @@ fn spec_submit_force_bypass_requires_reason_and_is_audited() {
     assert!(output.contains("operator accepts unavailable platform gate"));
 }
 
+fn snapshot(dir: &std::path::Path) -> Vec<String> {
+    let mut entries = Vec::new();
+    fn walk(dir: &std::path::Path, base: &std::path::Path, out: &mut Vec<String>) {
+        if let Ok(read) = fs::read_dir(dir) {
+            for entry in read.flatten() {
+                let path = entry.path();
+                out.push(path.strip_prefix(base).unwrap().display().to_string());
+                if path.is_dir() {
+                    walk(&path, base, out);
+                }
+            }
+        }
+    }
+    walk(dir, dir, &mut entries);
+    entries.sort();
+    entries
+}
+
+#[test]
+fn creation_status_allowlist_is_enforced_per_kind() {
+    let accepted = &[
+        (ArtifactKind::Spec, "backlog"),
+        (ArtifactKind::Review, "pending"),
+        (ArtifactKind::Adr, "proposed"),
+        (ArtifactKind::Agent, "proposed"),
+        (ArtifactKind::AgentProposal, "proposed"),
+        (ArtifactKind::Mcp, "specified"),
+        (ArtifactKind::McpProposal, "proposed"),
+        (ArtifactKind::Handoff, "ready"),
+        (ArtifactKind::Skill, "proposed"),
+    ];
+    for &(kind, status) in accepted {
+        let d = tempdir().unwrap();
+        fs::create_dir_all(d.path().join(".lmbrain")).unwrap();
+        let result = create(
+            d.path(),
+            CreateRequest {
+                kind,
+                title: "Allowed".into(),
+                status: Some(status.into()),
+                fields: vec![],
+            },
+        );
+        assert!(result.is_ok(), "{kind:?} '{status}' rejected: {result:?}");
+    }
+
+    let rejected = &[
+        (ArtifactKind::Spec, "ready"),
+        (ArtifactKind::Spec, "done"),
+        (ArtifactKind::Review, "accepted"),
+        (ArtifactKind::Adr, "accepted"),
+        (ArtifactKind::Agent, "active"),
+        (ArtifactKind::Skill, "active"),
+        (ArtifactKind::Handoff, "consumed"),
+        (ArtifactKind::Spec, "../escape"),
+        (ArtifactKind::Spec, "a/b"),
+        (ArtifactKind::Spec, r"a\b"),
+        (ArtifactKind::Spec, "C:/tmp"),
+        (ArtifactKind::Spec, ""),
+        (ArtifactKind::Spec, "unknown-status"),
+    ];
+    for &(kind, status) in rejected {
+        let d = tempdir().unwrap();
+        fs::create_dir_all(d.path().join(".lmbrain")).unwrap();
+        let before = snapshot(d.path());
+        let error = create(
+            d.path(),
+            CreateRequest {
+                kind,
+                title: "Rejected".into(),
+                status: Some(status.into()),
+                fields: vec![],
+            },
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                error,
+                lmbrain_core::TransitionError::InvalidCreationStatus { .. }
+            ),
+            "{kind:?} '{status}': unexpected error {error}"
+        );
+        assert_eq!(
+            before,
+            snapshot(d.path()),
+            "{kind:?} '{status}' left filesystem residue"
+        );
+    }
+}
+
+#[test]
+fn create_rejects_reserved_fields_and_injection_without_residue() {
+    let reserved = ["id", "Id", " status", "created", "updated", "title", "activity"];
+    for key in reserved {
+        let d = tempdir().unwrap();
+        fs::create_dir_all(d.path().join(".lmbrain")).unwrap();
+        let before = snapshot(d.path());
+        let error = create(
+            d.path(),
+            CreateRequest {
+                kind: ArtifactKind::Spec,
+                title: "Reserved".into(),
+                status: None,
+                fields: vec![(key.into(), "SPEC-999".into())],
+            },
+        )
+        .unwrap_err();
+        assert!(
+            matches!(error, lmbrain_core::TransitionError::ReservedField(_)),
+            "'{key}': unexpected error {error}"
+        );
+        assert_eq!(before, snapshot(d.path()), "'{key}' left residue");
+    }
+
+    let invalid = [
+        ("bad key", "value"),
+        ("1leading", "value"),
+        ("key:colon", "value"),
+        ("spec", "value\nid: SPEC-999"),
+        ("spec", "value\r\nstatus: done"),
+    ];
+    for (key, value) in invalid {
+        let d = tempdir().unwrap();
+        fs::create_dir_all(d.path().join(".lmbrain")).unwrap();
+        let error = create(
+            d.path(),
+            CreateRequest {
+                kind: ArtifactKind::Spec,
+                title: "Injection".into(),
+                status: None,
+                fields: vec![(key.into(), value.into())],
+            },
+        )
+        .unwrap_err();
+        assert!(
+            matches!(error, lmbrain_core::TransitionError::InvalidField(_)),
+            "('{key}', {value:?}): unexpected error {error}"
+        );
+    }
+
+    // Legitimate domain fields still work, including 'kind' (a skill field,
+    // distinct from the artifact kind carried by the ID prefix).
+    let d = tempdir().unwrap();
+    fs::create_dir_all(d.path().join(".lmbrain")).unwrap();
+    let result = create(
+        d.path(),
+        CreateRequest {
+            kind: ArtifactKind::Skill,
+            title: "Valid".into(),
+            status: None,
+            fields: vec![
+                ("kind".into(), "verification".into()),
+                ("recommended_agent".into(), "AGENT-001".into()),
+            ],
+        },
+    )
+    .unwrap();
+    let out = fs::read_to_string(result.path).unwrap();
+    assert!(out.contains("kind: verification"));
+    assert!(out.contains("recommended_agent: AGENT-001"));
+}
+
+#[test]
+fn create_cannot_produce_a_second_ready_handoff() {
+    let d = tempdir().unwrap();
+    let r = d.path();
+    fs::create_dir_all(r.join(".lmbrain")).unwrap();
+    let first = create(
+        r,
+        CreateRequest {
+            kind: ArtifactKind::Handoff,
+            title: "First".into(),
+            status: None,
+            fields: vec![],
+        },
+    )
+    .unwrap();
+    assert_eq!(first.status, "ready");
+
+    let error = create(
+        r,
+        CreateRequest {
+            kind: ArtifactKind::Handoff,
+            title: "Second".into(),
+            status: None,
+            fields: vec![],
+        },
+    )
+    .unwrap_err();
+    assert!(
+        error.to_string().contains("only one ready handoff"),
+        "unexpected error: {error}"
+    );
+    let remaining = fs::read_dir(r.join(".lmbrain/handoffs/active"))
+        .unwrap()
+        .count();
+    assert_eq!(remaining, 1, "the failed create left an artifact behind");
+}
+
 #[test]
 fn frontmatter_round_trip_keeps_comments_and_order() {
     let mut document = Document::parse(
