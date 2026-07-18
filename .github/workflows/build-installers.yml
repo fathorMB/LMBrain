@@ -84,10 +84,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Verify app and kit version alignment
         run: node scripts/check-version.mjs
-      - name: Lint and test
-        run: |
-          pnpm lint
-          pnpm test
+      - name: Lint frontend
+        run: pnpm lint
+      - name: Test frontend
+        run: pnpm test
       - name: Build MCP server
         run: cargo build --release -p lmbrain-mcp
       - name: Prepare MCP sidecar

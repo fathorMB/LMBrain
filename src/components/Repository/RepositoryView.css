@@ -1,0 +1,180 @@
+.repository-scroll {
+  height: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--bg-primary);
+}
+
+.repository-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1560px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 24px 36px 70px;
+}
+
+.repository-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 24px;
+  min-width: 0;
+}
+
+.repository-column,
+.repository-card,
+.repository-metadata-grid,
+.repository-file-copy,
+.repository-remote,
+.repository-link-copy {
+  min-width: 0;
+}
+
+.repository-metadata-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.55fr);
+  gap: 12px;
+}
+
+.repository-ellipsis {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repository-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 520px;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.repository-file-row {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.repository-file-row:hover,
+.repository-file-row:focus-visible {
+  border-color: #7667c9;
+  background: #191520;
+  outline: none;
+}
+
+.repository-file-copy {
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding-right: 10px;
+}
+
+.repository-diff-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(7, 6, 10, 0.82);
+  backdrop-filter: blur(5px);
+}
+
+.repository-diff-modal {
+  display: flex;
+  width: min(1180px, 100%);
+  height: min(820px, 92vh);
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-primary);
+  border-radius: 14px;
+  background: #100d14;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.62);
+  outline: none;
+}
+
+.repository-diff-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-primary);
+  background: #15111b;
+}
+
+.repository-diff-header-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.repository-diff-body {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  background: #0b090e;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.repository-diff-line {
+  display: grid;
+  grid-template-columns: 48px 48px minmax(max-content, 1fr);
+  width: max-content;
+  min-width: 100%;
+}
+
+.repository-diff-number {
+  box-sizing: border-box;
+  padding: 0 8px;
+  border-right: 1px solid rgba(255, 255, 255, 0.045);
+  color: #665e70;
+  text-align: right;
+  user-select: none;
+}
+
+.repository-diff-code {
+  padding: 0 12px;
+  color: #c8c1d0;
+  white-space: pre;
+}
+
+.repository-diff-line--addition { background: rgba(46, 160, 92, 0.13); }
+.repository-diff-line--addition .repository-diff-code { color: #94d3aa; }
+.repository-diff-line--deletion { background: rgba(224, 88, 74, 0.13); }
+.repository-diff-line--deletion .repository-diff-code { color: #efa29a; }
+.repository-diff-line--hunk { background: rgba(124, 108, 246, 0.14); }
+.repository-diff-line--hunk .repository-diff-code { color: #b9adff; }
+.repository-diff-line--header .repository-diff-code { color: #8f849a; font-weight: 650; }
+.repository-diff-line--meta .repository-diff-code { color: #756d7e; font-style: italic; }
+
+@media (max-width: 1120px) {
+  .repository-grid { grid-template-columns: minmax(0, 1fr); }
+  .repository-file-list { max-height: 420px; }
+}
+
+@media (max-width: 700px) {
+  .repository-page { padding: 18px 16px 52px; }
+  .repository-metadata-grid { grid-template-columns: minmax(0, 1fr); }
+  .repository-diff-overlay { padding: 10px; }
+  .repository-diff-modal { height: 96vh; }
+}

@@ -688,7 +688,17 @@ export interface DetailArtifact {
 export interface GitFile {
   path: string;
   status: "staged" | "unstaged" | "untracked" | "conflicted" | "deleted" | "renamed";
+  diff_target: GitDiffTarget;
   original_path: string | null;
+}
+
+export type GitDiffTarget = "staged" | "unstaged" | "untracked" | "conflicted";
+
+export interface GitFileDiff {
+  path: string;
+  diff: string;
+  binary: boolean;
+  truncated: boolean;
 }
 
 export interface GitDetails {
@@ -729,4 +739,3 @@ export interface GitHubDashboard {
   pull_requests: GitHubPullRequest[];
   workflow_runs: GitHubWorkflowRun[];
 }
-

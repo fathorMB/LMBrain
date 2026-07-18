@@ -9,6 +9,7 @@ This directory documents the current LMBrain solution. It intentionally does not
 - [Kit](kit.md) - the reusable `.lmbrain` template and artifact model.
 - [Agent Hosts](agent-hosts.md) - Claude Code, Codex, Pi, and OpenCode registration.
 - [Sessions](sessions.md) - interactive Claude, Codex, Pi, and OpenCode terminals.
+- [Repository](repository.md) - read-only Git status, GitHub delivery data, and safe file diff inspection.
 - [Development](development.md) - local setup, repository map, and checks.
 - [Release](release.md) - version alignment, CI, installers, and releases.
 

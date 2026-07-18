@@ -4,7 +4,17 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `3.0.0`.
+The current released kit is `3.0.1`.
+
+### 3.0.1 (installer publication gate correction)
+
+Supported source version is `3.0.0`; existing workspaces require no content migration.
+
+1. Update the application and bundled kit together.
+2. No `.lmbrain/` artifacts, frontmatter, configuration, or GitHub credentials need to be rewritten.
+3. Update `.lmbrain/VERSION` to `3.0.1` after validating the release.
+
+Rollback to 3.0.0 is data-safe because 3.0.1 changes no artifact shapes or runtime persistence contracts.
 
 ### 3.0.0 (Git & GitHub Dashboard and Session Transcript Search)
 

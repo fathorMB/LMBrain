@@ -68,26 +68,23 @@ preserves in-memory scrollback, selection, and output accumulated while another
 tab or app view is active. History is still process-memory state and does not
 survive closing the tab or restarting LMBrain.
 
-Wheel handling is buffer-aware. Normal terminal output scrolls xterm's local
-history; when a full-screen application such as Codex activates the alternate
-buffer, LMBrain delegates wheel events back to xterm so the TUI can receive its
-mouse scrolling protocol. Modifier-assisted wheel gestures are also left to
-xterm/the host.
+Wheel handling is buffer-aware. Normal terminal output follows xterm's native
+wheel path, including Codex sessions launched with `--no-alt-screen`. When a
+full-screen application activates the alternate buffer, LMBrain delegates mouse
+tracking to xterm or sends the harness's documented wheel binding. Modifier-
+assisted wheel gestures are left to xterm/the host.
 
 LMBrain uses xterm 6 for corrected alternate-buffer wheel and viewport handling.
 Embedded OpenCode sessions disable OpenCode mouse capture so xterm remains the
-single owner of wheel and selection behavior. The session toolbar provides Page
-up, Page down, and Bottom controls: normal buffers scroll locally, while
-Claude and Pi always receive PTY PageUp/PageDown navigation because their TUI
-history is application-owned even when xterm reports the normal buffer. OpenCode
-uses its documented alternate message bindings (`Ctrl+Alt+B/F`, `Y/E`, and `G`)
-because PageUp CSI events are not handled reliably through Windows ConPTY.
+single owner of wheel and selection behavior. OpenCode uses its documented
+alternate message bindings (`Ctrl+Alt+Y/E`) because wheel events are not handled
+reliably through Windows ConPTY.
 
 Each terminal shows Copy and Paste controls plus shortcut guidance:
 
 - select text and press `Ctrl+C`, or use `Ctrl+Shift+C` / macOS `Cmd+C`, to copy;
 - bare `Ctrl+C` with no selection remains the terminal interrupt signal;
-- use `Ctrl+Shift+V` / macOS `Cmd+V`, or the Paste button, to paste;
+- use `Ctrl+Shift+V` / macOS `Cmd+V` to paste;
 - paste goes through xterm's paste path so applications receive bracketed-paste
   sequences when they enable that terminal mode.
 
@@ -127,22 +124,19 @@ Scroll gestures are resolved at event time from the active xterm buffer and
 the mouse-tracking mode the TUI actually enabled, never from a per-host
 assumption:
 
-- Normal buffer: local xterm scrollback for every host (wheel, Page, Bottom).
+- Normal buffer: native xterm wheel scrolling for every host.
 - Alternate buffer with mouse tracking enabled: wheel events delegate to
   xterm's native mouse reports so the TUI scrolls itself.
-- Alternate buffer without tracking: Pi uses Page Up/Down and End; OpenCode
-  uses its documented Ctrl+Alt bindings; Codex delegates to xterm's
+- Alternate buffer without tracking: Pi uses Page Up/Down; OpenCode uses its
+  documented Ctrl+Alt line bindings; Codex delegates to xterm's
   alternate-screen arrow emulation; Claude Code and unknown hosts degrade
   visibly with a hint instead of swallowing the gesture.
 
-**Select text** suspends mouse reporting locally in xterm (the harness is not
-told), enables ordinary drag selection, and restores the exact prior tracking
-mode on exit — re-asserting the suspension if the harness re-enables tracking
-mid-selection and exiting cleanly on buffer switches. Shift+drag remains the
-quick alternative while a TUI captures the mouse. **Copy visible** copies the
-current viewport only — xterm's scrollback size never implies chat history
-while a harness owns the alternate screen; the durable transcript is deferred
-to 3.0.0.
+The terminal toolbar intentionally does not duplicate native copy, paste, or
+scroll actions. Drag to select in normal buffers; use Shift+drag while a TUI
+captures the mouse. Standard terminal shortcuts handle clipboard interaction.
+Durable transcript search remains available from the session's **Search logs**
+panel.
 
 ### Manual harness verification checklist
 
@@ -150,10 +144,8 @@ Run before release on Windows for each supported harness (Claude Code, Codex,
 Pi, OpenCode):
 
 - [ ] Mouse wheel up/down scrolls (or visibly explains why not).
-- [ ] Page up / Page down / Bottom buttons behave per the policy above.
 - [ ] Shift+drag selects while the TUI tracks the mouse.
-- [ ] Select text mode: drag-select works, exit restores TUI mouse behavior.
-- [ ] Copy with a selection; Copy visible without one.
+- [ ] Copy and paste work through the documented keyboard shortcuts.
 - [ ] Ctrl+C without a selection interrupts the harness (SIGINT).
 - [ ] Clipboard failures show a specific, actionable message.
 

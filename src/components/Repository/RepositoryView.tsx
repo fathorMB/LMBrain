@@ -1,6 +1,36 @@
 import { useEffect, useState } from "react";
 import * as commands from "../../lib/commands";
 import type { GitDetails, GitHubDashboard, GitFile } from "../../types";
+import { GitDiffModal } from "./GitDiffModal";
+import "./RepositoryView.css";
+
+interface RepositoryData {
+  gitDetails: GitDetails;
+  githubDashboard: GitHubDashboard | null;
+  hasToken: boolean;
+}
+
+function errorMessage(value: unknown, fallback: string): string {
+  if (typeof value === "string") return value;
+  if (value instanceof Error && value.message) return value.message;
+  return fallback;
+}
+
+async function fetchRepositoryData(): Promise<RepositoryData> {
+  const gitDetails = await commands.getGitDetails();
+  const hasToken = await commands.getGitHubPatConfigured();
+  let githubDashboard: GitHubDashboard | null = null;
+
+  if (gitDetails.owner && gitDetails.repo) {
+    try {
+      githubDashboard = await commands.getGitHubDashboard(gitDetails.owner, gitDetails.repo);
+    } catch (error) {
+      console.warn("GitHub API fetch failed:", error);
+    }
+  }
+
+  return { gitDetails, githubDashboard, hasToken };
+}
 
 export function RepositoryView() {
   const [gitDetails, setGitDetails] = useState<GitDetails | null>(null);
@@ -13,39 +43,43 @@ export function RepositoryView() {
   const [newToken, setNewToken] = useState("");
   const [showTokenInput, setShowTokenInput] = useState(false);
   const [savingToken, setSavingToken] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<GitFile | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      // 1. Fetch local Git details
-      const git = await commands.getGitDetails();
-      setGitDetails(git);
-
-      // 2. Check if GitHub PAT is configured
-      const tokenConfigured = await commands.getGitHubPatConfigured();
-      setHasToken(tokenConfigured);
-
-      // 3. If owner and repo are resolved, fetch GitHub dashboard data
-      if (git.owner && git.repo) {
-        try {
-          const gh = await commands.getGitHubDashboard(git.owner, git.repo);
-          setGithubDashboard(gh);
-        } catch (err) {
-          console.warn("GitHub API fetch failed:", err);
-          // Don't fail the whole view if GitHub fails (could be public repository limit, etc.)
-          setGithubDashboard(null);
-        }
-      }
-    } catch (err: any) {
-      setError(typeof err === "string" ? err : err.message || "Failed to load Git details");
+      const data = await fetchRepositoryData();
+      setGitDetails(data.gitDetails);
+      setGithubDashboard(data.githubDashboard);
+      setHasToken(data.hasToken);
+    } catch (error) {
+      setError(errorMessage(error, "Failed to load Git details"));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    let active = true;
+
+    fetchRepositoryData()
+      .then((data) => {
+        if (!active) return;
+        setGitDetails(data.gitDetails);
+        setGithubDashboard(data.githubDashboard);
+        setHasToken(data.hasToken);
+      })
+      .catch((error: unknown) => {
+        if (active) setError(errorMessage(error, "Failed to load Git details"));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleSaveToken = async (e: React.FormEvent) => {
@@ -59,8 +93,8 @@ export function RepositoryView() {
       setNewToken("");
       setShowTokenInput(false);
       await loadData();
-    } catch (err: any) {
-      alert("Failed to save token: " + err);
+    } catch (error) {
+      alert("Failed to save token: " + errorMessage(error, "Unknown error"));
     } finally {
       setSavingToken(false);
     }
@@ -72,8 +106,8 @@ export function RepositoryView() {
       await commands.deleteGitHubPat();
       setHasToken(false);
       await loadData();
-    } catch (err: any) {
-      alert("Failed to delete token: " + err);
+    } catch (error) {
+      alert("Failed to delete token: " + errorMessage(error, "Unknown error"));
     }
   };
 
@@ -110,8 +144,8 @@ export function RepositoryView() {
   };
 
   return (
-    <div style={{ overflowY: "auto", height: "100%", background: "var(--bg-primary)" }}>
-      <div style={{ maxWidth: 1080, margin: "0 auto", padding: "24px 36px 70px" }}>
+    <div className="repository-scroll">
+      <div className="repository-page">
         
         {/* Header Section */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
@@ -158,13 +192,13 @@ export function RepositoryView() {
         )}
 
         {/* main grids */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+        <div className="repository-grid">
           
           {/* Left Column: Local Git details */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div className="repository-column" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             
             {/* Git Metadata Card */}
-            <div style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18 }}>
+            <div className="repository-card" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18 }}>
               <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 16px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
                 <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>schema</i>
                 Local Git Status
@@ -172,14 +206,14 @@ export function RepositoryView() {
 
               {gitDetails ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div className="repository-metadata-grid">
                     
                     {/* Branch */}
                     <div style={{ background: "var(--bg-primary)", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--border-primary)" }}>
                       <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-muted)", marginBottom: 4 }}>
                         Current Branch
                       </div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#bcaef6", fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <div className="repository-ellipsis" title={gitDetails.branch} style={{ fontSize: 13, fontWeight: 700, color: "#bcaef6", fontFamily: "var(--font-mono)" }}>
                         {gitDetails.branch}
                       </div>
                     </div>
@@ -220,7 +254,7 @@ export function RepositoryView() {
 
                   {/* Remote URL info */}
                   {gitDetails.remote_url && (
-                    <div style={{ fontSize: 12, color: "var(--text-tertiary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div className="repository-remote repository-ellipsis" title={gitDetails.remote_url} style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
                       Remote: <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>{gitDetails.remote_url}</span>
                     </div>
                   )}
@@ -231,7 +265,7 @@ export function RepositoryView() {
             </div>
 
             {/* Changed Files List */}
-            <div style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18, flex: 1 }}>
+            <div className="repository-card" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18, flex: 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
                   <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>edit_document</i>
@@ -244,7 +278,7 @@ export function RepositoryView() {
                 )}
               </div>
 
-              <div style={{ overflowY: "auto", maxHeight: 380, display: "flex", flexDirection: "column", gap: 6 }}>
+              <div className="repository-file-list">
                 {gitDetails && gitDetails.files.length === 0 && (
                   <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-tertiary)", fontSize: 13 }}>
                     <i className="material-symbols-outlined" style={{ fontSize: 32, color: "#46b07d", marginBottom: 8, display: "block" }}>check_circle</i>
@@ -252,35 +286,28 @@ export function RepositoryView() {
                   </div>
                 )}
 
-                {gitDetails && gitDetails.files.map((file, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      background: "var(--bg-primary)",
-                      border: "1px solid var(--border-primary)",
-                      borderRadius: 8,
-                      fontSize: 12.5,
-                    }}
+                {gitDetails && gitDetails.files.map((file) => (
+                  <button
+                    type="button"
+                    key={`${file.diff_target}:${file.path}`}
+                    className="repository-file-row"
+                    aria-label={`View diff for ${file.path}, status ${file.status}, ${file.diff_target}`}
+                    onClick={() => setSelectedFile(file)}
+                    style={{ fontSize: 12.5 }}
                   >
-                    <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
+                    <div className="repository-file-copy">
                       <div
+                        className="repository-ellipsis"
                         title={file.path}
                         style={{
                           fontFamily: "var(--font-mono)",
                           color: "var(--text-primary)",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
                         }}
                       >
                         {file.path}
                       </div>
                       {file.original_path && (
-                        <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                        <div className="repository-ellipsis" title={file.original_path} style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
                           renamed from: {file.original_path}
                         </div>
                       )}
@@ -300,7 +327,7 @@ export function RepositoryView() {
                     >
                       {file.status}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -308,10 +335,10 @@ export function RepositoryView() {
           </div>
 
           {/* Right Column: GitHub integration details */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div className="repository-column" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             
             {/* GitHub Token configuration panel */}
-            <div style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18 }}>
+            <div className="repository-card" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
                   <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>key</i>
@@ -440,7 +467,7 @@ export function RepositoryView() {
             </div>
 
             {/* GitHub Pull Requests List */}
-            <div style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18 }}>
+            <div className="repository-card" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18 }}>
               <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 14px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
                 <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>call_merge</i>
                 GitHub Open Pull Requests
@@ -484,7 +511,7 @@ export function RepositoryView() {
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-                      <span style={{ fontSize: 13, fontWeight: 650, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: 8 }}>
+                      <span className="repository-link-copy repository-ellipsis" style={{ fontSize: 13, fontWeight: 650, color: "var(--text-primary)", flex: 1, paddingRight: 8 }}>
                         #{pr.number} {pr.title}
                       </span>
                       {pr.draft && (
@@ -503,7 +530,7 @@ export function RepositoryView() {
             </div>
 
             {/* GitHub Actions Workflows List */}
-            <div style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18 }}>
+            <div className="repository-card" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18 }}>
               <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 14px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
                 <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>cycle</i>
                 GitHub Actions Runs
@@ -555,7 +582,7 @@ export function RepositoryView() {
                       </i>
                       
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div className="repository-ellipsis" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-primary)" }}>
                           {run.name}
                         </div>
                         <div style={{ fontSize: 10.5, color: "var(--text-tertiary)", marginTop: 2 }}>
@@ -592,6 +619,13 @@ export function RepositoryView() {
         </div>
 
       </div>
+      {selectedFile && (
+        <GitDiffModal
+          key={`${selectedFile.diff_target}:${selectedFile.path}`}
+          file={selectedFile}
+          onClose={() => setSelectedFile(null)}
+        />
+      )}
     </div>
   );
 }

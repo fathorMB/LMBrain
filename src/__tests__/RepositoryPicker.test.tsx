@@ -20,10 +20,11 @@ vi.mock("../hooks/useWorkspace", () => ({
 
 describe("RepositoryPicker workspace preparation", () => {
   it("shows the active loading stage and selected path", () => {
-    render(<RepositoryPicker />);
+    const { container } = render(<RepositoryPicker />);
 
     expect(screen.getByRole("status", { name: "Preparing workspace" })).toBeDefined();
     expect(screen.getByText("Preparing Pi agent integration...")).toBeDefined();
     expect(screen.getByText("E:\\Git\\Example")).toBeDefined();
+    expect(container.querySelector('img[src="/favicon.svg"]')).not.toBeNull();
   });
 });
