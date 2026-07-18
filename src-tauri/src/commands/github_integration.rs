@@ -1,4 +1,4 @@
-use keyring::Entry;
+use keyring::{Entry, Error as KeyringError};
 use serde::{Serialize, Deserialize};
 
 const SERVICE_NAME: &str = "lmbrain";
@@ -35,29 +35,49 @@ pub struct GitHubDashboard {
     pub workflow_runs: Vec<GitHubWorkflowRun>,
 }
 
-pub fn get_github_pat() -> Option<String> {
-    if let Ok(entry) = Entry::new(SERVICE_NAME, USERNAME) {
-        entry.get_password().ok()
-    } else {
-        None
+fn github_pat_entry() -> Result<Entry, String> {
+    Entry::new(SERVICE_NAME, USERNAME)
+        .map_err(|error| format!("Could not open the operating-system credential store: {error}"))
+}
+
+pub fn get_github_pat() -> Result<Option<String>, String> {
+    match github_pat_entry()?.get_password() {
+        Ok(token) if token.trim().is_empty() => Ok(None),
+        Ok(token) => Ok(Some(token)),
+        Err(KeyringError::NoEntry) => Ok(None),
+        Err(error) => Err(format!("Could not read the GitHub PAT from the credential store: {error}")),
     }
 }
 
 pub fn save_github_pat(token: &str) -> Result<(), String> {
-    let entry = Entry::new(SERVICE_NAME, USERNAME).map_err(|e| e.to_string())?;
-    entry.set_password(token).map_err(|e| e.to_string())?;
+    let token = token.trim();
+    if token.is_empty() {
+        return Err("The GitHub PAT cannot be empty.".to_string());
+    }
+
+    github_pat_entry()?
+        .set_password(token)
+        .map_err(|error| format!("Could not save the GitHub PAT in the credential store: {error}"))?;
+
+    // A keyring build without a native backend silently uses an in-memory mock.
+    // Re-open the entry so a non-persistent write cannot report false success.
+    if get_github_pat()?.as_deref() != Some(token) {
+        return Err("The credential store accepted the GitHub PAT but did not persist it.".to_string());
+    }
+
     Ok(())
 }
 
 pub fn delete_github_pat() -> Result<(), String> {
-    let entry = Entry::new(SERVICE_NAME, USERNAME).map_err(|e| e.to_string())?;
-    entry.delete_credential().map_err(|e| e.to_string())?;
-    Ok(())
+    match github_pat_entry()?.delete_credential() {
+        Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
+        Err(error) => Err(format!("Could not delete the GitHub PAT from the credential store: {error}")),
+    }
 }
 
 pub fn get_github_dashboard(owner: &str, repo: &str) -> Result<GitHubDashboard, String> {
-    let token = get_github_pat();
-    let has_token = token.is_some() && !token.as_ref().unwrap().is_empty();
+    let token = get_github_pat()?;
+    let has_token = token.is_some();
 
     let prs = fetch_pull_requests(owner, repo, token.as_deref())?;
     let runs = fetch_workflow_runs(owner, repo, token.as_deref())?;
@@ -179,4 +199,27 @@ fn fetch_workflow_runs(owner: &str, repo: &str, token: Option<&str>) -> Result<V
     }
 
     Ok(runs)
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn native_windows_credential_store_persists_across_entries() {
+        let service = format!("lmbrain-keyring-test-{}", uuid::Uuid::new_v4());
+        let username = "github_pat_test";
+        let token = "temporary-test-token";
+
+        keyring::Entry::new(&service, username)
+            .expect("create credential entry")
+            .set_password(token)
+            .expect("write temporary credential");
+
+        let second_entry = keyring::Entry::new(&service, username).expect("re-open credential entry");
+        let readback = second_entry.get_password();
+        let cleanup = second_entry.delete_credential();
+
+        assert_eq!(readback.expect("read temporary credential"), token);
+        cleanup.expect("delete temporary credential");
+    }
 }

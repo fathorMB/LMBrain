@@ -1,14 +1,11 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { sessionGetTranscript } from "../../lib/commands";
+import { stripAnsi } from "../../lib/ansi";
 
 interface HistorySearchPanelProps {
   sessionId: string;
   onClose: () => void;
-}
-
-export function stripAnsi(str: string): string {
-  return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
 }
 
 function escapeRegExp(string: string) {

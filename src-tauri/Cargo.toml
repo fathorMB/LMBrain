@@ -1,6 +1,6 @@
 [package]
 name = "lmbrain"
-version = "3.0.0"
+version = "3.0.1"
 description = "LMBrain - Local Markdown Project Brain"
 authors = ["LMBrain"]
 license = "MIT"
@@ -36,7 +36,7 @@ toml_edit = "0.22"
 percent-encoding = "2"
 libc = "0.2"
 lmbrain-core = { path = "../lmbrain-core" }
-keyring = "3"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 
 
 [dev-dependencies]

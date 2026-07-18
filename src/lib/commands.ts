@@ -10,6 +10,8 @@ import type {
   FileContent,
   GitInfo,
   GitDetails,
+  GitFileDiff,
+  GitDiffTarget,
   GitHubDashboard,
   Handoff,
   HarnessStatus,
@@ -267,6 +269,10 @@ export async function getGitDetails(): Promise<GitDetails> {
   return invoke("get_git_details");
 }
 
+export async function getGitFileDiff(path: string, diffTarget: GitDiffTarget): Promise<GitFileDiff> {
+  return invoke("get_git_file_diff", { path, diffTarget });
+}
+
 export async function getGitHubPatConfigured(): Promise<boolean> {
   return invoke("get_github_pat_configured");
 }
@@ -286,4 +292,3 @@ export async function getGitHubDashboard(owner: string, repo: string): Promise<G
 export async function sessionGetTranscript(id: string): Promise<string> {
   return invoke("session_get_transcript", { id });
 }
-

@@ -159,6 +159,7 @@ node scripts/check-version.mjs
 | [Kit](docs/kit.md) | `.lmbrain/` structure, lifecycle, migration, and agent taxonomy |
 | [Agent Hosts](docs/agent-hosts.md) | Claude Code, Codex, Pi, OpenCode, and MCP registration |
 | [Sessions](docs/sessions.md) | Interactive terminal routes and prerequisites |
+| [Repository](docs/repository.md) | Read-only Git/GitHub dashboard and file diff inspection |
 | [Architecture](docs/architecture.md) | React, Tauri, Rust core, and MCP internals |
 | [Development](docs/development.md) | Local development and repository layout |
 | [Release](docs/release.md) | Version alignment, CI, installers, and release assets |

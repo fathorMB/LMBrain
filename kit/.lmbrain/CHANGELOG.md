@@ -4,6 +4,15 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 3.0.1 - 2026-07-18
+
+### Fixed
+
+- **Deterministic installer quality gates.** Frontend lint and tests are independent GitHub Actions steps, so a failing native command cannot be masked by a later passing command on PowerShell. The repository dashboard and transcript search now satisfy the shared TypeScript, React Hooks, Fast Refresh, and intentional ANSI-control-sequence lint contracts on both installer platforms.
+- **Responsive repository dashboard and safe diff inspection.** Dense worktrees no longer force page-level horizontal scrolling: long paths are contained and discoverable, the dashboard uses wide displays more effectively and collapses for narrower windows, and changed files open a read-only unified-diff modal. Diff retrieval distinguishes index/worktree/untracked targets, rejects paths outside the selected repository, disables external diff/text-conversion tools and color, and bounds oversized previews by bytes and rendered line count.
+- **Persistent GitHub PAT storage.** Repository authentication now enables the native Windows Credential Manager, Apple Keychain, and Linux Secret Service backends required by keyring 3 instead of silently using its in-memory mock store. Save operations verify the credential through a fresh entry before reporting success, empty tokens are rejected, missing-token deletion is idempotent, and credential-store read errors remain actionable.
+- **Branded application icon.** The default Tauri logo is replaced across the desktop executable, installers, platform icon sets, favicon, and project picker by LMBrain's purple stylized-brain mark, with a shared scalable source and legible small-size output.
+
 ## 3.0.0 - 2026-07-17
 
 ### Added

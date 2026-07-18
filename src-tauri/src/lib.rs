@@ -485,8 +485,21 @@ fn get_git_details(state: State<'_, AppState>) -> Result<commands::git_details::
 }
 
 #[tauri::command]
-fn get_github_pat_configured() -> bool {
-    commands::github_integration::get_github_pat().is_some()
+fn get_git_file_diff(
+    state: State<'_, AppState>,
+    path: String,
+    diff_target: String,
+) -> Result<commands::git_details::GitFileDiff, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    commands::git_details::get_git_file_diff(&root, &path, &diff_target)
+}
+
+#[tauri::command]
+fn get_github_pat_configured() -> Result<bool, String> {
+    commands::github_integration::get_github_pat().map(|token| token.is_some())
 }
 
 #[tauri::command]
@@ -776,6 +789,7 @@ pub fn run() {
             get_wiki_page,
             get_git_info,
             get_git_details,
+            get_git_file_diff,
             get_github_pat_configured,
             save_github_pat,
             delete_github_pat,

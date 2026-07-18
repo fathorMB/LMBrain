@@ -5,17 +5,7 @@ import { Terminal } from "@xterm/xterm";
 import { sessionAttach, sessionResize, sessionWrite } from "../../lib/commands";
 import { HistorySearchPanel } from "./HistorySearchPanel";
 import { terminalClipboardAction } from "../../lib/terminalClipboard";
-import {
-  restoreMouseTracking,
-  SUSPEND_MOUSE_TRACKING,
-  visibleViewportText,
-} from "../../lib/terminalSelection";
-import {
-  terminalBottomAction,
-  terminalPageAction,
-  terminalWheelAction,
-  terminalWheelRows,
-} from "../../lib/terminalWheel";
+import { terminalWheelAction, terminalWheelRows } from "../../lib/terminalWheel";
 import type { MouseTrackingMode } from "../../lib/terminalWheel";
 import type { AgentHost } from "../../types";
 
@@ -35,10 +25,7 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
   const fitAddonRef = useRef<FitAddon | null>(null);
   const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const selectModeRef = useRef(false);
-  const trackingSnapshotRef = useRef<MouseTrackingMode>("none");
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [selectMode, setSelectMode] = useState(false);
   const [mouseTracking, setMouseTracking] = useState<MouseTrackingMode>("none");
   const [showHistorySearch, setShowHistorySearch] = useState(false);
   const showFeedback = useCallback((message: string) => {
@@ -56,8 +43,8 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
     if (!selection) {
       showFeedback(
         term && trackingMode(term) !== "none"
-          ? "No selection — the TUI captures the mouse: Shift+drag or use Select text."
-          : "Select terminal text before copying, or use Copy visible."
+          ? "No selection — the TUI captures the mouse: use Shift+drag."
+          : "Select terminal text before copying."
       );
       return;
     }
@@ -70,28 +57,6 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
       showFeedback("Selection copied.");
     } catch {
       showFeedback("The WebView blocked the clipboard write; try Ctrl+Shift+C.");
-    }
-  }, [showFeedback]);
-
-  // Fallback that needs no selection: copies exactly the visible viewport,
-  // not the scrollback and not the complete conversation.
-  const copyVisible = useCallback(async () => {
-    const term = terminalRef.current;
-    if (!term) return;
-    const text = visibleViewportText(term);
-    if (!text.trim()) {
-      showFeedback("The visible terminal output is empty.");
-      return;
-    }
-    if (!navigator.clipboard) {
-      showFeedback("Clipboard access is unavailable in this WebView.");
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      showFeedback("Visible output copied — current viewport only, not the full conversation.");
-    } catch {
-      showFeedback("The WebView blocked the clipboard write.");
     }
   }, [showFeedback]);
 
@@ -114,61 +79,6 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
       showFeedback("Could not read from the clipboard.");
     }
   }, [showFeedback]);
-
-  // Suspend mouse reporting locally in xterm (the harness is not told) so
-  // ordinary drag selection works inside full-screen TUIs; restore the exact
-  // prior tracking mode when the mode ends.
-  const toggleSelectMode = useCallback(() => {
-    const term = terminalRef.current;
-    if (!term) return;
-    if (selectModeRef.current) {
-      selectModeRef.current = false;
-      setSelectMode(false);
-      const restore = restoreMouseTracking(trackingSnapshotRef.current);
-      if (restore) term.write(restore);
-      setMouseTracking(trackingSnapshotRef.current);
-    } else {
-      trackingSnapshotRef.current = trackingMode(term);
-      selectModeRef.current = true;
-      setSelectMode(true);
-      if (trackingSnapshotRef.current !== "none") {
-        term.write(SUSPEND_MOUSE_TRACKING);
-      }
-      setMouseTracking("none");
-    }
-    term.focus();
-  }, []);
-
-  const scrollPage = useCallback(
-    (direction: -1 | 1) => {
-      const term = terminalRef.current;
-      if (!term) return;
-      const action = terminalPageAction(host, term.buffer.active.type, direction);
-      if (action.kind === "local") {
-        term.scrollPages(direction);
-      } else if (action.kind === "input") {
-        void sessionWrite(sessionId, action.data);
-      } else if (action.kind === "unsupported") {
-        showFeedback(action.hint);
-      }
-      term.focus();
-    },
-    [host, sessionId, showFeedback]
-  );
-
-  const scrollToBottom = useCallback(() => {
-    const term = terminalRef.current;
-    if (!term) return;
-    const action = terminalBottomAction(host, term.buffer.active.type);
-    if (action.kind === "local") {
-      term.scrollToBottom();
-    } else if (action.kind === "input") {
-      void sessionWrite(sessionId, action.data);
-    } else if (action.kind === "unsupported") {
-      showFeedback(action.hint);
-    }
-    term.focus();
-  }, [host, sessionId, showFeedback]);
 
   useEffect(
     () => () => {
@@ -256,15 +166,6 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
       if (event.ctrlKey || event.metaKey) {
         return true;
       }
-      if (selectModeRef.current) {
-        // Keep the viewport stable while a selection is being made in a
-        // full-screen TUI; the normal buffer can still scroll locally.
-        if (term.buffer.active.type === "normal") {
-          return true;
-        }
-        event.preventDefault();
-        return false;
-      }
       const rows = terminalWheelRows(event.deltaY);
       const action = terminalWheelAction(
         host,
@@ -277,21 +178,12 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
         return true;
       }
       event.preventDefault();
-      if (action.kind === "local") {
-        term.scrollLines(event.deltaY > 0 ? rows : -rows);
-      } else if (action.kind === "input") {
+      if (action.kind === "input") {
         void sessionWrite(sessionId, action.data);
       } else {
         showFeedback(action.hint);
       }
       return false;
-    });
-    // Leaving Select text mode on buffer switches keeps the snapshot from
-    // going stale while the harness redraws or exits its alternate screen.
-    const bufferDisposable = term.buffer.onBufferChange(() => {
-      if (selectModeRef.current) {
-        toggleSelectMode();
-      }
     });
     const handlePointerDown = () => term.focus();
     container.addEventListener("pointerdown", handlePointerDown);
@@ -307,17 +199,7 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
       if (!current) return;
       current.write(data, () => {
         if (terminalRef.current !== current) return;
-        const mode = trackingMode(current);
-        if (selectModeRef.current) {
-          if (mode !== "none") {
-            // The harness re-enabled tracking mid-selection: remember its
-            // latest desire for restore, then re-assert the local suspension.
-            trackingSnapshotRef.current = mode;
-            current.write(SUSPEND_MOUSE_TRACKING);
-          }
-        } else {
-          setMouseTracking(mode);
-        }
+        setMouseTracking(trackingMode(current));
       });
     };
 
@@ -361,17 +243,14 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
     return () => {
       resizeObserver.disconnect();
       dataDisposable.dispose();
-      bufferDisposable.dispose();
       container.removeEventListener("pointerdown", handlePointerDown);
       outputUnlisten.then((fn) => fn());
       term.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
       lastSizeRef.current = null;
-      selectModeRef.current = false;
-      setSelectMode(false);
     };
-  }, [copySelection, host, pasteClipboard, sessionId, showFeedback, toggleSelectMode]);
+  }, [copySelection, host, pasteClipboard, sessionId, showFeedback]);
 
   useEffect(() => {
     if (!active) {
@@ -397,11 +276,10 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
     });
   }, [active, sessionId]);
 
-  const hint = selectMode
-    ? "Select text active — drag to select, Ctrl+C or Copy to copy; wheel is paused in full-screen TUIs."
-    : mouseTracking !== "none"
-      ? "The TUI captures the mouse — Shift+drag to select (Windows/Linux) or use Select text."
-      : "Copy: select + Ctrl+C, Ctrl+Shift+C, or Cmd+C · Paste: Ctrl+Shift+V or Cmd+V";
+  const hint =
+    mouseTracking !== "none"
+      ? "Scroll with the mouse wheel. Hold Shift while dragging to select text."
+      : "Scroll with the mouse wheel. Copy and paste use the standard terminal shortcuts.";
 
   return (
     <div
@@ -442,42 +320,9 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
         )}
         <button
           type="button"
-          aria-pressed={selectMode}
-          onClick={toggleSelectMode}
-          style={selectMode ? selectModeActiveStyle : clipboardButtonStyle}
-        >
-          Select text
-        </button>
-        <button type="button" onClick={() => void copySelection()} style={clipboardButtonStyle}>
-          Copy
-        </button>
-        <button
-          type="button"
-          aria-label="Copy the visible terminal viewport"
-          onClick={() => void copyVisible()}
-          style={clipboardButtonStyle}
-        >
-          Copy visible
-        </button>
-        <button type="button" onClick={() => void pasteClipboard()} style={clipboardButtonStyle}>
-          Paste
-        </button>
-        <span aria-hidden="true" style={{ width: 1, height: 18, background: "#30283d" }} />
-        <button type="button" aria-label="Scroll session up one page" onClick={() => scrollPage(-1)} style={clipboardButtonStyle}>
-          Page up
-        </button>
-        <button type="button" aria-label="Scroll session down one page" onClick={() => scrollPage(1)} style={clipboardButtonStyle}>
-          Page down
-        </button>
-        <button type="button" aria-label="Scroll session to bottom" onClick={scrollToBottom} style={clipboardButtonStyle}>
-          Bottom
-        </button>
-        <span aria-hidden="true" style={{ width: 1, height: 18, background: "#30283d" }} />
-        <button
-          type="button"
           aria-pressed={showHistorySearch}
           onClick={() => setShowHistorySearch((prev) => !prev)}
-          style={showHistorySearch ? selectModeActiveStyle : clipboardButtonStyle}
+          style={showHistorySearch ? toolbarButtonActiveStyle : toolbarButtonStyle}
         >
           Search logs
         </button>
@@ -500,7 +345,7 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
 
 }
 
-const clipboardButtonStyle = {
+const toolbarButtonStyle = {
   border: "1px solid #30283d",
   borderRadius: 7,
   background: "#191520",
@@ -512,8 +357,8 @@ const clipboardButtonStyle = {
   flexShrink: 0,
 } as const;
 
-const selectModeActiveStyle = {
-  ...clipboardButtonStyle,
+const toolbarButtonActiveStyle = {
+  ...toolbarButtonStyle,
   border: "1px solid var(--accent-primary, #8f7ae5)",
   color: "var(--text-primary)",
   background: "#241d33",

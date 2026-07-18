@@ -66,25 +66,17 @@ export function RepositoryPicker() {
             marginBottom: 22,
           }}
         >
-          <div
+          <img
+            src="/favicon.svg"
+            alt=""
+            aria-hidden="true"
             style={{
               width: 36,
               height: 36,
               borderRadius: 10,
-              background: "linear-gradient(152deg,#9384f8,#6a4ff0)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
               boxShadow: "0 6px 20px -4px rgba(106,79,240,.55)",
             }}
-          >
-            <i
-              className="material-symbols-outlined"
-              style={{ fontSize: 21, color: "#fff" }}
-            >
-              neurology
-            </i>
-          </div>
+          />
           <div>
             <div
               style={{
