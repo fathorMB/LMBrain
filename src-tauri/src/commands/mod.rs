@@ -1,3 +1,4 @@
+pub mod antigravity_registration;
 pub mod codex_registration;
 pub mod contract;
 pub mod design;
