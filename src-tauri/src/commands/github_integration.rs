@@ -20,12 +20,19 @@ pub struct GitHubPullRequest {
 pub struct GitHubWorkflowRun {
     pub id: u64,
     pub name: String,
+    pub display_title: String,
     pub head_branch: String,
     pub head_sha: String,
     pub status: String,
     pub conclusion: Option<String>,
+    pub event: String,
+    pub run_number: u64,
+    pub run_attempt: u64,
+    pub actor: Option<String>,
     pub html_url: String,
     pub created_at: String,
+    pub updated_at: String,
+    pub run_started_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,7 +155,9 @@ fn fetch_pull_requests(owner: &str, repo: &str, token: Option<&str>) -> Result<V
 }
 
 fn fetch_workflow_runs(owner: &str, repo: &str, token: Option<&str>) -> Result<Vec<GitHubWorkflowRun>, String> {
-    let url = format!("https://api.github.com/repos/{}/{}/actions/runs?per_page=10", owner, repo);
+    // Intentionally unfiltered: the dashboard must surface every outcome
+    // (success, failure, cancelled, skipped, queued, in-progress, ...).
+    let url = format!("https://api.github.com/repos/{}/{}/actions/runs?per_page=30", owner, repo);
     let mut req = ureq::get(&url)
         .set("Accept", "application/vnd.github+json")
         .set("User-Agent", "lmbrain");
@@ -178,22 +187,39 @@ fn fetch_workflow_runs(owner: &str, repo: &str, token: Option<&str>) -> Result<V
         for item in runs_arr {
             let id = item.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
             let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let display_title = item.get("display_title").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let head_branch = item.get("head_branch").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let head_sha = item.get("head_sha").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let status = item.get("status").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let conclusion = item.get("conclusion").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let event = item.get("event").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let run_number = item.get("run_number").and_then(|v| v.as_u64()).unwrap_or(0);
+            let run_attempt = item.get("run_attempt").and_then(|v| v.as_u64()).unwrap_or(1);
+            let actor = item.get("actor")
+                .and_then(|a| a.get("login"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             let html_url = item.get("html_url").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let created_at = item.get("created_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let updated_at = item.get("updated_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let run_started_at = item.get("run_started_at").and_then(|v| v.as_str()).map(|s| s.to_string());
 
             runs.push(GitHubWorkflowRun {
                 id,
                 name,
+                display_title,
                 head_branch,
                 head_sha,
                 status,
                 conclusion,
+                event,
+                run_number,
+                run_attempt,
+                actor,
                 html_url,
                 created_at,
+                updated_at,
+                run_started_at,
             });
         }
     }
