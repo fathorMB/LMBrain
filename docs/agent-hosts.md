@@ -97,6 +97,56 @@ LMBrain also adds a non-destructive `references.workspace` entry when absent, so
 `@workspace/` provides deterministic project-file autocomplete even when the
 OpenCode TUI prioritizes agent mentions in its bare `@` popup.
 
+## Antigravity
+
+Antigravity discovers MCP servers only through a user-global `mcp_config.json`;
+it has no project-level MCP configuration. When a workspace is opened, LMBrain
+merges the `lmbrain` entry into every Antigravity config location that already
+exists:
+
+- `~/.gemini/antigravity/mcp_config.json` — the Antigravity IDE (1.x) layout
+  (`%USERPROFILE%\.gemini\antigravity\mcp_config.json` on Windows);
+- `~/.gemini/config/mcp_config.json` — the Antigravity 2.0 unified CLI+IDE
+  layout.
+
+The entry uses the same stdio shape as the other hosts:
+
+```json
+{
+  "mcpServers": {
+    "lmbrain": {
+      "command": "lmbrain-mcp",
+      "args": ["--root", "<workspace>"]
+    }
+  }
+}
+```
+
+Behavior and limitations:
+
+- The write is best-effort, idempotent, and merge-preserving: unrelated servers
+  (including `serverUrl`-based remote entries) and unknown keys are never
+  touched. When both layouts exist, both are updated so IDE and CLI stay
+  consistent.
+- LMBrain only writes where an Antigravity installation is already detectable
+  (the config file or its parent directory exists). It never creates
+  `~/.gemini` for users without Antigravity. `LMBRAIN_ANTIGRAVITY_HOME`
+  overrides the home directory for tests and non-standard installs.
+- Because the configuration is user-global, the single `lmbrain` entry points
+  at the **most recently opened LMBrain workspace**. Opening another workspace
+  re-targets the entry; only one workspace at a time is registered with
+  Antigravity.
+- Antigravity sessions are launched only from the Antigravity IDE. LMBrain
+  adds no Antigravity session entry, does not probe or update the IDE, and the
+  governed `.lmbrain/HARNESSES.json` environment does not yet include an
+  Antigravity host adapter.
+- Project orientation works through the root `AGENTS.md` pointer block that
+  LMBrain already scaffolds; Antigravity reads `AGENTS.md` natively, so
+  sessions can reach `.lmbrain/AGENT.md`, `CONTRACT.md`, `QUALITY.md`, and the
+  context-pack MCP tools without further setup.
+- No project-local file is generated for Antigravity, so there is nothing new
+  to gitignore.
+
 ## User-level harness lifecycle
 
 The Settings → Harnesses tab manages only the agent CLI itself, not project packages or authentication. It probes the exact resolved executable with `--version` and exposes these explicitly confirmed self-update commands:
@@ -146,8 +196,8 @@ LMBrain scaffolds a concise managed block in root `AGENTS.md` so Codex can disco
 
 ## V3 context-pack tools
 
-All MCP-enabled agent hosts (Claude Code, Codex, OpenCode, and a correctly
-provisioned Pi session) can use the new context-pack MCP tools:
+All MCP-enabled agent hosts (Claude Code, Codex, OpenCode, Antigravity, and a
+correctly provisioned Pi session) can use the new context-pack MCP tools:
 
 - `lmbrain_project_digest` — project overview (no parameters)
 - `lmbrain_spec_context` — spec handoff context (requires `spec` parameter)

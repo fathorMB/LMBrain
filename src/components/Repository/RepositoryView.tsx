@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import * as commands from "../../lib/commands";
-import type { GitDetails, GitHubDashboard, GitFile } from "../../types";
+import type { GitDetails, GitHubDashboard, GitFile, GitHubWorkflowRun } from "../../types";
 import { GitDiffModal } from "./GitDiffModal";
+import { WorkflowRunModal } from "./WorkflowRunModal";
+import { describeWorkflowRun, getWorkflowRunStatusStyle } from "../../lib/workflowRunStatus";
 import "./RepositoryView.css";
 
 interface RepositoryData {
@@ -44,6 +46,7 @@ export function RepositoryView() {
   const [showTokenInput, setShowTokenInput] = useState(false);
   const [savingToken, setSavingToken] = useState(false);
   const [selectedFile, setSelectedFile] = useState<GitFile | null>(null);
+  const [selectedRun, setSelectedRun] = useState<GitHubWorkflowRun | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -129,20 +132,6 @@ export function RepositoryView() {
     }
   };
 
-  const getRunStatusStyles = (status: string, conclusion: string | null) => {
-    if (status === "completed") {
-      if (conclusion === "success") {
-        return { color: "#10b981", bg: "rgba(16,185,129,.12)", icon: "check_circle" };
-      } else if (conclusion === "failure" || conclusion === "timed_out") {
-        return { color: "#ef4444", bg: "rgba(239,68,68,.12)", icon: "error" };
-      } else if (conclusion === "cancelled") {
-        return { color: "#9ca3af", bg: "rgba(156,163,175,.12)", icon: "cancel" };
-      }
-    }
-    // queued or in_progress
-    return { color: "#6366f1", bg: "rgba(99,102,241,.12)", icon: "pending" };
-  };
-
   return (
     <div className="repository-scroll">
       <div className="repository-page">
@@ -180,7 +169,6 @@ export function RepositoryView() {
               refresh
             </i>
             Refresh
-            {loading && <style>{`.spin-icon { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>}
           </button>
         </div>
 
@@ -550,13 +538,13 @@ export function RepositoryView() {
                 )}
 
                 {githubDashboard && githubDashboard.workflow_runs.map((run) => {
-                  const s = getRunStatusStyles(run.status, run.conclusion);
+                  const s = getWorkflowRunStatusStyle(run.status, run.conclusion);
                   return (
-                    <a
+                    <button
+                      type="button"
                       key={run.id}
-                      href={run.html_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      aria-label={`View details for run ${describeWorkflowRun(run)}`}
+                      onClick={() => setSelectedRun(run)}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -567,6 +555,10 @@ export function RepositoryView() {
                         borderRadius: 8,
                         textDecoration: "none",
                         color: "inherit",
+                        font: "inherit",
+                        textAlign: "left",
+                        width: "100%",
+                        cursor: "pointer",
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.borderColor = "#9384f8";
@@ -577,10 +569,14 @@ export function RepositoryView() {
                         e.currentTarget.style.background = "var(--bg-primary)";
                       }}
                     >
-                      <i className="material-symbols-outlined" style={{ fontSize: 20, color: s.color }}>
+                      <i
+                        className={`material-symbols-outlined ${s.spin ? "spin-icon" : ""}`}
+                        aria-hidden="true"
+                        style={{ fontSize: 20, color: s.color }}
+                      >
                         {s.icon}
                       </i>
-                      
+
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="repository-ellipsis" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-primary)" }}>
                           {run.name}
@@ -589,12 +585,13 @@ export function RepositoryView() {
                           branch: <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>{run.head_branch}</span>
                         </div>
                       </div>
-                      
+
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0 }}>
                         <span
                           style={{
                             fontSize: 9.5,
                             fontWeight: 700,
+                            textTransform: "uppercase",
                             color: s.color,
                             background: s.bg,
                             padding: "2px 6px",
@@ -602,13 +599,13 @@ export function RepositoryView() {
                             marginBottom: 4,
                           }}
                         >
-                          {(run.conclusion || run.status).toUpperCase()}
+                          {s.label}
                         </span>
                         <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>
                           {new Date(run.created_at).toLocaleDateString()}
                         </span>
                       </div>
-                    </a>
+                    </button>
                   );
                 })}
               </div>
@@ -624,6 +621,13 @@ export function RepositoryView() {
           key={`${selectedFile.diff_target}:${selectedFile.path}`}
           file={selectedFile}
           onClose={() => setSelectedFile(null)}
+        />
+      )}
+      {selectedRun && (
+        <WorkflowRunModal
+          key={selectedRun.id}
+          run={selectedRun}
+          onClose={() => setSelectedRun(null)}
         />
       )}
     </div>

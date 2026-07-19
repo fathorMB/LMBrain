@@ -4,7 +4,18 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `3.0.1`.
+The current released kit is `3.0.2`.
+
+### 3.0.2 (Antigravity MCP support, complete Actions panel, declared build outputs)
+
+Supported source version is `3.0.1`; existing workspaces require no content migration.
+
+1. Update the application, `lmbrain-core`, and `lmbrain-mcp` together.
+2. Antigravity users: reopen the workspace in LMBrain so the `lmbrain` entry is merged into the user-global Antigravity `mcp_config.json`, then reload MCP servers in the Antigravity IDE. The entry targets the most recently opened workspace.
+3. Optionally declare `fingerprint_exclude` on `verification.toml` gates that write build artifacts, then re-approve the manifest digest — declaring an exclusion always invalidates the previous approval. Manifests without exclusions keep their digest and approval.
+4. Update `.lmbrain/VERSION` to `3.0.2` after validating the release.
+
+Rollback to 3.0.1 is data-safe with one caveat: a manifest that declares `fingerprint_exclude` fails strict parsing on older versions (fail-closed). Remove the field and re-approve if rolling back.
 
 ### 3.0.1 (installer publication gate correction)
 

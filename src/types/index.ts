@@ -726,12 +726,19 @@ export interface GitHubPullRequest {
 export interface GitHubWorkflowRun {
   id: number;
   name: string;
+  display_title: string;
   head_branch: string;
   head_sha: string;
   status: string;
   conclusion: string | null;
+  event: string;
+  run_number: number;
+  run_attempt: number;
+  actor: string | null;
   html_url: string;
   created_at: string;
+  updated_at: string;
+  run_started_at: string | null;
 }
 
 export interface GitHubDashboard {

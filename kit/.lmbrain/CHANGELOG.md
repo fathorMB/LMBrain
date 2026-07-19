@@ -4,6 +4,17 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 3.0.2 - 2026-07-19
+
+### Added
+
+- **Antigravity MCP support.** Opening or contextualizing a project now registers the `lmbrain-mcp` server with the Antigravity IDE through its user-global `mcp_config.json`, updating both the 1.x IDE and 2.0 unified CLI+IDE layouts when present while preserving every unrelated server and key. Registration only writes where an Antigravity installation is already detectable, and the single entry targets the most recently opened workspace. Sessions remain launched from the Antigravity IDE; no in-app session flow is added. Project orientation flows through the existing root `AGENTS.md` pointer block, which Antigravity reads natively.
+- **Declared verification build outputs.** `verification.toml` gates may declare `fingerprint_exclude` workspace-relative output paths. The pre/post snapshot fingerprints and later freshness checks skip the declared union for the executed gate set, so a bundler gate that rewrites its own `dist/**` is no longer structurally invalidated. Exclusions reject absolute paths, traversal, and `.lmbrain`; they are part of the canonical manifest digest, so declaring one requires fresh operator approval while exclusion-free manifests keep their existing digest and approvals. Foreign mutations still invalidate, with a hint pointing at `fingerprint_exclude`.
+
+### Fixed
+
+- **Complete GitHub Actions runs panel with details modal.** The repository dashboard now surfaces workflow runs of every outcome — success, failure, timed-out, startup-failure, cancelled, skipped, neutral, stale, action-required, queued, waiting, and in-progress — each with a distinct icon and text label so state is never conveyed by color alone, and unknown states fall back to a readable neutral style instead of disappearing. Selecting a run opens a read-only details modal (same interaction as the diff viewer) with run number and attempt, branch, triggering event, commit, actor, timestamps, and a direct GitHub link; missing metadata renders as placeholders.
+
 ## 3.0.1 - 2026-07-18
 
 ### Fixed

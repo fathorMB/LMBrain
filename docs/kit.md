@@ -88,6 +88,18 @@ Improvement proposals use the existing `agents/proposals/` mechanism with `propo
 
 Verification evidence is snapshot-checked: a workspace content fingerprint is captured before the first gate and again after the final gate, and both are recorded in the transcript. If they differ, the transcript is explicitly marked invalidated with the reason, the run reports failure, and the evidence can never satisfy submission freshness checks — even if the workspace later matches the post-gate fingerprint. Note the artifact mutation lock only protects the final transcript write, not the gate-execution interval; full isolated-worktree/per-gate input scoping is deferred to 3.0.0.
 
+A gate whose job is emitting build artifacts (a bundler writing `dist/**`, for example) would otherwise never be snapshot-consistent. Such gates declare their output directories explicitly:
+
+```toml
+[[gates]]
+id = "client-build"
+program = "npm"
+args = ["run", "build"]
+fingerprint_exclude = ["apps/client/dist"]
+```
+
+Declared exclusions are workspace-relative paths (no absolute paths, no traversal, never `.lmbrain`), are skipped by both the pre- and post-gate snapshots for the executed gate set, and are also honored by later freshness checks. The exclusion list is part of the canonical manifest digest: adding or changing one always requires fresh operator approval, so a gate cannot self-exclude its own mutations without review. Manifests without exclusions keep their existing digest, and existing approvals remain valid.
+
 ## Project-scoped skills
 
 The kit supports reusable agent procedures as `SKILL-*` artifacts:

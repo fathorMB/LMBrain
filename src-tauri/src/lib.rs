@@ -67,6 +67,7 @@ fn open_workspace(
     let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
     let _ = commands::pi_registration::register_pi_mcp_server(root, &mcp_command);
     let _ = commands::opencode_registration::register_opencode_mcp_server(root, &mcp_command);
+    let _ = commands::antigravity_registration::register_antigravity_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::ensure_codex_workspace_trusted(root);
     let _ = commands::codex_registration::scaffold_agents_md(root);
 
@@ -101,6 +102,7 @@ fn initialize_workspace_kit(
     let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
     let _ = commands::pi_registration::register_pi_mcp_server(root, &mcp_command);
     let _ = commands::opencode_registration::register_opencode_mcp_server(root, &mcp_command);
+    let _ = commands::antigravity_registration::register_antigravity_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::ensure_codex_workspace_trusted(root);
     let _ = commands::codex_registration::scaffold_agents_md(root);
     Ok(info)

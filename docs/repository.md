@@ -21,6 +21,23 @@ lines to keep the modal responsive.
 The diff modal is read-only and closes from its close button, the Escape key,
 or the backdrop. Diff text is rendered as text rather than injected HTML.
 
+## GitHub Actions runs
+
+The Actions panel lists the repository's most recent workflow runs regardless
+of outcome: successful, failed, cancelled, skipped, stale, neutral,
+action-required, queued, waiting, and in-progress runs are all shown. Each
+state has a distinct icon and text label — status is never conveyed by color
+alone — and red is reserved for failing conclusions so failures stay easy to
+spot. Unknown states returned by GitHub fall back to a neutral style with the
+raw label instead of being hidden.
+
+Selecting a run opens a read-only details modal following the same interaction
+pattern as the diff viewer (close button, Escape, backdrop). It shows the
+available run metadata — workflow name, run number and attempt, status and
+conclusion, branch, triggering event, commit, actor, and created/started/
+updated timestamps — plus a direct link to the run on GitHub. Missing or
+partial metadata renders as a placeholder dash without breaking the dashboard.
+
 ## Safety boundary
 
 LMBrain invokes Git directly without a shell, disables external diff and

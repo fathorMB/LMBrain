@@ -167,6 +167,42 @@
 .repository-diff-line--header .repository-diff-code { color: #8f849a; font-weight: 650; }
 .repository-diff-line--meta .repository-diff-code { color: #756d7e; font-style: italic; }
 
+.spin-icon {
+  animation: repository-spin 1s linear infinite;
+}
+
+@keyframes repository-spin {
+  to { transform: rotate(360deg); }
+}
+
+.repository-run-modal {
+  width: min(640px, 100%);
+  height: auto;
+  max-height: 92vh;
+}
+
+.repository-run-body {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 18px;
+  background: #0b090e;
+}
+
+.repository-run-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.repository-run-field {
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-primary);
+}
+
 @media (max-width: 1120px) {
   .repository-grid { grid-template-columns: minmax(0, 1fr); }
   .repository-file-list { max-height: 420px; }
