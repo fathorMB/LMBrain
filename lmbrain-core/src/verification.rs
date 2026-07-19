@@ -24,6 +24,8 @@ pub const VERIFICATION_MANIFEST_PATH: &str = ".lmbrain/verification.toml";
 const SCHEMA_VERSION: u32 = 1;
 const MAX_MANIFEST_BYTES: u64 = 256 * 1024;
 const MAX_GATES: usize = 128;
+const MAX_FINGERPRINT_EXCLUDES: usize = 32;
+const MAX_FINGERPRINT_EXCLUDE_BYTES: usize = 256;
 const MAX_TIMEOUT_SECONDS: u64 = 3600;
 const DEFAULT_TIMEOUT_SECONDS: u64 = 900;
 const DEFAULT_OUTPUT_BYTES: usize = 128 * 1024;
@@ -60,6 +62,14 @@ pub struct VerificationGate {
     pub result_matcher: Option<String>,
     #[serde(default)]
     pub environment: BTreeMap<String, String>,
+    /// Workspace-relative paths this gate intentionally writes (build output
+    /// directories); they are excluded from the pre/post snapshot fingerprint
+    /// so artifact-producing gates stay snapshot-consistent. Serialization is
+    /// skipped when empty so manifests without exclusions keep their 3.0.1
+    /// canonical digest and existing operator approvals stay valid; declaring
+    /// an exclusion changes the digest and requires re-approval by design.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fingerprint_exclude: Vec<String>,
 }
 
 fn default_cwd() -> String {
@@ -241,8 +251,60 @@ pub fn validate_verification_manifest(manifest: &VerificationManifest) -> Vec<St
                 ));
             }
         }
+        if gate.fingerprint_exclude.len() > MAX_FINGERPRINT_EXCLUDES {
+            issues.push(format!(
+                "gate '{}' declares more than {MAX_FINGERPRINT_EXCLUDES} fingerprint_exclude entries",
+                gate.id
+            ));
+        }
+        for entry in &gate.fingerprint_exclude {
+            if entry.trim().is_empty()
+                || entry.len() > MAX_FINGERPRINT_EXCLUDE_BYTES
+                || entry.contains('\0')
+                || unsafe_relative(entry)
+            {
+                issues.push(format!(
+                    "gate '{}' fingerprint_exclude entry '{}' must be a workspace-relative path",
+                    gate.id, entry
+                ));
+                continue;
+            }
+            let normalized = normalized_exclusion(entry);
+            if normalized.as_os_str().is_empty() {
+                issues.push(format!(
+                    "gate '{}' fingerprint_exclude entry '{}' does not name a path",
+                    gate.id, entry
+                ));
+            } else if normalized.starts_with(".lmbrain") {
+                issues.push(format!(
+                    "gate '{}' fingerprint_exclude entry '{}' cannot exclude managed .lmbrain state",
+                    gate.id, entry
+                ));
+            }
+        }
     }
     issues
+}
+
+/// Normalize a declared exclusion into workspace-relative components,
+/// accepting both `/` and `\` separators and dropping `.` segments.
+fn normalized_exclusion(value: &str) -> PathBuf {
+    value
+        .split(['/', '\\'])
+        .filter(|part| !part.is_empty() && *part != ".")
+        .collect()
+}
+
+/// Union of the fingerprint exclusions declared by the referenced gates.
+fn manifest_exclusions(manifest: &VerificationManifest, gates: &[String]) -> BTreeSet<PathBuf> {
+    manifest
+        .gates
+        .iter()
+        .filter(|gate| gates.contains(&gate.id))
+        .flat_map(|gate| gate.fingerprint_exclude.iter())
+        .map(|entry| normalized_exclusion(entry))
+        .filter(|path| !path.as_os_str().is_empty())
+        .collect()
 }
 
 pub fn canonical_verification_manifest_digest(
@@ -330,7 +392,8 @@ pub fn execute_spec_verification(
     // gate-execution interval itself is snapshot-checked by comparing a
     // fingerprint taken before the first gate with one taken after the last.
     // Full isolated-worktree/per-gate input scoping is deferred to 3.0.0.
-    let pre_fingerprint = workspace_content_fingerprint(&canonical_root)?;
+    let exclusions = manifest_exclusions(&manifest, &required);
+    let pre_fingerprint = workspace_content_fingerprint_with(&canonical_root, &exclusions)?;
     let mut results = Vec::new();
     for id in required {
         let gate = by_id
@@ -338,9 +401,11 @@ pub fn execute_spec_verification(
             .ok_or_else(|| VerificationError::UnknownGate(id.clone()))?;
         results.push(run_gate(&canonical_root, gate)?);
     }
-    let source_fingerprint = workspace_content_fingerprint(&canonical_root)?;
+    let source_fingerprint = workspace_content_fingerprint_with(&canonical_root, &exclusions)?;
     let invalidation_reason = (pre_fingerprint != source_fingerprint).then(|| {
-        "workspace content changed during gate execution; evidence is not snapshot-consistent"
+        "workspace content changed during gate execution; evidence is not snapshot-consistent. \
+         If a gate intentionally writes build artifacts, declare its output directory in that \
+         gate's fingerprint_exclude"
             .to_string()
     });
     let transcript_without_hash = render_transcript(
@@ -435,7 +500,18 @@ fn write_verification_transcript(
         .map_err(|error| VerificationError::Artifact(error.to_string()))
 }
 
+/// Body-only transcript state; freshness is recomputed without gate
+/// exclusions. Prefer `transcript_state_for_document`, which derives the
+/// approved exclusion set for the spec's gates from the current manifest.
 pub fn transcript_state(root: &Path, body: &str) -> TranscriptState {
+    transcript_state_with_exclusions(root, body, &BTreeSet::new())
+}
+
+fn transcript_state_with_exclusions(
+    root: &Path,
+    body: &str,
+    exclusions: &BTreeSet<PathBuf>,
+) -> TranscriptState {
     let Some(implementation) = section_at_level(body, "Implementation evidence", 2) else {
         return TranscriptState::Missing;
     };
@@ -479,7 +555,10 @@ pub fn transcript_state(root: &Path, body: &str) -> TranscriptState {
     }
     let current_manifest = load_verification_manifest(root)
         .and_then(|manifest| canonical_verification_manifest_digest(&manifest));
-    match (workspace_content_fingerprint(root), current_manifest) {
+    match (
+        workspace_content_fingerprint_with(root, exclusions),
+        current_manifest,
+    ) {
         (Ok(current), Ok(manifest)) if current == recorded && manifest == recorded_manifest => {
             TranscriptState::GeneratedFresh
         }
@@ -488,7 +567,14 @@ pub fn transcript_state(root: &Path, body: &str) -> TranscriptState {
 }
 
 pub fn transcript_state_for_document(root: &Path, document: &Document) -> TranscriptState {
-    let state = transcript_state(root, &document.body);
+    // The exclusion set comes from the current approved manifest, never from
+    // the transcript itself: recorded metadata must not be able to widen what
+    // the freshness recompute ignores. Manifest changes are already caught by
+    // the recorded manifest-digest comparison.
+    let exclusions = load_verification_manifest(root)
+        .map(|manifest| manifest_exclusions(&manifest, &document.string_array("verification_gates")))
+        .unwrap_or_default();
+    let state = transcript_state_with_exclusions(root, &document.body, &exclusions);
     if state != TranscriptState::GeneratedFresh {
         return state;
     }
@@ -510,9 +596,19 @@ pub fn transcript_state_for_document(root: &Path, document: &Document) -> Transc
 }
 
 pub fn workspace_content_fingerprint(root: &Path) -> Result<String, VerificationError> {
+    workspace_content_fingerprint_with(root, &BTreeSet::new())
+}
+
+/// Fingerprint the workspace while skipping the operator-approved
+/// gate-declared exclusion paths. Pre- and post-gate snapshots must use the
+/// same exclusion set for the comparison to be meaningful.
+fn workspace_content_fingerprint_with(
+    root: &Path,
+    exclusions: &BTreeSet<PathBuf>,
+) -> Result<String, VerificationError> {
     let root = root.canonicalize()?;
     let mut files = Vec::new();
-    collect_files(&root, &root, &mut files)?;
+    collect_files(&root, &root, exclusions, &mut files)?;
     files.sort();
     let mut digest = Sha256::new();
     for path in files {
@@ -536,6 +632,7 @@ pub fn workspace_content_fingerprint(root: &Path) -> Result<String, Verification
 fn collect_files(
     root: &Path,
     current: &Path,
+    exclusions: &BTreeSet<PathBuf>,
     files: &mut Vec<PathBuf>,
 ) -> Result<(), VerificationError> {
     for entry in fs::read_dir(current)? {
@@ -550,12 +647,18 @@ fn collect_files(
         if relative.starts_with(".lmbrain/specs") || relative.starts_with(".lmbrain/reviews") {
             continue;
         }
+        if exclusions
+            .iter()
+            .any(|exclusion| relative.starts_with(exclusion))
+        {
+            continue;
+        }
         let metadata = fs::symlink_metadata(&path)?;
         if metadata.file_type().is_symlink() {
             continue;
         }
         if metadata.is_dir() {
-            collect_files(root, &path, files)?;
+            collect_files(root, &path, exclusions, files)?;
         } else if metadata.is_file() {
             files.push(path);
         }
@@ -974,6 +1077,7 @@ mod tests {
                 expected_exit_code: Some(0),
                 result_matcher: None,
                 environment: BTreeMap::new(),
+                fingerprint_exclude: Vec::new(),
             }],
         }
     }
@@ -1160,6 +1264,177 @@ mod tests {
             transcript_state_for_document(dir.path(), &document),
             TranscriptState::GeneratedStale
         );
+    }
+
+    fn shell_gate(script_windows: &str, script_unix: &str) -> VerificationManifest {
+        let mut configured = manifest(if cfg!(windows) { "cmd" } else { "sh" });
+        configured.gates[0].args = if cfg!(windows) {
+            vec!["/C".into(), script_windows.into()]
+        } else {
+            vec!["-c".into(), script_unix.into()]
+        };
+        configured
+    }
+
+    #[test]
+    fn declared_artifact_outputs_stay_snapshot_consistent() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".lmbrain/specs/working")).unwrap();
+        fs::create_dir_all(dir.path().join("apps/client/dist")).unwrap();
+        fs::write(dir.path().join("source.txt"), "original").unwrap();
+        let mut configured = shell_gate(
+            "echo bundle> apps\\client\\dist\\out.js",
+            "echo bundle > apps/client/dist/out.js",
+        );
+        configured.gates[0].fingerprint_exclude = vec!["apps/client/dist".into()];
+        fs::write(
+            dir.path().join(VERIFICATION_MANIFEST_PATH),
+            toml::to_string(&configured).unwrap(),
+        )
+        .unwrap();
+        let spec = dir.path().join(".lmbrain/specs/working/SPEC-dist.md");
+        fs::write(&spec, "---\nid: SPEC-dist\nstatus: working\nverification_gates: [sample]\n---\n\n## Implementation evidence\n\n### Verification transcript\n").unwrap();
+        let approval = dir.path().join("local/approval.json");
+        approve_verification_manifest(dir.path(), &approval).unwrap();
+
+        let report = execute_spec_verification(dir.path(), &spec, &approval).unwrap();
+        assert!(!report.invalidated, "{:?}", report.invalidation_reason);
+        assert!(report.invalidation_reason.is_none());
+        assert_eq!(report.workspace_fingerprint_before, report.workspace_fingerprint);
+        assert!(report.all_expectations_met);
+
+        let document = Document::parse(&fs::read_to_string(&spec).unwrap()).unwrap();
+        assert_eq!(
+            transcript_state_for_document(dir.path(), &document),
+            TranscriptState::GeneratedFresh
+        );
+
+        // A later rebuild touching only the declared output stays fresh...
+        fs::write(dir.path().join("apps/client/dist/out.js"), "rebuilt").unwrap();
+        assert_eq!(
+            transcript_state_for_document(dir.path(), &document),
+            TranscriptState::GeneratedFresh
+        );
+        // ...while any non-excluded change is still detected.
+        fs::write(dir.path().join("source.txt"), "changed").unwrap();
+        assert_eq!(
+            transcript_state_for_document(dir.path(), &document),
+            TranscriptState::GeneratedStale
+        );
+    }
+
+    #[test]
+    fn mutation_outside_declared_outputs_still_invalidates_with_a_hint() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".lmbrain/specs/working")).unwrap();
+        fs::create_dir_all(dir.path().join("apps/client/dist")).unwrap();
+        fs::write(dir.path().join("source.txt"), "original").unwrap();
+        let mut configured = shell_gate(
+            "echo mutated>> source.txt",
+            "echo mutated >> source.txt",
+        );
+        configured.gates[0].fingerprint_exclude = vec!["apps/client/dist".into()];
+        fs::write(
+            dir.path().join(VERIFICATION_MANIFEST_PATH),
+            toml::to_string(&configured).unwrap(),
+        )
+        .unwrap();
+        let spec = dir.path().join(".lmbrain/specs/working/SPEC-leak.md");
+        fs::write(&spec, "---\nid: SPEC-leak\nstatus: working\nverification_gates: [sample]\n---\n\n## Implementation evidence\n\n### Verification transcript\n").unwrap();
+        let approval = dir.path().join("local/approval.json");
+        approve_verification_manifest(dir.path(), &approval).unwrap();
+
+        let report = execute_spec_verification(dir.path(), &spec, &approval).unwrap();
+        assert!(report.invalidated);
+        assert!(report
+            .invalidation_reason
+            .as_deref()
+            .unwrap()
+            .contains("fingerprint_exclude"));
+    }
+
+    #[test]
+    fn exclusion_free_manifests_keep_their_canonical_digest() {
+        let plain = manifest("rustc");
+        let encoded = serde_json::to_string(&plain).unwrap();
+        assert!(
+            !encoded.contains("fingerprint_exclude"),
+            "an empty exclusion list must not enter the canonical serialization"
+        );
+        // A manifest that declares exclusions produces a different digest, so
+        // materializing the capability always requires operator re-approval.
+        let mut excluding = plain.clone();
+        excluding.gates[0].fingerprint_exclude = vec!["dist".into()];
+        assert_ne!(
+            canonical_verification_manifest_digest(&plain).unwrap(),
+            canonical_verification_manifest_digest(&excluding).unwrap()
+        );
+    }
+
+    #[test]
+    fn adding_exclusions_invalidates_an_existing_approval() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".lmbrain/specs/working")).unwrap();
+        let mut configured = manifest("rustc");
+        configured.gates[0].args = vec!["--version".into()];
+        fs::write(
+            dir.path().join(VERIFICATION_MANIFEST_PATH),
+            toml::to_string(&configured).unwrap(),
+        )
+        .unwrap();
+        let spec = dir.path().join(".lmbrain/specs/working/SPEC-appr.md");
+        fs::write(&spec, "---\nid: SPEC-appr\nstatus: working\nverification_gates: [sample]\n---\n\n## Implementation evidence\n\n### Verification transcript\n").unwrap();
+        let approval = dir.path().join("local/approval.json");
+        approve_verification_manifest(dir.path(), &approval).unwrap();
+
+        configured.gates[0].fingerprint_exclude = vec!["dist".into()];
+        fs::write(
+            dir.path().join(VERIFICATION_MANIFEST_PATH),
+            toml::to_string(&configured).unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            execute_spec_verification(dir.path(), &spec, &approval),
+            Err(VerificationError::ApprovalRequired)
+        ));
+    }
+
+    #[test]
+    fn rejects_unsafe_fingerprint_exclusions() {
+        for entry in [
+            "/abs/dist",
+            "../outside",
+            ".",
+            "./",
+            "",
+            "   ",
+            ".lmbrain",
+            ".lmbrain/handoffs",
+            ".lmbrain\\handoffs",
+        ] {
+            let mut candidate = manifest("rustc");
+            candidate.gates[0].fingerprint_exclude = vec![entry.into()];
+            assert!(
+                !validate_verification_manifest(&candidate).is_empty(),
+                "expected rejection for {entry:?}"
+            );
+        }
+
+        let mut oversized = manifest("rustc");
+        oversized.gates[0].fingerprint_exclude =
+            vec!["x".repeat(MAX_FINGERPRINT_EXCLUDE_BYTES + 1)];
+        assert!(!validate_verification_manifest(&oversized).is_empty());
+
+        let mut too_many = manifest("rustc");
+        too_many.gates[0].fingerprint_exclude = (0..=MAX_FINGERPRINT_EXCLUDES)
+            .map(|index| format!("dist-{index}"))
+            .collect();
+        assert!(!validate_verification_manifest(&too_many).is_empty());
+
+        let mut valid = manifest("rustc");
+        valid.gates[0].fingerprint_exclude =
+            vec!["apps/client/dist".into(), "build\\output".into()];
+        assert!(validate_verification_manifest(&valid).is_empty());
     }
 
     #[test]
