@@ -15,12 +15,12 @@ use lmbrain_core::{
     create_improvement_proposal, default_verification_approval_path, defer_finding,
     discover_verification_manifest, execute_spec_verification, finding_candidates, finding_context,
     load_harness_manifest, load_verification_manifest, park_spec, parse_harness_manifest,
-    plan_finding, reopen_finding, resolve_finding, rollback_verification_manifest,
-    set_harness_manifest, set_spec_dependencies, set_verification_manifest,
-    spec_dependency_candidates, spec_dependency_context, supersede_finding,
-    validate_verification_manifest_source, verification_manifest_status, FindingCreateInput,
-    HarnessManifestError, ImprovementProposalRequest, ReviewEventInput, SpecParkingInput,
-    VerificationManifest, VerificationManifestState,
+    plan_finding, read_kit_feedback, record_kit_feedback, reopen_finding, resolve_finding,
+    rollback_verification_manifest, set_harness_manifest, set_spec_dependencies,
+    set_verification_manifest, spec_dependency_candidates, spec_dependency_context,
+    supersede_finding, validate_verification_manifest_source, verification_manifest_status,
+    FindingCreateInput, HarnessManifestError, ImprovementProposalRequest, KitFeedbackInput,
+    ReviewEventInput, SpecParkingInput, VerificationManifest, VerificationManifestState,
 };
 use serde_json::{json, Value};
 
@@ -260,8 +260,41 @@ fn tools() -> Vec<Value> {
     ]);
     entries.extend(finding_tools());
     entries.extend(spec_dependency_tools());
+    entries.extend(kit_feedback_tools());
 
     entries
+}
+
+fn kit_feedback_tools() -> Vec<Value> {
+    vec![
+        json!({
+            "name":"lmbrain_feedback_record",
+            "description":"Project Lead: autonomously append one evidence-backed observation about LMBrain itself to the portable kit feedback report. This never changes project lifecycle state.",
+            "inputSchema":{
+                "type":"object",
+                "required":["category","severity","summary","observed_behavior","expected_behavior","impact","evidence","actor"],
+                "properties":{
+                    "category":{"enum":["bug","usability","workflow","documentation","compatibility","performance","improvement"]},
+                    "severity":{"enum":["blocking","high","medium","low","info"]},
+                    "summary":{"type":"string"},
+                    "observed_behavior":{"type":"string"},
+                    "expected_behavior":{"type":"string"},
+                    "impact":{"type":"string"},
+                    "evidence":{"type":"string"},
+                    "workaround":{"type":["string","null"]},
+                    "suggested_improvement":{"type":["string","null"]},
+                    "related_note":{"type":["string","null"]},
+                    "actor":{"type":"string","description":"Project Lead profile ID, normally AGENT-LEAD."}
+                },
+                "additionalProperties":false
+            }
+        }),
+        json!({
+            "name":"lmbrain_feedback_report",
+            "description":"Read-only parsed LMBrain kit feedback report with typed notes and category/severity counts. Reading an absent report never creates it.",
+            "inputSchema":{"type":"object","properties":{},"additionalProperties":false}
+        }),
+    ]
 }
 
 fn spec_dependency_tools() -> Vec<Value> {
@@ -836,6 +869,16 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         )
         .map(|result| text(json!(result)))
         .map_err(|error| error.to_string()),
+        "lmbrain_feedback_record" => {
+            let input: KitFeedbackInput =
+                serde_json::from_value(args.clone()).map_err(|error| error.to_string())?;
+            record_kit_feedback(root, input)
+                .map(|result| text(json!(result)))
+                .map_err(|error| error.to_string())
+        }
+        "lmbrain_feedback_report" => read_kit_feedback(root)
+            .map(|result| text(json!(result)))
+            .map_err(|error| error.to_string()),
         "spec_dependency_context" => spec_dependency_context(root, required_string(args, "spec")?)
             .map(|result| text(json!(result)))
             .map_err(|error| error.to_string()),
@@ -1289,6 +1332,8 @@ mod tests {
         assert!(names.contains(&"spec_dependency_context".to_string()));
         assert!(names.contains(&"spec_dependency_candidates".to_string()));
         assert!(names.contains(&"spec_dependencies_set".to_string()));
+        assert!(names.contains(&"lmbrain_feedback_record".to_string()));
+        assert!(names.contains(&"lmbrain_feedback_report".to_string()));
         assert!(names.contains(&"review_accept".to_string()));
         assert!(names.contains(&"review_changes_requested".to_string()));
         assert!(names.contains(&"review_block".to_string()));
@@ -1804,6 +1849,53 @@ mod tests {
         assert_eq!(document.object_array("dependency_events").len(), 1);
         assert_eq!(document.object_array("parking_events").len(), 1);
         assert_eq!(document.value("status").as_deref(), Some("backlog"));
+    }
+
+    #[test]
+    fn project_lead_can_record_and_read_kit_feedback_without_project_lifecycle_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain/specs/backlog")).unwrap();
+        std::fs::write(dir.path().join(".lmbrain/VERSION"), "3.1.0\n").unwrap();
+        let spec = dir.path().join(".lmbrain/specs/backlog/SPEC-001.md");
+        let spec_source = "---\nid: SPEC-001\nstatus: backlog\n---\n# Project work\n";
+        std::fs::write(&spec, spec_source).unwrap();
+        let root = dir.path().to_path_buf();
+        super::call(
+            &root,
+            &serde_json::json!({
+                "name":"lmbrain_feedback_record",
+                "arguments":{
+                    "category":"usability","severity":"medium",
+                    "summary":"Operator language needs a second explanation",
+                    "observed_behavior":"The Lead used unexplained internal shorthand.",
+                    "expected_behavior":"The Lead should use concise plain language with the operator.",
+                    "impact":"The operator had to request clarification.",
+                    "evidence":"Observed in the operator-facing handoff.",
+                    "workaround":"Ask for a human-readable explanation.",
+                    "suggested_improvement":"Separate operator-facing and agent-facing language rules.",
+                    "related_note":null,"actor":"AGENT-LEAD"
+                }
+            }),
+        )
+        .unwrap();
+        let report = super::call(
+            &root,
+            &serde_json::json!({"name":"lmbrain_feedback_report","arguments":{}}),
+        )
+        .unwrap();
+        let report: Value = serde_json::from_str(
+            report
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(report.get("total").and_then(Value::as_u64), Some(1));
+        assert_eq!(
+            report.pointer("/notes/0/id").and_then(Value::as_str),
+            Some("KIT-NOTE-001")
+        );
+        assert_eq!(std::fs::read_to_string(spec).unwrap(), spec_source);
     }
 
     #[test]

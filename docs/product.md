@@ -38,6 +38,7 @@ terminals. Refresh success and failure are shown directly in the header.
 - Reviews and Decisions: project governance artifacts.
 - Findings: a read-only active/history workspace for durable cross-spec observations, canonical relationships, typed lifecycle evidence, and governed-action prompts. It never duplicates lifecycle authority in the app.
 - Board/spec detail: read-only hard-prerequisite blockers, prerequisite-complete filtering, and preserved parking history. Approval, dependency mutation, parking, and status changes stay outside the app.
+- Project Lead experience: operator-facing responses use concise plain language in the operator's language, while technical density remains available in artifacts and agent handoffs. Evidence-backed feedback about LMBrain itself accumulates in one portable report for the product team.
 - Agents & MCP: agent profiles, proposals, MCP records, and built-in MCP tools.
 - Sessions: floating interactive terminals for supported agent CLIs.
 - Session terminals expose consistent wheel and page navigation across normal and full-screen buffers, including packaged Windows builds.

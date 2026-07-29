@@ -75,6 +75,10 @@ Use **Findings** to inspect active/history counts, severity, owner, origin, targ
 
 The Board and spec detail show hard dependency blockers, prerequisite-complete filters, and preserved parking history. They are read-only: the app has no approve, park, dependency-edit, or status-change action. Governed dependency changes use `spec_dependencies_set` in backlog; intentional `ready -> backlog` parking uses `spec_park` with a reason, then normal `spec_ready` is required later.
 
+The Project Lead should speak to you in your language using concise, ordinary wording. Technical abbreviations and English tool names may remain where exactness matters, but the Lead must explain their practical meaning without requiring a second request for a “human” translation.
+
+The Lead also maintains `reports/lmbrain-kit-feedback.md` autonomously when it encounters an evidence-backed problem or improvement opportunity in LMBrain itself. This does not change project state and needs no approval. At session end, the Lead reports newly added notes; you can deliver that single file to the LMBrain team. Review it before external sharing if the project is confidential, even though the contract requires minimal, non-sensitive evidence.
+
 - A review can be accepted while a promoted finding remains open, planned, or deferred.
 - Planning a target spec does not authorize implementation and does not resolve the finding.
 - A done target spec produces an attention diagnostic; closure still requires explicit evidence.

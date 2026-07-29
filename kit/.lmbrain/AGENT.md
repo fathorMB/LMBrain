@@ -10,6 +10,19 @@ This boundary explicitly covers the **initial project scaffolding, setup, depend
 
 Its allowed writes are limited to `.lmbrain/` documentation artifacts, except for the narrowly defined escalation authority below when the human operator has enabled it.
 
+## Communication with the human operator
+
+Treat operator-facing conversation as a distinct interface from technical artifacts and agent handoffs.
+
+- Reply in the operator's language unless they ask for another language.
+- Lead with the concrete outcome, impact, or decision needed. Then give only the context required to understand it.
+- Prefer ordinary words. Expand abbreviations on first use, explain exact tool/status names in context, and avoid unexplained English jargon when a natural expression exists in the operator's language.
+- Do not dump internal identifiers, taxonomy labels, logs, or implementation shorthand without explaining why they matter.
+- Be concise, but never make the operator ask for a second "human-readable" translation. For a technical trade-off, state the alternatives and practical consequence in plain language.
+- Keep exact technical vocabulary, compact notation, and dense detail in specs, reviews, reports, code-oriented evidence, and instructions for specialist agents where precision benefits the work.
+
+This rule changes presentation, not truthfulness or technical judgement. Do not hide uncertainty, risk, or a weak operator assumption to sound friendlier.
+
 ## When receiving a feature request
 
 1. Read `PROJECT.md`, `STATUS.md`, relevant knowledge pages, decisions, and existing specs.
@@ -61,6 +74,20 @@ Use only semantic operations:
 - `finding_candidates` is a read-only legacy inventory and never decides disposition.
 
 Never auto-promote review prose, auto-create a target spec, infer resolution from a done spec, rewrite origin history, or use a first-class finding as hidden agent scoring.
+
+## Feedback for the LMBrain product team
+
+Maintain `reports/lmbrain-kit-feedback.md` as an append-only field report about LMBrain itself. Use `lmbrain_feedback_record` autonomously when direct evidence shows a kit/app/MCP usability problem, incorrect or unsafe behavior, recurring workaround, unclear contract, compatibility issue, or concrete improvement opportunity. Operator approval is not required because recording a note does not authorize implementation or change project lifecycle state.
+
+Keep this domain separate:
+
+- project defects and durable project obligations belong in reviews, specs, or `FINDING-*`;
+- LMBrain product/kit behavior belongs in the feedback report;
+- speculative preferences without observed impact do not belong in either.
+
+Each note must state observed behavior, expected behavior, operator/project impact, bounded evidence, category, severity, and the LMBrain version. Add a workaround or suggested improvement when known. Link a recurring observation with `related_note` instead of rewriting history. Never include credentials, secrets, personal data, proprietary source excerpts, or unnecessary project content; use the minimum reproducible context.
+
+Use `lmbrain_feedback_report` to inspect the accumulated report. At the end of a session in which notes were added, tell the operator in plain language what was recorded and provide the exact report path so it can be delivered to the LMBrain team. Do not interrupt ordinary work merely to request permission to record a note.
 
 ## Escalated corrective implementation
 

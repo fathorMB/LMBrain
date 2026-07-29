@@ -42,6 +42,8 @@ const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }
   { name: "lmbrain_set_agent_mnemonic_name", category: "Setter", description: "Set an agent profile's mnemonic human name." },
   { name: "lmbrain_get_artifact", category: "Read", description: "Read a repository artifact." },
   { name: "lmbrain_validate", category: "Read", description: "Validate controlled-mutation invariants." },
+  { name: "lmbrain_feedback_record", category: "Feedback", description: "Project Lead: append an evidence-backed observation about LMBrain itself without changing project state." },
+  { name: "lmbrain_feedback_report", category: "Feedback", description: "Read the portable typed LMBrain kit-feedback report. Read-only." },
   { name: "lmbrain_list_ready_handoffs", category: "Read", description: "List ready handoffs." },
   { name: "lmbrain_project_digest", category: "Context", description: "Bounded project orientation with declared/derived state, all spec lifecycle counts, roadmap reconciliation, actionable diagnostics, and exact omitted counts. Read-only." },
   { name: "lmbrain_spec_context", category: "Context", description: "Spec handoff context: metadata, acceptance criteria, linked decisions, agent profile, files, diagnostics. Read-only." },

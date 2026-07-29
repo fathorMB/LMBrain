@@ -1419,3 +1419,19 @@ fn findings_are_visible_in_statistics_but_generic_status_mutation_is_rejected() 
     assert!(contract::set_artifact_status(&guard, &path.to_string_lossy(), "planned").is_err());
     assert_eq!(fs::read_to_string(path).unwrap(), source);
 }
+
+#[test]
+fn bundled_project_lead_contract_is_human_friendly_and_feedback_ready() {
+    let kit_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../kit");
+    let agent = fs::read_to_string(kit_root.join(".lmbrain/AGENT.md")).unwrap();
+    assert!(agent.contains("## Communication with the human operator"));
+    assert!(agent.contains("Reply in the operator's language"));
+    assert!(agent.contains("never make the operator ask for a second"));
+    assert!(agent.contains("## Feedback for the LMBrain product team"));
+    assert!(agent.contains("lmbrain_feedback_record"));
+
+    let report = lmbrain_core::read_kit_feedback(&kit_root).unwrap();
+    assert_eq!(report.schema_version, "1");
+    assert_eq!(report.total, 0);
+    assert_eq!(report.path, ".lmbrain/reports/lmbrain-kit-feedback.md");
+}

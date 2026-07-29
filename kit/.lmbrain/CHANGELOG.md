@@ -14,6 +14,8 @@ The `VERSION` file is the canonical, machine-readable kit version.
 - **Verification onboarding.** Deterministic repository discovery, validation, status, atomic manifest replacement, and guarded rollback remain non-executing; approval remains a separate MCP/operator action and is not available in the app.
 - **Hard spec dependencies.** Typed acyclic `depends_on` graphs, governed dependency replacement, lifecycle enforcement, bounded contexts, diagnostics, conservative legacy candidates, and read-only Board/detail visualization keep downstream work from becoming ready too early.
 - **Governed ready-spec parking.** `spec_park` returns only ready work to backlog with preserved typed history, reason/revisit evidence, atomic move recovery, and normal re-approval. The app shows parked state but exposes no status-changing action.
+- **Human-friendly Project Lead communication.** Operator-facing conversation follows the operator's language, expands shorthand, and explains practical impact concisely while technical artifacts and specialist handoffs retain dense exact terminology.
+- **Portable LMBrain field feedback.** The Project Lead can autonomously append typed, non-sensitive observations about LMBrain itself to `reports/lmbrain-kit-feedback.md`; a read-only MCP report makes the accumulated notes directly deliverable to the LMBrain team without affecting project lifecycle.
 
 ### Fixed
 

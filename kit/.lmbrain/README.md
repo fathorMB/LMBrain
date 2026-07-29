@@ -23,6 +23,8 @@ This directory is the portable, versioned source of truth for a project's knowle
 - New agent profiles and MCPs are proposed before they are made active.
 - Design mockups live under `design/` as operator-loaded files; design specialists use the same proposal/profile workflow as every other agent.
 - A Project Lead can write a validated session handoff for the next Project Lead session.
+- Operator-facing Lead communication uses concise plain language in the operator's language; dense technical shorthand stays in artifacts and specialist handoffs.
+- The Lead autonomously maintains `reports/lmbrain-kit-feedback.md` with evidence-backed observations about LMBrain itself for later delivery to the LMBrain team.
 
 Start with `OPERATOR.md` for the human workflow. Read `CONTRACT.md` for the complete data contract, `QUALITY.md` for the mandatory production standard, and `AGENT.md` for the Project Lead's operating rules.
 

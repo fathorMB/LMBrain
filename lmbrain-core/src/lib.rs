@@ -7,6 +7,7 @@ pub mod frontmatter;
 pub mod harness_manifest;
 pub mod improvement;
 pub mod invariants;
+pub mod kit_feedback;
 mod mutation_lock;
 pub mod path;
 pub mod review;
@@ -50,6 +51,11 @@ pub use improvement::{
     apply_improvement_proposal, build_agent_improvement_signals, create_improvement_proposal,
     AgentEffectivenessMetrics, AgentImprovementSignal, ImprovementApplyResult, ImprovementError,
     ImprovementProposalRequest,
+};
+pub use kit_feedback::{
+    read_kit_feedback, record_kit_feedback, KitFeedbackError, KitFeedbackInput,
+    KitFeedbackMutation, KitFeedbackNote, KitFeedbackReport, KIT_FEEDBACK_REPORT_PATH,
+    KIT_FEEDBACK_SCHEMA_VERSION,
 };
 pub use path::{read_artifact, ArtifactReadError};
 pub use review::{

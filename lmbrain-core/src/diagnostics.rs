@@ -145,6 +145,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
     diagnose_findings(root, &artifacts, &mut diagnostics);
     diagnose_verification(root, &artifacts, &mut diagnostics);
     diagnose_roadmap(root, &artifacts, &mut diagnostics);
+    diagnose_kit_feedback(root, &mut diagnostics);
 
     let harness = lmbrain.join("HARNESSES.json");
     if harness.exists() {
@@ -172,6 +173,25 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
     });
     diagnostics.dedup_by(|left, right| left.id == right.id);
     diagnostics
+}
+
+fn diagnose_kit_feedback(root: &Path, diagnostics: &mut Vec<Diagnostic>) {
+    let report = root.join(crate::KIT_FEEDBACK_REPORT_PATH);
+    if !report.exists() {
+        return;
+    }
+    if let Err(error) = crate::read_kit_feedback(root) {
+        diagnostics.push(diagnostic(
+            "kit-feedback-invalid",
+            DiagnosticSeverity::Warning,
+            Some("LMBRAIN-KIT-FEEDBACK".into()),
+            Some("reports/lmbrain-kit-feedback.md".into()),
+            format!("LMBrain kit feedback report is invalid: {error}"),
+            "Repair the report structure before recording or delivering further kit feedback; do not discard existing evidence.",
+            DiagnosticFixability::Manual,
+            "kit-feedback",
+        ));
+    }
 }
 
 fn diagnose_spec_dependencies(

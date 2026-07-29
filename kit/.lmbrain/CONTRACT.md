@@ -63,6 +63,14 @@ Normal `spec_ready` and `spec_start` require every direct hard prerequisite to b
 
 `spec_park` is the only legal `ready -> backlog` operation. It requires actor and reason, accepts an optional revisit condition, moves atomically, and appends `parking_events` with `readiness_invalidated: true`. It is not discard, rejection, remediation rollback, or an agent-failure signal. Re-entry uses normal `spec_ready` and preserves all parking history. The app displays dependency and parking state read-only and exposes no approve, parking, dependency mutation, or other status-changing action.
 
+## LMBrain kit feedback report
+
+`reports/lmbrain-kit-feedback.md` is the portable, append-only field report for evidence-backed observations about LMBrain itself. It is not project status, backlog, a review, a diagnostic, a `FINDING-*`, or implementation authority. Its fixed identity is `LMBRAIN-KIT-FEEDBACK`, schema version 1, with typed `notes`.
+
+Each note has a stable `KIT-NOTE-*` ID, timestamp, LMBrain version, category, severity, summary, observed behavior, expected behavior, impact, evidence, actor, and optional workaround, suggested improvement, or `related_note`. Categories are `bug`, `usability`, `workflow`, `documentation`, `compatibility`, `performance`, and `improvement`. Severities are `blocking`, `high`, `medium`, `low`, and `info`.
+
+The Project Lead may call `lmbrain_feedback_record` autonomously. The operation is locked and atomic, appends rather than rewrites history, validates relations and taxonomy, and never changes an artifact status. `lmbrain_feedback_report` is read-only and does not create an absent report. Notes must omit credentials, personal data, proprietary source excerpts, and unnecessary project content; evidence uses the minimum reproducible context required by the LMBrain product team.
+
 ## IDs and locations
 
 | Artifact | Prefix | Location |
@@ -149,6 +157,7 @@ Diagnostics use a versioned core record with a stable ID, code, severity, artifa
 - A spec reaches `done` only with its acceptance criteria checked, evidence recorded, and an accepted review.
 - A spec cannot normally become `ready` or `working` until every `depends_on` prerequisite is `done`; dependency graph errors fail closed.
 - A ready spec returns to backlog only through `spec_park`; a parked spec cannot start until normal re-approval and its parking history is retained.
+- Kit feedback is append-only and informational. Recording it never authorizes a project mutation, LMBrain implementation, external submission, or lifecycle transition.
 - Verification authority is distinct: `agent`/`kit` requirements belong to `before-submit`; `lead`/`operator` requirements belong to `before-done`. Lead and operator requirements need both an already-checked checklist item and a fresh typed attestation from the matching authority. Attestation records evidence only: it never approves a spec, checks the item, or changes lifecycle status. Lead uses `spec_attest_lead`; the human operator uses the desktop verification panel. Normal `spec_submit`/`spec_done` report every blocker; forced transitions retain the blocker details in the audit trail. Legacy completed specs remain completed and surface unresolved gates as diagnostics.
 - Reviews are created only as `pending`. Verdicts use the semantic `review_accept`, `review_changes_requested`, `review_block`, or `review_supersede` MCP verb; each mutation moves the file and appends one versioned `review_events` entry atomically. Negative verdicts require a rationale. Missing legacy history is reported as unknown and is never reconstructed from prose.
 - A spec reaches `review` only with a structurally valid Verification transcript; stale generated evidence is rejected unless explicitly forced with an audited reason.
@@ -176,5 +185,6 @@ Diagnostics use a versioned core record with a stable ID, code, severity, artifa
 | ADRs | propose/maintain | propose only | approve/edit |
 | Agent and MCP registries | maintain proposals | no | approve/edit |
 | Skills | propose/maintain | follow active procedures and suggest improvements | approve/edit |
+| LMBrain kit feedback report | record evidence autonomously | suggest observations | review/deliver externally |
 | Session handoffs | create/consume | no | request/edit |
 | Application code and configuration | no, except qualified escalated corrective work | only when manually assigned by user | edit |

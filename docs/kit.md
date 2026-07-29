@@ -43,6 +43,8 @@ Status-directory artifacts must keep filesystem location and frontmatter `status
 
 `design/` is intentionally not a managed artifact directory. It stores self-contained HTML/CSS/JS mockups and optional README/manifest metadata that the Project Lead may reference from specs.
 
+`reports/lmbrain-kit-feedback.md` is a structured append-only exception to ordinary snapshot reports. It records evidence-backed LMBrain product/kit observations, not project work. The Project Lead writes it autonomously with `lmbrain_feedback_record`, reads it with `lmbrain_feedback_report`, and reports newly added notes to the operator for later delivery to the LMBrain team.
+
 `skills/` stores `SKILL-*` project-scoped procedures in `active/`, `proposed/`, and `retired/`. Skills are Markdown runbooks for manually started agents; LMBrain displays their commands and includes applicable active skills in context packs, but does not execute them.
 
 ## Spec Board
@@ -82,6 +84,8 @@ The kit ships granular specialist profiles for recurring bounded work:
 | Design Specialist | Lia Wireframe | AGENT-DESIGN | design, ui-ux |
 
 All profiles use `activation: manual`. The Project Lead recommends the most specific profile for each spec. `mnemonic_name` is a human conversational label only; authority still comes from the profile's `id`, `status`, and capability fields. See `agents/registry.md` for the full registry.
+
+The Project Lead has two deliberate communication registers: concise plain language in the operator's language for conversation, and compact exact technical language for artifacts and specialist handoffs. This keeps precision without forcing the operator to request a second translation.
 
 ### Controlled improvement loop
 

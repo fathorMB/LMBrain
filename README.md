@@ -106,6 +106,7 @@ Installed LMBrain packages bundle the repository-scoped MCP sidecar and register
 - Existing project files and customized brains are not silently migrated or overwritten.
 - The Findings workspace is read-only: it never promotes legacy review prose, resolves debt from target status, or exposes lifecycle/approval buttons.
 - Spec dependencies and parking are visible but read-only in the app. Governed MCP operations validate an acyclic `depends_on` graph, block premature readiness/start, and preserve reasoned `ready -> backlog` parking history without exposing approve or status-change controls.
+- The Project Lead communicates with the operator in concise plain language and autonomously maintains a non-sensitive `reports/lmbrain-kit-feedback.md` field report for evidence-backed LMBrain improvements.
 - External agent authentication, network access, billing, and provider policies remain the responsibility of each agent host.
 
 Use version control, inspect proposed changes, and never approve a repository manifest you do not trust.

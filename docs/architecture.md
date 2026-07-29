@@ -146,6 +146,7 @@ The server exposes specific tools such as:
 - `lmbrain_set_agent_mnemonic_name`;
 - `lmbrain_get_artifact`;
 - `lmbrain_validate`;
+- `lmbrain_feedback_record`, an autonomous Project Lead append to the portable kit-feedback report, and `lmbrain_feedback_report`, its read-only typed view;
 - `lmbrain_list_ready_handoffs`.
 - `harness_config_get`, `harness_config_validate`, `harness_config_set`.
 
@@ -156,6 +157,8 @@ The server exposes specific tools such as:
 - `lmbrain_review_context` — review context: acceptance criteria, implementation evidence, linked accepted/proposed reviews, relevant decisions, verification commands claimed by the specialist, and applicable verification/review skills. Returns JSON and Markdown summary. Requires `spec` parameter (ID or path).
 
 All context-pack tools are read-only. They resolve references through existing ID/path logic and report missing links as structured warnings. Spec and review context include the lossless Required verification source, typed owner/phase/evidence requirements, profile guidance and digests, and applicable skill commands/digests. They are backed by `lmbrain-core/src/context.rs`.
+
+Kit feedback is implemented separately from project findings in `lmbrain-core/src/kit_feedback.rs`. It uses a fixed report path and identity, typed append-only notes, the shared mutation lock and atomic writer, and minimal non-sensitive evidence. It never enters project lifecycle metrics or diagnostics.
 
 Project orientation uses diagnostic schema v1 and project-digest schema v2. `lmbrain-core` is the single diagnostic rule engine for MCP validation, the bounded digest, Tauri statistics, and the Pulse drill-down. Each finding has a stable ID, code, severity, artifact/path, safe next action, and fixability. Digest counts and compatibility warning strings are derived from that same collection; bounded lists always report omitted counts. `STATUS.md` remains declared narrative state, while the digest separately derives lifecycle focus and reconciles it with `ROADMAP.md` and spec milestone frontmatter.
 
