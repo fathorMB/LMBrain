@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force_release:
+        description: Rebuild and replace all assets even when the release is complete
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -14,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      changed: ${{ steps.version.outputs.changed }}
+      should_build: ${{ steps.version.outputs.should_build }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,28 +30,62 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Verify version alignment and detect a release
+      - name: Verify version alignment and release completeness
         id: version
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.force_release == true }}
         run: |
           node scripts/check-version.mjs
           current_version="$(node -p "require('./package.json').version")"
           previous_version=""
+          release_tag="v$current_version"
+          required_assets=(
+            "LMBrain_${current_version}_x64-setup.exe"
+            "LMBrain_${current_version}_x64_en-US.msi"
+            "LMBrain_${current_version}_amd64.AppImage"
+            "LMBrain_${current_version}_amd64.deb"
+            "lmbrain-mcp.exe"
+            "lmbrain-mcp"
+          )
           if git show HEAD^:package.json > "$RUNNER_TEMP/previous-package.json" 2>/dev/null; then
             previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/previous-package.json')).version")"
           fi
+
+          release_exists=false
+          release_assets=""
+          missing_assets=()
+          if release_assets="$(gh release view "$release_tag" --json assets --jq '.assets[].name' 2>/dev/null)"; then
+            release_exists=true
+            for required_asset in "${required_assets[@]}"; do
+              if ! grep -Fqx "$required_asset" <<< "$release_assets"; then
+                missing_assets+=("$required_asset")
+              fi
+            done
+          fi
+
           echo "version=$current_version" >> "$GITHUB_OUTPUT"
-          if [ "$current_version" != "$previous_version" ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+          if [ "$FORCE_RELEASE" = "true" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "Force rebuild requested for LMBrain $release_tag."
+          elif [ "$current_version" != "$previous_version" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
             echo "Preparing LMBrain v$current_version (previous: ${previous_version:-none})."
+          elif [ "$release_exists" != "true" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "Release $release_tag does not exist; rebuilding installers."
+          elif [ "${#missing_assets[@]}" -gt 0 ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "Release $release_tag is incomplete; rebuilding missing asset set: ${missing_assets[*]}"
           else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "LMBrain remains at v$current_version; skipping installer build and release."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "Release $release_tag already contains every expected asset; skipping installer build."
           fi
 
   build:
     needs: version
-    if: needs.version.outputs.changed == 'true'
+    if: needs.version.outputs.should_build == 'true'
     name: ${{ matrix.name }} installer
     permissions:
       contents: write
