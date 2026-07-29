@@ -167,14 +167,6 @@
 .repository-diff-line--header .repository-diff-code { color: #8f849a; font-weight: 650; }
 .repository-diff-line--meta .repository-diff-code { color: #756d7e; font-style: italic; }
 
-.spin-icon {
-  animation: repository-spin 1s linear infinite;
-}
-
-@keyframes repository-spin {
-  to { transform: rotate(360deg); }
-}
-
 .repository-run-modal {
   width: min(640px, 100%);
   height: auto;

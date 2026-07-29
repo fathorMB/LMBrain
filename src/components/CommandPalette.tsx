@@ -146,6 +146,7 @@ export function CommandPalette() {
               { icon: "view_kanban", label: "Open Board", shortcut: "G T", view: "taskboard" as const },
               { icon: "menu_book", label: "Browse Wiki", shortcut: "G W", view: "wiki" as const },
               { icon: "rate_review", label: "View Reviews", shortcut: "G R", view: "reviews" as const },
+              { icon: "report_problem", label: "View Findings", shortcut: "G F", view: "findings" as const },
               { icon: "account_balance", label: "View Decisions", shortcut: "G D", view: "decisions" as const },
               { icon: "smart_toy", label: "View Agents & MCP", shortcut: "G A", view: "agents" as const },
             ].map((item) => (

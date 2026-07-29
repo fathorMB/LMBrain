@@ -39,6 +39,12 @@ const stats: ProjectStatistics = {
   },
   review_quality: {
     total_reviews: 3,
+    total_review_passes: 5,
+    remediation_cycles: 2,
+    escalation_count: 1,
+    takeover_count: 0,
+    lifecycle_known_reviews: 2,
+    lifecycle_coverage: 2 / 3,
     reviewed_specs: 2,
     accepted_reviews: 2,
     changes_requested_reviews: 1,
@@ -123,7 +129,9 @@ describe("InsightsView", () => {
     expect(screen.getByText("Change-request rate")).toBeDefined();
     expect(screen.getByText("1/2 reviewed specs")).toBeDefined();
     expect(screen.getByText("First-pass accepted")).toBeDefined();
-    expect(screen.getByText("1/2 date-ordered specs")).toBeDefined();
+    expect(screen.getByText("1/2 eligible histories")).toBeDefined();
+    expect(screen.getByText("Review passes")).toBeDefined();
+    expect(screen.getByText(/lifecycle coverage 67%/)).toBeDefined();
     expect(screen.getByText("Review Quality")).toBeDefined();
     expect(screen.getByText("Artifact Inventory")).toBeDefined();
     expect(screen.getByText("AGENT-BACKEND")).toBeDefined();

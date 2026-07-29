@@ -1,31 +1,8 @@
 import { useEffect, useState, useRef } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { parseMarkdown, setArtifactStatus } from "../../lib/commands";
+import { parseMarkdown } from "../../lib/commands";
 import { MarkdownRenderer } from "../../lib/markdown";
 import type { ParsedDocument } from "../../types";
-
-function getTargetStatuses(id: string): { approve: string | null; reject: string; rejectLabel?: string } | null {
-  if (id.startsWith("SPEC-")) {
-    // SPEC-026-A: Remove direct spec approval from UI for all specs.
-    // Governance prompt shown for backlog specs; other statuses get no approve action.
-    return { approve: null, reject: "rejected" };
-  }
-  if (id.startsWith("ADR-")) {
-    return { approve: null, reject: "rejected" };
-  }
-  if (id.startsWith("AGENT-PROP-")) {
-    return { approve: "approved", reject: "rejected" };
-  }
-  if (id.startsWith("AGENT-")) {
-    // SPEC-026-A: Remove direct agent profile activation from UI for all profiles.
-    // Governance prompt shown for proposed profiles; other statuses get no approve action.
-    return { approve: null, reject: "inactive", rejectLabel: "Deactivate" };
-  }
-  if (id.startsWith("MCP-PROP-")) {
-    return { approve: "approved", reject: "rejected" };
-  }
-  return null;
-}
 
 function generateRejectedPrompt(path: string, id: string): string {
   return `Please revise the rejected artifact: ${path} (${id})
@@ -135,7 +112,7 @@ function GovernancePromptCard({ prompt }: { prompt: string }) {
 }
 
 export function ArtifactDetailModal() {
-  const { state, dispatch, loadAllData } = useWorkspace();
+  const { state, dispatch } = useWorkspace();
   const [content, setContent] = useState<string>("");
   const [loadedPath, setLoadedPath] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -143,10 +120,6 @@ export function ArtifactDetailModal() {
 
   const [doc, setDoc] = useState<ParsedDocument | null>(null);
   const [promptCopied, setPromptCopied] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [reloadVersion, setReloadVersion] = useState(0);
 
   const [prevPath, setPrevPath] = useState<string>("");
 
@@ -157,9 +130,6 @@ export function ArtifactDetailModal() {
 
   if (path !== prevPath) {
     setPrevPath(path || "");
-    setConfirmAction(null);
-    setSubmitError(null);
-    setSubmitting(false);
   }
 
   // Restore focus when the modal unmounts
@@ -196,7 +166,7 @@ export function ArtifactDetailModal() {
     return () => {
       cancelled = true;
     };
-  }, [path, reloadVersion]);
+  }, [path]);
 
   // Handle ESC and Tab trap
   useEffect(() => {
@@ -240,44 +210,12 @@ export function ArtifactDetailModal() {
   const loadedDoc = loadedPath === path ? doc : null;
   const id = loadedDoc?.frontmatter?.id as string | undefined;
   const status = loadedDoc?.frontmatter?.status as string | undefined;
-  // For governance-controlled artifacts, allow eligibleTransitions for any status
-  // and surface copyable Lead prompts instead of direct UI mutations.
   const isSpec = id?.startsWith("SPEC-") ?? false;
   const isAdr = id?.startsWith("ADR-") ?? false;
   const isAgentProfile = (id?.startsWith("AGENT-") ?? false) && !(id?.startsWith("AGENT-PROP-") ?? false);
   const isGovernanceControlled = isSpec || isAdr || isAgentProfile;
-  const eligibleTransitions = id
-    ? (isGovernanceControlled ? getTargetStatuses(id) : (status === "proposed" ? getTargetStatuses(id) : null))
-    : null;
-  // Suppress direct approval/rejection for governance-controlled artifacts and
-  // show prompts only for actionable proposal states.
-  const showGovernancePrompt = isGovernanceControlled && eligibleTransitions?.approve === null && !!id && !!status
+  const showGovernancePrompt = isGovernanceControlled && !!id && !!status
     && ((isSpec && status === "backlog") || (isAdr && status === "proposed") || (isAgentProfile && status === "proposed"));
-
-  const handleAction = async (targetStatus: string) => {
-    if (!artifact) return;
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      const newPath = await setArtifactStatus(artifact.path, targetStatus);
-      await loadAllData();
-      setConfirmAction(null);
-      setDoc(null);
-      setContent("");
-      setError(null);
-      setLoadedPath("");
-      setReloadVersion((version) => version + 1);
-      dispatch({
-        type: "SET_DETAIL_ARTIFACT",
-        artifact: { title: artifact.title, path: newPath },
-      });
-    } catch (err) {
-      console.error(err);
-      setSubmitError(typeof err === "string" ? err : "Failed to update artifact status");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   return (
     <div
@@ -531,132 +469,10 @@ export function ArtifactDetailModal() {
             >
               Close
             </button>
-            {submitError && (
-              <span style={{ color: "#e0584a", fontSize: 12.5, marginLeft: 16 }}>
-                {submitError}
-              </span>
-            )}
           </div>
-
-          {eligibleTransitions && !isGovernanceControlled && (
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              {confirmAction === null ? (
-                // SPEC-026-A: For governance-controlled artifacts, never show direct Approve button.
-                // Show reject button always; governance prompt in body for actionable states.
-                isGovernanceControlled ? (
-                  <button
-                    disabled={submitting}
-                    onClick={() => { setConfirmAction("reject"); }}
-                    style={{
-                      background: "rgba(224, 88, 74, 0.15)",
-                      border: "1px solid rgba(224, 88, 74, 0.4)",
-                      borderRadius: 8,
-                      padding: "6px 14px",
-                      fontSize: 12.5,
-                      color: "#e0584a",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(224, 88, 74, 0.25)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(224, 88, 74, 0.15)")}
-                  >
-                    {eligibleTransitions.rejectLabel || "Reject"}
-                  </button>
-                ) : (
-                <>
-                  <button
-                    disabled={submitting}
-                    onClick={() => { setConfirmAction("reject"); }}
-                    style={{
-                      background: "rgba(224, 88, 74, 0.15)",
-                      border: "1px solid rgba(224, 88, 74, 0.4)",
-                      borderRadius: 8,
-                      padding: "6px 14px",
-                      fontSize: 12.5,
-                      color: "#e0584a",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(224, 88, 74, 0.25)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(224, 88, 74, 0.15)")}
-                  >
-                    {eligibleTransitions.rejectLabel || "Reject"}
-                  </button>
-                  <button
-                    disabled={submitting}
-                    onClick={() => setConfirmAction("approve")}
-                    style={{
-                      background: "rgba(70, 176, 125, 0.15)",
-                      border: "1px solid rgba(70, 176, 125, 0.4)",
-                      borderRadius: 8,
-                      padding: "6px 14px",
-                      fontSize: 12.5,
-                      color: "#46b07d",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(70, 176, 125, 0.25)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(70, 176, 125, 0.15)")}
-                  >
-                    Approve
-                  </button>
-                </>
-                )
-              ) : (
-                <>
-                  <span style={{ fontSize: 12.5, color: "var(--text-secondary)", marginRight: 4 }}>
-                    Confirm {confirmAction === "approve" ? "Approval" : "Rejection"}?
-                  </span>
-                  <button
-                    disabled={submitting}
-                    onClick={() => setConfirmAction(null)}
-                    style={{
-                      background: "rgba(255,255,255,0.06)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: 8,
-                      padding: "6px 12px",
-                      fontSize: 12.5,
-                      color: "#fff",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    disabled={submitting}
-                    onClick={() =>
-                      handleAction(
-                        confirmAction === "approve"
-                          ? (eligibleTransitions.approve ?? eligibleTransitions.reject)
-                          : eligibleTransitions.reject
-                      )
-                    }
-                    style={{
-                      background: confirmAction === "approve" ? "#46b07d" : "#e0584a",
-                      border: "none",
-                      borderRadius: 8,
-                      padding: "6px 14px",
-                      fontSize: 12.5,
-                      color: "#fff",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background =
-                        confirmAction === "approve" ? "#3da06e" : "#d04d40";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background =
-                        confirmAction === "approve" ? "#46b07d" : "#e0584a";
-                    }}
-                  >
-                    {submitting ? "Processing..." : "Yes, Confirm"}
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+          <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+            Read-only · approval and lifecycle status actions are unavailable in the app
+          </span>
         </div>
       </div>
     </div>

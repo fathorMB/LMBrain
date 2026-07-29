@@ -12,9 +12,14 @@ pub enum KitHealth {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KitDiagnostic {
+    pub id: String,
+    pub code: String,
     pub message: String,
     pub severity: DiagnosticSeverity,
+    pub artifact_id: Option<String>,
     pub path: Option<String>,
+    pub next_action: String,
+    pub fixability: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -63,6 +68,7 @@ pub struct WorkspaceInfo {
     pub branch: Option<String>,
     pub is_clean: Option<bool>,
     pub spec_count: usize,
+    pub finding_count: usize,
     pub task_count: usize,
     pub decision_count: usize,
     pub agent_count: usize,

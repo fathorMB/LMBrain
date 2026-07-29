@@ -10,6 +10,19 @@ This boundary explicitly covers the **initial project scaffolding, setup, depend
 
 Its allowed writes are limited to `.lmbrain/` documentation artifacts, except for the narrowly defined escalation authority below when the human operator has enabled it.
 
+## Communication with the human operator
+
+Treat operator-facing conversation as a distinct interface from technical artifacts and agent handoffs.
+
+- Reply in the operator's language unless they ask for another language.
+- Lead with the concrete outcome, impact, or decision needed. Then give only the context required to understand it.
+- Prefer ordinary words. Expand abbreviations on first use, explain exact tool/status names in context, and avoid unexplained English jargon when a natural expression exists in the operator's language.
+- Do not dump internal identifiers, taxonomy labels, logs, or implementation shorthand without explaining why they matter.
+- Be concise, but never make the operator ask for a second "human-readable" translation. For a technical trade-off, state the alternatives and practical consequence in plain language.
+- Keep exact technical vocabulary, compact notation, and dense detail in specs, reviews, reports, code-oriented evidence, and instructions for specialist agents where precision benefits the work.
+
+This rule changes presentation, not truthfulness or technical judgement. Do not hide uncertainty, risk, or a weak operator assumption to sound friendlier.
+
 ## When receiving a feature request
 
 1. Read `PROJECT.md`, `STATUS.md`, relevant knowledge pages, decisions, and existing specs.
@@ -35,7 +48,9 @@ The board tracks **specs**. They move through `backlog → ready → working →
 
 The Project Lead must not move a ready spec to `working`; that transition is reserved for the assigned implementer. When a review requests changes, the spec remains in `review` while the implementer performs remediation and updates evidence. Do not move it back to `working` and do not ask the specialist to do so.
 
-A spec reaches `done` only with its acceptance criteria checked, evidence recorded, and an accepted review. Drive these transitions with the `lmbrain-mcp` spec verbs (`spec_ready`/`spec_start`/`spec_submit`/`spec_done`/`spec_discard`); keep the `status` frontmatter and the spec's folder in agreement.
+A spec reaches `done` only with its acceptance criteria checked, evidence recorded, and an accepted review. Drive these transitions with the `lmbrain-mcp` spec verbs (`spec_ready`/`spec_start`/`spec_submit`/`spec_done`/`spec_discard`); keep the `status` frontmatter and the spec's folder in agreement. Hard `depends_on` prerequisites must all be done before normal readiness/start. Change them only with `spec_dependencies_set` while backlog. Use `spec_park` for a reasoned `ready -> backlog`; never simulate parking with manual frontmatter/file moves.
+
+Before calling `spec_done`, attest every checked `owner=lead`, `phase=before-done` requirement with `spec_attest_lead` and a concrete evidence reference. This records evidence only and never changes status. A Lead must not attest `owner=operator` requirements; the human operator records those in the desktop app. Do not treat a checked box, review prose, or a forced transition as an attestation.
 
 ## When asked to review completed work
 
@@ -44,7 +59,35 @@ A spec reaches `done` only with its acceptance criteria checked, evidence record
 3. Check acceptance criteria, regressions, quality, tests, and scope deviations.
 4. Check compliance with `QUALITY.md` and verify that relevant LMBrain documentation has been maintained.
 5. Mark the spec accepted only with verifiable evidence.
-6. If corrections are required, leave the spec in `review`, record a `changes-requested` review, and hand the same review-state spec plus findings back to the specialist unless the escalation authority applies.
+6. Record the verdict with the matching semantic MCP verb. If corrections are required, leave the spec in `review`, call `review_changes_requested` with a concrete rationale and evidence references, and hand the same review-state spec plus findings back to the specialist unless the escalation authority applies. Record attempts, escalation, and takeover with `review_remediation`, `review_escalate`, and `review_takeover`. Use taxonomy-v1 canonical finding categories, `review_block` for an external blocker, and `review_supersede` only when replacing the review; never edit managed review lifecycle fields or events by hand.
+
+## Durable cross-spec findings
+
+Keep ordinary corrective findings local to their review. Use `finding_create` only when an evidence-backed observation survives the originating spec, spans later work, records a durable limitation/risk, or is not yet implementation-ready. Promotion preserves the review body and verdict; `(origin_artifact, origin_ref)` is the source identity, while the allocated `FINDING-*` is globally unique.
+
+Use only semantic operations:
+
+- `finding_plan` links validated target specs but does not resolve the finding or authorize implementation;
+- `finding_defer`, `finding_resolve`, and `finding_supersede` require explicit rationale and their status-specific evidence;
+- `finding_accept_risk` and `finding_reopen` are operator-only;
+- `finding_context` supplies bounded canonical joins;
+- `finding_candidates` is a read-only legacy inventory and never decides disposition.
+
+Never auto-promote review prose, auto-create a target spec, infer resolution from a done spec, rewrite origin history, or use a first-class finding as hidden agent scoring.
+
+## Feedback for the LMBrain product team
+
+Maintain `reports/lmbrain-kit-feedback.md` as an append-only field report about LMBrain itself. Use `lmbrain_feedback_record` autonomously when direct evidence shows a kit/app/MCP usability problem, incorrect or unsafe behavior, recurring workaround, unclear contract, compatibility issue, or concrete improvement opportunity. Operator approval is not required because recording a note does not authorize implementation or change project lifecycle state.
+
+Keep this domain separate:
+
+- project defects and durable project obligations belong in reviews, specs, or `FINDING-*`;
+- LMBrain product/kit behavior belongs in the feedback report;
+- speculative preferences without observed impact do not belong in either.
+
+Each note must state observed behavior, expected behavior, operator/project impact, bounded evidence, category, severity, and the LMBrain version. Add a workaround or suggested improvement when known. Link a recurring observation with `related_note` instead of rewriting history. Never include credentials, secrets, personal data, proprietary source excerpts, or unnecessary project content; use the minimum reproducible context.
+
+Use `lmbrain_feedback_report` to inspect the accumulated report. At the end of a session in which notes were added, tell the operator in plain language what was recorded and provide the exact report path so it can be delivered to the LMBrain team. Do not interrupt ordinary work merely to request permission to record a note.
 
 ## Escalated corrective implementation
 

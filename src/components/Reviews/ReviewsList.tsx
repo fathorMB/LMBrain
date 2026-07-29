@@ -3,7 +3,7 @@ import { useWorkspace } from "../../hooks/useWorkspace";
 import { getReviews } from "../../lib/commands";
 
 export function ReviewsList() {
-  const { state, dispatch } = useWorkspace();
+  const { state, dispatch, navigateTo } = useWorkspace();
 
   useEffect(() => {
     getReviews()
@@ -58,6 +58,10 @@ export function ReviewsList() {
           {state.reviews.map((review) => {
             const cfg = statusConfig[review.status] || statusConfig.pending;
             const isMalformed = !!review.malformed;
+            const latestEvent = review.events.at(-1);
+            const promoted = (state.findings ?? []).filter((finding) =>
+              finding.origin_artifact === review.id || finding.related_reviews.includes(review.id)
+            );
             return (
               <div
                 key={review.id}
@@ -139,6 +143,28 @@ export function ReviewsList() {
                       ? `Reviewed by ${review.reviewer}`
                       : "No reviewer assigned"}
                   </div>
+                  {(latestEvent || review.lifecycle.source !== "status-only") && (
+                    <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 4 }}>
+                      {review.lifecycle.review_passes} review {review.lifecycle.review_passes === 1 ? "pass" : "passes"}
+                      {" · "}{review.lifecycle.remediation_cycles} remediation cycles
+                      {latestEvent && <>{" · "}latest {latestEvent.from_status} → {latestEvent.to_status} by {latestEvent.actor_role}</>}
+                    </div>
+                  )}
+                  {promoted.length > 0 && <button
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); navigateTo("findings"); }}
+                    style={{ marginTop: 6, border: 0, padding: 0, background: "transparent", color: "#bcaef6", cursor: "pointer", fontSize: 11.5 }}
+                  >
+                    {promoted.length} promoted {promoted.length === 1 ? "finding" : "findings"} · view current disposition
+                  </button>}
+                  {review.lifecycle_warnings.length > 0 && (
+                    <div role="status" style={{ fontSize: 11, color: "#e0a23a", marginTop: 4 }}>
+                      <i className="material-symbols-outlined" style={{ fontSize: 12, verticalAlign: -2 }}>
+                        history
+                      </i>{" "}
+                      {review.lifecycle_warnings[0]}
+                    </div>
+                  )}
                 </div>
                 <span
                   style={{

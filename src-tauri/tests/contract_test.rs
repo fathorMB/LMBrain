@@ -87,6 +87,17 @@ Body"#;
         !missing.is_empty(),
         "Expected a missing-reference diagnostic for the unresolved recommended_agent"
     );
+    let diagnostic = missing[0];
+    assert!(diagnostic.id.starts_with("DIAG-"));
+    assert_eq!(diagnostic.code, "missing-reference");
+    assert_eq!(diagnostic.artifact_id.as_deref(), Some("SPEC-050"));
+    assert!(!diagnostic.next_action.is_empty());
+    assert_eq!(diagnostic.fixability, "governed-mutation");
+    let core = lmbrain_core::build_diagnostics(dir.path());
+    assert_eq!(
+        diags.iter().map(|item| &item.id).collect::<Vec<_>>(),
+        core.iter().map(|item| &item.id).collect::<Vec<_>>()
+    );
 }
 
 #[test]
@@ -247,7 +258,9 @@ fn test_build_diagnostics_reports_invalid_harness_manifest_but_not_missing_optio
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());
     let missing = contract::build_diagnostics(dir.path());
-    assert!(!missing.iter().any(|diagnostic| diagnostic.path.as_deref() == Some("HARNESSES.json")));
+    assert!(!missing
+        .iter()
+        .any(|diagnostic| diagnostic.path.as_deref() == Some("HARNESSES.json")));
 
     fs::write(
         dir.path().join(".lmbrain/HARNESSES.json"),
@@ -257,7 +270,9 @@ fn test_build_diagnostics_reports_invalid_harness_manifest_but_not_missing_optio
     let invalid = contract::build_diagnostics(dir.path());
     assert!(invalid.iter().any(|diagnostic| {
         diagnostic.path.as_deref() == Some("HARNESSES.json")
-            && diagnostic.message.contains("Invalid project harness manifest")
+            && diagnostic
+                .message
+                .contains("Invalid project harness manifest")
     }));
 }
 
@@ -664,14 +679,18 @@ links: []
     let review = stats.review_quality;
 
     assert_eq!(review.total_reviews, 4);
+    assert_eq!(review.total_review_passes, 4);
+    assert_eq!(review.remediation_cycles, 0);
+    assert_eq!(review.lifecycle_known_reviews, 0);
+    assert_eq!(review.lifecycle_coverage, 0.0);
     assert_eq!(review.reviewed_specs, 2);
     assert_eq!(review.reviews_without_spec, 1);
     assert_eq!(review.specs_with_changes_requested, 1);
     assert_eq!(review.changes_requested_reviews, 1);
-    assert_eq!(review.first_pass_eligible_specs, 2);
-    assert_eq!(review.first_pass_accepted_specs, 1);
+    assert_eq!(review.first_pass_eligible_specs, 1);
+    assert_eq!(review.first_pass_accepted_specs, 0);
     assert_eq!(review.change_request_rate, 0.5);
-    assert_eq!(review.first_pass_acceptance_rate, 0.5);
+    assert_eq!(review.first_pass_acceptance_rate, 0.0);
     assert_eq!(review.trend.len(), 1);
     assert_eq!(review.trend[0].period, "2026-07");
     assert_eq!(review.trend[0].specs_with_changes_requested, 1);
@@ -1373,4 +1392,46 @@ ADR Body 3"#;
         "Expected no status mismatches (e.g. for rejected spec), got: {:?}",
         mismatches
     );
+}
+
+#[test]
+fn findings_are_visible_in_statistics_but_generic_status_mutation_is_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    fs::create_dir_all(dir.path().join(".lmbrain/findings/open")).unwrap();
+    let path = dir.path().join(".lmbrain/findings/open/FINDING-001.md");
+    fs::write(
+        &path,
+        "---\nid: FINDING-001\ntitle: Durable observation\nstatus: open\ncategory: design\nseverity: medium\nrelated_specs: []\nrelated_reviews: []\nrelated_decisions: []\ntarget_specs: []\nblocked_by: []\nresolution_refs: []\ncreated: 2026-07-29\nupdated: 2026-07-29\n---\n## Statement\nObservation\n\n## Resolution criteria\nDecision\n\n## Resolution evidence\n",
+    )
+    .unwrap();
+    let statistics = contract::build_project_statistics(dir.path()).unwrap();
+    let family = statistics
+        .artifact_families
+        .iter()
+        .find(|family| family.family == "findings")
+        .unwrap();
+    assert_eq!(family.total, 1);
+
+    let guard = lmbrain_lib::commands::filesystem::PathGuard::new();
+    guard.set_root(dir.path());
+    let source = fs::read_to_string(&path).unwrap();
+    assert!(contract::set_artifact_status(&guard, &path.to_string_lossy(), "planned").is_err());
+    assert_eq!(fs::read_to_string(path).unwrap(), source);
+}
+
+#[test]
+fn bundled_project_lead_contract_is_human_friendly_and_feedback_ready() {
+    let kit_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../kit");
+    let agent = fs::read_to_string(kit_root.join(".lmbrain/AGENT.md")).unwrap();
+    assert!(agent.contains("## Communication with the human operator"));
+    assert!(agent.contains("Reply in the operator's language"));
+    assert!(agent.contains("never make the operator ask for a second"));
+    assert!(agent.contains("## Feedback for the LMBrain product team"));
+    assert!(agent.contains("lmbrain_feedback_record"));
+
+    let report = lmbrain_core::read_kit_feedback(&kit_root).unwrap();
+    assert_eq!(report.schema_version, "1");
+    assert_eq!(report.total, 0);
+    assert_eq!(report.path, ".lmbrain/reports/lmbrain-kit-feedback.md");
 }

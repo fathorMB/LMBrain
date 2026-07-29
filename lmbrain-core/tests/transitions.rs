@@ -1,10 +1,12 @@
 use lmbrain_core::{
-    context::build_spec_context,
+    context::{build_review_context, build_spec_context},
     frontmatter::Document,
-    invariants,
+    invariants, park_spec,
     transitions::{
-        create, set_agent_mnemonic_name, transition, ArtifactKind, CreateRequest, MutationOptions,
+        create, record_review_event, review_verdict, set_agent_mnemonic_name, transition,
+        ArtifactKind, CreateRequest, MutationOptions,
     },
+    ReviewEventInput, SpecParkingInput,
 };
 use std::fs;
 use tempfile::tempdir;
@@ -13,6 +15,129 @@ fn write(root: &std::path::Path, relative: &str, body: &str) {
     let path = root.join(relative);
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(path, body).unwrap();
+}
+
+#[test]
+fn spec_parking_is_semantic_audited_and_requires_normal_reapproval() {
+    let dir = tempdir().unwrap();
+    let ready = ".lmbrain/specs/ready/SPEC-077.md";
+    write(
+        dir.path(),
+        ready,
+        "---\nid: SPEC-077\ntitle: Park me\nstatus: ready\nrecommended_agent: AGENT-IMPL\ndepends_on: []\nparking_events: []\nactivity: []\nupdated: 2026-07-29\n---\n# Park me\n",
+    );
+    write(
+        dir.path(),
+        ".lmbrain/agents/profiles/AGENT-IMPL.md",
+        "---\nid: AGENT-IMPL\nstatus: active\n---\n",
+    );
+    let parked = park_spec(
+        dir.path(),
+        ready,
+        SpecParkingInput {
+            actor: "AGENT-LEAD".into(),
+            reason: "Milestone order changed".into(),
+            revisit_condition: Some("After SPEC-080".into()),
+        },
+    )
+    .unwrap();
+    assert_eq!(parked.status, "backlog");
+    assert!(!dir.path().join(ready).exists());
+    let document = Document::parse(&fs::read_to_string(&parked.path).unwrap()).unwrap();
+    assert_eq!(document.object_array("parking_events").len(), 1);
+    assert!(transition(
+        dir.path(),
+        &parked.path,
+        "working",
+        MutationOptions::default()
+    )
+    .is_err());
+    let reapproved = transition(
+        dir.path(),
+        &parked.path,
+        "ready",
+        MutationOptions::default(),
+    )
+    .unwrap();
+    let reapproved_document =
+        Document::parse(&fs::read_to_string(&reapproved.path).unwrap()).unwrap();
+    assert_eq!(reapproved_document.object_array("parking_events").len(), 1);
+}
+
+#[test]
+fn parking_rejects_wrong_state_reason_and_collision_without_partial_mutation() {
+    let dir = tempdir().unwrap();
+    let ready = ".lmbrain/specs/ready/SPEC-078.md";
+    let source = "---\nid: SPEC-078\nstatus: ready\nparking_events: []\n---\n";
+    write(dir.path(), ready, source);
+    assert!(park_spec(
+        dir.path(),
+        ready,
+        SpecParkingInput {
+            actor: "AGENT-LEAD".into(),
+            reason: " ".into(),
+            revisit_condition: None,
+        },
+    )
+    .is_err());
+    write(
+        dir.path(),
+        ".lmbrain/specs/backlog/SPEC-078.md",
+        "---\nid: SPEC-999\nstatus: backlog\n---\n",
+    );
+    assert!(park_spec(
+        dir.path(),
+        ready,
+        SpecParkingInput {
+            actor: "AGENT-LEAD".into(),
+            reason: "Collision fixture".into(),
+            revisit_condition: None,
+        },
+    )
+    .is_err());
+    assert_eq!(fs::read_to_string(dir.path().join(ready)).unwrap(), source);
+}
+
+#[test]
+fn hard_dependencies_block_readiness_and_force_records_exact_chain() {
+    let dir = tempdir().unwrap();
+    write(
+        dir.path(),
+        ".lmbrain/agents/profiles/AGENT-IMPL.md",
+        "---\nid: AGENT-IMPL\nstatus: active\n---\n",
+    );
+    write(
+        dir.path(),
+        ".lmbrain/specs/backlog/SPEC-090.md",
+        "---\nid: SPEC-090\ntitle: Prerequisite\nstatus: backlog\ndepends_on: []\n---\n",
+    );
+    let dependent = ".lmbrain/specs/backlog/SPEC-091.md";
+    write(
+        dir.path(),
+        dependent,
+        "---\nid: SPEC-091\ntitle: Dependent\nstatus: backlog\nrecommended_agent: AGENT-IMPL\ndepends_on: [SPEC-090]\nmutation_overrides: []\n---\n",
+    );
+    let error = transition(dir.path(), dependent, "ready", MutationOptions::default()).unwrap_err();
+    assert!(error.to_string().contains("SPEC-090 [backlog]"));
+
+    let forced = transition(
+        dir.path(),
+        dependent,
+        "ready",
+        MutationOptions {
+            force: true,
+            reason: Some("Emergency sequencing exception".into()),
+        },
+    )
+    .unwrap();
+    let document = Document::parse(&fs::read_to_string(forced.path).unwrap()).unwrap();
+    let overrides = document.object_array("mutation_overrides");
+    assert_eq!(overrides.len(), 1);
+    assert!(overrides[0]
+        .get("unmet_invariant")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .contains("SPEC-090 [backlog]"));
 }
 fn artifact(kind: ArtifactKind, status: &str) -> (&'static str, String) {
     let (id, base) = match kind {
@@ -25,10 +150,11 @@ fn artifact(kind: ArtifactKind, status: &str) -> (&'static str, String) {
         ArtifactKind::McpProposal => ("MCP-PROP-001", "mcp/proposals"),
         ArtifactKind::Handoff => ("HANDOFF-001", "handoffs/active"),
         ArtifactKind::Skill => ("SKILL-001", "skills"),
+        ArtifactKind::Finding => ("FINDING-001", "findings"),
     };
     let relative = if matches!(
         kind,
-        ArtifactKind::Spec | ArtifactKind::Review | ArtifactKind::Skill
+        ArtifactKind::Spec | ArtifactKind::Review | ArtifactKind::Skill | ArtifactKind::Finding
     ) {
         format!(".lmbrain/{base}/{status}/{id}.md")
     } else {
@@ -52,6 +178,16 @@ fn every_declared_transition_has_valid_and_illegal_coverage() {
         (ArtifactKind::Review, "pending", "changes-requested"),
         (ArtifactKind::Review, "pending", "blocked"),
         (ArtifactKind::Review, "pending", "superseded"),
+        (
+            ArtifactKind::Review,
+            "changes-requested",
+            "changes-requested",
+        ),
+        (ArtifactKind::Review, "changes-requested", "accepted"),
+        (ArtifactKind::Review, "changes-requested", "blocked"),
+        (ArtifactKind::Review, "blocked", "blocked"),
+        (ArtifactKind::Review, "blocked", "changes-requested"),
+        (ArtifactKind::Review, "blocked", "accepted"),
         (ArtifactKind::Adr, "proposed", "accepted"),
         (ArtifactKind::Adr, "proposed", "rejected"),
         (ArtifactKind::Adr, "accepted", "superseded"),
@@ -82,15 +218,30 @@ fn every_declared_transition_has_valid_and_illegal_coverage() {
         let d = tempdir().unwrap();
         let (id, path) = artifact(kind, from);
         write(d.path(), &path, &source(id, from));
-        let valid = transition(
-            d.path(),
-            &path,
-            to,
-            MutationOptions {
-                force: true,
-                reason: Some("matrix fixture bypasses cross-artifact setup".into()),
-            },
-        );
+        let options = MutationOptions {
+            force: true,
+            reason: Some("matrix fixture bypasses cross-artifact setup".into()),
+        };
+        let valid = if kind == ArtifactKind::Review {
+            review_verdict(
+                d.path(),
+                &path,
+                to,
+                ReviewEventInput {
+                    actor_role: if to == "accepted" {
+                        "operator".into()
+                    } else {
+                        "project-lead".into()
+                    },
+                    reason: "matrix verdict".into(),
+                    evidence_refs: vec![],
+                    remediation_agent: None,
+                },
+                options,
+            )
+        } else {
+            transition(d.path(), &path, to, options)
+        };
         assert!(valid.is_ok(), "{kind:?} {from}->{to}: {valid:?}");
         let d = tempdir().unwrap();
         let (id, path) = artifact(kind, from);
@@ -101,6 +252,292 @@ fn every_declared_transition_has_valid_and_illegal_coverage() {
             "{kind:?} {from} illegal transition accepted"
         );
     }
+}
+
+#[test]
+fn review_verdicts_are_typed_audited_and_repeatable() {
+    let d = tempdir().unwrap();
+    let pending = ".lmbrain/reviews/pending/REVIEW-001.md";
+    write(d.path(), pending, &source("REVIEW-001", "pending"));
+
+    let first = review_verdict(
+        d.path(),
+        pending,
+        "changes-requested",
+        ReviewEventInput {
+            actor_role: "project-lead".into(),
+            reason: "Missing regression coverage".into(),
+            evidence_refs: vec!["SPEC-001".into(), "tests/review.rs".into()],
+            remediation_agent: Some("AGENT-002".into()),
+        },
+        MutationOptions::default(),
+    )
+    .unwrap();
+    let second = review_verdict(
+        d.path(),
+        first.path.strip_prefix(d.path()).unwrap(),
+        "changes-requested",
+        ReviewEventInput {
+            actor_role: "project-lead".into(),
+            reason: "Regression still reproduces".into(),
+            evidence_refs: vec!["REVIEW-001-EVIDENCE-002".into()],
+            remediation_agent: None,
+        },
+        MutationOptions::default(),
+    )
+    .unwrap();
+    let accepted = review_verdict(
+        d.path(),
+        second.path.strip_prefix(d.path()).unwrap(),
+        "accepted",
+        ReviewEventInput {
+            actor_role: "operator".into(),
+            reason: String::new(),
+            evidence_refs: vec![],
+            remediation_agent: None,
+        },
+        MutationOptions::default(),
+    )
+    .unwrap();
+
+    let document = Document::parse(&fs::read_to_string(accepted.path).unwrap()).unwrap();
+    let events = document.object_array("review_events");
+    assert_eq!(events.len(), 3);
+    assert_eq!(
+        events[0].get("id").and_then(serde_json::Value::as_str),
+        Some("REVIEW-001-EVENT-001")
+    );
+    assert_eq!(
+        events[1].get("id").and_then(serde_json::Value::as_str),
+        Some("REVIEW-001-EVENT-002")
+    );
+    assert_eq!(
+        events[2]
+            .get("to_status")
+            .and_then(serde_json::Value::as_str),
+        Some("accepted")
+    );
+    assert_eq!(
+        events[0]
+            .get("evidence_refs")
+            .and_then(serde_json::Value::as_array)
+            .map(Vec::len),
+        Some(2)
+    );
+    assert_eq!(
+        events[0]
+            .get("remediation_agent")
+            .and_then(serde_json::Value::as_str),
+        Some("AGENT-002")
+    );
+}
+
+#[test]
+fn review_verdict_validation_fails_without_mutating_the_artifact() {
+    let d = tempdir().unwrap();
+    let path = ".lmbrain/reviews/pending/REVIEW-001.md";
+    write(d.path(), path, &source("REVIEW-001", "pending"));
+    let before = fs::read_to_string(d.path().join(path)).unwrap();
+
+    let missing_reason = review_verdict(
+        d.path(),
+        path,
+        "blocked",
+        ReviewEventInput {
+            actor_role: "project-lead".into(),
+            reason: " ".into(),
+            evidence_refs: vec![],
+            remediation_agent: None,
+        },
+        MutationOptions::default(),
+    );
+    assert!(missing_reason.is_err());
+    assert_eq!(fs::read_to_string(d.path().join(path)).unwrap(), before);
+
+    let wrong_authority = review_verdict(
+        d.path(),
+        path,
+        "accepted",
+        ReviewEventInput {
+            actor_role: "project-lead".into(),
+            reason: String::new(),
+            evidence_refs: vec![],
+            remediation_agent: None,
+        },
+        MutationOptions::default(),
+    );
+    assert!(wrong_authority.is_err());
+    assert_eq!(fs::read_to_string(d.path().join(path)).unwrap(), before);
+
+    let generic_bypass = transition(d.path(), path, "accepted", MutationOptions::default());
+    assert!(generic_bypass.is_err());
+    assert_eq!(fs::read_to_string(d.path().join(path)).unwrap(), before);
+}
+
+#[test]
+fn review_destination_collision_preserves_both_files() {
+    let d = tempdir().unwrap();
+    let pending = ".lmbrain/reviews/pending/REVIEW-001.md";
+    let accepted = ".lmbrain/reviews/accepted/REVIEW-001.md";
+    write(d.path(), pending, &source("REVIEW-001", "pending"));
+    write(
+        d.path(),
+        accepted,
+        "---\nid: REVIEW-COLLISION\nstatus: accepted\n---\nExisting\n",
+    );
+    let pending_before = fs::read_to_string(d.path().join(pending)).unwrap();
+    let accepted_before = fs::read_to_string(d.path().join(accepted)).unwrap();
+
+    let result = review_verdict(
+        d.path(),
+        pending,
+        "accepted",
+        ReviewEventInput {
+            actor_role: "operator".into(),
+            reason: String::new(),
+            evidence_refs: vec![],
+            remediation_agent: None,
+        },
+        MutationOptions::default(),
+    );
+    assert!(result.is_err());
+    assert_eq!(
+        fs::read_to_string(d.path().join(pending)).unwrap(),
+        pending_before
+    );
+    assert_eq!(
+        fs::read_to_string(d.path().join(accepted)).unwrap(),
+        accepted_before
+    );
+}
+
+#[test]
+fn review_non_verdict_events_are_append_only_and_attributable() {
+    let d = tempdir().unwrap();
+    let path = ".lmbrain/reviews/changes-requested/REVIEW-001.md";
+    write(
+        d.path(),
+        path,
+        "---\nid: REVIEW-001\nstatus: changes-requested\nimplementation_agent: AGENT-001\n---\n",
+    );
+    let event =
+        |actor_role: &str, reason: &str, remediation_agent: Option<&str>| ReviewEventInput {
+            actor_role: actor_role.into(),
+            reason: reason.into(),
+            evidence_refs: vec!["SPEC-001".into()],
+            remediation_agent: remediation_agent.map(str::to_owned),
+        };
+    record_review_event(
+        d.path(),
+        path,
+        "remediation",
+        event(
+            "implementation-specialist",
+            "Addressed the requested changes",
+            Some("AGENT-002"),
+        ),
+        MutationOptions::default(),
+    )
+    .unwrap();
+    record_review_event(
+        d.path(),
+        path,
+        "escalation",
+        event(
+            "operator",
+            "Two remediation attempts were insufficient",
+            None,
+        ),
+        MutationOptions::default(),
+    )
+    .unwrap();
+    record_review_event(
+        d.path(),
+        path,
+        "takeover",
+        event(
+            "project-lead",
+            "Operator-authorized bounded corrective takeover",
+            None,
+        ),
+        MutationOptions::default(),
+    )
+    .unwrap();
+
+    let document = Document::parse(&fs::read_to_string(d.path().join(path)).unwrap()).unwrap();
+    assert_eq!(
+        document.value("status").as_deref(),
+        Some("changes-requested")
+    );
+    let history = lmbrain_core::parse_review_event_history(&document);
+    assert_eq!(history.events.len(), 3);
+    assert_eq!(history.events[0].action, "remediation");
+    assert_eq!(
+        history.events[0].remediation_agent.as_deref(),
+        Some("AGENT-002")
+    );
+    let analysis = lmbrain_core::analyze_review_lifecycle(&document);
+    assert_eq!(analysis.escalation_count, 1);
+    assert_eq!(analysis.takeover_count, 1);
+    assert_eq!(analysis.remediation_agents, vec!["AGENT-002"]);
+}
+
+#[test]
+fn review_non_verdict_events_enforce_authority_and_required_attribution() {
+    let d = tempdir().unwrap();
+    let path = ".lmbrain/reviews/pending/REVIEW-001.md";
+    write(d.path(), path, &source("REVIEW-001", "pending"));
+    let before = fs::read_to_string(d.path().join(path)).unwrap();
+
+    for (action, input) in [
+        (
+            "escalation",
+            ReviewEventInput {
+                actor_role: "project-lead".into(),
+                reason: "Not operator-owned".into(),
+                evidence_refs: vec![],
+                remediation_agent: None,
+            },
+        ),
+        (
+            "remediation",
+            ReviewEventInput {
+                actor_role: "implementation-specialist".into(),
+                reason: "Missing agent".into(),
+                evidence_refs: vec![],
+                remediation_agent: None,
+            },
+        ),
+    ] {
+        assert!(
+            record_review_event(d.path(), path, action, input, MutationOptions::default()).is_err()
+        );
+        assert_eq!(fs::read_to_string(d.path().join(path)).unwrap(), before);
+    }
+}
+
+#[test]
+fn malformed_review_event_history_fails_closed() {
+    let d = tempdir().unwrap();
+    let path = ".lmbrain/reviews/pending/REVIEW-001.md";
+    let malformed =
+        "---\nid: REVIEW-001\nstatus: pending\nreview_events: not-a-list\n---\nReview\n";
+    write(d.path(), path, malformed);
+
+    let result = review_verdict(
+        d.path(),
+        path,
+        "changes-requested",
+        ReviewEventInput {
+            actor_role: "project-lead".into(),
+            reason: "Needs work".into(),
+            evidence_refs: vec![],
+            remediation_agent: None,
+        },
+        MutationOptions::default(),
+    );
+    assert!(result.is_err());
+    assert_eq!(fs::read_to_string(d.path().join(path)).unwrap(), malformed);
 }
 
 #[test]
@@ -352,6 +789,113 @@ fn spec_create_defaults_to_backlog() {
 }
 
 #[test]
+fn review_create_starts_pending_with_one_submitted_event() {
+    let d = tempdir().unwrap();
+    let r = d.path();
+    fs::create_dir_all(r.join(".lmbrain")).unwrap();
+    let result = create(
+        r,
+        CreateRequest {
+            kind: ArtifactKind::Review,
+            title: "Review of SPEC-001".into(),
+            status: None,
+            fields: vec![
+                ("spec".into(), "SPEC-001".into()),
+                ("implementation_agent".into(), "AGENT-002".into()),
+            ],
+        },
+    )
+    .unwrap();
+    let document = Document::parse(&fs::read_to_string(result.path).unwrap()).unwrap();
+    let history = lmbrain_core::parse_review_event_history(&document);
+
+    assert_eq!(history.warnings, Vec::<String>::new());
+    assert_eq!(history.events.len(), 1);
+    assert_eq!(history.events[0].action, "submitted");
+    assert_eq!(history.events[0].from_status, "none");
+    assert_eq!(history.events[0].to_status, "pending");
+    assert_eq!(
+        history.events[0].implementation_agent.as_deref(),
+        Some("AGENT-002")
+    );
+    assert_eq!(
+        document.value("finding_taxonomy_version").as_deref(),
+        Some("1")
+    );
+}
+
+#[test]
+fn new_reviews_require_canonical_finding_categories() {
+    let create_review = |root: &std::path::Path, category: &str| {
+        create(
+            root,
+            CreateRequest {
+                kind: ArtifactKind::Review,
+                title: format!("Review with {category}"),
+                status: None,
+                fields: vec![("finding_categories".into(), format!("[{category}]"))],
+            },
+        )
+    };
+
+    let canonical = tempdir().unwrap();
+    fs::create_dir_all(canonical.path().join(".lmbrain")).unwrap();
+    assert!(create_review(canonical.path(), "verification-integrity").is_ok());
+
+    for category in ["evidence-integrity", "project-specific"] {
+        let invalid = tempdir().unwrap();
+        fs::create_dir_all(invalid.path().join(".lmbrain")).unwrap();
+        let result = create_review(invalid.path(), category);
+        assert!(
+            result.is_err(),
+            "{category} should fail new-write validation"
+        );
+        assert!(!invalid.path().join(".lmbrain/reviews").exists());
+    }
+}
+
+#[test]
+fn review_context_exposes_event_history_and_legacy_uncertainty() {
+    let d = tempdir().unwrap();
+    let r = d.path();
+    fs::create_dir_all(r.join(".lmbrain")).unwrap();
+    write(
+        r,
+        ".lmbrain/specs/review/SPEC-001.md",
+        "---\nid: SPEC-001\ntitle: Test spec\nstatus: review\n---\n\n## Acceptance criteria\n- [x] Complete\n\n## Implementation evidence\nImplemented and tested.\n",
+    );
+    create(
+        r,
+        CreateRequest {
+            kind: ArtifactKind::Review,
+            title: "Typed review".into(),
+            status: None,
+            fields: vec![("spec".into(), "SPEC-001".into())],
+        },
+    )
+    .unwrap();
+    write(
+        r,
+        ".lmbrain/reviews/accepted/REVIEW-LEGACY.md",
+        "---\nid: REVIEW-LEGACY\ntitle: Legacy review\nstatus: accepted\nspec: SPEC-001\n---\n",
+    );
+
+    let context = build_review_context(r, "SPEC-001").unwrap();
+    let typed = context
+        .linked_reviews
+        .iter()
+        .find(|review| review.id == "REVIEW-001")
+        .unwrap();
+    assert_eq!(typed.events.len(), 1);
+    assert!(typed.lifecycle_warnings.is_empty());
+    assert!(context.markdown.contains("REVIEW-001-EVENT-001"));
+    assert!(context
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("REVIEW-LEGACY") && warning.contains("unknown")));
+}
+
+#[test]
 fn force_reason_is_required_and_audited() {
     let d = tempdir().unwrap();
     let r = d.path();
@@ -549,7 +1093,9 @@ fn creation_status_allowlist_is_enforced_per_kind() {
 
 #[test]
 fn create_rejects_reserved_fields_and_injection_without_residue() {
-    let reserved = ["id", "Id", " status", "created", "updated", "title", "activity"];
+    let reserved = [
+        "id", "Id", " status", "created", "updated", "title", "activity",
+    ];
     for key in reserved {
         let d = tempdir().unwrap();
         fs::create_dir_all(d.path().join(".lmbrain")).unwrap();
@@ -666,4 +1212,58 @@ fn frontmatter_round_trip_keeps_comments_and_order() {
     let out = document.render();
     assert!(out.contains("# comment"));
     assert!(out.contains("unknown: value # inline"));
+}
+
+#[test]
+fn before_done_reports_every_authority_blocker_and_force_audits_them() {
+    let directory = tempdir().unwrap();
+    let relative = ".lmbrain/specs/review/SPEC-001.md";
+    let source = "---\nid: SPEC-001\nstatus: review\n---\n\n## Acceptance criteria\n- [x] Complete\n\n## Implementation evidence\nproof\n\n## Required verification\n- [ ] LEAD-CHECK | kind=manual | owner=lead | phase=before-done | evidence=artifact | Independent review\n- [x] HUMAN-PLAY | kind=operator | owner=operator | phase=before-done | evidence=observation | Exercise the app\n";
+    write(directory.path(), relative, source);
+
+    let error = transition(
+        directory.path(),
+        relative,
+        "done",
+        MutationOptions::default(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("LEAD-CHECK (owner=lead)"));
+    assert!(error.contains("HUMAN-PLAY (owner=operator)"));
+    assert_eq!(
+        fs::read_to_string(directory.path().join(relative)).unwrap(),
+        source
+    );
+
+    transition(
+        directory.path(),
+        relative,
+        "done",
+        MutationOptions {
+            force: true,
+            reason: Some("Operator-authorized emergency closeout".into()),
+        },
+    )
+    .unwrap();
+    let done =
+        fs::read_to_string(directory.path().join(".lmbrain/specs/done/SPEC-001.md")).unwrap();
+    assert!(done.contains("Operator-authorized emergency closeout"));
+    assert!(done.contains("LEAD-CHECK (owner=lead)"));
+    assert!(done.contains("HUMAN-PLAY (owner=operator)"));
+    let document = Document::parse(&done).unwrap();
+    let overrides = document.object_array("mutation_overrides");
+    assert_eq!(overrides.len(), 1);
+    assert_eq!(
+        overrides[0]
+            .get("actor_role")
+            .and_then(serde_json::Value::as_str),
+        Some("project-lead")
+    );
+    assert!(overrides[0]
+        .get("unmet_invariant")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|invariant| {
+            invariant.contains("LEAD-CHECK") && invariant.contains("HUMAN-PLAY")
+        }));
 }

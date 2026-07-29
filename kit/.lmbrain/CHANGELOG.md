@@ -4,6 +4,23 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 3.1.0 - 2026-07-29
+
+### Added
+
+- **First-class cross-spec findings.** Globally unique `FINDING-*` artifacts have governed lifecycle, typed audit events, validated canonical relations, bounded context packs, actionable diagnostics, read-only legacy candidate inventory, and a dedicated read-only desktop workspace with contextual links.
+- **Typed lifecycle and review evidence.** Semantic review verdict history, cycle-aware metrics, explicit authority, and lead/operator verification attestations preserve historical truth without coupling evidence to status changes.
+- **Shared diagnostics and project digest v2.** Core, MCP, and app consume stable diagnostic IDs, declared/derived state reconciliation, bounded lifecycle lists, exact omission counts, and actionable next steps.
+- **Verification onboarding.** Deterministic repository discovery, validation, status, atomic manifest replacement, and guarded rollback remain non-executing; approval remains a separate MCP/operator action and is not available in the app.
+- **Hard spec dependencies.** Typed acyclic `depends_on` graphs, governed dependency replacement, lifecycle enforcement, bounded contexts, diagnostics, conservative legacy candidates, and read-only Board/detail visualization keep downstream work from becoming ready too early.
+- **Governed ready-spec parking.** `spec_park` returns only ready work to backlog with preserved typed history, reason/revisit evidence, atomic move recovery, and normal re-approval. The app shows parked state but exposes no status-changing action.
+- **Human-friendly Project Lead communication.** Operator-facing conversation follows the operator's language, expands shorthand, and explains practical impact concisely while technical artifacts and specialist handoffs retain dense exact terminology.
+- **Portable LMBrain field feedback.** The Project Lead can autonomously append typed, non-sensitive observations about LMBrain itself to `reports/lmbrain-kit-feedback.md`; a read-only MCP report makes the accumulated notes directly deliverable to the LMBrain team without affecting project lifecycle.
+
+### Fixed
+
+- Spec detail navigation returns to the board through an accessible action, malformed/stale lifecycle evidence fails visibly, and canonical review/finding taxonomy remains separate from agent-effectiveness scoring.
+
 ## 3.0.2 - 2026-07-19
 
 ### Added

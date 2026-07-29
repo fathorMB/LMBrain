@@ -88,7 +88,7 @@ provider selection is supplied as session-scoped inline configuration for the
 local Ollama OpenAI-compatible API. LMBrain starts OpenCode directly with the
 selected workspace positional, avoiding nested-process cwd ambiguity on Windows.
 
-Review-quality metrics are spec-centric where possible. The main change-request rate is calculated as distinct specs with at least one `changes-requested` review divided by distinct reviewed specs. First-pass acceptance is calculated only for reviewed specs whose linked reviews have valid `created` dates, and missing dates or missing `spec` links are surfaced as explicit counts rather than inferred.
+Review-quality metrics are spec-centric where possible and cycle-aware. Valid structured lifecycle events are authoritative; explicit legacy cycle/count fields provide medium-confidence fallback, while status-only histories are excluded from first-pass claims unless separate dated review artifacts establish ordering. Metrics expose lifecycle and canonical-taxonomy coverage, confidence, remediation/escalation/takeover counts, and original-implementation-agent attribution. Taxonomy-v1 aliases normalize at read time with raw values retained; unknown categories remain diagnostics and never silently enter recurrence thresholds.
 
 ### Milestone intelligence (v3)
 
@@ -104,6 +104,10 @@ Specs are the board unit. Current spec statuses are:
 backlog -> ready -> working -> review -> done
 discarded
 ```
+
+Specs may declare hard `depends_on: [SPEC-*]` prerequisites. The core builds the canonical acyclic graph, reports missing/self/duplicate/cycle diagnostics, and blocks normal readiness/start until every direct prerequisite is done. `spec_dependencies_set` is an audited backlog-only replacement; `spec_dependency_candidates` reports explicit legacy prose without promoting it.
+
+`spec_park` is a dedicated `ready -> backlog` operation with required reason, optional revisit condition, append-only parking history, and recoverable atomic move behavior. It is deliberately absent from the app along with approval and all other status-changing actions; Board and spec detail only visualize dependencies and parking history.
 
 `ready -> working` and `working -> review` are implementer-owned transitions. Submission mechanically requires a scoped non-empty Verification transcript and rejects stale kit-generated evidence. A spec stays in `review` while changes-requested findings are remediated; it is not moved back to `working`.
 
@@ -129,8 +133,11 @@ Agents should use the MCP tools backed by this core instead of editing managed f
 
 The server exposes specific tools such as:
 
-- `spec_ready`, `spec_start`, `spec_submit`, `spec_done`, `spec_discard`;
-- `review_accept`;
+- `spec_ready`, `spec_start`, `spec_submit`, `spec_done`, `spec_discard`, `spec_park`;
+- `spec_dependencies_set`, `spec_dependency_context`, `spec_dependency_candidates`;
+- `spec_attest_lead` plus the desktop-only operator evidence-attestation command; neither attestation operation changes spec status;
+- `review_accept`, `review_changes_requested`, `review_block`, `review_supersede`, `review_remediation`, `review_escalate`, `review_takeover`, `review_migration_preview`;
+- `verification_migration_preview`, which proposes unambiguous legacy Lead-owner corrections without mutating artifacts;
 - `adr_accept`, `adr_reject`;
 - `agent_activate`, `agent_deactivate`;
 - `skill_activate`, `skill_retire`;
@@ -139,6 +146,7 @@ The server exposes specific tools such as:
 - `lmbrain_set_agent_mnemonic_name`;
 - `lmbrain_get_artifact`;
 - `lmbrain_validate`;
+- `lmbrain_feedback_record`, an autonomous Project Lead append to the portable kit-feedback report, and `lmbrain_feedback_report`, its read-only typed view;
 - `lmbrain_list_ready_handoffs`.
 - `harness_config_get`, `harness_config_validate`, `harness_config_set`.
 
@@ -150,9 +158,17 @@ The server exposes specific tools such as:
 
 All context-pack tools are read-only. They resolve references through existing ID/path logic and report missing links as structured warnings. Spec and review context include the lossless Required verification source, typed owner/phase/evidence requirements, profile guidance and digests, and applicable skill commands/digests. They are backed by `lmbrain-core/src/context.rs`.
 
+Kit feedback is implemented separately from project findings in `lmbrain-core/src/kit_feedback.rs`. It uses a fixed report path and identity, typed append-only notes, the shared mutation lock and atomic writer, and minimal non-sensitive evidence. It never enters project lifecycle metrics or diagnostics.
+
+Project orientation uses diagnostic schema v1 and project-digest schema v2. `lmbrain-core` is the single diagnostic rule engine for MCP validation, the bounded digest, Tauri statistics, and the Pulse drill-down. Each finding has a stable ID, code, severity, artifact/path, safe next action, and fixability. Digest counts and compatibility warning strings are derived from that same collection; bounded lists always report omitted counts. `STATUS.md` remains declared narrative state, while the digest separately derives lifecycle focus and reconciles it with `ROADMAP.md` and spec milestone frontmatter.
+
 ### Verification and governed improvement tools (2.9.0)
 
-- `verification_manifest_get`, `verification_manifest_approve`, `spec_verify` implement digest-bound named-gate execution and attributable transcript generation.
+- `verification_manifest_get`, `verification_manifest_status`, `verification_manifest_init`, `verification_manifest_validate`, `verification_manifest_set`, and `verification_manifest_rollback` implement typed, deterministic, non-executing onboarding with atomic replacement, stale-write protection, and one-step recovery.
+- `verification_manifest_approve` remains a separate MCP/operator action; the app intentionally exposes no approval or artifact-status action in its Verification settings. `spec_verify` implements digest-bound named-gate execution and attributable transcript generation only for the currently approved digest.
+- `finding_create`, `finding_plan`, `finding_defer`, `finding_resolve`, `finding_accept_risk`, `finding_supersede`, and `finding_reopen` own the `FINDING-*` lifecycle. Core validates global identity, status directories, typed audit events, source-pair uniqueness, typed references, blocker cycles, authority, and resolution evidence under the shared mutation locks.
+- `finding_context` derives bounded forward/reverse relations without rewriting review history; `finding_candidates` inventories stable-form legacy review tokens read-only and never infers disposition. Project/spec/review contexts and shared diagnostics consume the same core finding index.
+- The desktop Findings route is read-only: filters, sorting, canonical relationship navigation, contextual counts, and governed prompt copying do not expose lifecycle transitions. Review verdicts and agent metrics remain review-based and are not recomputed from promoted findings.
 - `agent_improvement_signals`, `agent_improvement_propose`, `agent_proposal_approve`/`reject`, and `agent_improvement_apply` implement a deterministic review-to-proposal-to-approved-additive-profile loop with stale-target protection.
 
 It intentionally does not expose task tools. Operator-governed transitions such as ADR decisions and agent activation are exposed as explicit tools so the Project Lead can execute them only after a direct operator instruction.

@@ -135,7 +135,7 @@ pub fn folder_matches_status(path: &Path) -> bool {
         .and_then(|parent| parent.file_name())
         .and_then(|name| name.to_str())
     {
-        Some("specs") | Some("reviews") | Some("skills") => {
+        Some("specs") | Some("reviews") | Some("skills") | Some("findings") => {
             path.parent()
                 .and_then(|parent| parent.file_name())
                 .and_then(|name| name.to_str())

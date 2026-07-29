@@ -46,6 +46,12 @@ pub struct ReviewTrendPoint {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewQualityStats {
     pub total_reviews: usize,
+    pub total_review_passes: usize,
+    pub remediation_cycles: usize,
+    pub escalation_count: usize,
+    pub takeover_count: usize,
+    pub lifecycle_known_reviews: usize,
+    pub lifecycle_coverage: f64,
     pub reviewed_specs: usize,
     pub accepted_reviews: usize,
     pub changes_requested_reviews: usize,

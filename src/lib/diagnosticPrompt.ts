@@ -3,6 +3,12 @@ import type { KitDiagnostic } from "../types";
 export function buildDiagnosticFixPrompt(diagnostic: KitDiagnostic): string {
   const path = diagnostic.path || "unknown file";
   const message = diagnostic.message;
+  const identity = diagnostic.id
+    ? `${diagnostic.id}${diagnostic.code ? ` (${diagnostic.code})` : ""}`
+    : "unversioned diagnostic";
+  const governedNextAction = diagnostic.next_action
+    ? `\nRequired next action: ${diagnostic.next_action}\n`
+    : "";
   const normalizedMessage = message.toLowerCase();
 
   if (
@@ -10,8 +16,9 @@ export function buildDiagnosticFixPrompt(diagnostic: KitDiagnostic): string {
     normalizedMessage.includes("yaml") ||
     normalizedMessage.includes("frontmatter")
   ) {
-    return `Please fix the malformed frontmatter in the file: ${path}
+    return `Please address ${identity} in the file: ${path}
 The parser error message is: ${message}
+${governedNextAction}
 
 Instructions:
 1. Fix the frontmatter block at the top of the file so that it is valid YAML.
@@ -22,9 +29,10 @@ Instructions:
   }
 
   if (normalizedMessage.includes("mismatch") || normalizedMessage.includes("status")) {
-    return `There is a status mismatch in the file: ${path}
+    return `Please address ${identity} in the file: ${path}
 The status in the frontmatter does not match its directory location.
 Conflict details: ${message}
+${governedNextAction}
 
 Instructions:
 Please align the status:
@@ -35,8 +43,9 @@ Or:
 Do not make any other changes to the file or its body.`;
   }
 
-  return `Please fix the issue in the file: ${path}
+  return `Please address ${identity} in the file: ${path}
 Error details: ${message}
+${governedNextAction}
 
 Instructions:
 Resolve the reported error while preserving the rest of the file content and structure.`;

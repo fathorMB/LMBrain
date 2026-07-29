@@ -16,7 +16,7 @@ The main product idea is simple: a repository owns its project state as Markdown
 
 1. A user copies or initializes the kit into a target repository.
 2. The user opens that repository in LMBrain.
-3. LMBrain reads `.lmbrain/` and shows project pulse, wiki, board, design mockups, roadmap, reviews, decisions, agents, and MCP state.
+3. LMBrain reads `.lmbrain/` and shows project pulse, wiki, board, design mockups, roadmap, reviews, durable findings, decisions, agents, and MCP state.
 4. LMBrain registers local agent tooling for supported hosts.
 5. The user manually starts agents or sessions when needed.
 
@@ -36,6 +36,9 @@ terminals. Refresh success and failure are shown directly in the header.
 - Design: operator-loaded self-contained HTML/CSS/JS mockups from `.lmbrain/design/`.
 - Roadmap (milestone intelligence): milestones with derived spec status, reviews, decisions, risks, dependencies, and next actions.
 - Reviews and Decisions: project governance artifacts.
+- Findings: a read-only active/history workspace for durable cross-spec observations, canonical relationships, typed lifecycle evidence, and governed-action prompts. It never duplicates lifecycle authority in the app.
+- Board/spec detail: read-only hard-prerequisite blockers, prerequisite-complete filtering, and preserved parking history. Approval, dependency mutation, parking, and status changes stay outside the app.
+- Project Lead experience: operator-facing responses use concise plain language in the operator's language, while technical density remains available in artifacts and agent handoffs. Evidence-backed feedback about LMBrain itself accumulates in one portable report for the product team.
 - Agents & MCP: agent profiles, proposals, MCP records, and built-in MCP tools.
 - Sessions: floating interactive terminals for supported agent CLIs.
 - Session terminals expose consistent wheel and page navigation across normal and full-screen buffers, including packaged Windows builds.

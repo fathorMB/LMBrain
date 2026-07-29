@@ -261,7 +261,7 @@ describe("ArtifactDetailModal", () => {
     expect(screen.queryByText("Reject")).toBeNull();
   });
 
-  it("still shows approve/reject for agent proposals (unaffected artifact kind)", async () => {
+  it("does not expose approve/reject status actions for agent proposals", async () => {
     vi.mocked(commands.parseMarkdown).mockResolvedValue({
       path: "E:/workspace/.lmbrain/agents/proposals/AGENT-PROP-001.md",
       frontmatter: { id: "AGENT-PROP-001", status: "proposed" },
@@ -272,11 +272,11 @@ describe("ArtifactDetailModal", () => {
 
     render(<ArtifactDetailModal />);
 
-    await waitFor(() => {
-      expect(screen.getByText("Approve")).toBeDefined();
-      expect(screen.getByText("Reject")).toBeDefined();
-    });
-
+    await waitFor(() => expect(screen.getByText("Agent proposal content")).toBeDefined());
+    expect(screen.queryByText("Approve")).toBeNull();
+    expect(screen.queryByText("Reject")).toBeNull();
+    expect(screen.getByText(/approval and lifecycle status actions are unavailable/i)).toBeDefined();
+    expect(commands.setArtifactStatus).not.toHaveBeenCalled();
     expect(screen.queryByText("Agent Profile Activation")).toBeNull();
   });
 

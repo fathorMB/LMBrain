@@ -218,6 +218,14 @@ pub fn validate_verification_manifest(manifest: &VerificationManifest) -> Vec<St
                 gate.id
             ));
         }
+        for argument in &gate.args {
+            if unsafe_command_value(argument) || looks_machine_local(argument) {
+                issues.push(format!(
+                    "gate '{}' contains an unsafe or shell-interpolated argument",
+                    gate.id
+                ));
+            }
+        }
         if unsafe_relative(&gate.cwd) {
             issues.push(format!(
                 "gate '{}' cwd must stay inside the workspace",
@@ -244,7 +252,11 @@ pub fn validate_verification_manifest(manifest: &VerificationManifest) -> Vec<St
             }
         }
         for (key, value) in &gate.environment {
-            if !valid_env_key(key) || secret_like(key) || value.contains('\0') {
+            if !valid_env_key(key)
+                || secret_like(key)
+                || unsafe_command_value(value)
+                || looks_machine_local(value)
+            {
                 issues.push(format!(
                     "gate '{}' has unsafe environment entry '{}'",
                     gate.id, key
@@ -284,6 +296,25 @@ pub fn validate_verification_manifest(manifest: &VerificationManifest) -> Vec<St
         }
     }
     issues
+}
+
+fn unsafe_command_value(value: &str) -> bool {
+    value.contains('\0')
+        || value.contains(['\r', '\n'])
+        || value.contains("$(")
+        || value.contains("${")
+        || value.contains('`')
+        || value.to_ascii_lowercase().contains("token=")
+        || value.to_ascii_lowercase().contains("password=")
+        || value.to_ascii_lowercase().contains("secret=")
+}
+
+fn looks_machine_local(value: &str) -> bool {
+    Path::new(value).is_absolute()
+        || value.starts_with("~/")
+        || value.starts_with(r"~\")
+        || value.to_ascii_lowercase().contains(r"\users\")
+        || value.to_ascii_lowercase().contains("/home/")
 }
 
 /// Normalize a declared exclusion into workspace-relative components,
@@ -539,8 +570,7 @@ fn transcript_state_with_exclusions(
     if metadata(generated, "invalidated").is_some() {
         return TranscriptState::GeneratedStale;
     }
-    if metadata(generated, "workspace-fingerprint-before")
-        .is_some_and(|before| before != recorded)
+    if metadata(generated, "workspace-fingerprint-before").is_some_and(|before| before != recorded)
     {
         return TranscriptState::GeneratedStale;
     }
@@ -572,7 +602,9 @@ pub fn transcript_state_for_document(root: &Path, document: &Document) -> Transc
     // the freshness recompute ignores. Manifest changes are already caught by
     // the recorded manifest-digest comparison.
     let exclusions = load_verification_manifest(root)
-        .map(|manifest| manifest_exclusions(&manifest, &document.string_array("verification_gates")))
+        .map(|manifest| {
+            manifest_exclusions(&manifest, &document.string_array("verification_gates"))
+        })
         .unwrap_or_default();
     let state = transcript_state_with_exclusions(root, &document.body, &exclusions);
     if state != TranscriptState::GeneratedFresh {
@@ -1239,7 +1271,10 @@ mod tests {
             !report.all_expectations_met,
             "a run that mutated the workspace must not publish success"
         );
-        assert_ne!(report.workspace_fingerprint_before, report.workspace_fingerprint);
+        assert_ne!(
+            report.workspace_fingerprint_before,
+            report.workspace_fingerprint
+        );
         assert!(report
             .invalidation_reason
             .as_deref()
@@ -1300,7 +1335,10 @@ mod tests {
         let report = execute_spec_verification(dir.path(), &spec, &approval).unwrap();
         assert!(!report.invalidated, "{:?}", report.invalidation_reason);
         assert!(report.invalidation_reason.is_none());
-        assert_eq!(report.workspace_fingerprint_before, report.workspace_fingerprint);
+        assert_eq!(
+            report.workspace_fingerprint_before,
+            report.workspace_fingerprint
+        );
         assert!(report.all_expectations_met);
 
         let document = Document::parse(&fs::read_to_string(&spec).unwrap()).unwrap();
@@ -1329,10 +1367,7 @@ mod tests {
         fs::create_dir_all(dir.path().join(".lmbrain/specs/working")).unwrap();
         fs::create_dir_all(dir.path().join("apps/client/dist")).unwrap();
         fs::write(dir.path().join("source.txt"), "original").unwrap();
-        let mut configured = shell_gate(
-            "echo mutated>> source.txt",
-            "echo mutated >> source.txt",
-        );
+        let mut configured = shell_gate("echo mutated>> source.txt", "echo mutated >> source.txt");
         configured.gates[0].fingerprint_exclude = vec!["apps/client/dist".into()];
         fs::write(
             dir.path().join(VERIFICATION_MANIFEST_PATH),
@@ -1456,7 +1491,10 @@ mod tests {
         let report = execute_spec_verification(dir.path(), &spec, &approval).unwrap();
         assert!(!report.invalidated);
         assert!(report.invalidation_reason.is_none());
-        assert_eq!(report.workspace_fingerprint_before, report.workspace_fingerprint);
+        assert_eq!(
+            report.workspace_fingerprint_before,
+            report.workspace_fingerprint
+        );
         assert!(report.all_expectations_met);
         let document = Document::parse(&fs::read_to_string(&spec).unwrap()).unwrap();
         assert_eq!(
@@ -1466,8 +1504,15 @@ mod tests {
     }
 
     fn sample_transcript(fingerprint: &str) -> (String, String) {
-        let without_hash =
-            render_transcript("manifest", fingerprint, fingerprint, "contract", &[], None, None);
+        let without_hash = render_transcript(
+            "manifest",
+            fingerprint,
+            fingerprint,
+            "contract",
+            &[],
+            None,
+            None,
+        );
         let hash = hex_digest(without_hash.as_bytes());
         let transcript = render_transcript(
             "manifest",

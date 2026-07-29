@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { getSpecs } from "../../lib/commands";
 import type { Spec, SpecStatus } from "../../types";
@@ -29,6 +29,7 @@ function criteriaProgress(body: string): { done: number; total: number } {
 
 export function TaskboardView() {
   const { state, dispatch, openSpec } = useWorkspace();
+  const [dependencyFilter, setDependencyFilter] = useState<"all" | "blocked" | "ready-after">("all");
 
   useEffect(() => {
     getSpecs()
@@ -37,7 +38,16 @@ export function TaskboardView() {
   }, [dispatch]);
 
   const specsByStatus = (status: SpecStatus) =>
-    state.specs.filter((s) => s.status === status);
+    state.specs.filter((spec) => {
+      if (spec.status !== status) return false;
+      const dependencies = spec.depends_on ?? [];
+      const blocked = dependencies.some(
+        (id) => state.specs.find((candidate) => candidate.id === id)?.status !== "done",
+      );
+      if (dependencyFilter === "blocked") return blocked;
+      if (dependencyFilter === "ready-after") return dependencies.length > 0 && !blocked;
+      return true;
+    });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
@@ -84,12 +94,34 @@ export function TaskboardView() {
             color: "#56525b",
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            gap: 10,
           }}
         >
           <i className="material-symbols-outlined" style={{ fontSize: 15 }}>
             visibility
           </i>
+          <label>
+            Dependency view{" "}
+            <select
+              aria-label="Dependency view"
+              value={dependencyFilter}
+              onChange={(event) =>
+                setDependencyFilter(event.target.value as "all" | "blocked" | "ready-after")
+              }
+              style={{
+                background: "var(--bg-tertiary)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border-primary)",
+                borderRadius: 6,
+                padding: "5px 7px",
+              }}
+            >
+              <option value="all">All specs</option>
+              <option value="blocked">Blocked by dependency</option>
+              <option value="ready-after">Prerequisites complete</option>
+            </select>
+          </label>
+          <span style={{ flex: 1 }} />
           Read-only view · specs move through these states via the `lmbrain-mcp` tools
         </div>
       </div>
@@ -137,7 +169,20 @@ export function TaskboardView() {
                   }}
                 >
                   {specs.map((spec) => (
-                    <SpecCard key={spec.id} spec={spec} onClick={() => openSpec(spec)} />
+                    <SpecCard
+                      key={spec.id}
+                      spec={spec}
+                      activeFindingCount={(state.findings ?? []).filter((finding) =>
+                        ["open", "planned", "deferred"].includes(finding.status)
+                        && (finding.origin_artifact === spec.id
+                          || finding.related_specs.includes(spec.id)
+                          || finding.target_specs.includes(spec.id))
+                      ).length}
+                      dependencyBlockers={(spec.depends_on ?? []).filter((id) =>
+                        state.specs.find((candidate) => candidate.id === id)?.status !== "done"
+                      )}
+                      onClick={() => openSpec(spec)}
+                    />
                   ))}
                 </div>
               </div>
@@ -149,7 +194,17 @@ export function TaskboardView() {
   );
 }
 
-function SpecCard({ spec, onClick }: { spec: Spec; onClick: () => void }) {
+function SpecCard({
+  spec,
+  activeFindingCount,
+  dependencyBlockers,
+  onClick,
+}: {
+  spec: Spec;
+  activeFindingCount: number;
+  dependencyBlockers: string[];
+  onClick: () => void;
+}) {
   const { done, total } = criteriaProgress(spec.body);
   const isMalformed = !!spec.malformed;
 
@@ -200,6 +255,14 @@ function SpecCard({ spec, onClick }: { spec: Spec; onClick: () => void }) {
       <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.35, color: "var(--text-primary)" }}>
         {spec.title}
       </div>
+      {spec.status === "backlog" && (spec.parking_events?.length ?? 0) > 0 && (
+        <div
+          title={spec.parking_events?.at(-1)?.reason}
+          style={{ fontSize: 10.5, color: "#bcaef6" }}
+        >
+          Parked · readiness expired
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 1 }}>
         {spec.recommended_agent && (
           <span
@@ -220,6 +283,21 @@ function SpecCard({ spec, onClick }: { spec: Spec; onClick: () => void }) {
             }}
           >
             {done}/{total}
+          </span>
+        )}
+        {activeFindingCount > 0 && <span
+          aria-label={`${activeFindingCount} active findings`}
+          style={{ fontSize: 10.5, color: "#d9b86d" }}
+        >
+          ⚠ {activeFindingCount}
+        </span>}
+        {dependencyBlockers.length > 0 && (
+          <span
+            aria-label={`Blocked by hard dependencies: ${dependencyBlockers.join(", ")}`}
+            title={`Ready after ${dependencyBlockers.join(", ")}`}
+            style={{ fontSize: 10.5, color: "#e0a23a" }}
+          >
+            ⛓ {dependencyBlockers.length}
           </span>
         )}
         <span style={{ flex: 1 }} />

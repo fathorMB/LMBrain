@@ -137,13 +137,19 @@ impl WorkspaceService {
                 kit_version: String::new(),
                 health: KitHealth::None,
                 diagnostics: vec![KitDiagnostic {
+                    id: "DIAG-workspace-missing".into(),
+                    code: "workspace-missing".into(),
                     message: "No .lmbrain directory found".into(),
                     severity: DiagnosticSeverity::Error,
+                    artifact_id: None,
                     path: Some(".lmbrain".into()),
+                    next_action: "Initialize the LMBrain kit in this workspace.".into(),
+                    fixability: "governed-mutation".into(),
                 }],
                 branch: None,
                 is_clean: None,
                 spec_count: 0,
+                finding_count: 0,
                 task_count: 0,
                 decision_count: 0,
                 agent_count: 0,
@@ -163,9 +169,14 @@ impl WorkspaceService {
                 .unwrap_or_default()
         } else {
             diagnostics.push(KitDiagnostic {
+                id: "DIAG-version-missing".into(),
+                code: "version-missing".into(),
                 message: "Missing VERSION file".into(),
                 severity: DiagnosticSeverity::Warning,
+                artifact_id: None,
                 path: Some(".lmbrain/VERSION".into()),
+                next_action: "Restore the canonical kit VERSION file.".into(),
+                fixability: "manual".into(),
             });
             health = KitHealth::Warn;
             String::new()
@@ -175,9 +186,14 @@ impl WorkspaceService {
         let status_path = lmbrain_dir.join("STATUS.md");
         if !status_path.exists() {
             diagnostics.push(KitDiagnostic {
+                id: "DIAG-status-missing".into(),
+                code: "status-missing".into(),
                 message: "Missing STATUS.md".into(),
                 severity: DiagnosticSeverity::Warning,
+                artifact_id: None,
                 path: Some(".lmbrain/STATUS.md".into()),
+                next_action: "Create an explicit project status document.".into(),
+                fixability: "manual".into(),
             });
             health = KitHealth::Warn;
         }
@@ -186,14 +202,21 @@ impl WorkspaceService {
         let roadmap_path = lmbrain_dir.join("ROADMAP.md");
         if !roadmap_path.exists() {
             diagnostics.push(KitDiagnostic {
+                id: "DIAG-roadmap-missing".into(),
+                code: "roadmap-missing".into(),
                 message: "Missing ROADMAP.md".into(),
                 severity: DiagnosticSeverity::Info,
+                artifact_id: None,
                 path: Some(".lmbrain/ROADMAP.md".into()),
+                next_action:
+                    "Create a roadmap or document that milestones are intentionally unused.".into(),
+                fixability: "manual".into(),
             });
         }
 
         // Count artifacts
         let spec_count = count_files_in_dirs(&lmbrain_dir.join("specs"), &["md"]);
+        let finding_count = lmbrain_core::list_findings(&root_clean).len();
         let task_count = count_files_in_dirs(&lmbrain_dir.join("tasks"), &["md"]);
         let decision_count = count_files_in_dirs(&lmbrain_dir.join("decisions"), &["md"]);
         let agent_count = count_files_in_dirs(&lmbrain_dir.join("agents"), &["md"]);
@@ -256,6 +279,7 @@ impl WorkspaceService {
             branch: None,
             is_clean: None,
             spec_count,
+            finding_count,
             task_count,
             decision_count,
             agent_count,

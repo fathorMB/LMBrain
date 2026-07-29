@@ -85,18 +85,20 @@ export function InsightsView() {
           <Kpi label="Artifacts" value={totalArtifacts.toString()} detail={`${stats.spec_flow.total_specs} specs`} accent="#7c6cf6" />
           <Kpi label="Done ratio" value={formatPercent(stats.spec_flow.done_ratio)} detail={`${stats.spec_flow.done_specs}/${stats.spec_flow.total_specs} specs`} accent="#46b07d" />
           <Kpi label="Change-request rate" value={formatPercent(review.change_request_rate)} detail={`${review.specs_with_changes_requested}/${review.reviewed_specs} reviewed specs`} accent="#e0584a" />
-          <Kpi label="First-pass accepted" value={formatPercent(review.first_pass_acceptance_rate)} detail={`${review.first_pass_accepted_specs}/${review.first_pass_eligible_specs} date-ordered specs`} accent="#5b8def" />
+          <Kpi label="First-pass accepted" value={formatPercent(review.first_pass_acceptance_rate)} detail={`${review.first_pass_accepted_specs}/${review.first_pass_eligible_specs} eligible histories`} accent="#5b8def" />
           <Kpi label="Diagnostics" value={stats.diagnostics.total.toString()} detail={`${stats.diagnostics.errors} errors, ${stats.diagnostics.warnings} warnings`} accent={stats.diagnostics.errors > 0 ? "#e0584a" : "#e0a23a"} />
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.35fr) minmax(320px, .65fr)", gap: 16, marginBottom: 18 }}>
           <section style={panelStyle}>
             <SectionTitle icon="rate_review" title="Review Quality" />
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 9, marginBottom: 16 }}>
-              <MiniStat label="Reviews" value={review.total_reviews} />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 9, marginBottom: 16 }}>
+              <MiniStat label="Review files" value={review.total_reviews} />
+              <MiniStat label="Review passes" value={review.total_review_passes} />
               <MiniStat label="Reviewed specs" value={review.reviewed_specs} />
-              <MiniStat label="Changes requested" value={review.changes_requested_reviews} />
-              <MiniStat label="Multiple CR specs" value={review.specs_with_multiple_changes_requested} />
+              <MiniStat label="Remediations" value={review.remediation_cycles} />
+              <MiniStat label="Escalations" value={review.escalation_count} />
+              <MiniStat label="Takeovers" value={review.takeover_count} />
             </div>
             <MetricBar
               label="Specs receiving changes requested"
@@ -115,6 +117,7 @@ export function InsightsView() {
               <span style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
                 {review.average_reviews_per_reviewed_spec.toFixed(2)}
               </span>
+              {" · "}lifecycle coverage {formatPercent(review.lifecycle_coverage)}
               {review.reviews_without_spec > 0 && ` · ${review.reviews_without_spec} review(s) without spec reference`}
               {review.reviews_without_created > 0 && ` · ${review.reviews_without_created} review(s) without valid created date`}
             </div>

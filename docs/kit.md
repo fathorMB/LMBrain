@@ -18,7 +18,7 @@ Initialization refuses to overwrite an existing `.lmbrain/`.
 - `OPERATOR.md`: human operator guide.
 - `README.md`: kit entry point.
 - `CHANGELOG.md`, `MIGRATIONS.md`, `VERSION`: kit versioning and upgrade information.
-- `templates/`: templates for specs, reviews, ADRs, agent profiles/proposals, skills, MCP proposals/specs, and handoffs.
+- `templates/`: templates for specs, reviews, first-class findings, ADRs, agent profiles/proposals, skills, MCP proposals/specs, and handoffs.
 - `design/`: operator-loaded design mockups used as support material for specs and implementation handoffs.
 
 ## Artifact Directories
@@ -27,6 +27,7 @@ The kit includes directories for:
 
 - `specs/<status>/`
 - `reviews/<status>/`
+- `findings/<open|planned|deferred|resolved|accepted-risk|superseded>/`
 - `decisions/`
 - `agents/`
 - `skills/`
@@ -38,7 +39,11 @@ The kit includes directories for:
 
 Status-directory artifacts must keep filesystem location and frontmatter `status` aligned. LMBrain surfaces diagnostics for mismatches and related consistency problems.
 
+`FINDING-*` is the durable cross-spec obligation domain. Most review findings stay local; promotion is explicit, evidence-backed, and identified by the source pair plus a globally allocated ID. Planning never means resolution, a done target never auto-closes the finding, and operator-only risk/reopen decisions remain semantic MCP actions rather than app buttons.
+
 `design/` is intentionally not a managed artifact directory. It stores self-contained HTML/CSS/JS mockups and optional README/manifest metadata that the Project Lead may reference from specs.
+
+`reports/lmbrain-kit-feedback.md` is a structured append-only exception to ordinary snapshot reports. It records evidence-backed LMBrain product/kit observations, not project work. The Project Lead writes it autonomously with `lmbrain_feedback_record`, reads it with `lmbrain_feedback_report`, and reports newly added notes to the operator for later delivery to the LMBrain team.
 
 `skills/` stores `SKILL-*` project-scoped procedures in `active/`, `proposed/`, and `retired/`. Skills are Markdown runbooks for manually started agents; LMBrain displays their commands and includes applicable active skills in context packs, but does not execute them.
 
@@ -79,6 +84,8 @@ The kit ships granular specialist profiles for recurring bounded work:
 | Design Specialist | Lia Wireframe | AGENT-DESIGN | design, ui-ux |
 
 All profiles use `activation: manual`. The Project Lead recommends the most specific profile for each spec. `mnemonic_name` is a human conversational label only; authority still comes from the profile's `id`, `status`, and capability fields. See `agents/registry.md` for the full registry.
+
+The Project Lead has two deliberate communication registers: concise plain language in the operator's language for conversation, and compact exact technical language for artifacts and specialist handoffs. This keeps precision without forcing the operator to request a second translation.
 
 ### Controlled improvement loop
 

@@ -8,6 +8,7 @@ import { WikiView } from "../Wiki/WikiView";
 import { TaskboardView } from "../Taskboard/TaskboardView";
 import { SpecDetail } from "../Spec/SpecDetail";
 import { ReviewsList } from "../Reviews/ReviewsList";
+import { FindingsView } from "../Findings/FindingsView";
 import { DecisionsList } from "../Decisions/DecisionsList";
 import { AgentsView } from "../Agents/AgentsView";
 import { McpView } from "../Agents/McpView";
@@ -46,6 +47,8 @@ export function AppShell() {
         return <SpecDetail />;
       case "reviews":
         return <ReviewsList />;
+      case "findings":
+        return <FindingsView />;
       case "decisions":
         return <DecisionsList />;
       case "agents":

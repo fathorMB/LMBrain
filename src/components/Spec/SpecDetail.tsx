@@ -2,14 +2,31 @@ import { useWorkspace } from "../../hooks/useWorkspace";
 import { MarkdownRenderer } from "../../lib/markdown";
 import type { Spec } from "../../types";
 import { buildHandoffPrompt } from "../../lib/handoffPrompt";
+import { OperatorVerificationPanel } from "./OperatorVerificationPanel";
 
 export function SpecDetail() {
-  const { state, navigateTo } = useWorkspace();
+  const { state, closeSpecDetail, loadAllData, navigateTo } = useWorkspace();
   const specs = state.specs;
   const readySpecs = specs.filter((s) => s.status === "ready");
 
   // Show first ready spec, or first spec
   const spec = state.selectedSpec || readySpecs[0] || specs[0];
+  const relatedFindings = spec ? (state.findings ?? []).filter((finding) =>
+    ["open", "planned", "deferred"].includes(finding.status)
+    && (finding.origin_artifact === spec.id
+      || finding.related_specs.includes(spec.id)
+      || finding.target_specs.includes(spec.id))
+  ) : [];
+  const directDependencies = spec
+    ? (spec.depends_on ?? []).map((id) => ({
+        id,
+        spec: specs.find((candidate) => candidate.id === id),
+      }))
+    : [];
+  const dependencyBlockers = directDependencies.filter(
+    (dependency) => dependency.spec?.status !== "done",
+  );
+  const latestParking = spec?.parking_events?.at(-1);
 
   if (!spec) {
     return (
@@ -31,8 +48,10 @@ export function SpecDetail() {
     <div style={{ overflowY: "auto", height: "100%" }}>
       <div style={{ maxWidth: 880, margin: "0 auto", padding: "22px 36px 70px" }}>
         {/* Breadcrumb */}
-        <div
-          onClick={() => navigateTo("reviews")}
+        <button
+          type="button"
+          aria-label="Back to specification board"
+          onClick={closeSpecDetail}
           style={{
             display: "flex",
             alignItems: "center",
@@ -43,13 +62,17 @@ export function SpecDetail() {
             marginBottom: 18,
             cursor: "pointer",
             width: "max-content",
+            padding: 0,
+            border: 0,
+            background: "transparent",
+            textAlign: "left",
           }}
         >
           <i className="material-symbols-outlined" style={{ fontSize: 15 }}>
             arrow_back
           </i>
           specs / {spec.status} / {spec.id}.md
-        </div>
+        </button>
 
         {/* Header */}
         <div
@@ -151,6 +174,73 @@ export function SpecDetail() {
             />
           )}
         </div>
+        {relatedFindings.length > 0 && <button
+          type="button"
+          onClick={() => navigateTo("findings")}
+          style={{
+            width: "100%", marginBottom: 18, padding: "10px 12px", textAlign: "left",
+            border: "1px solid rgba(224,162,58,.35)", borderRadius: 8,
+            background: "rgba(224,162,58,.08)", color: "#d9b86d", cursor: "pointer",
+          }}
+        >
+          {relatedFindings.length} active {relatedFindings.length === 1 ? "finding" : "findings"} related to this spec · Open Findings
+        </button>}
+        {directDependencies.length > 0 && (
+          <section
+            aria-label="Hard spec dependencies"
+            style={{
+              marginBottom: 18,
+              padding: "12px 14px",
+              border: `1px solid ${dependencyBlockers.length ? "rgba(224,162,58,.4)" : "var(--border-primary)"}`,
+              borderRadius: 8,
+              background: dependencyBlockers.length ? "rgba(224,162,58,.06)" : "var(--bg-tertiary)",
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
+              Hard prerequisites
+              {dependencyBlockers.length > 0 && (
+                <span style={{ marginLeft: 8, color: "#d9b86d" }}>
+                  {dependencyBlockers.length} incomplete
+                </span>
+              )}
+            </div>
+            {directDependencies.map((dependency) => (
+              <div
+                key={dependency.id}
+                style={{ fontFamily: "var(--font-mono)", fontSize: 11, marginTop: 5 }}
+              >
+                {dependency.id} · {dependency.spec?.status ?? "missing"}
+              </div>
+            ))}
+            <div style={{ marginTop: 9, fontSize: 11, color: "var(--text-tertiary)" }}>
+              Dependency lifecycle changes are intentionally unavailable in the app.
+            </div>
+          </section>
+        )}
+        {spec.status === "backlog" && latestParking && (
+          <section
+            aria-label="Parking history"
+            style={{
+              marginBottom: 18,
+              padding: "12px 14px",
+              border: "1px solid var(--border-primary)",
+              borderRadius: 8,
+              background: "var(--bg-tertiary)",
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 700 }}>Previously parked in backlog</div>
+            <div style={{ marginTop: 7, fontSize: 12 }}>{latestParking.reason}</div>
+            <div style={{ marginTop: 5, fontSize: 11, color: "var(--text-tertiary)" }}>
+              {latestParking.actor} · {latestParking.timestamp}
+              {latestParking.revisit_condition
+                ? ` · Revisit: ${latestParking.revisit_condition}`
+                : ""}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-tertiary)" }}>
+              Re-approval and lifecycle actions are intentionally unavailable in the app.
+            </div>
+          </section>
+        )}
 
         {/* Lifecycle rail */}
         <LifecycleRail status={spec.status} />
@@ -158,6 +248,13 @@ export function SpecDetail() {
         {/* Handoff CTA for ready specs */}
         {spec.status === "ready" && (
           <HandoffCTA spec={spec} />
+        )}
+
+        {(spec.status === "review" || spec.status === "done") && (
+          <OperatorVerificationPanel
+            spec={spec}
+            onAttested={loadAllData}
+          />
         )}
 
         {/* Body */}

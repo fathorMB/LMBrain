@@ -26,13 +26,17 @@ const getMigrationStatusLabelAndColor = (status: string | undefined): { label: s
 };
 
 export function ProjectPulse() {
-  const { state } = useWorkspace();
+  const { state, navigateTo } = useWorkspace();
   const [expandedDiagnostic, setExpandedDiagnostic] = useState<number | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [copiedMigration, setCopiedMigration] = useState(false);
 
   const navigateToWiki = useWikiNavigation();
   const diagnostics = state.diagnostics;
+  const attentionFindings = (state.findings ?? []).filter((finding) =>
+    ["open", "planned", "deferred"].includes(finding.status)
+    && (["critical", "high"].includes(finding.severity) || !finding.owner)
+  );
 
   const pulse = state.pulseData;
   if (!pulse) {
@@ -99,6 +103,17 @@ export function ProjectPulse() {
               </h1>
             </div>
           </div>
+          {attentionFindings.length > 0 && <button
+            type="button"
+            onClick={() => navigateTo("findings")}
+            style={{
+              width: "100%", marginTop: 14, padding: "10px 12px", textAlign: "left",
+              border: "1px solid rgba(224,162,58,.35)", borderRadius: 8,
+              background: "rgba(224,162,58,.08)", color: "#d9b86d", cursor: "pointer",
+            }}
+          >
+            {attentionFindings.length} active critical/high or untriaged {attentionFindings.length === 1 ? "finding needs" : "findings need"} disposition
+          </button>}
 
           {/* Metrics */}
           <div
@@ -242,7 +257,7 @@ export function ProjectPulse() {
               >
                 {diagnostics.map((d, i) => (
                   <div
-                    key={i}
+                    key={d.id ?? `${d.path}:${i}`}
                     style={{
                       display: "flex",
                       alignItems: "flex-start",
@@ -278,6 +293,22 @@ export function ProjectPulse() {
                       {d.severity === "error" ? "error" : "warning"}
                     </i>
                     <div style={{ flex: 1, minWidth: 0 }}>
+                      {(d.id || d.code) && (
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 7,
+                            marginBottom: 3,
+                            color: "#817a87",
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 10.5,
+                          }}
+                        >
+                          {d.id && <span>{d.id}</span>}
+                          {d.code && <span>{d.code}</span>}
+                          {d.fixability && <span>{d.fixability}</span>}
+                        </div>
+                      )}
                       <div>{d.message}</div>
                       {d.path && (
                         <div
@@ -301,6 +332,18 @@ export function ProjectPulse() {
                             width: "100%",
                           }}
                         >
+                          {d.next_action && (
+                            <div
+                              style={{
+                                padding: "8px 10px",
+                                borderRadius: 6,
+                                background: "rgba(124,108,246,.08)",
+                                color: "#bbb4c7",
+                              }}
+                            >
+                              Next action: {d.next_action}
+                            </div>
+                          )}
                           <textarea
                             readOnly
                             value={buildDiagnosticFixPrompt(d)}

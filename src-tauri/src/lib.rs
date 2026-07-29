@@ -21,6 +21,7 @@ use models::harness::{HarnessStatus, HarnessUpdateRequest, HarnessUpdateResult};
 use models::pulse::PulseData;
 use models::session::{OllamaModel, SessionInfo, SessionStartRequest};
 use models::workspace::{WorkspaceInfo, WorkspaceSummary};
+use serde::Serialize;
 use tauri::{http, AppHandle, Manager, Runtime, State};
 
 // ─── Application State ───────────────────────────────────────────
@@ -250,6 +251,27 @@ fn get_reviews(state: State<'_, AppState>) -> Result<Vec<models::review::Review>
         .get_root()
         .ok_or_else(|| "No workspace open".to_string())?;
     contract::build_reviews(&root).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_findings(state: State<'_, AppState>) -> Result<Vec<lmbrain_core::Finding>, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    Ok(lmbrain_core::list_findings(&root))
+}
+
+#[tauri::command]
+fn get_finding_context(
+    state: State<'_, AppState>,
+    finding: String,
+) -> Result<lmbrain_core::FindingContext, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    lmbrain_core::finding_context(&root, &finding).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -670,6 +692,114 @@ fn set_artifact_status(
         .map_err(|e| e.to_string())
 }
 
+#[derive(Serialize)]
+struct SpecVerificationState {
+    requirements: Vec<lmbrain_core::context::VerificationRequirement>,
+    attestations: Vec<lmbrain_core::VerificationAttestation>,
+    blockers: Vec<lmbrain_core::VerificationBlocker>,
+}
+
+#[tauri::command]
+fn get_spec_verification(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<SpecVerificationState, String> {
+    let resolved = state
+        .path_guard
+        .resolve(&path)
+        .map_err(|error| error.to_string())?;
+    let source = std::fs::read_to_string(&resolved).map_err(|error| error.to_string())?;
+    let document =
+        lmbrain_core::frontmatter::Document::parse(&source).map_err(|error| error.to_string())?;
+    Ok(SpecVerificationState {
+        requirements: lmbrain_core::verification_requirements(&document),
+        attestations: lmbrain_core::verification_attestations(&document),
+        blockers: lmbrain_core::verification_blockers_for_workspace(
+            state
+                .path_guard
+                .get_root()
+                .ok_or_else(|| "No workspace root is set".to_string())?,
+            &document,
+            "before-done",
+        ),
+    })
+}
+
+#[tauri::command]
+fn attest_operator_verification(
+    state: State<'_, AppState>,
+    path: String,
+    requirement_id: String,
+    actor: String,
+    evidence_ref: String,
+) -> Result<lmbrain_core::AttestationResult, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace root is set".to_string())?;
+    lmbrain_core::attest_spec_requirement(
+        root,
+        path,
+        &requirement_id,
+        "operator",
+        &actor,
+        &evidence_ref,
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn verification_root(state: &State<'_, AppState>) -> Result<PathBuf, String> {
+    state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace root is set".to_string())
+}
+
+#[tauri::command]
+fn get_verification_manifest_status(
+    state: State<'_, AppState>,
+) -> Result<lmbrain_core::VerificationManifestStatus, String> {
+    let root = verification_root(&state)?;
+    let approval = lmbrain_core::default_verification_approval_path(&root);
+    lmbrain_core::verification_manifest_status(&root, &approval)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn preview_verification_manifest(
+    state: State<'_, AppState>,
+) -> Result<lmbrain_core::VerificationManifestPreview, String> {
+    let root = verification_root(&state)?;
+    let approval = lmbrain_core::default_verification_approval_path(&root);
+    lmbrain_core::discover_verification_manifest(&root, &approval)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn set_verification_manifest(
+    state: State<'_, AppState>,
+    manifest: lmbrain_core::VerificationManifest,
+    expected_current_digest: Option<String>,
+) -> Result<lmbrain_core::VerificationManifestWriteResult, String> {
+    let root = verification_root(&state)?;
+    lmbrain_core::set_verification_manifest(
+        &root,
+        &manifest,
+        expected_current_digest.as_deref(),
+    )
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn rollback_verification_manifest(
+    state: State<'_, AppState>,
+    expected_current_digest: String,
+) -> Result<lmbrain_core::VerificationManifestWriteResult, String> {
+    let root = verification_root(&state)?;
+    lmbrain_core::rollback_verification_manifest(&root, &expected_current_digest)
+        .map_err(|error| error.to_string())
+}
+
 fn design_preview_protocol<R: Runtime>(
     app: &AppHandle<R>,
     request: http::Request<Vec<u8>>,
@@ -770,6 +900,8 @@ pub fn run() {
             get_pulse_data,
             get_specs,
             get_reviews,
+            get_findings,
+            get_finding_context,
             get_adrs,
             get_agents,
             get_agent_proposals,
@@ -810,6 +942,12 @@ pub fn run() {
             probe_harnesses,
             update_harness,
             set_artifact_status,
+            get_spec_verification,
+            attest_operator_verification,
+            get_verification_manifest_status,
+            preview_verification_manifest,
+            set_verification_manifest,
+            rollback_verification_manifest,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

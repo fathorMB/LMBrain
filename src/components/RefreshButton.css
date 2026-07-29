@@ -1,0 +1,9 @@
+.spin-icon {
+  animation: lmbrain-spin 1s linear infinite;
+}
+
+@keyframes lmbrain-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

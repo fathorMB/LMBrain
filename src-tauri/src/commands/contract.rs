@@ -15,13 +15,13 @@ use crate::models::file::ParsedDocument;
 use crate::models::handoff::{Handoff, HandoffStatus};
 use crate::models::mcp::{McpProposal, McpProposalStatus, McpRecord, McpStatus};
 use crate::models::pulse::{ActionItem, MetricCard, PulseData};
-use crate::models::review::{Review, ReviewStatus};
+use crate::models::review::{Review, ReviewFinding, ReviewStatus};
 use crate::models::roadmap::{
     Milestone, MilestoneAdrSummary, MilestoneDetail, MilestoneOverview, MilestoneReviewSummary,
     MilestoneSpecSummary, Roadmap,
 };
 use crate::models::skill::{Skill, SkillStatus};
-use crate::models::spec::{Spec, SpecStatus};
+use crate::models::spec::{Spec, SpecParkingEvent, SpecStatus};
 use crate::models::statistics::{
     ArtifactFamilyStats, DiagnosticStats, ProjectStatistics, ReviewDimensionStat,
     ReviewQualityStats, ReviewTrendPoint, SpecFlowStats, StatusCount,
@@ -31,6 +31,7 @@ use crate::models::workspace::{DiagnosticSeverity, KitDiagnostic};
 
 const WIKI_CONTENT_DIRS: &[(&str, WikiNodeKind)] = &[
     ("decisions", WikiNodeKind::Decisions),
+    ("findings", WikiNodeKind::Findings),
     ("knowledge", WikiNodeKind::Knowledge),
     ("specs", WikiNodeKind::Specs),
 ];
@@ -64,6 +65,13 @@ pub fn build_specs(root: &Path) -> Result<Vec<Spec>, AppError> {
                 area: fm_string(&parsed.frontmatter, "area"),
                 milestone: fm_string(&parsed.frontmatter, "milestone"),
                 recommended_agent: fm_string(&parsed.frontmatter, "recommended_agent"),
+                depends_on: fm_string_array(&parsed.frontmatter, "depends_on"),
+                parking_events: parsed
+                    .frontmatter
+                    .get("parking_events")
+                    .cloned()
+                    .and_then(|value| serde_json::from_value::<Vec<SpecParkingEvent>>(value).ok())
+                    .unwrap_or_default(),
                 skills: fm_string_array(&parsed.frontmatter, "skills"),
                 body: common.body,
                 path: common.path,
@@ -94,6 +102,16 @@ pub fn build_reviews(root: &Path) -> Result<Vec<Review>, AppError> {
         |status| status.as_str(),
         |status, parsed, path| {
             let common = common_fields(parsed, path);
+            let history = lmbrain_core::parse_review_event_value(
+                &common.id,
+                parsed.frontmatter.get("review_events"),
+            );
+            let lifecycle_source = fs::read_to_string(path).map_err(|error| {
+                AppError::Io(format!("Failed to read {}: {error}", path.display()))
+            })?;
+            let lifecycle_document = lmbrain_core::frontmatter::Document::parse(&lifecycle_source)
+                .map_err(|error| AppError::ParseError(error.to_string()))?;
+            let lifecycle = lmbrain_core::analyze_review_lifecycle(&lifecycle_document);
             Ok(Review {
                 id: common.id,
                 title: common.title,
@@ -105,7 +123,10 @@ pub fn build_reviews(root: &Path) -> Result<Vec<Review>, AppError> {
                     &parsed.frontmatter,
                     "finding_categories",
                 ),
-                findings: Vec::new(),
+                findings: parse_review_findings(&common.body),
+                events: history.events,
+                lifecycle_warnings: lifecycle.warnings.clone(),
+                lifecycle,
                 body: common.body,
                 path: common.path,
                 created: common.created,
@@ -116,6 +137,60 @@ pub fn build_reviews(root: &Path) -> Result<Vec<Review>, AppError> {
             })
         },
     )
+}
+
+fn parse_review_findings(body: &str) -> Vec<ReviewFinding> {
+    let mut in_findings = false;
+    let mut findings = Vec::new();
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("## ") {
+            in_findings = trimmed
+                .trim_start_matches("## ")
+                .trim()
+                .eq_ignore_ascii_case("findings");
+            continue;
+        }
+        if !in_findings {
+            continue;
+        }
+        let candidate = trimmed
+            .strip_prefix("### ")
+            .or_else(|| trimmed.strip_prefix("- "))
+            .unwrap_or("");
+        let Some((id, rest)) = candidate.split_once(char::is_whitespace) else {
+            continue;
+        };
+        if !(id.starts_with("FINDING-") || id.starts_with("F-")) {
+            continue;
+        }
+        let severity = rest
+            .split(|character: char| {
+                character.is_whitespace() || matches!(character, '[' | ']' | '|')
+            })
+            .find_map(|token| {
+                let normalized = token
+                    .strip_prefix("severity=")
+                    .unwrap_or(token)
+                    .trim_matches(|character: char| !character.is_ascii_alphanumeric())
+                    .to_ascii_lowercase();
+                matches!(
+                    normalized.as_str(),
+                    "critical" | "high" | "medium" | "low" | "p0" | "p1" | "p2" | "p3"
+                )
+                .then_some(normalized)
+            })
+            .unwrap_or_else(|| "unspecified".into());
+        findings.push(ReviewFinding {
+            id: id.trim_end_matches([':', '—', '-']).to_string(),
+            text: rest
+                .trim_start_matches([' ', '|', '—', '-'])
+                .trim()
+                .to_string(),
+            severity,
+        });
+    }
+    findings
 }
 
 /// Build ADRs from the decisions directory.
@@ -688,6 +763,7 @@ pub fn build_pulse_data(
 pub fn build_project_statistics(root: &Path) -> Result<ProjectStatistics, AppError> {
     let specs = build_specs(root)?;
     let reviews = build_reviews(root)?;
+    let findings = lmbrain_core::list_findings(root);
     let adrs = build_adrs(root)?;
     let agents = build_agents(root)?;
     let agent_proposals = build_agent_proposals(root)?;
@@ -710,6 +786,11 @@ pub fn build_project_statistics(root: &Path) -> Result<ProjectStatistics, AppErr
             reviews
                 .iter()
                 .map(|review| review.status.as_str().to_string()),
+        ),
+        family_stats(
+            "findings",
+            "Findings",
+            findings.iter().map(|finding| finding.status.clone()),
         ),
         family_stats(
             "decisions",
@@ -862,6 +943,26 @@ fn build_review_quality_stats(specs: &[Spec], reviews: &[Review]) -> ReviewQuali
         .iter()
         .filter(|review| review.status == ReviewStatus::Superseded)
         .count();
+    let total_review_passes = reviews
+        .iter()
+        .map(|review| review.lifecycle.review_passes)
+        .sum();
+    let remediation_cycles = reviews
+        .iter()
+        .map(|review| review.lifecycle.remediation_cycles)
+        .sum();
+    let escalation_count = reviews
+        .iter()
+        .map(|review| review.lifecycle.escalation_count)
+        .sum();
+    let takeover_count = reviews
+        .iter()
+        .map(|review| review.lifecycle.takeover_count)
+        .sum();
+    let lifecycle_known_reviews = reviews
+        .iter()
+        .filter(|review| review.lifecycle.source != lmbrain_core::ReviewHistorySource::StatusOnly)
+        .count();
 
     let mut specs_with_changes_requested = 0;
     let mut specs_with_multiple_changes_requested = 0;
@@ -873,8 +974,16 @@ fn build_review_quality_stats(specs: &[Spec], reviews: &[Review]) -> ReviewQuali
     for (spec_id, spec_reviews) in &reviews_by_spec {
         let cr_count = spec_reviews
             .iter()
-            .filter(|review| review.status == ReviewStatus::ChangesRequested)
-            .count();
+            .map(|review| review.lifecycle.remediation_cycles)
+            .sum::<usize>()
+            + usize::from(
+                spec_reviews
+                    .iter()
+                    .any(|review| review.status == ReviewStatus::ChangesRequested)
+                    && !spec_reviews
+                        .iter()
+                        .any(|review| review.lifecycle.remediation_cycles > 0),
+            );
         let has_changes_requested = cr_count > 0;
         if has_changes_requested {
             specs_with_changes_requested += 1;
@@ -910,12 +1019,26 @@ fn build_review_quality_stats(specs: &[Spec], reviews: &[Review]) -> ReviewQuali
             .filter_map(|review| parse_artifact_date(&review.created).map(|date| (date, *review)))
             .collect::<Vec<_>>();
         if dated.len() == spec_reviews.len() && !dated.is_empty() {
-            first_pass_eligible_specs += 1;
             let first = dated
                 .iter()
                 .min_by_key(|(date, review)| (*date, review.id.as_str()))
                 .map(|(_, review)| *review);
-            if first.is_some_and(|review| review.status == ReviewStatus::Accepted) {
+            let lifecycle_known = first.is_some_and(|review| {
+                review.lifecycle.source != lmbrain_core::ReviewHistorySource::StatusOnly
+            });
+            let separate_ordered_reviews = dated.len() > 1;
+            if !lifecycle_known && !separate_ordered_reviews {
+                continue;
+            }
+            first_pass_eligible_specs += 1;
+            if first.is_some_and(|review| {
+                review
+                    .lifecycle
+                    .initial_verdict
+                    .as_deref()
+                    .unwrap_or(review.status.as_str())
+                    == "accepted"
+            }) {
                 first_pass_accepted_specs += 1;
             }
         }
@@ -923,6 +1046,12 @@ fn build_review_quality_stats(specs: &[Spec], reviews: &[Review]) -> ReviewQuali
 
     ReviewQualityStats {
         total_reviews: reviews.len(),
+        total_review_passes,
+        remediation_cycles,
+        escalation_count,
+        takeover_count,
+        lifecycle_known_reviews,
+        lifecycle_coverage: ratio(lifecycle_known_reviews, reviews.len()),
         reviewed_specs,
         accepted_reviews,
         changes_requested_reviews,
@@ -937,7 +1066,11 @@ fn build_review_quality_stats(specs: &[Spec], reviews: &[Review]) -> ReviewQuali
         first_pass_accepted_specs,
         first_pass_acceptance_rate: ratio(first_pass_accepted_specs, first_pass_eligible_specs),
         average_reviews_per_reviewed_spec: ratio_f64(
-            reviews_by_spec.values().map(Vec::len).sum::<usize>(),
+            reviews_by_spec
+                .values()
+                .flatten()
+                .map(|review| review.lifecycle.review_passes)
+                .sum::<usize>(),
             reviewed_specs,
         ),
         by_area: dimension_stats(area_map),
@@ -1173,231 +1306,28 @@ fn wiki_content_files(lmbrain: &Path) -> Vec<PathBuf> {
 /// Scan all .md files under .lmbrain/ for malformed frontmatter and
 /// status-directory/frontmatter mismatches.
 pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
-    let mut diagnostics = Vec::new();
-    let lmbrain = root.join(".lmbrain");
-    let Ok(entries) = scan_md_files(&lmbrain) else {
-        return diagnostics;
-    };
-
-    for file_path in entries {
-        let Ok(parsed) = parse_document(&file_path) else {
-            diagnostics.push(KitDiagnostic {
-                message: format!("Failed to read {}", file_path.display()),
-                severity: DiagnosticSeverity::Warning,
-                path: Some(
-                    file_path
-                        .strip_prefix(&lmbrain)
-                        .ok()
-                        .map(|path| path.to_string_lossy().to_string())
-                        .unwrap_or_default(),
-                ),
-            });
-            continue;
-        };
-
-        for diagnostic in &parsed.diagnostics {
-            diagnostics.push(KitDiagnostic {
-                message: diagnostic.clone(),
-                severity: DiagnosticSeverity::Warning,
-                path: Some(
-                    file_path
-                        .strip_prefix(&lmbrain)
-                        .ok()
-                        .map(|path| path.to_string_lossy().to_string())
-                        .unwrap_or_default(),
-                ),
-            });
-        }
-
-        if let Some(frontmatter_status) = fm_string(&parsed.frontmatter, "status") {
-            if let Some(parent_dir) = file_path.parent() {
-                let status_dir = parent_dir
-                    .file_name()
-                    .map(|name| name.to_string_lossy().to_string())
-                    .unwrap_or_default();
-
-                if let Some(grandparent) = parent_dir.parent() {
-                    let artifact_type = grandparent
-                        .file_name()
-                        .map(|name| name.to_string_lossy().to_string())
-                        .unwrap_or_default();
-
-                    if (artifact_type == "specs"
-                        || artifact_type == "reviews"
-                        || artifact_type == "skills")
-                        && !lmbrain_core::invariants::folder_matches_status(&file_path)
-                    {
-                        diagnostics.push(KitDiagnostic {
-                            message: format!(
-                                "Status mismatch: file is in '{}/{}' but frontmatter status is '{}'",
-                                artifact_type, status_dir, frontmatter_status
-                            ),
-                            severity: DiagnosticSeverity::Warning,
-                            path: Some(
-                                file_path
-                                    .strip_prefix(&lmbrain)
-                                    .ok()
-                                    .map(|path| path.to_string_lossy().to_string())
-                                    .unwrap_or_default(),
-                            ),
-                        });
-                    }
-                }
+    lmbrain_core::build_diagnostics(root)
+        .into_iter()
+        .map(|diagnostic| KitDiagnostic {
+            id: diagnostic.id,
+            code: diagnostic.code,
+            message: diagnostic.message,
+            severity: match diagnostic.severity {
+                lmbrain_core::DiagnosticSeverity::Info => DiagnosticSeverity::Info,
+                lmbrain_core::DiagnosticSeverity::Warning => DiagnosticSeverity::Warning,
+                lmbrain_core::DiagnosticSeverity::Error => DiagnosticSeverity::Error,
+            },
+            artifact_id: diagnostic.artifact_id,
+            path: diagnostic.path,
+            next_action: diagnostic.next_action,
+            fixability: match diagnostic.fixability {
+                lmbrain_core::DiagnosticFixability::Manual => "manual",
+                lmbrain_core::DiagnosticFixability::GovernedMutation => "governed-mutation",
+                lmbrain_core::DiagnosticFixability::ReadOnly => "read-only",
             }
-        }
-    }
-
-    let harness_manifest = lmbrain.join("HARNESSES.json");
-    if harness_manifest.exists() {
-        if let Err(error) = lmbrain_core::load_harness_manifest(root) {
-            diagnostics.push(KitDiagnostic {
-                message: format!("Invalid project harness manifest: {error}"),
-                severity: DiagnosticSeverity::Warning,
-                path: Some("HARNESSES.json".into()),
-            });
-        }
-    }
-
-    if let Ok(specs) = build_specs(root) {
-        let agents = build_agents(root).unwrap_or_default();
-        let skills = build_skills(root).unwrap_or_default();
-        for spec in &specs {
-            for skill_id in &spec.skills {
-                if !skills.iter().any(|skill| skill.id == *skill_id) {
-                    let rel_path = Path::new(&spec.path)
-                        .strip_prefix(&lmbrain)
-                        .ok()
-                        .map(|path| path.to_string_lossy().to_string())
-                        .unwrap_or_else(|| spec.path.clone());
-                    diagnostics.push(KitDiagnostic {
-                        message: format!(
-                            "Missing reference: spec {} references skill '{}', which is not an existing skill",
-                            spec.id, skill_id
-                        ),
-                        severity: DiagnosticSeverity::Warning,
-                        path: Some(rel_path),
-                    });
-                }
-            }
-
-            let Some(agent) = spec
-                .recommended_agent
-                .as_deref()
-                .map(str::trim)
-                .filter(|agent| !agent.is_empty())
-            else {
-                continue;
-            };
-
-            if !lmbrain_core::invariants::recommended_agent_resolves(root, Some(agent)) {
-                let rel_path = Path::new(&spec.path)
-                    .strip_prefix(&lmbrain)
-                    .ok()
-                    .map(|path| path.to_string_lossy().to_string())
-                    .unwrap_or_else(|| spec.path.clone());
-                diagnostics.push(KitDiagnostic {
-                    message: format!(
-                        "Missing reference: spec {} recommends agent '{}', which is not an existing agent profile",
-                        spec.id, agent
-                    ),
-                    severity: DiagnosticSeverity::Warning,
-                    path: Some(rel_path),
-                });
-            }
-
-            // V3: check if spec area matches agent domains
-            if let Some(area) = &spec.area {
-                if let Some(profile) = agents.iter().find(|a| a.id == agent) {
-                    if let Some(domains) = &profile.domains {
-                        if !domains.is_empty()
-                            && !domains
-                                .iter()
-                                .any(|d| area.contains(d.as_str()) || d.as_str().contains(area))
-                        {
-                            let rel_path = Path::new(&spec.path)
-                                .strip_prefix(&lmbrain)
-                                .ok()
-                                .map(|path| path.to_string_lossy().to_string())
-                                .unwrap_or_else(|| spec.path.clone());
-                            diagnostics.push(KitDiagnostic {
-                                message: format!(
-                                    "Area mismatch: spec {} area '{}' does not match agent {} domains {:?}",
-                                    spec.id, area, agent, domains
-                                ),
-                                severity: DiagnosticSeverity::Warning,
-                                path: Some(rel_path),
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        for agent in &agents {
-            if let Some(agent_skills) = &agent.skills {
-                for skill_id in agent_skills {
-                    if !skills.iter().any(|skill| skill.id == *skill_id) {
-                        let rel_path = Path::new(&agent.path)
-                            .strip_prefix(&lmbrain)
-                            .ok()
-                            .map(|path| path.to_string_lossy().to_string())
-                            .unwrap_or_else(|| agent.path.clone());
-                        diagnostics.push(KitDiagnostic {
-                            message: format!(
-                                "Missing reference: agent {} references skill '{}', which is not an existing skill",
-                                agent.id, skill_id
-                            ),
-                            severity: DiagnosticSeverity::Warning,
-                            path: Some(rel_path),
-                        });
-                    }
-                }
-            }
-        }
-
-        for skill in &skills {
-            if let Some(risk) = &skill.risk {
-                if !matches!(risk.as_str(), "low" | "medium" | "high") {
-                    let rel_path = Path::new(&skill.path)
-                        .strip_prefix(&lmbrain)
-                        .ok()
-                        .map(|path| path.to_string_lossy().to_string())
-                        .unwrap_or_else(|| skill.path.clone());
-                    diagnostics.push(KitDiagnostic {
-                        message: format!(
-                            "Invalid skill risk: skill {} uses '{}', expected low, medium, or high",
-                            skill.id, risk
-                        ),
-                        severity: DiagnosticSeverity::Warning,
-                        path: Some(rel_path),
-                    });
-                }
-            }
-
-            for target in &skill.applies_to {
-                if target == "all" {
-                    continue;
-                }
-                if !agents.iter().any(|agent| agent.id == *target) {
-                    let rel_path = Path::new(&skill.path)
-                        .strip_prefix(&lmbrain)
-                        .ok()
-                        .map(|path| path.to_string_lossy().to_string())
-                        .unwrap_or_else(|| skill.path.clone());
-                    diagnostics.push(KitDiagnostic {
-                        message: format!(
-                            "Missing reference: skill {} applies to '{}', which is not an existing agent profile",
-                            skill.id, target
-                        ),
-                        severity: DiagnosticSeverity::Warning,
-                        path: Some(rel_path),
-                    });
-                }
-            }
-        }
-    }
-
-    diagnostics
+            .into(),
+        })
+        .collect()
 }
 
 /// Search .lmbrain markdown content for a query string.
