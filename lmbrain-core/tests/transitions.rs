@@ -275,7 +275,7 @@ fn review_verdicts_are_typed_audited_and_repeatable() {
     .unwrap();
     let second = review_verdict(
         d.path(),
-        first.path.strip_prefix(d.path()).unwrap(),
+        &first.path,
         "changes-requested",
         ReviewEventInput {
             actor_role: "project-lead".into(),
@@ -288,7 +288,7 @@ fn review_verdicts_are_typed_audited_and_repeatable() {
     .unwrap();
     let accepted = review_verdict(
         d.path(),
-        second.path.strip_prefix(d.path()).unwrap(),
+        &second.path,
         "accepted",
         ReviewEventInput {
             actor_role: "operator".into(),
