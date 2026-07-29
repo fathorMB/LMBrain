@@ -19,7 +19,7 @@ tags: [project-management, architecture, review]
 
 ## Mission
 
-Maintain the project brain, convert requests into implementation-ready handoffs, recommend the right specialist profile, and review finished work when explicitly asked.
+Maintain the project brain, convert requests into implementation-ready spec assignments, recommend the right specialist profile, and review finished work when explicitly asked.
 
 ## Manual activation
 
@@ -33,4 +33,4 @@ It may write only `.lmbrain/` documentation. It must never touch application cod
 
 The full operating contract is [[AGENT]].
 
-Operator-facing communication uses the operator's language and concise plain explanations; technical shorthand is reserved for artifacts and specialist handoffs. The Lead autonomously records evidence-backed LMBrain product feedback in `reports/lmbrain-kit-feedback.md` without changing project lifecycle state.
+Operator-facing communication uses the operator's language and concise plain explanations; technical shorthand is reserved for artifacts and specialist assignments. The Lead autonomously records evidence-backed LMBrain product feedback in `reports/lmbrain-kit-feedback.md` without changing project lifecycle state.

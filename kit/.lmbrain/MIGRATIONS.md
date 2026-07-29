@@ -4,7 +4,19 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `3.1.0`.
+The current kit is `3.1.2`.
+
+### 3.1.2 (bundled template fix, operator verification auto-check, kit feedback UI, spec assignment disambiguation)
+
+Supported source version is `3.1.0` or `3.1.1`. Existing workspaces require no manual content migration.
+
+1. Update the application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together.
+2. `lmbrain_validate` and artifact discovery now automatically exclude `.lmbrain/templates/` from live artifact checks, so bundled templates (e.g. `templates/finding.md`) can be used as-is without raising status-directory mismatch diagnostics.
+3. In the desktop application, attesting evidence for an `owner=operator` verification gate now automatically marks the checklist item `- [x]` in the spec body, eliminating the need to manually check the item outside the app.
+4. Operator feedback notes recorded in `reports/lmbrain-kit-feedback.md` can now be reviewed directly in the application via the new **Kit Feedback** view in the sidebar.
+5. Update `.lmbrain/VERSION` to `3.1.2` after validating the release.
+
+Rollback to 3.1.0 is data-safe: 3.1.2 introduces no new artifact shapes or frontmatter schemas.
 
 ### 3.1.0 (governed findings, lifecycle integrity, diagnostics, and verification onboarding)
 
@@ -15,11 +27,12 @@ Supported source version is `3.0.2`. Upgrade is explicit and additive:
 3. Run `finding_candidates` to inventory stable-form legacy review entries. The report is read-only and treats `origin_artifact + origin_ref` as the candidate identity; repeated local tokens across reviews are not duplicates. Select promotions manually and create only observations that remain durable.
 4. Validate all new references and statuses with `lmbrain_validate`. Do not promote unresolved verification gates automatically and do not reopen limitations already resolved by documentation/evidence.
 5. If adopting repository verification gates, use `verification_manifest_init` for a non-executing preview, then validate/set the complete manifest. Approval remains a separate operator action and is intentionally absent from the app.
-6. Add `depends_on: []`, `dependency_events: []`, and `parking_events: []` to the spec template. Existing specs may omit them and behave as dependency-free, never previously parked.
-7. Run `spec_dependency_candidates` to inventory only explicit legacy hard-dependency prose. Review candidates manually, then use `spec_dependencies_set` while the spec is in backlog. Never infer or promote prose automatically.
-8. A ready spec whose contract must change first uses `spec_park`; the desktop app deliberately offers no approval or status-change action. Re-entry still requires normal `spec_ready`.
-9. Add `reports/lmbrain-kit-feedback.md` and the updated Project Lead/bootstrap instructions. Existing project feedback is not inferred. The Lead may begin appending typed notes autonomously after migration.
-10. Review the final Git diff and diagnostics before changing `.lmbrain/VERSION` to `3.1.0`.
+6. Run `verification_migration_preview` to inventory `owner=operator` verification requirements whose text describes a Project Lead action. Review each candidate and reclassify to `owner=lead` where appropriate. Requirements that describe operator actions stay `owner=operator`. This step is essential for projects that had before-done verification requirements before `owner=lead` existed.
+7. Add `depends_on: []`, `dependency_events: []`, and `parking_events: []` to the spec template. Existing specs may omit them and behave as dependency-free, never previously parked.
+8. Run `spec_dependency_candidates` to inventory only explicit legacy hard-dependency prose. Review candidates manually, then use `spec_dependencies_set` while the spec is in backlog. Never infer or promote prose automatically.
+9. A ready spec whose contract must change first uses `spec_park`; the desktop app deliberately offers no approval or status-change action. Re-entry still requires normal `spec_ready`.
+10. Add `reports/lmbrain-kit-feedback.md` and the updated Project Lead/bootstrap instructions. Existing project feedback is not inferred. The Lead may begin appending typed notes autonomously after migration.
+11. Review the final Git diff and diagnostics before changing `.lmbrain/VERSION` to `3.1.0`.
 
 Rollback to 3.0.2 preserves Markdown evidence: older LMBrain versions ignore the `findings/` family, `depends_on`, typed event fields, and the kit feedback report but must not delete them. They do not enforce dependency prerequisites or understand semantic parking/feedback writes, so do not perform those mutations with an older binary. Do not move finding or feedback content into STATUS/BACKLOG as a competing lifecycle source. A 3.1 verification manifest using only the prior schema remains parse-compatible, but machine-local approval should be revoked/reviewed when changing app versions.
 

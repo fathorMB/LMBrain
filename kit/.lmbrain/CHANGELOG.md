@@ -4,6 +4,20 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 3.1.2 - 2026-07-29
+
+### Added
+
+- **Kit Feedback Desktop View.** Added a first-class read-only view in the desktop application sidebar for reviewing typed feedback notes recorded in `reports/lmbrain-kit-feedback.md`. Includes summary metrics, category and severity filters, text search, and expandable detail cards for observed/expected behavior, impact, evidence, workarounds, and suggested improvements.
+
+### Fixed
+
+- **Template Exclusion in Artifact Discovery.** `lmbrain_validate` and `markdown_paths` now exclude the `.lmbrain/templates/` directory from live artifact discovery, preventing bundled templates with placeholder IDs (such as `templates/finding.md`) from triggering false status-directory mismatch diagnostics.
+- **Operator Verification Auto-Check.** Attesting evidence for an `owner=operator` verification gate via the application or API now automatically checks the checklist item (`- [x]`) in the spec body. Lead-owned gates continue to require explicit Lead verification editing.
+- **Roadmap Spec Extraction Scope.** Milestone spec membership parsing in `ROADMAP.md` now strictly extracts `SPEC-*` IDs from bracket-delimited lists (`[SPEC-001, ...]`), preventing parenthetical notes or cross-references in prose from creating unintended milestone membership.
+- **Migration Guidance for Pre-Existing Gates.** Updated the `3.1.0` migration guide in `MIGRATIONS.md` to document the use of `verification_migration_preview` for reclassifying pre-existing `owner=operator` gates to `owner=lead`.
+- **Terminology Disambiguation.** Standardized kit documentation to reserve "handoff" (`HANDOFF-*`) exclusively for Project Lead session-continuity artifacts, using "spec assignment" for delegating work to specialist agents.
+
 ## 3.1.0 - 2026-07-29
 
 ### Added

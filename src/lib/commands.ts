@@ -16,6 +16,7 @@ import type {
   Handoff,
   Finding,
   FindingContext,
+  KitFeedbackReport,
   HarnessStatus,
   HarnessApprovalStatus,
   HarnessConfigurationPlan,
@@ -104,6 +105,10 @@ export async function getReviews(): Promise<Review[]> {
 
 export async function getFindings(): Promise<Finding[]> {
   return invoke("get_findings");
+}
+
+export async function getKitFeedback(): Promise<KitFeedbackReport> {
+  return invoke("get_kit_feedback");
 }
 
 export async function getFindingContext(finding: string): Promise<FindingContext> {

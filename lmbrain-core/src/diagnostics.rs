@@ -831,7 +831,16 @@ pub(crate) fn parse_roadmap_milestones(source: &str) -> BTreeMap<String, Roadmap
         match key {
             "status" => entry.status = Some(value.trim().trim_matches('`').to_string()),
             "specs" => {
-                for token in value
+                // Extract only the bracket-delimited list if present,
+                // ignoring parenthetical annotations in trailing prose.
+                let source = if let (Some(open), Some(close)) =
+                    (value.find('['), value.rfind(']'))
+                {
+                    &value[open + 1..close]
+                } else {
+                    value
+                };
+                for token in source
                     .split(|character: char| !character.is_ascii_alphanumeric() && character != '-')
                 {
                     if token.starts_with("SPEC-")
@@ -968,6 +977,9 @@ fn markdown_paths(directory: &Path) -> Vec<PathBuf> {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
+            if path.file_name().and_then(|n| n.to_str()) == Some("templates") {
+                continue;
+            }
             paths.extend(markdown_paths(&path));
         } else if path.extension().and_then(|extension| extension.to_str()) == Some("md") {
             paths.push(path);

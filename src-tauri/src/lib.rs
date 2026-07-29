@@ -263,6 +263,15 @@ fn get_findings(state: State<'_, AppState>) -> Result<Vec<lmbrain_core::Finding>
 }
 
 #[tauri::command]
+fn get_kit_feedback(state: State<'_, AppState>) -> Result<lmbrain_core::KitFeedbackReport, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    lmbrain_core::read_kit_feedback(&root).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn get_finding_context(
     state: State<'_, AppState>,
     finding: String,
@@ -901,6 +910,7 @@ pub fn run() {
             get_specs,
             get_reviews,
             get_findings,
+            get_kit_feedback,
             get_finding_context,
             get_adrs,
             get_agents,
