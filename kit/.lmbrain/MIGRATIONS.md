@@ -4,7 +4,16 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `3.1.0`.
+The current kit is `3.1.1`.
+
+### 3.1.1 (templates isolation, scaffolding exclusion, Wiki report, Pulse backlog & shared reliability)
+
+Supported source version is `3.1.0`. Upgrade is explicit, additive, and backward compatible:
+
+1. Update the application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together.
+2. Template `.lmbrain/templates/finding.md` containing `id: FINDING-XXX` can be copied without manual edits: templates are isolated from live artifact discovery and validation.
+3. No manual project content changes are required for existing migrated projects.
+4. Review diagnostics with `lmbrain_validate` and change `.lmbrain/VERSION` to `3.1.1`.
 
 ### 3.1.0 (governed findings, lifecycle integrity, diagnostics, and verification onboarding)
 

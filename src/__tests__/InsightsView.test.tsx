@@ -180,7 +180,7 @@ describe("InsightsView", () => {
     expect(screen.getByText("ROADMAP.md")).toBeDefined();
     expect(screen.getByText("Review references an unknown specification.")).toBeDefined();
     expect(screen.getByText(".lmbrain/reviews/pending/REVIEW-099.md")).toBeDefined();
-    expect(screen.getByText(/resolve diagnostic issues in/i)).toBeDefined();
+    expect(screen.getByText(/resolve diagnostic issues/i)).toBeDefined();
 
     fireEvent.click(screen.getAllByText("Copy fix prompt")[0]);
 

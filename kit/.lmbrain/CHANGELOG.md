@@ -4,6 +4,15 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 3.1.1 - 2026-07-29
+
+### Fixed
+
+- **Template and governed artifact discovery (#24).** Excluded `.lmbrain/templates/` from governed artifact discovery, live invariant checks (`unique_ids`), and contract diagnostics. Official templates copied during kit migration require no manual placeholder edits.
+- **Finding scaffolding and human-friendly details (#23).** Candidate finding listing (`list_findings`) considers only `FINDING-*.md` files under `.lmbrain/findings`, ignoring scaffolding `README.md` files while keeping structurally malformed findings visible with explicit diagnostics. Summary counts include `superseded`. The Finding Detail modal presents statement, body, state disposition explanation, metadata, and readable relation titles (`${id} · ${title} (${status})`).
+- **Wiki kit feedback and findings tree filtering (#22).** Exposed `.lmbrain/reports/lmbrain-kit-feedback.md` in the Wiki when present without auto-exposing future files in `reports/`. Excluded scaffolding `README.md` files from the Findings section of the Wiki tree, wikilink index, and counts.
+- **Project Pulse Backlog metric and shared Insight Reliability component (#25).** Included a fifth metric card for `Backlog` (`SpecStatus::Backlog`) in `build_pulse_data`. Replaced the legacy raw diagnostics list in Project Pulse with the shared `InsightReliability` component, maintaining neutral footer text and preserving the top Findings warning banner.
+
 ## 3.1.0 - 2026-07-29
 
 ### Added
