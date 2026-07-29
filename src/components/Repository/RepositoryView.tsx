@@ -4,6 +4,7 @@ import type { GitDetails, GitHubDashboard, GitFile, GitHubWorkflowRun } from "..
 import { GitDiffModal } from "./GitDiffModal";
 import { WorkflowRunModal } from "./WorkflowRunModal";
 import { describeWorkflowRun, getWorkflowRunStatusStyle } from "../../lib/workflowRunStatus";
+import { RefreshButton } from "../RefreshButton";
 import "./RepositoryView.css";
 
 interface RepositoryData {
@@ -147,29 +148,7 @@ export function RepositoryView() {
             </p>
           </div>
           
-          <button
-            onClick={loadData}
-            disabled={loading}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              border: "1px solid #302a39",
-              borderRadius: 7,
-              background: "#19151f",
-              color: "var(--text-secondary)",
-              padding: "7px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              opacity: loading ? 0.6 : 1,
-            }}
-          >
-            <i className={`material-symbols-outlined ${loading ? "spin-icon" : ""}`} style={{ fontSize: 16 }}>
-              refresh
-            </i>
-            Refresh
-          </button>
+          <RefreshButton loading={loading} onClick={loadData} />
         </div>
 
         {error && (

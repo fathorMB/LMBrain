@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { getFindingContext, getFindings } from "../../lib/commands";
 import type { Finding, FindingContext, FindingRelation } from "../../types";
 import { useWorkspace } from "../../hooks/useWorkspace";
+import { RefreshButton } from "../RefreshButton";
 
 const ACTIVE = new Set(["open", "planned", "deferred"]);
 const severityRank: Record<string, number> = {
@@ -78,7 +79,7 @@ export function FindingsView() {
         <h1 style={{ margin: 0, fontSize: 24 }}>Findings</h1>
         <p style={muted}>Durable cross-spec observations and obligations. This view is read-only.</p>
       </div>
-      <button style={secondary} disabled={loading} onClick={() => void refresh()}>Refresh</button>
+      <RefreshButton loading={loading} onClick={refresh} />
     </header>
     {error && <div role="alert" style={errorStyle}>{error}</div>}
     {loading && <p role="status" style={muted}>Loading findings…</p>}
