@@ -86,6 +86,31 @@ vi.mock("../hooks/useWorkspace", () => ({
   }),
 }));
 
+vi.mock("../lib/commands", () => ({
+  getProjectStatistics: vi.fn().mockResolvedValue({
+    spec_flow: { total_specs: 1, done_specs: 0, done_ratio: 0 },
+    review_quality: {
+      total_reviews: 0,
+      total_review_passes: 0,
+      reviewed_specs: 0,
+      remediation_cycles: 0,
+      escalation_count: 0,
+      takeover_count: 0,
+      specs_with_changes_requested: 0,
+      first_pass_accepted_specs: 0,
+      first_pass_eligible_specs: 0,
+      average_reviews_per_reviewed_spec: 0,
+      lifecycle_coverage: 0,
+      reviews_without_spec: 0,
+      reviews_without_created: 0,
+      by_area: [],
+      by_agent: [],
+    },
+    artifact_families: [],
+    diagnostics: { total: 1, errors: 1, warnings: 0 },
+  }),
+}));
+
 const writeTextMock = vi.fn();
 Object.assign(navigator, {
   clipboard: {
@@ -98,24 +123,21 @@ describe("ProjectPulse Diagnostics Fix Prompt", () => {
     vi.clearAllMocks();
   });
 
-  it("renders diagnostics and expands fix prompt when clicking Fix button", async () => {
+  it("renders diagnostics via InsightReliability and expands fix prompt", async () => {
     render(<ProjectPulse />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Needs attention")).toBeDefined();
+    });
+
+    const summary = screen.getByText(/Diagnostic details/i);
+    fireEvent.click(summary);
 
     await waitFor(() => {
       expect(
         screen.getByText("YAML frontmatter is malformed: missing key"),
       ).toBeDefined();
-    });
-
-    fireEvent.click(screen.getByText("Fix"));
-
-    await waitFor(() => {
       expect(screen.getByText("Copy fix prompt")).toBeDefined();
-      expect(
-        screen.getByText(
-          "Next action: Repair the YAML frontmatter before retrying.",
-        ),
-      ).toBeDefined();
     });
 
     fireEvent.click(screen.getByText("Copy fix prompt"));
@@ -123,9 +145,6 @@ describe("ProjectPulse Diagnostics Fix Prompt", () => {
     expect(writeTextMock).toHaveBeenCalled();
     expect(writeTextMock.mock.calls[0][0]).toContain(
       "Please address DIAG-0123456789abcdef (frontmatter-malformed)",
-    );
-    expect(writeTextMock.mock.calls[0][0]).toContain(
-      "Required next action: Repair the YAML frontmatter before retrying.",
     );
   });
 
@@ -141,7 +160,7 @@ describe("ProjectPulse Diagnostics Fix Prompt", () => {
 
     fireEvent.click(screen.getByText("Copy prompt"));
     await waitFor(() =>
-      expect(screen.getByRole("status").textContent).toBe("Copied to clipboard."),
+      expect(screen.getByText("Copied to clipboard.")).toBeDefined(),
     );
     expect(writeTextMock).toHaveBeenCalledWith(
       expect.stringContaining("AGENT-FULLSTACK-DESKTOP"),

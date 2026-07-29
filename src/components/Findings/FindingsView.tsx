@@ -3,6 +3,7 @@ import { getFindingContext, getFindings } from "../../lib/commands";
 import type { Finding, FindingContext, FindingRelation } from "../../types";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { RefreshButton } from "../RefreshButton";
+import { MarkdownRenderer } from "../../lib/markdown";
 
 const ACTIVE = new Set(["open", "planned", "deferred"]);
 const severityRank: Record<string, number> = {
@@ -49,7 +50,7 @@ export function FindingsView() {
 
   const categories = [...new Set(state.findings.map((finding) => finding.category).filter(Boolean))].sort();
   const counts = Object.fromEntries(
-    ["open", "planned", "deferred", "accepted-risk", "resolved"]
+    ["open", "planned", "deferred", "accepted-risk", "resolved", "superseded"]
       .map((value) => [value, state.findings.filter((finding) => finding.status === value).length]),
   );
   const refresh = async () => {
@@ -193,20 +194,65 @@ function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
     ["Superseded by", context.superseded_by ? [context.superseded_by] : []],
   ];
   const prompt = `Review ${context.finding.id} with finding_context, then use the appropriate governed finding_* MCP tool. Do not infer resolution from target spec status.`;
+  const f = context.finding;
+  const statusExplanation = f.status === "planned"
+    ? "This finding is planned and routed to target spec(s), but is awaiting explicit resolution evidence."
+    : f.status === "deferred"
+    ? "This finding is deferred until declared revisit criteria are met."
+    : f.status === "resolved"
+    ? "This finding has been resolved with canonical evidence."
+    : f.status === "accepted-risk"
+    ? "Risk accepted by operator."
+    : f.status === "superseded"
+    ? "Superseded by newer finding or decision."
+    : "Active open finding awaiting triage or assignment.";
+
   return <div role="dialog" aria-modal="true" aria-labelledby="finding-detail-title" style={dialogBackdrop}>
     <div style={dialog}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-        <div><div style={mono}>{context.finding.id}</div><h2 id="finding-detail-title">{context.finding.title}</h2></div>
+        <div><div style={mono}>{f.id}</div><h2 id="finding-detail-title">{f.title}</h2></div>
         <button aria-label="Close finding detail" style={secondary} onClick={onClose}>Close</button>
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
+
+      <div style={{ display: "flex", gap: 6, margin: "10px 0 14px", flexWrap: "wrap" }}>
+        <Indicator text={`Status: ${f.status}`} />
+        <Indicator text={`Severity: ${f.severity}`} />
+        <Indicator text={`Category: ${f.category}`} />
+        {f.area && <Indicator text={`Area: ${f.area}`} />}
+        {f.owner && <Indicator text={`Owner: ${f.owner}`} />}
+        {f.milestone && <Indicator text={`Milestone: ${f.milestone}`} />}
+      </div>
+
+      <div style={{ padding: "10px 12px", background: "rgba(124,108,246,.08)", border: "1px solid rgba(124,108,246,.2)", borderRadius: 8, fontSize: 12, color: "#c2bdc8", marginBottom: 14 }}>
+        <strong>State disposition:</strong> {statusExplanation}
+      </div>
+
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12, color: "var(--text-tertiary)", marginBottom: 14 }}>
+        <div>Origin: <strong style={{ color: "var(--text-primary)" }}>{f.origin_artifact || "direct observation"}</strong></div>
+        {f.origin_ref && <div>Origin Ref: <code style={{ fontFamily: "var(--font-mono)", color: "var(--accent-light)" }}>{f.origin_ref}</code></div>}
+        <div>Created: {f.created || "—"}</div>
+        <div>Updated: {f.updated || "—"}</div>
+      </div>
+
+      {f.body && <section style={{ marginBottom: 16 }}>
+        <h3>Details & Statement</h3>
+        <div style={{ padding: 14, background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 8, fontSize: 13, lineHeight: 1.6 }}>
+          <MarkdownRenderer content={f.body} />
+        </div>
+      </section>}
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <button style={secondary} onClick={onOpenMarkdown}>Open Markdown</button>
         <button style={secondary} onClick={() => void navigator.clipboard.writeText(prompt)}>Copy governed action prompt</button>
       </div>
       <p style={muted}>Lifecycle actions are intentionally not available in the app.</p>
       {groups.map(([label, relations]) => <section key={label}><h3>{label}</h3>{relations.length === 0
         ? <p style={muted}>None declared.</p>
-        : <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>{relations.map((relation) => <button key={relation.id} style={relationButton} onClick={() => onOpenRelation(relation)}>{relation.id} · {relation.status}</button>)}</div>}</section>)}
+        : <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>{relations.map((relation) => (
+            <button key={relation.id} style={relationButton} onClick={() => onOpenRelation(relation)}>
+              {relation.id} · {relation.title ? `${relation.title} (${relation.status})` : relation.status}
+            </button>
+          ))}</div>}</section>)}
       <section><h3>Resolution timeline</h3>{context.events.length === 0
         ? <p style={muted}>No typed events.</p>
         : <ol>{context.events.map((event, index) => <li key={String(event.id ?? index)} style={muted}>{String(event.timestamp ?? "")} · {String(event.action ?? "event")} · {String(event.rationale ?? "")}</li>)}</ol>}</section>

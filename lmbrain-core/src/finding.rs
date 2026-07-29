@@ -149,6 +149,10 @@ pub enum FindingError {
 pub fn list_findings(root: &Path) -> Vec<Finding> {
     let mut findings = Vec::new();
     for path in markdown_files(&root.join(".lmbrain/findings")) {
+        let file_stem = path.file_stem().and_then(|value| value.to_str()).unwrap_or("");
+        if !file_stem.starts_with("FINDING-") {
+            continue;
+        }
         let relative = relative_path(root, &path);
         match fs::read_to_string(&path)
             .ok()
@@ -1122,6 +1126,9 @@ fn markdown_files(dir: &Path) -> Vec<PathBuf> {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
+                if path.file_name().and_then(|value| value.to_str()) == Some("templates") {
+                    continue;
+                }
                 out.extend(markdown_files(&path));
             } else if path.extension().and_then(|value| value.to_str()) == Some("md") {
                 out.push(path);
@@ -1430,5 +1437,36 @@ mod tests {
                 .and_then(|value| value.as_u64()),
             Some(0)
         );
+    }
+
+    #[test]
+    fn list_findings_ignores_scaffolding_readmes_and_keeps_malformed_findings_visible() {
+        let dir = tempfile::tempdir().unwrap();
+        let open_dir = dir.path().join(".lmbrain/findings/open");
+        let planned_dir = dir.path().join(".lmbrain/findings/planned");
+        fs::create_dir_all(&open_dir).unwrap();
+        fs::create_dir_all(&planned_dir).unwrap();
+
+        fs::write(dir.path().join(".lmbrain/findings/README.md"), "# Findings Scaffolding\n").unwrap();
+        fs::write(open_dir.join("README.md"), "# Open Findings Scaffolding\n").unwrap();
+        fs::write(planned_dir.join("README.md"), "# Planned Findings Scaffolding\n").unwrap();
+
+        fs::write(
+            planned_dir.join("FINDING-001-good.md"),
+            "---\nid: FINDING-001\ntitle: Good finding\nstatus: planned\ncategory: architecture\nseverity: medium\ncreated: '2026-07-29'\nupdated: '2026-07-29'\n---\n## Statement\nValid statement.\n",
+        )
+        .unwrap();
+
+        fs::write(open_dir.join("FINDING-002-malformed.md"), "Broken content without frontmatter").unwrap();
+
+        let findings = list_findings(dir.path());
+        assert_eq!(findings.len(), 2);
+        assert_eq!(findings[0].id, "FINDING-001");
+        assert_eq!(findings[0].status, "planned");
+        assert!(!findings[0].malformed);
+
+        assert_eq!(findings[1].id, "FINDING-002-malformed");
+        assert_eq!(findings[1].status, "open");
+        assert!(findings[1].malformed);
     }
 }

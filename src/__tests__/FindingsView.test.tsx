@@ -61,10 +61,12 @@ describe("FindingsView", () => {
       warnings: [], omitted_relations: 0,
     });
     render(<FindingsView />);
+    expect(screen.getAllByText("superseded").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /Open FINDING-001/ }));
     await screen.findByRole("dialog");
-    expect(screen.getByRole("button", { name: /REVIEW-054/ })).toBeDefined();
-    expect(screen.getByRole("button", { name: /SPEC-059/ })).toBeDefined();
+    expect(screen.getByText(/This finding is planned and routed to target spec\(s\)/)).toBeDefined();
+    expect(screen.getByRole("button", { name: /REVIEW-054 · Review \(accepted\)/ })).toBeDefined();
+    expect(screen.getByRole("button", { name: /SPEC-059 · Fix \(backlog\)/ })).toBeDefined();
     expect(screen.getByText(/Lifecycle actions are intentionally not available/)).toBeDefined();
     expect(screen.queryByRole("button", { name: /resolve|accept risk|reopen/i })).toBeNull();
   });
