@@ -29,6 +29,8 @@ export function RefreshButton({ loading, onClick }: RefreshButtonProps) {
 const buttonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
+  alignSelf: "flex-start",
+  flexShrink: 0,
   gap: 6,
   border: "1px solid #302a39",
   borderRadius: 7,
@@ -37,5 +39,6 @@ const buttonStyle: CSSProperties = {
   padding: "7px 12px",
   fontSize: 12,
   fontWeight: 600,
+  whiteSpace: "nowrap",
   cursor: "pointer",
 };

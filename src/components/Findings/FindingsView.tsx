@@ -74,7 +74,7 @@ export function FindingsView() {
   };
 
   return <div style={{ height: "100%", overflow: "auto", padding: "22px 28px 70px" }}>
-    <header style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+    <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
       <div>
         <h1 style={{ margin: 0, fontSize: 24 }}>Findings</h1>
         <p style={muted}>Durable cross-spec observations and obligations. This view is read-only.</p>
