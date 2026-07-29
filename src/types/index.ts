@@ -1,5 +1,32 @@
 // ─── Domain Types (mirrors Rust models) ───────────────────────────
 
+export interface KitFeedbackNote {
+  id: string;
+  timestamp: string;
+  lmbrain_version: string;
+  category: string;
+  severity: string;
+  summary: string;
+  observed_behavior: string;
+  expected_behavior: string;
+  impact: string;
+  evidence: string;
+  workaround: string | null;
+  suggested_improvement: string | null;
+  related_note: string | null;
+  actor: string;
+}
+
+export interface KitFeedbackReport {
+  schema_version: string;
+  path: string;
+  updated: string;
+  total: number;
+  counts_by_category: Record<string, number>;
+  counts_by_severity: Record<string, number>;
+  notes: KitFeedbackNote[];
+}
+
 export type KitHealth = "ok" | "warn" | "none";
 
 export interface KitDiagnostic {
@@ -902,6 +929,7 @@ export type AppView =
   | "spec"
   | "reviews"
   | "findings"
+  | "feedback"
   | "decisions"
   | "agents"
   | "mcp"

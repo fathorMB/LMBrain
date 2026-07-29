@@ -108,7 +108,7 @@ Agent-proposal optional field: `proposed_mnemonic_name`. It records the intended
 
 Spec optional fields include `depends_on`, `dependency_events`, and `parking_events`. They record hard prerequisites and append-only governed mutation history; they are never edited casually in the app.
 
-Spec and agent-profile optional field: `skills`. It records `SKILL-*` procedure references that should be considered during handoff or role-specific operation.
+Spec and agent-profile optional field: `skills`. It records `SKILL-*` procedure references that should be considered during spec assignment or role-specific operation.
 
 Skill optional fields: `scope`, `kind`, `risk`, `applies_to`, `domains`, `commands`, and `requires_operator_approval`. Skills are documented project procedures; command entries are instructions for agents, not app-executed automation.
 
@@ -133,7 +133,7 @@ Priority values: `critical`, `high`, `medium`, `low`.
 Context packs are read-only, derived views of the artifact directory. They are not the system of record:
 
 - `lmbrain_project_digest` — compact project overview for Project Lead bootstrap and pulse.
-- `lmbrain_spec_context` — spec handoff context for specialist orientation.
+- `lmbrain_spec_context` — spec assignment context for specialist orientation.
 - `lmbrain_review_context` — review context for reviewer orientation.
 
 Context packs resolve linked specs, ADRs, reviews, agent profiles, roadmap milestones, required verification, applicable skills, and diagnostics deterministically. Spec/review packs preserve the canonical verification source, distinguish executable/manual/operator gates and lifecycle owners, include profile path/digest plus bounded operational guidance, and expose skill path/digest plus body-command fallback. They report lossy legacy syntax and missing references as structured warnings. They never mutate files.

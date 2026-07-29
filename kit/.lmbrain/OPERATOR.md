@@ -11,13 +11,13 @@ LMBrain does not automatically start agents. You retain control: you decide when
 3. Start a Project Lead manually in your chosen supported agent.
 4. Give it [`templates/project-lead-bootstrap-prompt.md`](templates/project-lead-bootstrap-prompt.md).
 5. Read `STATUS.md` and the Project Lead's final report.
-6. If it recommends a handoff, start the proposed specialist and give it the exact `SPEC-*.md` path.
+6. If it recommends a spec assignment, start the proposed specialist and give it the exact `SPEC-*.md` path.
 
 ## I need a new feature, fix, or technical change
 
 1. Start the Project Lead manually.
 2. State the request in normal language, for example: “I need feature X in the software.”
-3. Ask it to analyze the repository and prepare the implementation handoff according to `AGENT.md`.
+3. Ask it to analyze the repository and prepare the implementation spec assignment according to `AGENT.md`.
 4. Expect a response with:
    - the path to a ready `SPEC-*.md` file;
    - the recommended specialist profile;
@@ -28,7 +28,7 @@ LMBrain does not automatically start agents. You retain control: you decide when
 
 Suggested specialist prompt (v3 context-economy):
 
-> Read `QUALITY.md`, `CONTRACT.md`, and `AGENT.md` first. Then use `lmbrain_spec_context` for a compact spec handoff context. Expand to the full spec and source code only when the context pack points to them or verification requires it. Implement only the stated scope. Fill the **Implementation evidence** section when done. Report changed files, verification performed, and deviations from the spec. Do not update roadmap, strategic decisions, or project status.
+> Read `QUALITY.md`, `CONTRACT.md`, and `AGENT.md` first. Then use `lmbrain_spec_context` for a compact spec assignment context. Expand to the full spec and source code only when the context pack points to them or verification requires it. Implement only the stated scope. Fill the **Implementation evidence** section when done. Report changed files, verification performed, and deviations from the spec. Do not update roadmap, strategic decisions, or project status.
 
 Treat the work as production-grade. Follow `QUALITY.md`; do not submit a POC, placeholder, or knowingly incomplete implementation. Update every technical LMBrain page explicitly delegated by the spec.
 
@@ -130,7 +130,7 @@ Open these documents in order:
 
 1. `STATUS.md` — current focus, blockers, and recommended action.
 2. `ROADMAP.md` — milestone direction and planning.
-3. `specs/ready/` — work ready for manual handoff.
+3. `specs/ready/` — work ready for manual spec assignment.
 4. `specs/review/` and `reviews/pending/` — completed work waiting for review.
 5. `specs/review/` — specs in the review ping-pong.
 
@@ -142,7 +142,7 @@ Open these documents in order:
 | Feature analysis and specs | Approves | Yes | No |
 | Application code | Can edit | No | Yes, when manually assigned |
 | Roadmap and project status | Approves/edits | Yes | No |
-| Code review after handoff | Requests | Yes | No |
+| Code review after assignment | Requests | Yes | No |
 | Agent/MCP activation | Approves and arranges | No | No |
 
 ## Documents to know
@@ -156,7 +156,7 @@ Open these documents in order:
 | What work is on the board? | `specs/<status>/SPEC-*.md` |
 | What is an agent allowed to do? | `agents/profiles/AGENT-*.md` |
 | Where are design mockups loaded? | `design/` |
-| What quality standard applies to every handoff? | `QUALITY.md` |
+| What quality standard applies to every spec assignment? | `QUALITY.md` |
 | How does a new Project Lead resume a prior session? | `handoffs/active/HANDOFF-*.md` |
 | Why was a technical choice made? | `decisions/ADR-*.md` |
 | Is a new capability safe and justified? | `mcp/proposals/MCP-PROP-*.md` |

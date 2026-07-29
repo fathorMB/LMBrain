@@ -243,7 +243,7 @@ pub fn attest_spec_requirement(
             "verification requirement '{requirement_id}' is duplicated"
         )));
     }
-    let requirement = matching_requirements
+    let mut requirement = matching_requirements
         .into_iter()
         .next()
         .cloned()
@@ -265,10 +265,32 @@ pub fn attest_spec_requirement(
         )));
     }
     if !requirement.checked {
-        return Err(AttestationError::Invalid(format!(
-            "{} is unchecked; record completion in the spec before attesting its evidence",
-            requirement.id
-        )));
+        if actor_role == "operator" && requirement.owner == "operator" {
+            // Auto-check: the operator attesting their own gate implies completion.
+            // The two facts (completion + evidence) are recorded separately in the artifact.
+            check_requirement_in_body(&mut document, &requirement.id)?;
+            // Re-parse requirements after the body mutation to get a correct digest.
+            let refreshed = verification_requirements(&document);
+            requirement = refreshed
+                .into_iter()
+                .find(|r| r.id == requirement_id)
+                .ok_or_else(|| {
+                    AttestationError::Invalid(format!(
+                        "requirement '{requirement_id}' disappeared after auto-check"
+                    ))
+                })?;
+            if !requirement.checked {
+                return Err(AttestationError::Invalid(format!(
+                    "{} could not be auto-checked in the spec body",
+                    requirement.id
+                )));
+            }
+        } else {
+            return Err(AttestationError::Invalid(format!(
+                "{} is unchecked; record completion in the spec before attesting its evidence",
+                requirement.id
+            )));
+        }
     }
     let existing_attestations = parse_attestations(&document)
         .map_err(|error| AttestationError::Invalid(error.to_string()))?;
@@ -335,6 +357,35 @@ pub fn attest_spec_requirement(
         attestation,
         created: true,
     })
+}
+
+/// Locates an unchecked `- [ ]` line containing the given requirement ID in the
+/// document body and toggles it to `- [x]`.  Returns an error if no matching
+/// unchecked line is found.
+fn check_requirement_in_body(
+    document: &mut Document,
+    requirement_id: &str,
+) -> Result<(), AttestationError> {
+    let mut new_lines = Vec::new();
+    let mut found = false;
+    for line in document.body.lines() {
+        if !found
+            && line.contains(requirement_id)
+            && line.trim_start().starts_with("- [ ]")
+        {
+            new_lines.push(line.replacen("- [ ]", "- [x]", 1));
+            found = true;
+        } else {
+            new_lines.push(line.to_string());
+        }
+    }
+    if !found {
+        return Err(AttestationError::Invalid(format!(
+            "could not locate unchecked checklist item for {requirement_id}"
+        )));
+    }
+    document.body = new_lines.join(document.newline);
+    Ok(())
 }
 
 pub fn build_verification_migration_preview(
@@ -670,20 +721,39 @@ mod tests {
         .is_err());
         assert_eq!(fs::read_to_string(&ready_path).unwrap(), ready_source);
 
+        // Auto-check: operator attesting their own unchecked gate in review succeeds
         let review_path = directory.path().join(".lmbrain/specs/review/SPEC-002.md");
         fs::create_dir_all(review_path.parent().unwrap()).unwrap();
         let review_source = "---\nid: SPEC-002\nstatus: review\n---\n## Required verification\n- [ ] HUMAN | kind=operator | owner=operator | phase=before-done | evidence=observation | Play\n";
         fs::write(&review_path, review_source).unwrap();
-        assert!(attest_spec_requirement(
+        let result = attest_spec_requirement(
             directory.path(),
             ".lmbrain/specs/review/SPEC-002.md",
             "HUMAN",
             "operator",
             "Moren",
-            "playtest:unchecked"
+            "playtest:unchecked",
+        );
+        assert!(result.is_ok(), "operator auto-check should succeed: {result:?}");
+        // Verify the spec body was auto-checked
+        let updated = fs::read_to_string(&review_path).unwrap();
+        assert!(updated.contains("- [x] HUMAN"), "checkbox should be auto-checked");
+
+        // Lead attesting an unchecked gate still fails
+        let lead_path = directory.path().join(".lmbrain/specs/review/SPEC-003.md");
+        fs::create_dir_all(lead_path.parent().unwrap()).unwrap();
+        let lead_source = "---\nid: SPEC-003\nstatus: review\n---\n## Required verification\n- [ ] LEAD-CHECK | kind=manual | owner=lead | phase=before-done | evidence=observation | Review\n";
+        fs::write(&lead_path, lead_source).unwrap();
+        assert!(attest_spec_requirement(
+            directory.path(),
+            ".lmbrain/specs/review/SPEC-003.md",
+            "LEAD-CHECK",
+            "lead",
+            "Ada",
+            "review:unchecked"
         )
         .is_err());
-        assert_eq!(fs::read_to_string(&review_path).unwrap(), review_source);
+        assert_eq!(fs::read_to_string(&lead_path).unwrap(), lead_source);
     }
 
     #[test]

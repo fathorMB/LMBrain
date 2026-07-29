@@ -84,7 +84,7 @@ export function OperatorVerificationPanel({
   const selected = operatorRequirements.find(
     (requirement) => requirement.id === selectedId,
   );
-  const selectedIsReady = selected?.checked === true;
+
 
   if (loading) {
     return <PanelShell>Loading before-done verification…</PanelShell>;
@@ -264,10 +264,9 @@ export function OperatorVerificationPanel({
           {selected && !selected.checked && (
             <div
               role="status"
-              style={{ color: "#d6b277", fontSize: 11.5, marginTop: 10 }}
+              style={{ color: "#9aadcf", fontSize: 11.5, marginTop: 10 }}
             >
-              This checklist item is still open. Record its completion in the
-              spec before attesting evidence.
+              This checklist item will be marked complete when you attest.
             </div>
           )}
           <button
@@ -276,7 +275,6 @@ export function OperatorVerificationPanel({
             disabled={
               submitting ||
               !selected ||
-              !selectedIsReady ||
               !actor.trim() ||
               !evidenceRef.trim()
             }
@@ -293,7 +291,6 @@ export function OperatorVerificationPanel({
               opacity:
                 submitting ||
                 !selected ||
-                !selectedIsReady ||
                 !actor.trim() ||
                 !evidenceRef.trim()
                   ? 0.55
