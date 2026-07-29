@@ -91,12 +91,45 @@ export function FindingsView() {
     </section>
 
     <section aria-label="Finding filters" style={filters}>
-      <label>Scope<select aria-label="Finding scope" value={scope} onChange={(event) => setScope(event.target.value as typeof scope)}><option value="active">Active</option><option value="history">History</option><option value="all">All</option></select></label>
-      <label>Status<select aria-label="Finding status" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All</option>{["open", "planned", "deferred", "resolved", "accepted-risk", "superseded"].map(option)}</select></label>
-      <label>Severity<select aria-label="Finding severity" value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="all">All</option>{["critical", "high", "medium", "low", "info"].map(option)}</select></label>
-      <label>Category<select aria-label="Finding category" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">All</option>{categories.map(option)}</select></label>
-      <label>Sort<select aria-label="Finding sort" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>{["severity", "age", "updated", "milestone"].map(option)}</select></label>
-      <label style={{ flex: "1 1 190px" }}>Search<input aria-label="Search findings" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Owner, area, milestone, target…" /></label>
+      <label style={filterLabel}>Scope
+        <select style={filterControl} aria-label="Finding scope" value={scope} onChange={(event) => setScope(event.target.value as typeof scope)}>
+          <option value="active">Active</option>
+          <option value="history">History</option>
+          <option value="all">All</option>
+        </select>
+      </label>
+      <label style={filterLabel}>Status
+        <select style={filterControl} aria-label="Finding status" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option value="all">All</option>
+          {["open", "planned", "deferred", "resolved", "accepted-risk", "superseded"].map(option)}
+        </select>
+      </label>
+      <label style={filterLabel}>Severity
+        <select style={filterControl} aria-label="Finding severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
+          <option value="all">All</option>
+          {["critical", "high", "medium", "low", "info"].map(option)}
+        </select>
+      </label>
+      <label style={filterLabel}>Category
+        <select style={filterControl} aria-label="Finding category" value={category} onChange={(event) => setCategory(event.target.value)}>
+          <option value="all">All</option>
+          {categories.map(option)}
+        </select>
+      </label>
+      <label style={filterLabel}>Sort
+        <select style={filterControl} aria-label="Finding sort" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
+          {["severity", "age", "updated", "milestone"].map(option)}
+        </select>
+      </label>
+      <label style={{ ...filterLabel, flex: "1 1 240px" }}>Search
+        <input
+          style={{ ...filterControl, width: "100%" }}
+          aria-label="Search findings"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Owner, area, milestone, target…"
+        />
+      </label>
     </section>
 
     {state.findings.length === 0 && !loading && <div style={empty}>No first-class findings exist. Legacy review entries are not promoted automatically.</div>}
@@ -202,7 +235,40 @@ const mono: React.CSSProperties = { fontFamily: "var(--font-mono)", color: "var(
 const card: React.CSSProperties = { padding: 13, border: "1px solid var(--border-secondary)", borderRadius: 9, background: "var(--bg-tertiary)" };
 const summaryGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 9, margin: "18px 0" };
 const summaryValue: React.CSSProperties = { fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700 };
-const filters: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 9, padding: 12, marginBottom: 14, border: "1px solid var(--border-secondary)", borderRadius: 9 };
+const filters: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-end",
+  flexWrap: "wrap",
+  gap: 12,
+  padding: 14,
+  marginBottom: 14,
+  border: "1px solid var(--border-secondary)",
+  borderRadius: 9,
+  background: "var(--bg-secondary)",
+};
+const filterLabel: React.CSSProperties = {
+  display: "grid",
+  gap: 6,
+  flex: "1 1 118px",
+  minWidth: 0,
+  color: "var(--text-tertiary)",
+  fontSize: 11.5,
+  fontWeight: 650,
+};
+const filterControl: React.CSSProperties = {
+  minWidth: 0,
+  height: 34,
+  boxSizing: "border-box",
+  border: "1px solid var(--border-primary)",
+  borderRadius: 7,
+  outline: "none",
+  background: "var(--bg-tertiary)",
+  color: "var(--text-primary)",
+  colorScheme: "dark",
+  padding: "0 9px",
+  fontFamily: "inherit",
+  fontSize: 12,
+};
 const findingCard: React.CSSProperties = { ...card, width: "100%", color: "var(--text-primary)", textAlign: "left", cursor: "pointer" };
 const meta: React.CSSProperties = { ...muted, display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: 6 };
 const secondary: React.CSSProperties = { border: "1px solid var(--border-secondary)", borderRadius: 7, background: "var(--bg-secondary)", color: "var(--text-secondary)", padding: "7px 11px", cursor: "pointer" };
