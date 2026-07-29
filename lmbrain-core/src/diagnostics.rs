@@ -977,7 +977,7 @@ fn markdown_paths(directory: &Path) -> Vec<PathBuf> {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
-            if path.file_name().and_then(|n| n.to_str()) == Some("templates") {
+            if path.file_name().and_then(|name| name.to_str()) == Some("templates") {
                 continue;
             }
             paths.extend(markdown_paths(&path));
@@ -1130,5 +1130,32 @@ mod tests {
         assert!(configured
             .iter()
             .any(|diagnostic| diagnostic.code == "verification-manifest-unapproved"));
+    }
+
+    #[test]
+    fn templates_are_excluded_from_diagnostics_and_migration_validation() {
+        let directory = tempdir().unwrap();
+        let templates_dir = directory.path().join(".lmbrain/templates");
+        fs::create_dir_all(&templates_dir).unwrap();
+        fs::write(
+            templates_dir.join("finding.md"),
+            "---\nid: FINDING-XXX\ntitle: Template Finding\nstatus: open\ncategory: architecture\nseverity: medium\ncreated: '2026-07-29'\nupdated: '2026-07-29'\n---\n",
+        )
+        .unwrap();
+
+        let diagnostics = build_diagnostics(directory.path());
+        assert!(!diagnostics.iter().any(|d| d.artifact_id.as_deref() == Some("FINDING-XXX")));
+        assert!(invariants::unique_ids(directory.path()));
+
+        let invalid_dir = directory.path().join(".lmbrain/invalid");
+        fs::create_dir_all(&invalid_dir).unwrap();
+        fs::write(
+            invalid_dir.join("FINDING-999.md"),
+            "---\nid: FINDING-999\ntitle: Misplaced Finding\nstatus: open\ncategory: architecture\nseverity: medium\ncreated: '2026-07-29'\nupdated: '2026-07-29'\n---\n",
+        )
+        .unwrap();
+
+        let diagnostics_with_misplaced = build_diagnostics(directory.path());
+        assert!(diagnostics_with_misplaced.iter().any(|d| d.artifact_id.as_deref() == Some("FINDING-999")));
     }
 }

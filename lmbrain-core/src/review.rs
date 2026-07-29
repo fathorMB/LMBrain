@@ -448,6 +448,9 @@ fn review_markdown_files(root: &Path) -> Vec<PathBuf> {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
+                if path.file_name().and_then(|value| value.to_str()) == Some("templates") {
+                    continue;
+                }
                 files.extend(review_markdown_files(&path));
             } else if path.extension().and_then(|extension| extension.to_str()) == Some("md") {
                 files.push(path);

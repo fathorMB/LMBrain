@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { buildHandoffPrompt, buildMigrationPrompt } from "../../lib/handoffPrompt";
-import { buildDiagnosticFixPrompt } from "../../lib/diagnosticPrompt";
 import { InlineRichText } from "../../lib/inlineRichText";
 import { useWikiNavigation } from "../../hooks/useWikiNavigation";
+import { InsightReliability } from "../Shared/InsightReliability";
 import type { PulseData, Handoff, Adr } from "../../types";
 
 const getMigrationStatusLabelAndColor = (status: string | undefined): { label: string; color: string } => {
@@ -27,12 +27,9 @@ const getMigrationStatusLabelAndColor = (status: string | undefined): { label: s
 
 export function ProjectPulse() {
   const { state, navigateTo } = useWorkspace();
-  const [expandedDiagnostic, setExpandedDiagnostic] = useState<number | null>(null);
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [copiedMigration, setCopiedMigration] = useState(false);
 
   const navigateToWiki = useWikiNavigation();
-  const diagnostics = state.diagnostics;
   const attentionFindings = (state.findings ?? []).filter((finding) =>
     ["open", "planned", "deferred"].includes(finding.status)
     && (["critical", "high"].includes(finding.severity) || !finding.owner)
@@ -119,7 +116,7 @@ export function ProjectPulse() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(4,1fr)",
+              gridTemplateColumns: "repeat(5,1fr)",
               gap: 11,
               marginTop: 22,
               marginBottom: 22,
@@ -226,198 +223,18 @@ export function ProjectPulse() {
             </div>
           )}
 
-          {/* Diagnostics */}
-          {diagnostics.length > 0 && (
-            <>
-              <div
-                style={{
-                  fontSize: 11,
-                  letterSpacing: ".09em",
-                  textTransform: "uppercase",
-                  color: "#e0a23a",
-                  fontWeight: 600,
-                  marginBottom: 11,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <i className="material-symbols-outlined" style={{ fontSize: 14 }}>
-                  warning
-                </i>
-                Diagnostics ({diagnostics.length})
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                  marginBottom: 24,
-                }}
-              >
-                {diagnostics.map((d, i) => (
-                  <div
-                    key={d.id ?? `${d.path}:${i}`}
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 10,
-                      background:
-                        d.severity === "error"
-                          ? "rgba(224,88,74,.08)"
-                          : "rgba(224,162,58,.08)",
-                      border: `1px solid ${
-                        d.severity === "error"
-                          ? "rgba(224,88,74,.2)"
-                          : "rgba(224,162,58,.2)"
-                      }`,
-                      borderRadius: 10,
-                      padding: "10px 13px",
-                      fontSize: 12.5,
-                      color: "#c2bdc8",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    <i
-                      className="material-symbols-outlined"
-                      style={{
-                        fontSize: 16,
-                        flex: "none",
-                        marginTop: 1,
-                        color:
-                          d.severity === "error"
-                            ? "var(--red)"
-                            : "var(--yellow)",
-                      }}
-                    >
-                      {d.severity === "error" ? "error" : "warning"}
-                    </i>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      {(d.id || d.code) && (
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 7,
-                            marginBottom: 3,
-                            color: "#817a87",
-                            fontFamily: "var(--font-mono)",
-                            fontSize: 10.5,
-                          }}
-                        >
-                          {d.id && <span>{d.id}</span>}
-                          {d.code && <span>{d.code}</span>}
-                          {d.fixability && <span>{d.fixability}</span>}
-                        </div>
-                      )}
-                      <div>{d.message}</div>
-                      {d.path && (
-                        <div
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: 11,
-                            color: "#6c6671",
-                            marginTop: 3,
-                          }}
-                        >
-                          {d.path}
-                        </div>
-                      )}
-                      {expandedDiagnostic === i && (
-                        <div
-                          style={{
-                            marginTop: 10,
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 8,
-                            width: "100%",
-                          }}
-                        >
-                          {d.next_action && (
-                            <div
-                              style={{
-                                padding: "8px 10px",
-                                borderRadius: 6,
-                                background: "rgba(124,108,246,.08)",
-                                color: "#bbb4c7",
-                              }}
-                            >
-                              Next action: {d.next_action}
-                            </div>
-                          )}
-                          <textarea
-                            readOnly
-                            value={buildDiagnosticFixPrompt(d)}
-                            style={{
-                              width: "100%",
-                              height: 120,
-                              background: "#16131c",
-                              border: "1px solid #2e2838",
-                              borderRadius: 6,
-                              padding: 8,
-                              color: "#c2bdc8",
-                              fontFamily: "var(--font-mono)",
-                              fontSize: 11,
-                              resize: "none",
-                            }}
-                            onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                          />
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(buildDiagnosticFixPrompt(d));
-                              setCopiedIndex(i);
-                              setTimeout(() => setCopiedIndex(null), 2000);
-                            }}
-                            style={{
-                              background: "var(--accent-light)",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: 6,
-                              padding: "6px 12px",
-                              fontSize: 11.5,
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 5,
-                              alignSelf: "flex-start",
-                            }}
-                          >
-                            <i className="material-symbols-outlined" style={{ fontSize: 14 }}>
-                              {copiedIndex === i ? "check" : "content_copy"}
-                            </i>
-                            {copiedIndex === i ? "Copied!" : "Copy fix prompt"}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => setExpandedDiagnostic(expandedDiagnostic === i ? null : i)}
-                      style={{
-                        background: "rgba(255,255,255,0.06)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        borderRadius: 6,
-                        padding: "3px 8px",
-                        fontSize: 11,
-                        color: "#fff",
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 4,
-                        marginLeft: "auto",
-                        flexShrink: 0,
-                        marginTop: 2,
-                      }}
-                    >
-                      <i className="material-symbols-outlined" style={{ fontSize: 13 }}>
-                        build
-                      </i>
-                      {expandedDiagnostic === i ? "Hide" : "Fix"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+          {/* Insight Reliability */}
+          <div
+            style={{
+              background: "var(--bg-tertiary)",
+              border: "1px solid var(--border-secondary)",
+              borderRadius: 13,
+              padding: "17px 18px",
+              marginBottom: 22,
+            }}
+          >
+            <InsightReliability />
+          </div>
 
           {/* Actions */}
           {pulse.actions.length > 0 && (

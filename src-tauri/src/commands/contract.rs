@@ -595,6 +595,27 @@ pub fn build_wiki_tree(root: &Path) -> Result<WikiTree, AppError> {
         file_count += child.count.unwrap_or(0);
         children.push(child);
     }
+
+    let kit_feedback_path = lmbrain.join("reports/lmbrain-kit-feedback.md");
+    if kit_feedback_path.is_file() {
+        let report_node = WikiNode {
+            name: "lmbrain-kit-feedback".into(),
+            path: ".lmbrain/reports/lmbrain-kit-feedback.md".into(),
+            kind: WikiNodeKind::File,
+            children: Vec::new(),
+            count: None,
+        };
+        let reports_folder = WikiNode {
+            name: "reports".into(),
+            path: ".lmbrain/reports".into(),
+            kind: WikiNodeKind::Folder,
+            children: vec![report_node],
+            count: Some(1),
+        };
+        file_count += 1;
+        children.push(reports_folder);
+    }
+
     children.sort_by(|left, right| left.name.cmp(&right.name));
 
     Ok(WikiTree {
@@ -635,6 +656,10 @@ fn build_tree_node(dir: &Path, relative: &str) -> Result<WikiNode, AppError> {
         let name = entry.file_name().to_string_lossy().to_string();
 
         if name.starts_with('.') {
+            continue;
+        }
+
+        if relative.starts_with(".lmbrain/findings") && !path.is_dir() && !name.starts_with("FINDING-") {
             continue;
         }
 
@@ -700,6 +725,11 @@ pub fn build_pulse_data(
     let count_status =
         |status: SpecStatus| specs.iter().filter(|spec| spec.status == status).count();
     let metrics = vec![
+        MetricCard {
+            label: "Backlog".into(),
+            count: count_status(SpecStatus::Backlog),
+            accent: "#817a87".into(),
+        },
         MetricCard {
             label: "Ready for handoff".into(),
             count: count_status(SpecStatus::Ready),
@@ -1296,11 +1326,26 @@ pub fn build_wikilink_index(root: &Path) -> HashMap<String, Vec<String>> {
 }
 
 fn wiki_content_files(lmbrain: &Path) -> Vec<PathBuf> {
-    WIKI_CONTENT_DIRS
+    let mut files: Vec<PathBuf> = WIKI_CONTENT_DIRS
         .iter()
         .filter_map(|(directory, _)| scan_md_files(&lmbrain.join(directory)).ok())
         .flatten()
-        .collect()
+        .filter(|path| {
+            if path.components().any(|c| c.as_os_str() == "findings") {
+                path.file_name()
+                    .and_then(|n| n.to_str())
+                    .map_or(false, |name| name.starts_with("FINDING-"))
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    let kit_feedback = lmbrain.join("reports/lmbrain-kit-feedback.md");
+    if kit_feedback.is_file() {
+        files.push(kit_feedback);
+    }
+    files
 }
 
 /// Scan all .md files under .lmbrain/ for malformed frontmatter and
