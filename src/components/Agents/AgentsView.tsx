@@ -100,6 +100,20 @@ export function AgentsView() {
                   <div style={{ color: "var(--text-tertiary)", fontSize: 12 }}>
                     {metric.reviewed_specs} specs · {metric.review_cycles} cycles · {metric.specs_with_changes_requested} changed · {metric.transcript_fast_fail_reviews} transcript fast-fails
                   </div>
+                  <div style={{ color: "var(--text-tertiary)", fontSize: 11.5, marginTop: 4 }}>
+                    {metric.remediation_cycles} remediations · {metric.escalation_count} escalations · {metric.takeover_count} takeovers
+                  </div>
+                  <div style={{ color: metric.confidence === "low" ? "#e0a23a" : "var(--text-tertiary)", fontSize: 11.5, marginTop: 4 }}>
+                    Lifecycle {Math.round(metric.lifecycle_coverage * 100)}% · taxonomy {Math.round(metric.category_coverage * 100)}% · {metric.confidence} confidence
+                  </div>
+                  <div style={{ color: "var(--text-tertiary)", fontSize: 11.5, marginTop: 4 }}>
+                    Attribution: {metric.attribution_basis.replaceAll("-", " ")}
+                  </div>
+                  {metric.unknown_categories.length > 0 && (
+                    <div role="status" style={{ color: "#e0a23a", fontSize: 11.5, marginTop: 4 }}>
+                      Unknown categories: {metric.unknown_categories.join(", ")}
+                    </div>
+                  )}
                 </div>
               ))}
               {insights.signals.filter((signal) => signal.threshold_met).map((signal) => (

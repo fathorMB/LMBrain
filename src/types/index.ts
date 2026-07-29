@@ -3,9 +3,14 @@
 export type KitHealth = "ok" | "warn" | "none";
 
 export interface KitDiagnostic {
+  id?: string;
+  code?: string;
   message: string;
   severity: "info" | "warning" | "error";
+  artifact_id?: string | null;
   path: string | null;
+  next_action?: string;
+  fixability?: "manual" | "governed-mutation" | "read-only";
 }
 
 export interface WorkspaceSummary {
@@ -34,6 +39,7 @@ export interface WorkspaceInfo {
   branch: string | null;
   is_clean: boolean | null;
   spec_count: number;
+  finding_count?: number;
   task_count: number;
   decision_count: number;
   agent_count: number;
@@ -59,6 +65,8 @@ export interface Spec {
   area: string | null;
   milestone: string | null;
   recommended_agent: string | null;
+  depends_on?: string[];
+  parking_events?: SpecParkingEvent[];
   skills: string[];
   body: string;
   path: string;
@@ -69,6 +77,188 @@ export interface Spec {
   related_tasks: string[];
   related_decisions: string[];
   malformed?: boolean;
+}
+
+export interface SpecParkingEvent {
+  timestamp: string;
+  actor: string;
+  reason: string;
+  revisit_condition: string | null;
+}
+
+export type FindingStatus =
+  | "open"
+  | "planned"
+  | "deferred"
+  | "resolved"
+  | "accepted-risk"
+  | "superseded";
+
+export type FindingSeverity = "critical" | "high" | "medium" | "low" | "info";
+
+export interface Finding {
+  id: string;
+  title: string;
+  status: FindingStatus | string;
+  category: string;
+  severity: FindingSeverity | string;
+  origin_severity: string | null;
+  area: string | null;
+  milestone: string | null;
+  owner: string | null;
+  origin_artifact: string | null;
+  origin_ref: string | null;
+  related_specs: string[];
+  related_reviews: string[];
+  related_decisions: string[];
+  target_specs: string[];
+  blocked_by: string[];
+  resolution_refs: string[];
+  superseded_by: string | null;
+  created: string;
+  updated: string;
+  tags: string[];
+  body: string;
+  path: string;
+  malformed: boolean;
+}
+
+export interface FindingRelation {
+  id: string;
+  title: string;
+  status: string;
+  path: string;
+}
+
+export interface FindingContext {
+  schema_version: string;
+  finding: Finding;
+  origin: FindingRelation | null;
+  related_specs: FindingRelation[];
+  related_reviews: FindingRelation[];
+  related_decisions: FindingRelation[];
+  target_specs: FindingRelation[];
+  blockers: FindingRelation[];
+  resolution_refs: FindingRelation[];
+  superseded_by: FindingRelation | null;
+  events: Array<Record<string, unknown>>;
+  warnings: string[];
+  omitted_relations: number;
+}
+
+export interface VerificationRequirement {
+  id: string;
+  text: string;
+  checked: boolean;
+  kind: string;
+  owner: string;
+  phase: string;
+  evidence: string;
+  source: string;
+}
+
+export interface VerificationAttestation {
+  schema_version: string;
+  id: string;
+  requirement_id: string;
+  requirement_digest: string;
+  actor_role: string;
+  actor: string;
+  timestamp: string;
+  result: string;
+  evidence_ref: string;
+  evidence_digest?: string;
+}
+
+export interface VerificationBlocker {
+  requirement_id: string;
+  owner: string;
+  cause: string;
+}
+
+export interface SpecVerificationState {
+  requirements: VerificationRequirement[];
+  attestations: VerificationAttestation[];
+  blockers: VerificationBlocker[];
+}
+
+export interface AttestationResult {
+  path: string;
+  attestation: VerificationAttestation;
+  created: boolean;
+}
+
+export type VerificationManifestState =
+  | "absent"
+  | "invalid"
+  | "unsafe"
+  | "unapproved"
+  | "approved"
+  | "stale"
+  | "approval-invalid";
+
+export interface VerificationGate {
+  id: string;
+  title?: string | null;
+  program: string;
+  args: string[];
+  cwd: string;
+  timeout_seconds?: number | null;
+  output_limit_bytes?: number | null;
+  expected_exit_code?: number | null;
+  result_matcher?: string | null;
+  environment: Record<string, string>;
+  fingerprint_exclude?: string[];
+}
+
+export interface VerificationManifest {
+  schema_version: number;
+  gates: VerificationGate[];
+}
+
+export interface VerificationManifestStatus {
+  schema_version: string;
+  state: VerificationManifestState;
+  manifest_digest: string | null;
+  approved_digest: string | null;
+  approved_at: string | null;
+  workspace_fingerprint: string;
+  gate_count: number;
+  issues: string[];
+  next_action: string;
+  can_rollback: boolean;
+}
+
+export interface VerificationGateCandidate {
+  gate: VerificationGate;
+  provenance: string;
+  confidence: string;
+  selected: boolean;
+  environment_policy: string;
+  mutation_policy: string;
+  security_notes: string[];
+}
+
+export interface VerificationManifestPreview {
+  schema_version: string;
+  status: VerificationManifestStatus;
+  candidates: VerificationGateCandidate[];
+  conflicts: string[];
+  guidance: string[];
+  proposed_manifest: VerificationManifest;
+  proposed_toml: string;
+  proposed_digest: string;
+  current_toml: string | null;
+  diff: string;
+  discovered_only: boolean;
+}
+
+export interface VerificationManifestWriteResult {
+  path: string;
+  digest: string;
+  previous_digest: string | null;
+  approval_required: boolean;
+  rollback_available: boolean;
 }
 
 export type ReviewStatus =
@@ -84,6 +274,35 @@ export interface ReviewFinding {
   severity: string;
 }
 
+export interface ReviewLifecycleEvent {
+  schema_version: string;
+  id: string;
+  timestamp: string;
+  action: string;
+  from_status: string;
+  to_status: string;
+  actor_role: string;
+  reason: string;
+  evidence_refs: string[];
+  implementation_agent: string | null;
+  remediation_agent: string | null;
+}
+
+export interface ReviewLifecycleAnalysis {
+  source: "structured-events" | "legacy-explicit" | "status-only";
+  confidence: "high" | "medium" | "low";
+  review_passes: number;
+  remediation_cycles: number;
+  initial_verdict: string | null;
+  final_verdict: string | null;
+  escalation_count: number;
+  takeover_count: number;
+  remediation_agents: string[];
+  escalation_owners: string[];
+  takeover_owners: string[];
+  warnings: string[];
+}
+
 export interface Review {
   id: string;
   title: string;
@@ -93,6 +312,9 @@ export interface Review {
   implementation_agent: string | null;
   finding_categories: string[];
   findings: ReviewFinding[];
+  events: ReviewLifecycleEvent[];
+  lifecycle: ReviewLifecycleAnalysis;
+  lifecycle_warnings: string[];
   body: string;
   path: string;
   created: string;
@@ -182,7 +404,10 @@ export interface AgentEffectivenessMetrics {
   specs_with_changes_requested: number;
   transcript_fast_fail_reviews: number;
   review_cycles: number;
+  remediation_cycles: number;
   lead_escalation_reviews: number;
+  escalation_count: number;
+  takeover_count: number;
   categorized_findings: number;
   uncategorized_reviews: number;
   first_pass_accepted_specs: number;
@@ -190,6 +415,17 @@ export interface AgentEffectivenessMetrics {
   average_review_cycles: number;
   transcript_fast_fail_rate: number;
   lead_escalation_rate: number;
+  lifecycle_known_reviews: number;
+  lifecycle_unknown_reviews: number;
+  lifecycle_coverage: number;
+  category_values: number;
+  canonical_category_values: number;
+  category_alias_values: number;
+  unknown_categories: string[];
+  category_coverage: number;
+  attribution_basis: string;
+  confidence: string;
+  diagnostics: string[];
   data_quality_caveat: string;
 }
 
@@ -398,6 +634,12 @@ export interface ReviewTrendPoint {
 
 export interface ReviewQualityStats {
   total_reviews: number;
+  total_review_passes: number;
+  remediation_cycles: number;
+  escalation_count: number;
+  takeover_count: number;
+  lifecycle_known_reviews: number;
+  lifecycle_coverage: number;
   reviewed_specs: number;
   accepted_reviews: number;
   changes_requested_reviews: number;
@@ -623,6 +865,7 @@ export type WikiNodeKind =
   | "specs"
   | "tasks"
   | "reviews"
+  | "findings"
   | "handoffs"
   | "agents"
   | "mcp";
@@ -658,6 +901,7 @@ export type AppView =
   | "taskboard"
   | "spec"
   | "reviews"
+  | "findings"
   | "decisions"
   | "agents"
   | "mcp"

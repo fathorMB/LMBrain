@@ -1,5 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpecParkingEvent {
+    pub timestamp: String,
+    pub actor: String,
+    pub reason: String,
+    pub revisit_condition: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum SpecStatus {
     #[serde(rename = "backlog")]
@@ -49,6 +57,8 @@ pub struct Spec {
     pub area: Option<String>,
     pub milestone: Option<String>,
     pub recommended_agent: Option<String>,
+    pub depends_on: Vec<String>,
+    pub parking_events: Vec<SpecParkingEvent>,
     pub skills: Vec<String>,
     pub body: String,
     pub path: String,

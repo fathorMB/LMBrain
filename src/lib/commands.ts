@@ -14,6 +14,8 @@ import type {
   GitDiffTarget,
   GitHubDashboard,
   Handoff,
+  Finding,
+  FindingContext,
   HarnessStatus,
   HarnessApprovalStatus,
   HarnessConfigurationPlan,
@@ -35,6 +37,12 @@ import type {
   ModelRoute,
   Skill,
   Spec,
+  SpecVerificationState,
+  AttestationResult,
+  VerificationManifest,
+  VerificationManifestPreview,
+  VerificationManifestStatus,
+  VerificationManifestWriteResult,
   WikiPage,
   WikiTree,
   OllamaModel,
@@ -92,6 +100,14 @@ export async function getSpecs(): Promise<Spec[]> {
 
 export async function getReviews(): Promise<Review[]> {
   return invoke("get_reviews");
+}
+
+export async function getFindings(): Promise<Finding[]> {
+  return invoke("get_findings");
+}
+
+export async function getFindingContext(finding: string): Promise<FindingContext> {
+  return invoke("get_finding_context", { finding });
 }
 
 export async function getAdrs(): Promise<Adr[]> {
@@ -263,6 +279,45 @@ export async function getHarnessDrift(): Promise<HarnessDriftEntry[]> {
 
 export async function setArtifactStatus(path: string, targetStatus: string): Promise<string> {
   return invoke("set_artifact_status", { path, targetStatus });
+}
+
+export async function getSpecVerification(path: string): Promise<SpecVerificationState> {
+  return invoke("get_spec_verification", { path });
+}
+
+export async function attestOperatorVerification(
+  path: string,
+  requirementId: string,
+  actor: string,
+  evidenceRef: string,
+): Promise<AttestationResult> {
+  return invoke("attest_operator_verification", {
+    path,
+    requirementId,
+    actor,
+    evidenceRef,
+  });
+}
+
+export async function getVerificationManifestStatus(): Promise<VerificationManifestStatus> {
+  return invoke("get_verification_manifest_status");
+}
+
+export async function previewVerificationManifest(): Promise<VerificationManifestPreview> {
+  return invoke("preview_verification_manifest");
+}
+
+export async function setVerificationManifest(
+  manifest: VerificationManifest,
+  expectedCurrentDigest: string | null,
+): Promise<VerificationManifestWriteResult> {
+  return invoke("set_verification_manifest", { manifest, expectedCurrentDigest });
+}
+
+export async function rollbackVerificationManifest(
+  expectedCurrentDigest: string,
+): Promise<VerificationManifestWriteResult> {
+  return invoke("rollback_verification_manifest", { expectedCurrentDigest });
 }
 
 export async function getGitDetails(): Promise<GitDetails> {

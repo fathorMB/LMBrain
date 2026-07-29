@@ -12,7 +12,7 @@ No hosted LMBrain account or remote database is required. You choose the reposit
 ## What LMBrain provides
 
 - A reusable Markdown project brain that can be initialized inside an existing repository.
-- A desktop view of project status, specs, reviews, decisions, milestones, knowledge, and design artifacts.
+- A desktop view of project status, specs, reviews, durable cross-spec findings, decisions, milestones, knowledge, and design artifacts.
 - A governed spec lifecycle: `backlog → ready → working → review → done`.
 - Repository-scoped MCP tools for controlled artifact creation, transitions, context packs, verification, and agent-profile improvements.
 - Manual interactive sessions for Claude Code, Codex, Pi, and OpenCode when their CLIs are installed locally.
@@ -77,7 +77,7 @@ A typical workflow is:
 2. Ask the Project Lead agent to turn a request into an implementation-ready `SPEC-*` artifact.
 3. Approve the spec, then manually start the recommended specialist from **Sessions** or from your preferred external agent host.
 4. Let the specialist implement the spec and submit real verification evidence.
-5. Request a review, address findings without losing lifecycle history, and mark the spec done only after acceptance.
+5. Request a review, address local findings without losing lifecycle history, and promote only durable cross-spec obligations to governed `FINDING-*` artifacts.
 6. Use **Insights** and **Agents & MCP** to inspect repeated failures and propose governed profile improvements.
 
 Markdown remains authoritative. Context packs and dashboards are derived views and never replace the underlying project artifacts.
@@ -104,6 +104,8 @@ Installed LMBrain packages bundle the repository-scoped MCP sidecar and register
 - Named verification gates execute project code with the current user's permissions only after explicit local approval. They are governed execution, not an operating-system sandbox.
 - Profile-learning signals are read-only. Applying a profile improvement requires an evidence-linked proposal, operator approval, and a non-stale target digest.
 - Existing project files and customized brains are not silently migrated or overwritten.
+- The Findings workspace is read-only: it never promotes legacy review prose, resolves debt from target status, or exposes lifecycle/approval buttons.
+- Spec dependencies and parking are visible but read-only in the app. Governed MCP operations validate an acyclic `depends_on` graph, block premature readiness/start, and preserve reasoned `ready -> backlog` parking history without exposing approve or status-change controls.
 - External agent authentication, network access, billing, and provider policies remain the responsibility of each agent host.
 
 Use version control, inspect proposed changes, and never approve a repository manifest you do not trust.

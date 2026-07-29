@@ -6,7 +6,7 @@ import { useWikiNavigation } from "../../hooks/useWikiNavigation";
 import type { MilestoneOverview, MilestoneDetail } from "../../types";
 
 export function RoadmapView() {
-  const { dispatch, openDetailArtifact } = useWorkspace();
+  const { state, dispatch, openDetailArtifact, navigateTo } = useWorkspace();
   const [overview, setOverview] = useState<MilestoneOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -36,6 +36,11 @@ export function RoadmapView() {
   }
 
   const selected = overview?.milestones.find((m) => m.id === selectedId) ?? null;
+  const milestoneFindings = (state.findings ?? []).filter((finding) =>
+    ["open", "planned", "deferred"].includes(finding.status)
+    && (finding.milestone === selectedId
+      || finding.target_specs.some((target) => selected?.specs.some((spec) => spec.id === target)))
+  );
 
   const statusColors: Record<string, { color: string; bg: string }> = {
     active: { color: "#5b8def", bg: "rgba(91,141,239,0.13)" },
@@ -78,6 +83,13 @@ export function RoadmapView() {
           </span>
           , specs, reviews, and decisions.
         </p>
+        {selected && milestoneFindings.length > 0 && <button
+          type="button"
+          onClick={() => navigateTo("findings")}
+          style={{ marginBottom: 16, padding: "9px 12px", border: "1px solid rgba(224,162,58,.35)", borderRadius: 8, background: "rgba(224,162,58,.08)", color: "#d9b86d", cursor: "pointer" }}
+        >
+          {milestoneFindings.length} active {milestoneFindings.length === 1 ? "finding" : "findings"} attached to {selected.id}
+        </button>}
 
         {(!overview || overview.milestones.length === 0) && (
           <div

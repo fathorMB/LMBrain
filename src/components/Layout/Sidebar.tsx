@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "roadmap", icon: "flag", label: "Roadmap", badge: null },
   { key: "insights", icon: "query_stats", label: "Insights", badge: null },
   { key: "reviews", icon: "rate_review", label: "Reviews", badge: null },
+  { key: "findings", icon: "report_problem", label: "Findings", badge: null },
   { key: "decisions", icon: "account_balance", label: "Decisions", badge: null },
   { key: "design", icon: "design_services", label: "Design", badge: null },
   { key: "agents", icon: "smart_toy", label: "Agents", badge: null },
@@ -56,6 +57,12 @@ export function Sidebar() {
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {NAV_ITEMS.map((item) => {
           const active = state.view === item.key;
+          const badge = item.key === "findings"
+            ? (state.findings ?? []).filter((finding) =>
+                ["open", "planned", "deferred"].includes(finding.status)
+                && (["critical", "high"].includes(finding.severity) || !finding.owner)
+              ).length
+            : item.badge;
           return (
             <div
               key={item.key}
@@ -91,7 +98,7 @@ export function Sidebar() {
                 {item.icon}
               </i>
               <span style={{ flex: 1 }}>{item.label}</span>
-              {item.badge && (
+              {Boolean(badge) && (
                 <span
                   style={{
                     fontFamily: "var(--font-mono)",
@@ -103,7 +110,7 @@ export function Sidebar() {
                     padding: "1px 6px",
                   }}
                 >
-                  {item.badge}
+                  {badge}
                 </span>
               )}
             </div>

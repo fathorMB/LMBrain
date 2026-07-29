@@ -33,9 +33,14 @@ vi.mock("../hooks/useWorkspace", () => ({
       agents: [],
       diagnostics: [
         {
+          id: "DIAG-0123456789abcdef",
+          code: "frontmatter-malformed",
           message: "YAML frontmatter is malformed: missing key",
           severity: "error",
+          artifact_id: "SPEC-001",
           path: ".lmbrain/tasks/task-001.md",
+          next_action: "Repair the YAML frontmatter before retrying.",
+          fixability: "manual",
         },
       ],
       currentWorkspace: {
@@ -106,13 +111,21 @@ describe("ProjectPulse Diagnostics Fix Prompt", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Copy fix prompt")).toBeDefined();
+      expect(
+        screen.getByText(
+          "Next action: Repair the YAML frontmatter before retrying.",
+        ),
+      ).toBeDefined();
     });
 
     fireEvent.click(screen.getByText("Copy fix prompt"));
 
     expect(writeTextMock).toHaveBeenCalled();
     expect(writeTextMock.mock.calls[0][0]).toContain(
-      "Please fix the malformed frontmatter",
+      "Please address DIAG-0123456789abcdef (frontmatter-malformed)",
+    );
+    expect(writeTextMock.mock.calls[0][0]).toContain(
+      "Required next action: Repair the YAML frontmatter before retrying.",
     );
   });
 

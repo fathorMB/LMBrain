@@ -6,25 +6,131 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{frontmatter::Document, verification::load_verification_manifest};
+use crate::{
+    frontmatter::Document,
+    review::{parse_review_event_history, ReviewLifecycleEvent},
+    taxonomy::{normalize_finding_category, CategoryNormalization},
+    verification::load_verification_manifest,
+};
 
 // ─── Context-pack data structures ─────────────────────────────────
 
 /// Compact project overview for Project Lead bootstrap and pulse.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectDigest {
+    pub schema_version: String,
     pub title: String,
     pub status: String,
     pub current_milestone: Option<String>,
     pub ready_specs: Vec<CompactSpec>,
     pub review_specs: Vec<CompactSpec>,
     pub blockers: Vec<String>,
+    pub blockers_omitted: usize,
     pub ready_handoffs: Vec<String>,
     pub active_decisions: Vec<CompactAdr>,
     pub diagnostics_summary: DiagnosticsSummary,
     pub version: Option<String>,
     pub warnings: Vec<String>,
+    pub warnings_omitted: usize,
+    pub declared_state: DeclaredProjectState,
+    pub derived_state: DerivedProjectState,
+    pub lifecycle: SpecLifecycleView,
+    pub diagnostics: BoundedDiagnosticList,
+    pub findings: FindingDigest,
+    pub spec_dependencies: SpecDependencyDigest,
     pub markdown: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpecDependencyDigest {
+    pub blocked_total: usize,
+    pub blocked_omitted: usize,
+    pub blocked: Vec<SpecDependencyDigestItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpecDependencyDigestItem {
+    pub id: String,
+    pub status: String,
+    pub blockers: Vec<crate::SpecDependencyBlocker>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeclaredProjectState {
+    pub title: String,
+    pub status: String,
+    pub current_milestone: Option<String>,
+    pub source: String,
+    pub source_present: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DerivedProjectState {
+    pub current_milestone: Option<String>,
+    pub basis: String,
+    pub active_milestones: Vec<String>,
+    pub planned_milestones: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BoundedSpecList {
+    pub total: usize,
+    pub omitted: usize,
+    pub items: Vec<CompactSpec>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpecLifecycleView {
+    pub counts: BTreeMap<String, usize>,
+    pub backlog: BoundedSpecList,
+    pub ready: BoundedSpecList,
+    pub working: BoundedSpecList,
+    pub review: BoundedSpecList,
+    pub done: BoundedSpecList,
+    pub discarded: BoundedSpecList,
+    pub recently_completed: BoundedSpecList,
+    pub forced: usize,
+    pub malformed: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BoundedDiagnosticList {
+    pub total: usize,
+    pub omitted: usize,
+    pub items: Vec<crate::Diagnostic>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactFinding {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+    pub severity: String,
+    pub category: String,
+    pub owner: Option<String>,
+    pub milestone: Option<String>,
+    pub origin_artifact: Option<String>,
+    pub target_specs: Vec<String>,
+    pub blocked_by: Vec<String>,
+    pub updated: String,
+    pub path: String,
+    pub relation_roles: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BoundedFindingList {
+    pub total: usize,
+    pub omitted: usize,
+    pub items: Vec<CompactFinding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FindingDigest {
+    pub counts: BTreeMap<String, usize>,
+    pub active: BoundedFindingList,
+    pub targetless_open: BoundedFindingList,
+    pub blocked: BoundedFindingList,
+    pub recently_closed: BoundedFindingList,
 }
 
 /// Compact spec reference for lists.
@@ -37,6 +143,17 @@ pub struct CompactSpec {
     pub area: Option<String>,
     pub recommended_agent: Option<String>,
     pub milestone: Option<String>,
+    pub updated: Option<String>,
+    pub forced: bool,
+    pub parking: Option<SpecParkingSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpecParkingSummary {
+    pub timestamp: String,
+    pub actor: String,
+    pub reason: String,
+    pub revisit_condition: Option<String>,
 }
 
 /// Compact ADR reference for lists.
@@ -56,6 +173,10 @@ pub struct DiagnosticsSummary {
     pub warnings: usize,
 }
 
+const DIGEST_SPEC_LIMIT: usize = 20;
+const DIGEST_DIAGNOSTIC_LIMIT: usize = 50;
+const DIGEST_FINDING_LIMIT: usize = 30;
+
 /// Spec handoff context for specialist orientation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpecContext {
@@ -66,6 +187,7 @@ pub struct SpecContext {
     pub area: Option<String>,
     pub milestone: Option<String>,
     pub recommended_agent: Option<String>,
+    pub parking: Option<SpecParkingSummary>,
     pub agent_profile: Option<AgentProfileSummary>,
     pub acceptance_criteria: Vec<Criterion>,
     pub required_verification: Vec<VerificationRequirement>,
@@ -76,6 +198,8 @@ pub struct SpecContext {
     pub explicit_files: Vec<String>,
     pub explicit_areas: Vec<String>,
     pub diagnostics: Vec<String>,
+    pub findings: Vec<CompactFinding>,
+    pub dependencies: crate::SpecDependencyContext,
     pub warnings: Vec<String>,
     pub markdown: String,
 }
@@ -106,6 +230,9 @@ pub struct CompactReview {
     pub title: String,
     pub status: String,
     pub reviewer: Option<String>,
+    pub finding_categories: Vec<CategoryNormalization>,
+    pub events: Vec<ReviewLifecycleEvent>,
+    pub lifecycle_warnings: Vec<String>,
 }
 
 /// Agent profile summary for context packs.
@@ -156,6 +283,7 @@ pub struct ReviewContext {
     pub required_verification: Vec<VerificationRequirement>,
     pub required_verification_source: Option<String>,
     pub applicable_skills: Vec<SkillSummary>,
+    pub findings: Vec<CompactFinding>,
     pub warnings: Vec<String>,
     pub markdown: String,
 }
@@ -165,24 +293,35 @@ pub struct ReviewContext {
 /// Build a project digest from the .lmbrain directory.
 pub fn build_project_digest(root: &Path) -> ProjectDigest {
     let lmbrain = root.join(".lmbrain");
-    let mut warnings = Vec::new();
 
     // Read STATUS.md
     let (title, status, milestone) = read_status(&lmbrain);
+    let status_present = lmbrain.join("STATUS.md").is_file();
     let version = read_version(&lmbrain);
 
     // Scan specs
-    let all_specs = scan_specs(&lmbrain);
-    let ready_specs: Vec<CompactSpec> = all_specs
+    let mut all_specs = scan_specs(&lmbrain);
+    all_specs.sort_by(|left, right| left.id.cmp(&right.id));
+    let ready_all: Vec<CompactSpec> = all_specs
         .iter()
         .filter(|s| s.status.as_deref() == Some("ready"))
         .cloned()
         .collect();
-    let review_specs: Vec<CompactSpec> = all_specs
+    let review_all: Vec<CompactSpec> = all_specs
         .iter()
         .filter(|s| s.status.as_deref() == Some("review"))
         .cloned()
         .collect();
+    let ready_specs = ready_all
+        .iter()
+        .take(DIGEST_SPEC_LIMIT)
+        .cloned()
+        .collect::<Vec<_>>();
+    let review_specs = review_all
+        .iter()
+        .take(DIGEST_SPEC_LIMIT)
+        .cloned()
+        .collect::<Vec<_>>();
 
     // Scan handoffs
     let ready_handoffs = scan_ready_handoffs(&lmbrain);
@@ -191,36 +330,84 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
     let active_decisions = scan_active_adrs(&lmbrain);
 
     // Scan diagnostics
-    let diagnostics = scan_diagnostics(root);
+    let all_diagnostics = crate::diagnostics::build_diagnostics(root);
     let diag_summary = DiagnosticsSummary {
-        errors: diagnostics.iter().filter(|d| d.severity == "error").count(),
-        warnings: diagnostics
+        errors: all_diagnostics
             .iter()
-            .filter(|d| d.severity == "warning")
+            .filter(|diagnostic| diagnostic.severity == crate::DiagnosticSeverity::Error)
             .count(),
-        total: diagnostics.len(),
+        warnings: all_diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.severity == crate::DiagnosticSeverity::Warning)
+            .count(),
+        total: all_diagnostics.len(),
     };
 
     // Collect blockers from diagnostics
-    let blockers: Vec<String> = diagnostics
+    let blocker_messages = all_diagnostics
         .iter()
-        .filter(|d| d.severity == "error")
-        .map(|d| d.message.clone())
-        .collect();
+        .filter(|diagnostic| diagnostic.severity == crate::DiagnosticSeverity::Error)
+        .map(|diagnostic| diagnostic.message.clone())
+        .collect::<Vec<_>>();
+    let blockers = blocker_messages
+        .iter()
+        .take(DIGEST_DIAGNOSTIC_LIMIT)
+        .cloned()
+        .collect::<Vec<_>>();
+    let blockers_omitted = blocker_messages.len().saturating_sub(blockers.len());
+    let warning_messages = all_diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity == crate::DiagnosticSeverity::Warning)
+        .map(|diagnostic| diagnostic.message.clone())
+        .collect::<Vec<_>>();
+    let warnings = warning_messages
+        .iter()
+        .take(DIGEST_DIAGNOSTIC_LIMIT)
+        .cloned()
+        .collect::<Vec<_>>();
+    let warnings_omitted = warning_messages.len().saturating_sub(warnings.len());
+    let lifecycle = build_lifecycle_view(&all_specs, &all_diagnostics);
+    let declared_state = DeclaredProjectState {
+        title: title.clone(),
+        status: status.clone(),
+        current_milestone: milestone.clone(),
+        source: "STATUS.md".into(),
+        source_present: status_present,
+    };
+    let derived_state = derive_project_state(&lmbrain, &all_specs);
+    let diagnostics = BoundedDiagnosticList {
+        total: all_diagnostics.len(),
+        omitted: all_diagnostics
+            .len()
+            .saturating_sub(DIGEST_DIAGNOSTIC_LIMIT),
+        items: all_diagnostics
+            .iter()
+            .take(DIGEST_DIAGNOSTIC_LIMIT)
+            .cloned()
+            .collect(),
+    };
+    let findings = build_finding_digest(root);
+    let dependency_items = all_specs
+        .iter()
+        .filter_map(|spec| {
+            let context = crate::spec_dependency_context(root, &spec.id).ok()?;
+            (!context.blockers.is_empty()).then_some(SpecDependencyDigestItem {
+                id: spec.id.clone(),
+                status: spec.status.clone().unwrap_or_default(),
+                blockers: context.blockers,
+            })
+        })
+        .collect::<Vec<_>>();
+    let spec_dependencies = SpecDependencyDigest {
+        blocked_total: dependency_items.len(),
+        blocked_omitted: dependency_items.len().saturating_sub(DIGEST_SPEC_LIMIT),
+        blocked: dependency_items
+            .into_iter()
+            .take(DIGEST_SPEC_LIMIT)
+            .collect(),
+    };
 
-    // Check for missing recommended agents
-    for spec in &all_specs {
-        if let Some(agent) = &spec.recommended_agent {
-            if !agent_resolves(&lmbrain, agent) {
-                warnings.push(format!(
-                    "Spec {} recommends agent '{}' which does not resolve",
-                    spec.id, agent
-                ));
-            }
-        }
-    }
-
-    let markdown = format_project_digest_md(
+    let mut markdown = format_project_digest_md(
         &title,
         &status,
         &milestone,
@@ -232,20 +419,35 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
         &diag_summary,
         &version,
         &warnings,
+        warnings_omitted,
+        &lifecycle,
+        &diagnostics,
+        &declared_state,
+        &derived_state,
     );
+    append_findings_markdown(&mut markdown, "Active findings", &findings.active.items);
 
     ProjectDigest {
+        schema_version: "2".into(),
         title,
         status,
         current_milestone: milestone,
         ready_specs,
         review_specs,
         blockers,
+        blockers_omitted,
         ready_handoffs,
         active_decisions,
         diagnostics_summary: diag_summary,
         version,
         warnings,
+        warnings_omitted,
+        declared_state,
+        derived_state,
+        lifecycle,
+        diagnostics,
+        findings,
+        spec_dependencies,
         markdown,
     }
 }
@@ -264,6 +466,7 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
     let area = document.value("area");
     let milestone = document.value("milestone");
     let recommended_agent = document.value("recommended_agent");
+    let parking = latest_parking(&document);
     let spec_skills = document.string_array("skills");
     let spec_tags = document.string_array("tags");
     let related_decisions = document.string_array("related_decisions");
@@ -308,6 +511,9 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
 
     // Collect diagnostics affecting this spec
     let diagnostics = spec_diagnostics(&lmbrain, &id);
+    let findings = findings_for_spec(root, &id);
+    let dependencies = crate::spec_dependency_context(root, &id)
+        .map_err(|error| format!("Failed to resolve spec dependencies: {error}"))?;
 
     if recommended_agent.is_some() && agent_profile.is_none() {
         warnings.push(format!(
@@ -316,7 +522,7 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         ));
     }
 
-    let markdown = format_spec_context_md(
+    let mut markdown = format_spec_context_md(
         &id,
         &title,
         &status,
@@ -335,6 +541,21 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         &diagnostics,
         &warnings,
     );
+    append_findings_markdown(&mut markdown, "Related findings", &findings);
+    append_dependencies_markdown(&mut markdown, &dependencies);
+    if let Some(event) = parking.as_ref() {
+        markdown.push_str(&format!(
+            "\n## Latest parking history\n\n- Parked by {} at {}: {}{}\n",
+            event.actor,
+            event.timestamp,
+            event.reason,
+            event
+                .revisit_condition
+                .as_deref()
+                .map(|value| format!("; revisit: {value}"))
+                .unwrap_or_default()
+        ));
+    }
 
     Ok(SpecContext {
         id,
@@ -344,6 +565,7 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         area,
         milestone,
         recommended_agent,
+        parking,
         agent_profile,
         acceptance_criteria: criteria,
         required_verification,
@@ -354,6 +576,8 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         explicit_files,
         explicit_areas,
         diagnostics,
+        findings,
+        dependencies,
         warnings,
         markdown,
     })
@@ -395,6 +619,14 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
     let mut warnings = requirement_warnings;
     warnings.extend(evidence_warnings);
     warnings.extend(verification_reference_warnings(root, &verification_refs));
+    for review in &linked_reviews {
+        warnings.extend(
+            review
+                .lifecycle_warnings
+                .iter()
+                .map(|warning| format!("{}: {warning}", review.id)),
+        );
+    }
     for adr_id in &related_decisions {
         match resolve_adr(&lmbrain, adr_id) {
             Some(adr) => relevant_decisions.push(adr),
@@ -422,8 +654,38 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         &spec_tags,
         true,
     );
+    let review_ids = linked_reviews
+        .iter()
+        .map(|review| review.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let findings = crate::list_findings(root)
+        .into_iter()
+        .filter_map(|finding| {
+            let mut roles = Vec::new();
+            if finding
+                .origin_artifact
+                .as_deref()
+                .is_some_and(|id| review_ids.contains(id))
+            {
+                roles.push("origin".into());
+            }
+            if finding
+                .related_reviews
+                .iter()
+                .any(|id| review_ids.contains(id.as_str()))
+            {
+                roles.push("related-review".into());
+            }
+            if roles.is_empty() {
+                None
+            } else {
+                Some(compact_finding(finding, roles))
+            }
+        })
+        .take(DIGEST_FINDING_LIMIT)
+        .collect::<Vec<_>>();
 
-    let markdown = format_review_context_md(
+    let mut markdown = format_review_context_md(
         &spec_id,
         &spec_title,
         &criteria,
@@ -435,6 +697,7 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         &applicable_skills,
         &warnings,
     );
+    append_findings_markdown(&mut markdown, "Promoted findings", &findings);
 
     Ok(ReviewContext {
         spec_id,
@@ -447,12 +710,190 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         required_verification,
         required_verification_source,
         applicable_skills,
+        findings,
         warnings,
         markdown,
     })
 }
 
 // ─── Internal helpers ──────────────────────────────────────────────
+
+fn build_finding_digest(root: &Path) -> FindingDigest {
+    let mut findings = crate::list_findings(root)
+        .into_iter()
+        .filter(|finding| !finding.malformed)
+        .map(|finding| compact_finding(finding, Vec::new()))
+        .collect::<Vec<_>>();
+    findings.sort_by(|left, right| {
+        finding_severity_rank(&right.severity)
+            .cmp(&finding_severity_rank(&left.severity))
+            .then_with(|| right.updated.cmp(&left.updated))
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    let mut counts = BTreeMap::new();
+    for finding in &findings {
+        *counts.entry(finding.status.clone()).or_insert(0) += 1;
+    }
+    let active = bounded_findings(
+        findings
+            .iter()
+            .filter(|finding| matches!(finding.status.as_str(), "open" | "planned" | "deferred"))
+            .cloned()
+            .collect(),
+    );
+    let targetless_open = bounded_findings(
+        findings
+            .iter()
+            .filter(|finding| finding.status == "open" && finding.target_specs.is_empty())
+            .cloned()
+            .collect(),
+    );
+    let blocked = bounded_findings(
+        findings
+            .iter()
+            .filter(|finding| !finding.blocked_by.is_empty())
+            .cloned()
+            .collect(),
+    );
+    let mut closed = findings
+        .into_iter()
+        .filter(|finding| matches!(finding.status.as_str(), "resolved" | "accepted-risk"))
+        .collect::<Vec<_>>();
+    closed.sort_by(|left, right| right.updated.cmp(&left.updated));
+    FindingDigest {
+        counts,
+        active,
+        targetless_open,
+        blocked,
+        recently_closed: bounded_findings(closed),
+    }
+}
+
+fn findings_for_spec(root: &Path, spec_id: &str) -> Vec<CompactFinding> {
+    crate::list_findings(root)
+        .into_iter()
+        .filter_map(|finding| {
+            let mut roles = Vec::new();
+            if finding.origin_artifact.as_deref() == Some(spec_id) {
+                roles.push("origin".into());
+            }
+            if finding.related_specs.iter().any(|id| id == spec_id) {
+                roles.push("related".into());
+            }
+            if finding.target_specs.iter().any(|id| id == spec_id) {
+                roles.push("target".into());
+            }
+            if roles.is_empty() {
+                None
+            } else {
+                Some(compact_finding(finding, roles))
+            }
+        })
+        .take(DIGEST_FINDING_LIMIT)
+        .collect()
+}
+
+fn compact_finding(finding: crate::Finding, relation_roles: Vec<String>) -> CompactFinding {
+    CompactFinding {
+        id: finding.id,
+        title: finding.title,
+        status: finding.status,
+        severity: finding.severity,
+        category: finding.category,
+        owner: finding.owner,
+        milestone: finding.milestone,
+        origin_artifact: finding.origin_artifact,
+        target_specs: finding.target_specs,
+        blocked_by: finding.blocked_by,
+        updated: finding.updated,
+        path: finding.path,
+        relation_roles,
+    }
+}
+
+fn bounded_findings(items: Vec<CompactFinding>) -> BoundedFindingList {
+    let total = items.len();
+    BoundedFindingList {
+        total,
+        omitted: total.saturating_sub(DIGEST_FINDING_LIMIT),
+        items: items.into_iter().take(DIGEST_FINDING_LIMIT).collect(),
+    }
+}
+
+fn finding_severity_rank(severity: &str) -> usize {
+    match severity {
+        "critical" => 5,
+        "high" => 4,
+        "medium" => 3,
+        "low" => 2,
+        "info" => 1,
+        _ => 0,
+    }
+}
+
+fn append_findings_markdown(markdown: &mut String, heading: &str, findings: &[CompactFinding]) {
+    markdown.push_str(&format!("\n## {heading}\n"));
+    if findings.is_empty() {
+        markdown.push_str("- None\n");
+        return;
+    }
+    for finding in findings {
+        let roles = if finding.relation_roles.is_empty() {
+            String::new()
+        } else {
+            format!("; {}", finding.relation_roles.join(", "))
+        };
+        markdown.push_str(&format!(
+            "- {} [{}; {}{}] {}\n",
+            finding.id, finding.status, finding.severity, roles, finding.title
+        ));
+    }
+}
+
+fn append_dependencies_markdown(
+    markdown: &mut String,
+    dependencies: &crate::SpecDependencyContext,
+) {
+    markdown.push_str("\n## Hard spec dependencies\n");
+    if dependencies.direct_prerequisites.is_empty() {
+        markdown.push_str("\n- Direct prerequisites: none\n");
+    } else {
+        markdown.push_str("\n### Direct prerequisites\n");
+        for dependency in &dependencies.direct_prerequisites {
+            markdown.push_str(&format!(
+                "\n- {} — {} ({})",
+                dependency.id, dependency.title, dependency.status
+            ));
+        }
+        markdown.push('\n');
+    }
+    if !dependencies.direct_dependents.is_empty() {
+        markdown.push_str("\n### Direct dependents\n");
+        for dependency in &dependencies.direct_dependents {
+            markdown.push_str(&format!(
+                "\n- {} — {} ({})",
+                dependency.id, dependency.title, dependency.status
+            ));
+        }
+        markdown.push('\n');
+    }
+    if !dependencies.blockers.is_empty() {
+        markdown.push_str("\n### Blocking chains\n");
+        for blocker in &dependencies.blockers {
+            markdown.push_str(&format!(
+                "\n- {} [{}] via {} — {}",
+                blocker.id,
+                blocker.status,
+                blocker.chain.join(" -> "),
+                blocker.cause
+            ));
+        }
+        markdown.push('\n');
+    }
+    if dependencies.truncated {
+        markdown.push_str("\n_Transitive dependency view truncated at its deterministic bound._\n");
+    }
+}
 
 fn read_status(lmbrain: &Path) -> (String, String, Option<String>) {
     let path = lmbrain.join("STATUS.md");
@@ -468,15 +909,23 @@ fn read_status(lmbrain: &Path) -> (String, String, Option<String>) {
                 .unwrap_or_else(|| raw.to_string())
         })
         .unwrap_or_default();
-    let status = extract_section(&content, "Status")
-        .or_else(|| {
-            content
-                .lines()
-                .find(|l| l.to_lowercase().contains("status"))
-                .map(|l| l.trim().to_string())
+    let status = content
+        .lines()
+        .find_map(|line| {
+            let trimmed = line.trim();
+            let lower = trimmed.to_ascii_lowercase();
+            if lower.starts_with("**status:**") || lower.starts_with("status:") {
+                trimmed
+                    .split_once(':')
+                    .map(|(_, value)| value.trim().trim_matches('*').trim().to_string())
+                    .filter(|value| !value.is_empty())
+            } else {
+                None
+            }
         })
+        .or_else(|| extract_section(&content, "Status"))
         .unwrap_or_else(|| "unknown".to_string());
-    let milestone = extract_section(&content, "Current milestone");
+    let milestone = crate::diagnostics::extract_declared_milestone(&content);
     (title, status, milestone)
 }
 
@@ -484,6 +933,19 @@ fn read_version(lmbrain: &Path) -> Option<String> {
     fs::read_to_string(lmbrain.join("VERSION"))
         .ok()
         .map(|v| v.trim().to_string())
+}
+
+fn latest_parking(document: &Document) -> Option<SpecParkingSummary> {
+    let event = document.object_array("parking_events").into_iter().last()?;
+    Some(SpecParkingSummary {
+        timestamp: event.get("timestamp")?.as_str()?.to_string(),
+        actor: event.get("actor")?.as_str()?.to_string(),
+        reason: event.get("reason")?.as_str()?.to_string(),
+        revisit_condition: event
+            .get("revisit_condition")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+    })
 }
 
 fn scan_specs(lmbrain: &Path) -> Vec<CompactSpec> {
@@ -518,6 +980,10 @@ fn scan_specs(lmbrain: &Path) -> Vec<CompactSpec> {
                                 area: doc.value("area"),
                                 recommended_agent: doc.value("recommended_agent"),
                                 milestone: doc.value("milestone"),
+                                updated: doc.value("updated"),
+                                forced: !doc.object_array("mutation_overrides").is_empty()
+                                    || doc.body.contains("## Mutation override"),
+                                parking: latest_parking(&doc),
                             });
                         }
                     }
@@ -526,6 +992,139 @@ fn scan_specs(lmbrain: &Path) -> Vec<CompactSpec> {
         }
     }
     specs
+}
+
+fn build_lifecycle_view(
+    specs: &[CompactSpec],
+    diagnostics: &[crate::Diagnostic],
+) -> SpecLifecycleView {
+    let mut counts = BTreeMap::from([
+        ("backlog".into(), 0),
+        ("ready".into(), 0),
+        ("working".into(), 0),
+        ("review".into(), 0),
+        ("done".into(), 0),
+        ("discarded".into(), 0),
+        ("malformed".into(), 0),
+    ]);
+    for spec in specs {
+        if let Some(status) = spec.status.as_ref() {
+            *counts.entry(status.clone()).or_default() += 1;
+        }
+    }
+    let malformed = diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic.code == "frontmatter-malformed"
+                && diagnostic
+                    .path
+                    .as_deref()
+                    .is_some_and(|path| path.starts_with("specs/"))
+        })
+        .count();
+    counts.insert("malformed".into(), malformed);
+    SpecLifecycleView {
+        counts,
+        backlog: bounded_specs(specs, "backlog"),
+        ready: bounded_specs(specs, "ready"),
+        working: bounded_specs(specs, "working"),
+        review: bounded_specs(specs, "review"),
+        done: bounded_specs(specs, "done"),
+        discarded: bounded_specs(specs, "discarded"),
+        recently_completed: recently_completed_specs(specs),
+        forced: specs.iter().filter(|spec| spec.forced).count(),
+        malformed,
+    }
+}
+
+fn bounded_specs(specs: &[CompactSpec], status: &str) -> BoundedSpecList {
+    let matching = specs
+        .iter()
+        .filter(|spec| spec.status.as_deref() == Some(status))
+        .cloned()
+        .collect::<Vec<_>>();
+    BoundedSpecList {
+        total: matching.len(),
+        omitted: matching.len().saturating_sub(DIGEST_SPEC_LIMIT),
+        items: matching.into_iter().take(DIGEST_SPEC_LIMIT).collect(),
+    }
+}
+
+fn recently_completed_specs(specs: &[CompactSpec]) -> BoundedSpecList {
+    let mut matching = specs
+        .iter()
+        .filter(|spec| spec.status.as_deref() == Some("done"))
+        .cloned()
+        .collect::<Vec<_>>();
+    matching.sort_by(|left, right| {
+        right
+            .updated
+            .cmp(&left.updated)
+            .then_with(|| right.id.cmp(&left.id))
+    });
+    BoundedSpecList {
+        total: matching.len(),
+        omitted: matching.len().saturating_sub(DIGEST_SPEC_LIMIT),
+        items: matching.into_iter().take(DIGEST_SPEC_LIMIT).collect(),
+    }
+}
+
+fn derive_project_state(lmbrain: &Path, specs: &[CompactSpec]) -> DerivedProjectState {
+    let roadmap = fs::read_to_string(lmbrain.join("ROADMAP.md"))
+        .ok()
+        .map(|source| crate::diagnostics::parse_roadmap_milestones(&source))
+        .unwrap_or_default();
+    let active_milestones = roadmap
+        .iter()
+        .filter(|(_, milestone)| {
+            milestone
+                .status
+                .as_deref()
+                .is_some_and(|status| matches!(status, "active" | "in-progress" | "working"))
+        })
+        .map(|(id, _)| id.clone())
+        .collect::<Vec<_>>();
+    let planned_milestones = roadmap
+        .iter()
+        .filter(|(_, milestone)| {
+            milestone
+                .status
+                .as_deref()
+                .is_some_and(|status| matches!(status, "planned" | "proposed"))
+        })
+        .map(|(id, _)| id.clone())
+        .collect::<Vec<_>>();
+    let mut scores: BTreeMap<String, usize> = BTreeMap::new();
+    for spec in specs {
+        let score = match spec.status.as_deref() {
+            Some("working") => 40,
+            Some("review") => 30,
+            Some("ready") => 20,
+            Some("backlog") => 10,
+            _ => 0,
+        };
+        if score > 0 {
+            if let Some(milestone) = spec.milestone.as_ref() {
+                *scores.entry(milestone.clone()).or_default() += score;
+            }
+        }
+    }
+    let maximum = scores.values().copied().max();
+    let candidates = maximum
+        .map(|maximum| {
+            scores
+                .into_iter()
+                .filter(|(_, score)| *score == maximum)
+                .map(|(milestone, _)| milestone)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    DerivedProjectState {
+        current_milestone: (candidates.len() == 1).then(|| candidates[0].clone()),
+        basis: "weighted open-spec lifecycle: working=40, review=30, ready=20, backlog=10".into(),
+        active_milestones,
+        planned_milestones,
+    }
 }
 
 fn scan_ready_handoffs(lmbrain: &Path) -> Vec<String> {
@@ -589,77 +1188,6 @@ fn scan_active_adrs(lmbrain: &Path) -> Vec<CompactAdr> {
             .cmp(a.decision_date.as_deref().unwrap_or(""))
     });
     adrs
-}
-
-fn scan_diagnostics(root: &Path) -> Vec<DiagnosticEntry> {
-    let lmbrain = root.join(".lmbrain");
-    let mut diagnostics = Vec::new();
-    let entries = scan_md_files(&lmbrain);
-
-    for file_path in entries {
-        let source = match fs::read_to_string(&file_path) {
-            Ok(s) => s,
-            Err(_) => {
-                diagnostics.push(DiagnosticEntry {
-                    message: format!("Failed to read {}", file_path.display()),
-                    severity: "warning".to_string(),
-                });
-                continue;
-            }
-        };
-
-        let doc = match Document::parse(&source) {
-            Ok(d) => d,
-            Err(e) => {
-                diagnostics.push(DiagnosticEntry {
-                    message: format!("Malformed frontmatter in {}: {e}", file_path.display()),
-                    severity: "warning".to_string(),
-                });
-                continue;
-            }
-        };
-
-        // Check status directory/frontmatter mismatch for specs and reviews
-        if let Some(parent) = file_path.parent() {
-            if let Some(grandparent) = parent.parent() {
-                let artifact_type = grandparent
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .map(|n| n.to_string())
-                    .unwrap_or_default();
-                if (artifact_type == "specs" || artifact_type == "reviews")
-                    && !crate::invariants::folder_matches_status(&file_path)
-                {
-                    let status_dir = parent.file_name().and_then(|n| n.to_str()).unwrap_or("?");
-                    let fm_status = doc.value("status").unwrap_or_else(|| "?".into());
-                    diagnostics.push(DiagnosticEntry {
-                        message: format!(
-                            "Status mismatch: file is in '{artifact_type}/{status_dir}' but frontmatter status is '{fm_status}'"
-                        ),
-                        severity: "warning".to_string(),
-                    });
-                }
-            }
-        }
-    }
-
-    // Check for unresolved recommended agents across all specs
-    let specs = scan_specs(&lmbrain);
-    for spec in &specs {
-        if let Some(agent) = &spec.recommended_agent {
-            if !agent_resolves(&lmbrain, agent) {
-                diagnostics.push(DiagnosticEntry {
-                    message: format!(
-                        "Missing reference: spec {} recommends agent '{agent}', which is not an existing agent profile",
-                        spec.id
-                    ),
-                    severity: "warning".to_string(),
-                });
-            }
-        }
-    }
-
-    diagnostics
 }
 
 fn resolve_spec_path(lmbrain: &Path, spec_id_or_path: &str) -> Result<PathBuf, String> {
@@ -771,10 +1299,6 @@ fn resolve_agent(lmbrain: &Path, agent_id: &str) -> Option<AgentProfileSummary> 
         }
     }
     None
-}
-
-fn agent_resolves(lmbrain: &Path, agent_id: &str) -> bool {
-    resolve_agent(lmbrain, agent_id).is_some()
 }
 
 fn resolve_applicable_skills(
@@ -907,11 +1431,32 @@ fn resolve_reviews_for_spec(lmbrain: &Path, spec_id: &str) -> Vec<CompactReview>
                     if let Ok(source) = fs::read_to_string(&path) {
                         if let Ok(doc) = Document::parse(&source) {
                             if doc.value("spec").as_deref() == Some(spec_id) {
+                                let history = parse_review_event_history(&doc);
+                                let finding_categories = doc
+                                    .string_array("finding_categories")
+                                    .iter()
+                                    .map(|category| normalize_finding_category(category))
+                                    .collect::<Vec<_>>();
+                                let mut lifecycle_warnings = history.warnings;
+                                lifecycle_warnings.extend(
+                                    finding_categories
+                                        .iter()
+                                        .filter(|category| category.canonical.is_none())
+                                        .map(|category| {
+                                            format!(
+                                                "Unknown finding category '{}'; add an alias or use a canonical category.",
+                                                category.raw
+                                            )
+                                        }),
+                                );
                                 reviews.push(CompactReview {
                                     id: doc.value("id").unwrap_or_default(),
                                     title: doc.value("title").unwrap_or_default(),
                                     status: doc.value("status").unwrap_or_default(),
                                     reviewer: doc.value("reviewer"),
+                                    finding_categories,
+                                    events: history.events,
+                                    lifecycle_warnings,
                                 });
                             }
                         }
@@ -992,7 +1537,7 @@ fn parse_acceptance_criteria(body: &str) -> Vec<Criterion> {
         .unwrap_or_default()
 }
 
-fn parse_verification_requirements(
+pub fn parse_verification_requirements(
     body: &str,
     manifest_refs: &[String],
 ) -> (Vec<VerificationRequirement>, Option<String>, Vec<String>) {
@@ -1326,12 +1871,6 @@ fn scan_md_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-#[derive(Debug, Clone)]
-struct DiagnosticEntry {
-    message: String,
-    severity: String,
-}
-
 // ─── Markdown summary formatters ───────────────────────────────────
 
 fn format_project_digest_md(
@@ -1346,6 +1885,11 @@ fn format_project_digest_md(
     diagnostics: &DiagnosticsSummary,
     version: &Option<String>,
     warnings: &[String],
+    warnings_omitted: usize,
+    lifecycle: &SpecLifecycleView,
+    diagnostic_items: &BoundedDiagnosticList,
+    declared: &DeclaredProjectState,
+    derived: &DerivedProjectState,
 ) -> String {
     let mut md = format!("# Project Digest: {title}\n\n**Status:** {status}\n");
     if let Some(ms) = milestone {
@@ -1355,6 +1899,49 @@ fn format_project_digest_md(
         md.push_str(&format!("**Kit version:** {v}\n"));
     }
     md.push('\n');
+
+    md.push_str("## Reconciled state\n\n");
+    md.push_str(&format!(
+        "- Declared source: {} ({})\n- Declared milestone: {}\n- Derived milestone: {}\n- Derivation basis: {}\n",
+        declared.source,
+        if declared.source_present {
+            "present"
+        } else {
+            "missing"
+        },
+        declared
+            .current_milestone
+            .as_deref()
+            .unwrap_or("not declared"),
+        derived
+            .current_milestone
+            .as_deref()
+            .unwrap_or("ambiguous or unavailable"),
+        derived.basis
+    ));
+    md.push_str(&format!(
+        "- Lifecycle counts: {}\n- Forced specs: {}\n- Recently completed: {} total, {} omitted\n\n",
+        lifecycle
+            .counts
+            .iter()
+            .map(|(status, count)| format!("{status}={count}"))
+            .collect::<Vec<_>>()
+            .join(", "),
+        lifecycle.forced,
+        lifecycle.recently_completed.total,
+        lifecycle.recently_completed.omitted
+    ));
+
+    if lifecycle.backlog.total > 0 {
+        md.push_str(&format!(
+            "## Planned backlog ({} total, {} omitted)\n\n",
+            lifecycle.backlog.total, lifecycle.backlog.omitted
+        ));
+        for spec in &lifecycle.backlog.items {
+            md.push_str(&format!("- **{}**: {}\n", spec.id, spec.title));
+        }
+        md.push('\n');
+    }
 
     if !ready_specs.is_empty() {
         md.push_str(&format!("## Ready specs ({})\n\n", ready_specs.len()));
@@ -1404,15 +1991,37 @@ fn format_project_digest_md(
     }
 
     md.push_str(&format!(
-        "## Diagnostics\n\n- Total: {}\n- Errors: {}\n- Warnings: {}\n",
-        diagnostics.total, diagnostics.errors, diagnostics.warnings
+        "## Diagnostics\n\n- Total: {}\n- Errors: {}\n- Warnings: {}\n- Returned: {}\n- Omitted: {}\n",
+        diagnostics.total,
+        diagnostics.errors,
+        diagnostics.warnings,
+        diagnostic_items.items.len(),
+        diagnostic_items.omitted
     ));
+
+    if !diagnostic_items.items.is_empty() {
+        md.push_str("\n### Actionable findings\n\n");
+        for diagnostic in &diagnostic_items.items {
+            md.push_str(&format!(
+                "- **{}** `{}` {} — Next: {}\n",
+                diagnostic.id, diagnostic.code, diagnostic.message, diagnostic.next_action
+            ));
+        }
+    }
 
     if !warnings.is_empty() {
         md.push_str("\n## Warnings\n\n");
         for w in warnings {
             md.push_str(&format!("- ⚠ {w}\n"));
         }
+    }
+
+    if !warnings.is_empty() {
+        md.push_str(&format!(
+            "\nCompatibility warnings: {} returned, {} omitted. These are derived from the same diagnostic collection.\n",
+            warnings.len(),
+            warnings_omitted
+        ));
     }
 
     md
@@ -1602,6 +2211,40 @@ fn format_review_context_md(
         md.push_str("## Reviews\n\n");
         for r in linked_reviews {
             md.push_str(&format!("- **{}**: {} ({})\n", r.id, r.title, r.status));
+            for event in &r.events {
+                md.push_str(&format!(
+                    "  - `{}` {}: {} -> {} by {}",
+                    event.id, event.action, event.from_status, event.to_status, event.actor_role
+                ));
+                if !event.reason.is_empty() {
+                    md.push_str(&format!(" — {}", event.reason));
+                }
+                md.push('\n');
+            }
+            if !r.finding_categories.is_empty() {
+                let categories = r
+                    .finding_categories
+                    .iter()
+                    .map(|category| {
+                        category
+                            .canonical
+                            .as_deref()
+                            .map(|canonical| {
+                                if category.is_alias {
+                                    format!("{} → {canonical}", category.raw)
+                                } else {
+                                    canonical.to_string()
+                                }
+                            })
+                            .unwrap_or_else(|| format!("{} (unknown)", category.raw))
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                md.push_str(&format!("  - Taxonomy v1: {categories}\n"));
+            }
+            for warning in &r.lifecycle_warnings {
+                md.push_str(&format!("  - ⚠ {warning}\n"));
+            }
         }
         md.push('\n');
     }
@@ -2065,7 +2708,11 @@ links: []
         create_test_brain(dir.path());
         fs::create_dir_all(dir.path().join(".lmbrain/specs/review")).unwrap();
 
-        write_review_spec(dir.path(), "SPEC-050", "## Acceptance criteria\n- [x] Works\n");
+        write_review_spec(
+            dir.path(),
+            "SPEC-050",
+            "## Acceptance criteria\n- [x] Works\n",
+        );
         let ctx = build_review_context(dir.path(), "SPEC-050").unwrap();
         assert!(ctx.implementation_evidence.is_none());
         assert!(ctx
@@ -2080,10 +2727,7 @@ links: []
         );
         let ctx = build_review_context(dir.path(), "SPEC-051").unwrap();
         assert!(ctx.implementation_evidence.is_none());
-        assert!(ctx
-            .warnings
-            .iter()
-            .any(|w| w.contains("present but empty")));
+        assert!(ctx.warnings.iter().any(|w| w.contains("present but empty")));
     }
 
     #[test]
@@ -2198,7 +2842,7 @@ links: []
             "---\nid: SPEC-099\nstatus: ready\nunclosed frontmatter\n",
         )
         .unwrap();
-        let diagnostics = scan_diagnostics(dir.path());
+        let diagnostics = crate::diagnostics::build_diagnostics(dir.path());
         assert!(
             diagnostics.iter().any(|d| d.message.contains("Malformed")),
             "Expected a malformed frontmatter diagnostic, got: {diagnostics:?}"
@@ -2226,7 +2870,7 @@ links: []
 "#,
         )
         .unwrap();
-        let diagnostics = scan_diagnostics(dir.path());
+        let diagnostics = crate::diagnostics::build_diagnostics(dir.path());
         assert!(
             diagnostics
                 .iter()
@@ -2258,13 +2902,37 @@ links: []
 "#,
         )
         .unwrap();
-        let diagnostics = scan_diagnostics(dir.path());
+        let diagnostics = crate::diagnostics::build_diagnostics(dir.path());
         assert!(
             diagnostics
                 .iter()
                 .any(|d| d.message.contains("AGENT-NONEXISTENT")),
             "Expected an unresolved agent diagnostic, got: {diagnostics:?}"
         );
+    }
+
+    #[test]
+    fn diagnostics_report_legacy_done_verification_without_mutating_or_reopening() {
+        let dir = tempfile::tempdir().unwrap();
+        let done = dir.path().join(".lmbrain/specs/done");
+        fs::create_dir_all(&done).unwrap();
+        let path = done.join("SPEC-099.md");
+        let source = "---\nid: SPEC-099\ntitle: Legacy done\nstatus: done\n---\n## Required verification\n- [ ] LEAD | kind=manual | owner=lead | phase=before-done | evidence=artifact | Independent review\n- [x] WRONG | kind=manual | owner=operator | phase=before-submit | evidence=observation | Invalid policy\n";
+        fs::write(&path, source).unwrap();
+
+        let diagnostics = crate::diagnostics::build_diagnostics(dir.path());
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("SPEC-099")
+                && diagnostic.message.contains("LEAD")
+                && diagnostic.message.contains("owner=lead")
+        }));
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("Unsupported verification policy")
+                && diagnostic.message.contains("WRONG")
+        }));
+        assert_eq!(fs::read_to_string(path).unwrap(), source);
     }
 
     #[test]
@@ -2306,5 +2974,82 @@ links: []
             !digest.blockers.is_empty() || !digest.warnings.is_empty(),
             "Expected blockers or warnings from diagnostics"
         );
+    }
+
+    #[test]
+    fn project_digest_backlog_and_diagnostics_are_reconciled_and_bounded() {
+        let dir = tempfile::tempdir().unwrap();
+        let lmbrain = dir.path().join(".lmbrain");
+        fs::create_dir_all(lmbrain.join("specs/backlog")).unwrap();
+        fs::write(
+            lmbrain.join("STATUS.md"),
+            "# Project Test\n\n**Status:** active\n**Current milestone:** M-OLD\n",
+        )
+        .unwrap();
+        fs::write(
+            lmbrain.join("ROADMAP.md"),
+            "# Roadmap\n\n## M-NEW - Planned\n\n- `status`: planned\n- `specs`: []\n",
+        )
+        .unwrap();
+        fs::write(
+            lmbrain.join("specs/backlog/SPEC-001.md"),
+            "---\nid: SPEC-001\ntitle: Planned work\nstatus: backlog\nmilestone: M-NEW\nrecommended_agent: AGENT-MISSING\n---\n",
+        )
+        .unwrap();
+
+        let digest = build_project_digest(dir.path());
+        assert_eq!(digest.schema_version, "2");
+        assert_eq!(digest.lifecycle.backlog.total, 1);
+        assert_eq!(digest.lifecycle.backlog.items[0].id, "SPEC-001");
+        assert!(digest.markdown.contains("Planned backlog"));
+        assert_eq!(
+            digest.diagnostics_summary.total,
+            digest.diagnostics.items.len() + digest.diagnostics.omitted
+        );
+        assert_eq!(
+            digest.diagnostics_summary.warnings,
+            digest
+                .diagnostics
+                .items
+                .iter()
+                .filter(|diagnostic| { diagnostic.severity == crate::DiagnosticSeverity::Warning })
+                .count()
+        );
+        assert_eq!(digest.warnings_omitted, 0);
+        assert_eq!(digest.warnings.len(), digest.diagnostics_summary.warnings);
+        assert!(digest
+            .diagnostics
+            .items
+            .iter()
+            .all(|diagnostic| !diagnostic.next_action.is_empty()));
+    }
+
+    #[test]
+    fn project_digest_states_exact_omissions_for_large_diagnostic_sets() {
+        let dir = tempfile::tempdir().unwrap();
+        let specs = dir.path().join(".lmbrain/specs/backlog");
+        fs::create_dir_all(&specs).unwrap();
+        for index in 1..=60 {
+            fs::write(
+                specs.join(format!("SPEC-{index:03}.md")),
+                format!("---\nid: SPEC-{index:03}\n"),
+            )
+            .unwrap();
+        }
+
+        let digest = build_project_digest(dir.path());
+        assert_eq!(digest.diagnostics.items.len(), DIGEST_DIAGNOSTIC_LIMIT);
+        assert_eq!(
+            digest.diagnostics.total,
+            digest.diagnostics.items.len() + digest.diagnostics.omitted
+        );
+        assert!(digest.diagnostics.omitted > 0);
+        assert_eq!(
+            digest.warnings.len() + digest.warnings_omitted,
+            digest.diagnostics_summary.warnings
+        );
+        assert!(digest
+            .markdown
+            .contains(&format!("- Omitted: {}", digest.diagnostics.omitted)));
     }
 }

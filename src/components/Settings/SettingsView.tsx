@@ -11,11 +11,13 @@ import {
   revokeHarnessManifestApproval,
 } from "../../lib/commands";
 import type { HarnessApprovalStatus, HarnessConfigurationPlan, HarnessDriftEntry } from "../../types";
+import { VerificationPanel } from "./VerificationPanel";
 
-type SettingsTab = "general" | "harnesses" | "project-environment" | "about";
+type SettingsTab = "general" | "harnesses" | "project-environment" | "verification" | "about";
 const tabs: Array<{ id: SettingsTab; label: string }> = [
   { id: "general", label: "General" }, { id: "harnesses", label: "Harnesses" },
-  { id: "project-environment", label: "Project environment" }, { id: "about", label: "About" },
+  { id: "project-environment", label: "Project environment" },
+  { id: "verification", label: "Verification" }, { id: "about", label: "About" },
 ];
 
 export function SettingsView({ initialTab }: { initialTab?: SettingsTab }) {
@@ -41,6 +43,7 @@ export function SettingsView({ initialTab }: { initialTab?: SettingsTab }) {
       {tab === "general" && <GeneralPanel />}
       {tab === "harnesses" && <HarnessesView />}
       {tab === "project-environment" && <ProjectEnvironmentPanel />}
+      {tab === "verification" && <VerificationPanel />}
       {tab === "about" && <AboutPanel />}
     </section>
   </div>;

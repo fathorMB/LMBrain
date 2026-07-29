@@ -12,6 +12,11 @@ use crate::{
     invariants,
     mutation_lock::ArtifactMutationLock,
     path::{PathError, PathGuard},
+    review::{
+        next_review_event_id, parse_review_event_history, ReviewEventInput,
+        REVIEW_EVENT_SCHEMA_VERSION,
+    },
+    taxonomy::{normalize_finding_category, FINDING_TAXONOMY_VERSION},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,6 +31,7 @@ pub enum ArtifactKind {
     McpProposal,
     Handoff,
     Skill,
+    Finding,
 }
 
 impl ArtifactKind {
@@ -40,6 +46,7 @@ impl ArtifactKind {
             Self::McpProposal => "MCP-PROP",
             Self::Handoff => "HANDOFF",
             Self::Skill => "SKILL",
+            Self::Finding => "FINDING",
         }
     }
 
@@ -54,6 +61,7 @@ impl ArtifactKind {
             Self::McpProposal => "mcp/proposals",
             Self::Handoff => "handoffs",
             Self::Skill => "skills",
+            Self::Finding => "findings",
         }
     }
 
@@ -62,14 +70,19 @@ impl ArtifactKind {
             Self::Handoff => match status {
                 "ready" => Ok("active".to_string()),
                 "consumed" | "superseded" | "archived" => Ok("archive".to_string()),
-                _ => Err(TransitionError::Invariant(format!("invalid handoff status: {status}"))),
+                _ => Err(TransitionError::Invariant(format!(
+                    "invalid handoff status: {status}"
+                ))),
             },
             _ => Ok(status.to_string()),
         }
     }
 
     fn moves_for_status(self) -> bool {
-        matches!(self, Self::Spec | Self::Review | Self::Skill | Self::Handoff)
+        matches!(
+            self,
+            Self::Spec | Self::Review | Self::Skill | Self::Handoff | Self::Finding
+        )
     }
 
     /// Statuses an artifact may be created with. Only initial lifecycle states
@@ -83,17 +96,28 @@ impl ArtifactKind {
             }
             Self::Mcp => &["specified"],
             Self::Handoff => &["ready"],
+            Self::Finding => &["open"],
         }
     }
-
-
 }
 
 /// Frontmatter keys owned by the lifecycle engine; callers cannot set them
 /// through `CreateRequest::fields`. The artifact kind itself is not listed
 /// because it is carried by the allocated ID prefix, never by a field
 /// ("kind" remains available as an ordinary domain field, e.g. skill kind).
-const RESERVED_CREATION_FIELDS: &[&str] = &["id", "title", "status", "created", "updated", "activity"];
+const RESERVED_CREATION_FIELDS: &[&str] = &[
+    "id",
+    "title",
+    "status",
+    "created",
+    "updated",
+    "activity",
+    "review_events",
+    "mutation_overrides",
+    "dependency_events",
+    "parking_events",
+    "finding_taxonomy_version",
+];
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MutationOptions {
@@ -108,6 +132,13 @@ pub struct MutationResult {
     pub status: String,
     pub path: PathBuf,
     pub forced: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpecParkingInput {
+    pub actor: String,
+    pub reason: String,
+    pub revisit_condition: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,6 +187,169 @@ pub fn transition(
     target: &str,
     options: MutationOptions,
 ) -> Result<MutationResult, TransitionError> {
+    transition_internal(root, artifact, target, options, None, None)
+}
+
+pub fn review_verdict(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    target: &str,
+    event: ReviewEventInput,
+    options: MutationOptions,
+) -> Result<MutationResult, TransitionError> {
+    if event.actor_role.trim().is_empty() {
+        return Err(TransitionError::Invariant(
+            "review verdict actor_role cannot be empty".into(),
+        ));
+    }
+    if target != "accepted" && event.reason.trim().is_empty() {
+        return Err(TransitionError::Invariant(format!(
+            "review verdict '{target}' requires a non-empty reason"
+        )));
+    }
+    let expected_actor = if target == "accepted" {
+        "operator"
+    } else {
+        "project-lead"
+    };
+    if event.actor_role.trim() != expected_actor {
+        return Err(TransitionError::Invariant(format!(
+            "review verdict '{target}' requires actor_role '{expected_actor}'"
+        )));
+    }
+    transition_internal(root, artifact, target, options, Some(event), None)
+}
+
+pub fn park_spec(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    input: SpecParkingInput,
+) -> Result<MutationResult, TransitionError> {
+    if input.actor.trim().is_empty() {
+        return Err(TransitionError::Invariant(
+            "spec parking requires a non-empty actor".into(),
+        ));
+    }
+    if input.reason.trim().is_empty() {
+        return Err(TransitionError::Invariant(
+            "spec parking requires a non-empty reason".into(),
+        ));
+    }
+    if input
+        .revisit_condition
+        .as_deref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
+        return Err(TransitionError::Invariant(
+            "revisit_condition cannot be empty when provided".into(),
+        ));
+    }
+    transition_internal(
+        root,
+        artifact,
+        "backlog",
+        MutationOptions::default(),
+        None,
+        Some(input),
+    )
+}
+
+pub fn record_review_event(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    action: &str,
+    event: ReviewEventInput,
+    options: MutationOptions,
+) -> Result<MutationResult, TransitionError> {
+    require_force_reason(&options)?;
+    if !matches!(action, "remediation" | "escalation" | "takeover") {
+        return Err(TransitionError::Invariant(format!(
+            "unsupported review lifecycle event '{action}'"
+        )));
+    }
+    if event.reason.trim().is_empty() {
+        return Err(TransitionError::Invariant(format!(
+            "review lifecycle event '{action}' requires a non-empty reason"
+        )));
+    }
+    let expected_actor = match action {
+        "remediation" => "implementation-specialist",
+        "escalation" => "operator",
+        "takeover" => "project-lead",
+        _ => unreachable!(),
+    };
+    if event.actor_role.trim() != expected_actor {
+        return Err(TransitionError::Invariant(format!(
+            "review lifecycle event '{action}' requires actor_role '{expected_actor}'"
+        )));
+    }
+    if action == "remediation"
+        && event
+            .remediation_agent
+            .as_deref()
+            .map_or(true, |agent| agent.trim().is_empty())
+    {
+        return Err(TransitionError::Invariant(
+            "review remediation requires remediation_agent".into(),
+        ));
+    }
+
+    let guard = PathGuard::new(root)?;
+    let artifact = artifact.as_ref();
+    let path = guard.resolve_existing(artifact)?;
+    let initial = Document::parse(&fs::read_to_string(&path)?)?;
+    let initial_id = initial
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
+    let path = guard.resolve_existing(artifact)?;
+    let current_source = fs::read_to_string(&path)?;
+    let mut document = Document::parse(&current_source)?;
+    let id = document
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    if id != initial_id || kind_for_id(&id) != Some(ArtifactKind::Review) {
+        return Err(TransitionError::Invariant(
+            "review lifecycle events require a stable REVIEW-* artifact".into(),
+        ));
+    }
+    validate_existing_review_history(&document)?;
+    let status = document
+        .value("status")
+        .ok_or_else(|| TransitionError::Missing("status".into()))?;
+    if status == "superseded" {
+        return Err(TransitionError::Invariant(
+            "cannot append lifecycle events to a superseded review".into(),
+        ));
+    }
+    document.set("updated", &today());
+    document.append_activity(&format!("recorded review {action}"));
+    append_review_event(&mut document, &id, action, &status, &status, &event)?;
+    if let Some(reason) = options.reason.as_deref() {
+        document.append_override_reason(reason);
+    }
+    if fs::read_to_string(&path)? != current_source {
+        return Err(TransitionError::Invariant(
+            "artifact changed while the lifecycle mutation was being prepared".into(),
+        ));
+    }
+    atomic_write(&path, &document.render())?;
+    Ok(MutationResult {
+        id,
+        status,
+        path,
+        forced: options.force,
+    })
+}
+
+fn transition_internal(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    target: &str,
+    options: MutationOptions,
+    review_event: Option<ReviewEventInput>,
+    parking_event: Option<SpecParkingInput>,
+) -> Result<MutationResult, TransitionError> {
     require_force_reason(&options)?;
 
     let guard = PathGuard::new(root)?;
@@ -183,7 +377,28 @@ pub fn transition(
     let kind = kind_for_id(&id)
         .ok_or_else(|| TransitionError::Missing("recognized artifact ID".into()))?;
 
-    if !allowed(kind, &from, target) {
+    if kind == ArtifactKind::Review && review_event.is_none() {
+        return Err(TransitionError::Invariant(
+            "review lifecycle changes require review_verdict event metadata".into(),
+        ));
+    }
+    if kind == ArtifactKind::Finding {
+        return Err(TransitionError::Invariant(
+            "finding lifecycle changes require a semantic finding operation".into(),
+        ));
+    }
+    if parking_event.is_some()
+        && (kind != ArtifactKind::Spec || from != "ready" || target != "backlog")
+    {
+        return Err(TransitionError::Invariant(format!(
+            "spec parking only permits ready -> backlog; found {kind:?} {from} -> {target}"
+        )));
+    }
+    if kind == ArtifactKind::Review {
+        validate_existing_review_history(&document)?;
+    }
+
+    if !allowed(kind, &from, target) && parking_event.is_none() {
         return Err(TransitionError::Illegal {
             kind,
             from,
@@ -191,28 +406,85 @@ pub fn transition(
         });
     }
 
-    if let Some(message) = invariant_failure(guard.root(), &path, kind, target, &document) {
+    let invariant_message = invariant_failure(guard.root(), &path, kind, target, &document);
+    if let Some(message) = invariant_message.as_deref() {
         if !options.force {
-            return Err(TransitionError::Invariant(message));
+            return Err(TransitionError::Invariant(message.into()));
         }
     }
 
     document.set("status", target);
     document.set("updated", &today());
     document.append_activity(&format!("transitioned {from} -> {target}"));
+    if let Some(event) = parking_event.as_ref() {
+        append_spec_parking_event(&mut document, &id, event)?;
+    }
+    if options.force {
+        if let (Some(reason), Some(invariant)) =
+            (options.reason.as_deref(), invariant_message.as_deref())
+        {
+            let actor_role = review_event
+                .as_ref()
+                .map(|event| event.actor_role.as_str())
+                .unwrap_or_else(|| transition_authority(kind, target));
+            append_mutation_override(
+                &mut document,
+                &id,
+                &from,
+                target,
+                actor_role,
+                reason,
+                invariant,
+            )?;
+        }
+    }
+    if kind == ArtifactKind::Review {
+        let event = review_event.unwrap_or_else(|| ReviewEventInput {
+            actor_role: "controlled-mutation".into(),
+            reason: options.reason.clone().unwrap_or_default(),
+            evidence_refs: Vec::new(),
+            remediation_agent: None,
+        });
+        append_review_event(&mut document, &id, "verdict", &from, target, &event)?;
+    }
     if let Some(reason) = options.reason.as_deref() {
-        document.append_override_reason(reason);
+        let audit = invariant_message
+            .as_deref()
+            .map(|invariant| format!("{reason}\n\nUnmet invariant: {invariant}"))
+            .unwrap_or_else(|| reason.to_string());
+        document.append_override_reason(&audit);
     }
 
     let destination = destination_for(kind, &path, target)?;
+    if destination != path && destination.exists() {
+        return Err(TransitionError::Invariant(format!(
+            "destination already contains an artifact named {}",
+            destination
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("review artifact")
+        )));
+    }
     if fs::read_to_string(&path)? != current_source {
         return Err(TransitionError::Invariant(
             "artifact changed while the lifecycle mutation was being prepared".into(),
         ));
     }
-    atomic_write(&destination, &document.render())?;
-    if destination != path {
-        fs::remove_file(&path)?;
+    if destination == path {
+        atomic_write(&path, &document.render())?;
+    } else {
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        atomic_write(&path, &document.render())?;
+        if let Err(move_error) = fs::rename(&path, &destination) {
+            if let Err(rollback_error) = atomic_write(&path, &current_source) {
+                return Err(TransitionError::Invariant(format!(
+                    "artifact move failed ({move_error}); rollback also failed ({rollback_error}); one source artifact remains and diagnostics can reconcile its status/folder"
+                )));
+            }
+            return Err(TransitionError::Io(move_error));
+        }
     }
 
     Ok(MutationResult {
@@ -221,6 +493,168 @@ pub fn transition(
         path: destination,
         forced: options.force,
     })
+}
+
+fn transition_authority(kind: ArtifactKind, target: &str) -> &'static str {
+    match (kind, target) {
+        (ArtifactKind::Spec, "ready") => "operator",
+        (ArtifactKind::Spec, "working" | "review") => "implementation-specialist",
+        (ArtifactKind::Spec, "done" | "discarded") => "project-lead",
+        (ArtifactKind::Review, "accepted") => "operator",
+        (ArtifactKind::Review, _) => "project-lead",
+        _ => "controlled-mutation",
+    }
+}
+
+fn append_spec_parking_event(
+    document: &mut Document,
+    spec_id: &str,
+    input: &SpecParkingInput,
+) -> Result<(), TransitionError> {
+    let sequence = document.object_array("parking_events").len() + 1;
+    let mut fields = vec![
+        ("schema_version".into(), serde_json::json!("1")),
+        (
+            "id".into(),
+            serde_json::json!(format!("{spec_id}-PARKING-{sequence:03}")),
+        ),
+        (
+            "timestamp".into(),
+            serde_json::json!(Local::now().to_rfc3339()),
+        ),
+        ("actor".into(), serde_json::json!(input.actor.trim())),
+        ("from_status".into(), serde_json::json!("ready")),
+        ("to_status".into(), serde_json::json!("backlog")),
+        ("reason".into(), serde_json::json!(input.reason.trim())),
+        ("readiness_invalidated".into(), serde_json::json!(true)),
+    ];
+    if let Some(revisit) = input.revisit_condition.as_deref() {
+        fields.push((
+            "revisit_condition".into(),
+            serde_json::json!(revisit.trim()),
+        ));
+    }
+    document.append_object("parking_events", &fields)?;
+    Ok(())
+}
+
+fn append_mutation_override(
+    document: &mut Document,
+    artifact_id: &str,
+    from: &str,
+    to: &str,
+    actor_role: &str,
+    reason: &str,
+    invariant: &str,
+) -> Result<(), TransitionError> {
+    let sequence = document.object_array("mutation_overrides").len() + 1;
+    document.append_object(
+        "mutation_overrides",
+        &[
+            ("schema_version".into(), serde_json::json!("1")),
+            (
+                "id".into(),
+                serde_json::json!(format!("{artifact_id}-OVERRIDE-{sequence:03}")),
+            ),
+            ("actor_role".into(), serde_json::json!(actor_role)),
+            (
+                "timestamp".into(),
+                serde_json::json!(Local::now().to_rfc3339()),
+            ),
+            ("from".into(), serde_json::json!(from)),
+            ("to".into(), serde_json::json!(to)),
+            ("reason".into(), serde_json::json!(reason.trim())),
+            ("unmet_invariant".into(), serde_json::json!(invariant)),
+        ],
+    )?;
+    Ok(())
+}
+
+fn validate_existing_review_history(document: &Document) -> Result<(), TransitionError> {
+    let fields = document.fields();
+    if fields
+        .get("review_events")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|events| !events.is_empty())
+    {
+        let history = parse_review_event_history(document);
+        if !history.warnings.is_empty() {
+            return Err(TransitionError::Invariant(format!(
+                "review lifecycle history is invalid: {}",
+                history.warnings.join(" ")
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn append_review_event(
+    document: &mut Document,
+    review_id: &str,
+    action: &str,
+    from: &str,
+    target: &str,
+    input: &ReviewEventInput,
+) -> Result<(), TransitionError> {
+    let event_id = next_review_event_id(document, review_id);
+    let mut fields = vec![
+        (
+            "schema_version".into(),
+            serde_json::Value::String(REVIEW_EVENT_SCHEMA_VERSION.into()),
+        ),
+        ("id".into(), serde_json::Value::String(event_id)),
+        (
+            "timestamp".into(),
+            serde_json::Value::String(Local::now().to_rfc3339()),
+        ),
+        (
+            "action".into(),
+            serde_json::Value::String(action.to_owned()),
+        ),
+        ("from_status".into(), serde_json::Value::String(from.into())),
+        ("to_status".into(), serde_json::Value::String(target.into())),
+        (
+            "actor_role".into(),
+            serde_json::Value::String(input.actor_role.trim().into()),
+        ),
+        (
+            "reason".into(),
+            serde_json::Value::String(input.reason.trim().into()),
+        ),
+    ];
+    if !input.evidence_refs.is_empty() {
+        fields.push((
+            "evidence_refs".into(),
+            serde_json::Value::Array(
+                input
+                    .evidence_refs
+                    .iter()
+                    .map(|reference| serde_json::Value::String(reference.trim().into()))
+                    .collect(),
+            ),
+        ));
+    }
+    if let Some(agent) = document
+        .value("implementation_agent")
+        .filter(|agent| !agent.trim().is_empty())
+    {
+        fields.push((
+            "implementation_agent".into(),
+            serde_json::Value::String(agent),
+        ));
+    }
+    if let Some(agent) = input
+        .remediation_agent
+        .as_deref()
+        .filter(|agent| !agent.trim().is_empty())
+    {
+        fields.push((
+            "remediation_agent".into(),
+            serde_json::Value::String(agent.trim().into()),
+        ));
+    }
+    document.append_object("review_events", &fields)?;
+    Ok(())
 }
 
 pub fn set_recommended_agent(
@@ -332,6 +766,11 @@ pub fn create(
     root: impl AsRef<Path>,
     request: CreateRequest,
 ) -> Result<MutationResult, TransitionError> {
+    if request.kind == ArtifactKind::Finding {
+        return Err(TransitionError::Invariant(
+            "findings require the semantic finding_create operation".into(),
+        ));
+    }
     let guard = PathGuard::new(root)?;
     let status = request
         .status
@@ -340,11 +779,7 @@ pub fn create(
 
     // Fail closed before any filesystem mutation: an invalid request must not
     // leave directories, files, activity entries, or lock residue behind.
-    if !request
-        .kind
-        .creation_statuses()
-        .contains(&status.as_str())
-    {
+    if !request.kind.creation_statuses().contains(&status.as_str()) {
         return Err(TransitionError::InvalidCreationStatus {
             kind: request.kind,
             status,
@@ -436,7 +871,49 @@ fn create_locked(
     for (key, value) in request.fields {
         document.set(&key, &value);
     }
+    if request.kind == ArtifactKind::Spec {
+        crate::spec_dependencies::validate_candidate_dependencies(
+            root,
+            &id,
+            &document.string_array("depends_on"),
+        )
+        .map_err(|error| TransitionError::InvalidField(error.to_string()))?;
+    }
+    if request.kind == ArtifactKind::Review {
+        for category in document.string_array("finding_categories") {
+            let normalized = normalize_finding_category(&category);
+            match normalized.canonical {
+                None => {
+                    return Err(TransitionError::InvalidField(format!(
+                        "unknown finding category '{category}'; use a canonical taxonomy value"
+                    )));
+                }
+                Some(canonical) if normalized.is_alias => {
+                    return Err(TransitionError::InvalidField(format!(
+                        "finding category '{category}' is a legacy alias; new reviews must use '{canonical}'"
+                    )));
+                }
+                Some(_) => {}
+            }
+        }
+        document.set("finding_taxonomy_version", FINDING_TAXONOMY_VERSION);
+    }
     document.append_activity("created");
+    if request.kind == ArtifactKind::Review {
+        append_review_event(
+            &mut document,
+            &id,
+            "submitted",
+            "none",
+            "pending",
+            &ReviewEventInput {
+                actor_role: "project-lead".into(),
+                reason: "review artifact created".into(),
+                evidence_refs: Vec::new(),
+                remediation_agent: None,
+            },
+        )?;
+    }
     // The status directory is only materialized once the request has fully
     // validated, so a rejected create leaves no filesystem residue.
     fs::create_dir_all(dir)?;
@@ -559,6 +1036,8 @@ pub fn kind_for_id(id: &str) -> Option<ArtifactKind> {
         Some(ArtifactKind::Handoff)
     } else if id.starts_with("SKILL-") {
         Some(ArtifactKind::Skill)
+    } else if id.starts_with("FINDING-") {
+        Some(ArtifactKind::Finding)
     } else {
         None
     }
@@ -579,6 +1058,12 @@ pub fn allowed(kind: ArtifactKind, from: &str, to: &str) -> bool {
             ("pending", "accepted")
                 | ("pending", "changes-requested")
                 | ("pending", "blocked")
+                | ("changes-requested", "changes-requested")
+                | ("changes-requested", "accepted")
+                | ("changes-requested", "blocked")
+                | ("blocked", "blocked")
+                | ("blocked", "changes-requested")
+                | ("blocked", "accepted")
                 | (_, "superseded")
         ),
         ArtifactKind::Adr => matches!(
@@ -622,6 +1107,24 @@ pub fn allowed(kind: ArtifactKind, from: &str, to: &str) -> bool {
             (from, to),
             ("proposed", "active") | ("proposed", "retired") | ("active", "retired")
         ),
+        ArtifactKind::Finding => matches!(
+            (from, to),
+            ("open", "planned")
+                | ("open", "deferred")
+                | ("open", "resolved")
+                | ("open", "accepted-risk")
+                | ("open", "superseded")
+                | ("planned", "open")
+                | ("planned", "deferred")
+                | ("planned", "resolved")
+                | ("planned", "accepted-risk")
+                | ("planned", "superseded")
+                | ("deferred", "open")
+                | ("deferred", "planned")
+                | ("deferred", "resolved")
+                | ("deferred", "accepted-risk")
+                | ("deferred", "superseded")
+        ),
     }
 }
 
@@ -632,6 +1135,46 @@ fn invariant_failure(
     target: &str,
     document: &Document,
 ) -> Option<String> {
+    if kind == ArtifactKind::Spec && matches!(target, "ready" | "working") {
+        let blockers = crate::spec_dependency_blockers(root, document);
+        if !blockers.is_empty() {
+            return Some(format!(
+                "hard spec prerequisites are not complete: {}",
+                blockers
+                    .iter()
+                    .map(|blocker| format!(
+                        "{} [{}] via {}: {}",
+                        blocker.id,
+                        blocker.status,
+                        blocker.chain.join(" -> "),
+                        blocker.cause
+                    ))
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ));
+        }
+    }
+    if kind == ArtifactKind::Spec && matches!(target, "review" | "done") {
+        let phase = if target == "review" {
+            "before-submit"
+        } else {
+            "before-done"
+        };
+        let blockers = crate::verification_blockers_for_workspace(root, document, phase);
+        if !blockers.is_empty() {
+            return Some(format!(
+                "{phase} verification blocked: {}",
+                blockers
+                    .iter()
+                    .map(|blocker| format!(
+                        "{} (owner={}): {}",
+                        blocker.requirement_id, blocker.owner, blocker.cause
+                    ))
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ));
+        }
+    }
     match (kind, target) {
         (ArtifactKind::Spec, "ready")
             if !invariants::recommended_agent_resolves(
@@ -689,6 +1232,7 @@ fn default_status(kind: ArtifactKind) -> &'static str {
         ArtifactKind::Mcp => "specified",
         ArtifactKind::Handoff => "ready",
         ArtifactKind::Skill => "proposed",
+        ArtifactKind::Finding => "open",
     }
 }
 
@@ -703,6 +1247,7 @@ fn template_name(kind: ArtifactKind) -> &'static str {
         ArtifactKind::McpProposal => "mcp-proposal.md",
         ArtifactKind::Handoff => "session-handoff.md",
         ArtifactKind::Skill => "skill.md",
+        ArtifactKind::Finding => "finding.md",
     }
 }
 

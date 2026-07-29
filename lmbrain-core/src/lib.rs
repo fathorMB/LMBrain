@@ -1,18 +1,44 @@
 //! Tauri-free, filesystem-backed controlled mutations for LMBrain artifacts.
+pub mod attestation;
 pub mod context;
+pub mod diagnostics;
+pub mod finding;
 pub mod frontmatter;
 pub mod harness_manifest;
 pub mod improvement;
 pub mod invariants;
 mod mutation_lock;
 pub mod path;
+pub mod review;
+pub mod spec_dependencies;
+pub mod taxonomy;
 pub mod transitions;
 pub mod verification;
+pub mod verification_onboarding;
 
+pub use attestation::{
+    attest_spec_requirement, build_verification_migration_preview, requirement_digest,
+    unsupported_verification_requirements, verification_attestations, verification_blockers,
+    verification_blockers_for_workspace, verification_requirements, AttestationError,
+    AttestationResult, VerificationAttestation, VerificationBlocker, VerificationMigrationItem,
+    VerificationMigrationPreview, VERIFICATION_ATTESTATION_SCHEMA_VERSION,
+};
 pub use context::{
     build_project_digest, build_review_context, build_spec_context, AgentProfileSummary,
-    CompactAdr, CompactReview, CompactSpec, Criterion, DiagnosticsSummary, ProjectDigest,
-    ReviewContext, SpecContext,
+    BoundedDiagnosticList, BoundedFindingList, BoundedSpecList, CompactAdr, CompactFinding,
+    CompactReview, CompactSpec, Criterion, DeclaredProjectState, DerivedProjectState,
+    DiagnosticsSummary, FindingDigest, ProjectDigest, ReviewContext, SpecContext,
+    SpecDependencyDigest, SpecDependencyDigestItem, SpecLifecycleView, SpecParkingSummary,
+};
+pub use diagnostics::{
+    build_diagnostics, Diagnostic, DiagnosticFixability, DiagnosticSeverity,
+    DIAGNOSTIC_SCHEMA_VERSION,
+};
+pub use finding::{
+    accept_finding_risk, create_finding, defer_finding, finding_candidates, finding_context,
+    list_findings, plan_finding, reopen_finding, resolve_finding, supersede_finding,
+    validate_finding_document, Finding, FindingCandidate, FindingCandidateInventory,
+    FindingContext, FindingCreateInput, FindingError, RelationSummary,
 };
 pub use harness_manifest::{
     canonical_manifest_digest, content_digest, load_harness_manifest, parse_harness_manifest,
@@ -26,13 +52,38 @@ pub use improvement::{
     ImprovementProposalRequest,
 };
 pub use path::{read_artifact, ArtifactReadError};
-pub use transitions::{
-    ArtifactKind, CreateRequest, MutationOptions, MutationResult, TransitionError,
+pub use review::{
+    analyze_review_lifecycle, build_review_migration_preview, parse_review_event_history,
+    parse_review_event_value, ReviewEventHistory, ReviewEventInput, ReviewHistorySource,
+    ReviewLifecycleAnalysis, ReviewLifecycleEvent, ReviewMigrationItem, ReviewMigrationPreview,
+    REVIEW_EVENT_SCHEMA_VERSION,
 };
+pub use spec_dependencies::{
+    set_spec_dependencies, spec_dependency_blockers, spec_dependency_candidates,
+    spec_dependency_context, validate_spec_dependency_graph, SpecDependency, SpecDependencyBlocker,
+    SpecDependencyCandidate, SpecDependencyCandidateInventory, SpecDependencyContext,
+    SpecDependencyError, SpecDependencyMutation, SPEC_DEPENDENCY_EVENT_SCHEMA_VERSION,
+};
+pub use taxonomy::{
+    canonical_finding_categories, normalize_finding_category, CategoryNormalization,
+    FINDING_TAXONOMY_VERSION,
+};
+pub use transitions::{
+    park_spec, record_review_event, review_verdict, ArtifactKind, CreateRequest, MutationOptions,
+    MutationResult, SpecParkingInput, TransitionError,
+};
+pub use verification::parse_manifest as parse_verification_manifest;
 pub use verification::{
     approve_verification_manifest, canonical_verification_manifest_digest,
     execute_spec_verification, load_verification_manifest, transcript_state,
     transcript_state_for_document, validate_verification_manifest, workspace_content_fingerprint,
     TranscriptState, VerificationApproval, VerificationError, VerificationGate,
-    VerificationManifest, VerificationRunReport,
+    VerificationManifest, VerificationRunReport, VERIFICATION_MANIFEST_PATH,
+};
+pub use verification_onboarding::{
+    default_verification_approval_path, discover_verification_manifest,
+    rollback_verification_manifest, set_verification_manifest,
+    validate_verification_manifest_source, verification_manifest_status, VerificationGateCandidate,
+    VerificationManifestPreview, VerificationManifestPreviewValidation, VerificationManifestState,
+    VerificationManifestStatus, VerificationManifestWriteResult, VerificationOnboardingError,
 };

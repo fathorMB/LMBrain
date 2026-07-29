@@ -9,10 +9,12 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    content_digest,
+    analyze_review_lifecycle, content_digest,
     frontmatter::{atomic_write, Document},
+    normalize_finding_category,
     path::PathGuard,
     transitions::{create, ArtifactKind, CreateRequest, TransitionError},
+    ReviewHistorySource,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,7 +35,10 @@ pub struct AgentEffectivenessMetrics {
     pub specs_with_changes_requested: usize,
     pub transcript_fast_fail_reviews: usize,
     pub review_cycles: usize,
+    pub remediation_cycles: usize,
     pub lead_escalation_reviews: usize,
+    pub escalation_count: usize,
+    pub takeover_count: usize,
     pub categorized_findings: usize,
     pub uncategorized_reviews: usize,
     pub first_pass_accepted_specs: usize,
@@ -41,6 +46,17 @@ pub struct AgentEffectivenessMetrics {
     pub average_review_cycles: f64,
     pub transcript_fast_fail_rate: f64,
     pub lead_escalation_rate: f64,
+    pub lifecycle_known_reviews: usize,
+    pub lifecycle_unknown_reviews: usize,
+    pub lifecycle_coverage: f64,
+    pub category_values: usize,
+    pub canonical_category_values: usize,
+    pub category_alias_values: usize,
+    pub unknown_categories: Vec<String>,
+    pub category_coverage: f64,
+    pub attribution_basis: String,
+    pub confidence: String,
+    pub diagnostics: Vec<String>,
     pub data_quality_caveat: String,
 }
 
@@ -123,20 +139,41 @@ pub fn build_agent_improvement_signals(
                 categories.push("evidence-integrity".into());
             }
         }
+        let lifecycle = analyze_review_lifecycle(&doc);
         let metric = metrics.entry(agent.clone()).or_default();
-        metric.review_cycles += 1;
+        metric.review_cycles += lifecycle.review_passes;
+        metric.remediation_cycles += lifecycle.remediation_cycles;
+        metric.escalation_count += lifecycle.escalation_count;
+        metric.takeover_count += lifecycle.takeover_count;
+        if lifecycle.source == ReviewHistorySource::StatusOnly {
+            metric.lifecycle_unknown_reviews += 1;
+        } else {
+            metric.lifecycle_known_reviews += 1;
+        }
+        metric.diagnostics.extend(
+            lifecycle
+                .warnings
+                .iter()
+                .map(|warning| format!("{review_id}: {warning}")),
+        );
         if !spec.is_empty() {
             metric.reviewed_specs.insert(spec.clone());
-            metric.spec_events.entry(spec.clone()).or_default().push((
-                doc.value("created").unwrap_or_default(),
-                review_id.clone(),
-                status.clone(),
-            ));
+            metric
+                .spec_events
+                .entry(spec.clone())
+                .or_default()
+                .push(SpecReviewEvent {
+                    created: doc.value("created").unwrap_or_default(),
+                    review_id: review_id.clone(),
+                    status: status.clone(),
+                    initial_verdict: lifecycle.initial_verdict.clone(),
+                    lifecycle_known: lifecycle.source != ReviewHistorySource::StatusOnly,
+                });
         }
         if status == "accepted" && !spec.is_empty() {
             metric.accepted_specs.insert(spec.clone());
         }
-        if status == "changes-requested" && !spec.is_empty() {
+        if (status == "changes-requested" || lifecycle.remediation_cycles > 0) && !spec.is_empty() {
             metric.changed_specs.insert(spec.clone());
         }
         if tags
@@ -145,15 +182,30 @@ pub fn build_agent_improvement_signals(
         {
             metric.transcript_fast_fail_reviews += 1;
         }
-        if agent == "AGENT-LEAD" || tags.iter().any(|tag| tag == "lead-escalation") {
+        if lifecycle.escalation_count > 0
+            || agent == "AGENT-LEAD"
+            || tags.iter().any(|tag| tag == "lead-escalation")
+        {
             metric.lead_escalation_reviews += 1;
         }
         if categories.is_empty() {
             metric.uncategorized_reviews += 1;
-        } else {
-            metric.categorized_findings += categories.len();
         }
-        for category in categories {
+        for raw_category in categories {
+            metric.category_values += 1;
+            let normalized = normalize_finding_category(&raw_category);
+            let Some(category) = normalized.canonical else {
+                metric.unknown_categories.insert(raw_category.clone());
+                metric.diagnostics.push(format!(
+                    "{review_id}: unknown finding category '{raw_category}'."
+                ));
+                continue;
+            };
+            metric.canonical_category_values += 1;
+            metric.categorized_findings += 1;
+            if normalized.is_alias {
+                metric.category_alias_values += 1;
+            }
             let entry = signals.entry((agent.clone(), category)).or_default();
             if !spec.is_empty() {
                 entry.specs.insert(spec.clone());
@@ -166,7 +218,10 @@ pub fn build_agent_improvement_signals(
     let signals = signals
         .into_iter()
         .map(|((target_profile, category), evidence)| {
-            let integrity = matches!(category.as_str(), "evidence-integrity" | "security-boundary");
+            let integrity = matches!(
+                category.as_str(),
+                "verification-integrity" | "security-boundary"
+            );
             let threshold_met = evidence.specs.len() >= 2 || (integrity && !evidence.reviews.is_empty());
             AgentImprovementSignal {
                 target_profile,
@@ -186,12 +241,46 @@ pub fn build_agent_improvement_signals(
         .into_iter()
         .map(|(profile, mut value)| {
             let reviewed_specs = value.reviewed_specs.len();
-            let first_pass_accepted_specs = value.spec_events.values_mut().map(|events| {
-                events.sort();
-                events.first().is_some_and(|(_, _, status)| status == "accepted")
-            }).filter(|accepted| *accepted).count();
+            let mut first_pass_eligible_specs = 0;
+            let first_pass_accepted_specs = value
+                .spec_events
+                .values_mut()
+                .filter_map(|events| {
+                    events.sort_by(|left, right| {
+                        (&left.created, &left.review_id).cmp(&(&right.created, &right.review_id))
+                    });
+                    let first = events.first()?;
+                    let separate_artifacts_are_ordered = events.len() > 1
+                        && events.iter().all(|event| !event.created.trim().is_empty());
+                    if !first.lifecycle_known && !separate_artifacts_are_ordered {
+                        return None;
+                    }
+                    first_pass_eligible_specs += 1;
+                    Some(
+                        first
+                            .initial_verdict
+                            .as_deref()
+                            .unwrap_or(&first.status)
+                            == "accepted",
+                    )
+                })
+                .filter(|accepted| *accepted)
+                .count();
             let denominator = reviewed_specs.max(1) as f64;
             let cycle_denominator = value.review_cycles.max(1) as f64;
+            let review_count = value.lifecycle_known_reviews + value.lifecycle_unknown_reviews;
+            let lifecycle_coverage = ratio(value.lifecycle_known_reviews, review_count);
+            let category_coverage = ratio(value.canonical_category_values, value.category_values);
+            let confidence = if lifecycle_coverage >= 0.9
+                && category_coverage >= 0.9
+                && reviewed_specs >= 2
+            {
+                "high"
+            } else if lifecycle_coverage >= 0.6 && category_coverage >= 0.6 {
+                "medium"
+            } else {
+                "low"
+            };
             AgentEffectivenessMetrics {
             profile,
             reviewed_specs,
@@ -199,15 +288,33 @@ pub fn build_agent_improvement_signals(
             specs_with_changes_requested: value.changed_specs.len(),
             transcript_fast_fail_reviews: value.transcript_fast_fail_reviews,
             review_cycles: value.review_cycles,
+            remediation_cycles: value.remediation_cycles,
             lead_escalation_reviews: value.lead_escalation_reviews,
+            escalation_count: value.escalation_count,
+            takeover_count: value.takeover_count,
             categorized_findings: value.categorized_findings,
             uncategorized_reviews: value.uncategorized_reviews,
             first_pass_accepted_specs,
-            first_pass_acceptance_rate: first_pass_accepted_specs as f64 / denominator,
+            first_pass_acceptance_rate: ratio(first_pass_accepted_specs, first_pass_eligible_specs),
             average_review_cycles: value.review_cycles as f64 / denominator,
             transcript_fast_fail_rate: value.transcript_fast_fail_reviews as f64 / cycle_denominator,
             lead_escalation_rate: value.lead_escalation_reviews as f64 / cycle_denominator,
-            data_quality_caveat: "Deterministic review-artifact metrics; small samples and uncategorized legacy reviews do not establish causality.".into(),
+            lifecycle_known_reviews: value.lifecycle_known_reviews,
+            lifecycle_unknown_reviews: value.lifecycle_unknown_reviews,
+            lifecycle_coverage,
+            category_values: value.category_values,
+            canonical_category_values: value.canonical_category_values,
+            category_alias_values: value.category_alias_values,
+            unknown_categories: value.unknown_categories.into_iter().collect(),
+            category_coverage,
+            attribution_basis: "original-implementation-agent".into(),
+            confidence: confidence.into(),
+            diagnostics: value.diagnostics,
+            data_quality_caveat: format!(
+                "Metrics are attributed to the original implementation agent; lifecycle coverage {:.0}% and category coverage {:.0}% yield {confidence} confidence. Escalation and takeover are outcomes, not implementation credit.",
+                lifecycle_coverage * 100.0,
+                category_coverage * 100.0
+            ),
         }})
         .collect();
     Ok((signals, metrics))
@@ -220,10 +327,37 @@ struct MetricsAccumulator {
     changed_specs: BTreeSet<String>,
     transcript_fast_fail_reviews: usize,
     review_cycles: usize,
+    remediation_cycles: usize,
     lead_escalation_reviews: usize,
+    escalation_count: usize,
+    takeover_count: usize,
     categorized_findings: usize,
     uncategorized_reviews: usize,
-    spec_events: BTreeMap<String, Vec<(String, String, String)>>,
+    lifecycle_known_reviews: usize,
+    lifecycle_unknown_reviews: usize,
+    category_values: usize,
+    canonical_category_values: usize,
+    category_alias_values: usize,
+    unknown_categories: BTreeSet<String>,
+    diagnostics: Vec<String>,
+    spec_events: BTreeMap<String, Vec<SpecReviewEvent>>,
+}
+
+#[derive(Debug)]
+struct SpecReviewEvent {
+    created: String,
+    review_id: String,
+    status: String,
+    initial_verdict: Option<String>,
+    lifecycle_known: bool,
+}
+
+fn ratio(numerator: usize, denominator: usize) -> f64 {
+    if denominator == 0 {
+        0.0
+    } else {
+        numerator as f64 / denominator as f64
+    }
 }
 
 pub fn create_improvement_proposal(
@@ -511,6 +645,71 @@ mod tests {
         let (signals, _) = build_agent_improvement_signals(dir.path()).unwrap();
         assert_eq!(signals[0].distinct_specs.len(), 2);
         assert!(signals[0].threshold_met);
+        assert_eq!(signals[0].category, "verification-integrity");
+    }
+
+    #[test]
+    fn xenomark_shaped_metrics_count_cycles_escalation_takeover_and_aliases() {
+        let dir = tempdir().unwrap();
+        let accepted = dir.path().join(".lmbrain/reviews/accepted");
+        fs::create_dir_all(&accepted).unwrap();
+        fs::write(
+            accepted.join("REVIEW-047.md"),
+            "---\nid: REVIEW-047\nstatus: accepted\nspec: SPEC-047\ncreated: 2026-07-28\nimplementation_agent: AGENT-ENGINE\nfinding_categories: [metric-cannot-fail, evidence-integrity]\nreview_cycles: 3\nescalation: \"takeover correttivo del Project Lead\"\n---\n",
+        )
+        .unwrap();
+        fs::write(
+            accepted.join("REVIEW-054.md"),
+            "---\nid: REVIEW-054\nstatus: accepted\nspec: SPEC-048\ncreated: 2026-07-29\nimplementation_agent: AGENT-ENGINE\nfinding_categories: [unsound-metric, evidence-accuracy, project-specific]\nremediation_cycles: 2\nescalations: 1\n---\n",
+        )
+        .unwrap();
+
+        let (signals, metrics) = build_agent_improvement_signals(dir.path()).unwrap();
+        let metric = &metrics[0];
+        assert_eq!(metric.review_cycles, 6);
+        assert_eq!(metric.remediation_cycles, 4);
+        assert_eq!(metric.escalation_count, 2);
+        assert_eq!(metric.takeover_count, 1);
+        assert_eq!(metric.first_pass_accepted_specs, 0);
+        assert_eq!(metric.first_pass_acceptance_rate, 0.0);
+        assert_eq!(metric.lifecycle_coverage, 1.0);
+        assert_eq!(metric.category_values, 5);
+        assert_eq!(metric.canonical_category_values, 4);
+        assert_eq!(metric.category_coverage, 0.8);
+        assert_eq!(metric.unknown_categories, vec!["project-specific"]);
+        assert!(metric
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.contains("project-specific")));
+
+        let metrics_signal = signals
+            .iter()
+            .find(|signal| signal.category == "metrics-integrity")
+            .unwrap();
+        assert_eq!(metrics_signal.distinct_specs.len(), 2);
+        assert!(metrics_signal.threshold_met);
+        let evidence_signal = signals
+            .iter()
+            .find(|signal| signal.category == "verification-integrity")
+            .unwrap();
+        assert_eq!(evidence_signal.distinct_specs.len(), 2);
+    }
+
+    #[test]
+    fn status_only_accepted_review_is_not_claimed_as_first_pass() {
+        let dir = tempdir().unwrap();
+        let accepted = dir.path().join(".lmbrain/reviews/accepted");
+        fs::create_dir_all(&accepted).unwrap();
+        fs::write(
+            accepted.join("REVIEW-001.md"),
+            "---\nid: REVIEW-001\nstatus: accepted\nspec: SPEC-001\ncreated: 2026-07-20\nimplementation_agent: AGENT-X\nfinding_categories: [correctness]\n---\n",
+        )
+        .unwrap();
+        let (_, metrics) = build_agent_improvement_signals(dir.path()).unwrap();
+        assert_eq!(metrics[0].first_pass_accepted_specs, 0);
+        assert_eq!(metrics[0].lifecycle_unknown_reviews, 1);
+        assert_eq!(metrics[0].lifecycle_coverage, 0.0);
+        assert_eq!(metrics[0].confidence, "low");
     }
 
     fn write_profile(root: &Path) -> PathBuf {

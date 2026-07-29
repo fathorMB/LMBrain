@@ -14,6 +14,7 @@ import type {
   FileEvent,
   GitInfo,
   Handoff,
+  Finding,
   KitDiagnostic,
   McpProposal,
   McpRecord,
@@ -42,6 +43,7 @@ export interface WorkspaceState {
   pulseData: PulseData | null;
   specs: Spec[];
   reviews: Review[];
+  findings: Finding[];
   adrs: Adr[];
   agents: AgentProfile[];
   agentProposals: AgentProposal[];
@@ -76,6 +78,7 @@ export type Action =
   | { type: "SET_PULSE"; data: PulseData }
   | { type: "SET_SPECS"; specs: Spec[] }
   | { type: "SET_REVIEWS"; reviews: Review[] }
+  | { type: "SET_FINDINGS"; findings: Finding[] }
   | { type: "SET_ADRS"; adrs: Adr[] }
   | { type: "SET_AGENTS"; agents: AgentProfile[] }
   | { type: "SET_AGENT_PROPOSALS"; proposals: AgentProposal[] }
@@ -86,6 +89,7 @@ export type Action =
   | { type: "SET_WIKI_TREE"; tree: WikiTree }
   | { type: "SET_WIKI_PAGE"; page: WikiPage | null }
   | { type: "SET_SELECTED_SPEC"; spec: Spec | null }
+  | { type: "CLOSE_SPEC_DETAIL" }
   | { type: "SET_CMDK"; open: boolean }
   | { type: "SET_WATCHER"; active: boolean }
   | { type: "SET_LOADING"; loading: boolean; message?: string; path?: string | null }
@@ -109,6 +113,7 @@ const initialState: WorkspaceState = {
   pulseData: null,
   specs: [],
   reviews: [],
+  findings: [],
   adrs: [],
   agents: [],
   agentProposals: [],
@@ -206,6 +211,8 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, specs: action.specs };
     case "SET_REVIEWS":
       return { ...state, reviews: action.reviews };
+    case "SET_FINDINGS":
+      return { ...state, findings: action.findings };
     case "SET_ADRS":
       return { ...state, adrs: action.adrs };
     case "SET_AGENTS":
@@ -226,6 +233,13 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, wikiPage: action.page };
     case "SET_SELECTED_SPEC":
       return { ...state, selectedSpec: action.spec };
+    case "CLOSE_SPEC_DETAIL":
+      return {
+        ...state,
+        view: "taskboard",
+        selectedSpec: null,
+        cmdkOpen: false,
+      };
     case "SET_CMDK":
       return { ...state, cmdkOpen: action.open };
     case "SET_WATCHER":
@@ -266,6 +280,7 @@ export interface WorkspaceContextValue {
   refreshWorkspaceData: () => Promise<void>;
   navigateTo: (view: AppView) => void;
   openSpec: (spec: Spec) => void;
+  closeSpecDetail: () => void;
   toggleCmdk: () => void;
   closeCmdk: () => void;
   goToPicker: () => Promise<void>;
@@ -294,6 +309,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         pulseData,
         specs,
         reviews,
+        findings,
         adrs,
         agents,
         agentProposals,
@@ -306,6 +322,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         commands.getPulseData(),
         commands.getSpecs(),
         commands.getReviews(),
+        commands.getFindings(),
         commands.getAdrs(),
         commands.getAgents(),
         commands.getAgentProposals(),
@@ -320,6 +337,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       pulseData,
       specs,
       reviews,
+      findings,
       adrs,
       agents,
       agentProposals,
@@ -505,6 +523,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_CMDK", open: false });
   }, []);
 
+  const closeSpecDetail = useCallback(() => {
+    dispatch({ type: "CLOSE_SPEC_DETAIL" });
+  }, []);
+
   const toggleCmdk = useCallback(() => {
     dispatch({ type: "SET_CMDK", open: !state.cmdkOpen });
   }, [state.cmdkOpen]);
@@ -587,6 +609,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         refreshWorkspaceData,
         navigateTo,
         openSpec,
+        closeSpecDetail,
         toggleCmdk,
         closeCmdk,
         goToPicker,

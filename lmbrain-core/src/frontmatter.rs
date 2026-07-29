@@ -56,6 +56,14 @@ impl Document {
         self.fields.clone().into_iter().collect()
     }
 
+    pub fn object_array(&self, key: &str) -> Vec<Map<String, Value>> {
+        self.fields
+            .get(key)
+            .and_then(Value::as_array)
+            .map(|items| items.iter().filter_map(Value::as_object).cloned().collect())
+            .unwrap_or_default()
+    }
+
     /// Replaces only top-level scalar fields, retaining line order, comments, unrelated
     /// fields, and newline style.
     pub fn set(&mut self, key: &str, value: &str) {
@@ -144,6 +152,70 @@ impl Document {
             self.fields
                 .insert("activity".into(), Value::Array(Vec::new()));
         }
+    }
+
+    pub fn append_object(
+        &mut self,
+        key: &str,
+        fields: &[(String, Value)],
+    ) -> Result<(), FrontmatterError> {
+        match self.fields.get(key) {
+            Some(Value::Array(items)) if items.iter().all(Value::is_object) => {}
+            Some(Value::Array(items)) if items.is_empty() => {}
+            Some(_) => {
+                return Err(FrontmatterError::Invalid(format!(
+                    "'{key}' must be an array of objects"
+                )));
+            }
+            None => {}
+        }
+
+        let lines = self.frontmatter.lines().collect::<Vec<_>>();
+        let start = lines.iter().position(|line| {
+            indent_width(line) == 0
+                && top_level_key(line.trim_start()).is_some_and(|candidate| candidate == key)
+        });
+        let rendered = render_object_item(fields);
+
+        self.frontmatter = if let Some(start) = start {
+            let end = lines
+                .iter()
+                .enumerate()
+                .skip(start + 1)
+                .find(|(_, line)| !line.trim().is_empty() && indent_width(line) == 0)
+                .map(|(index, _)| index)
+                .unwrap_or(lines.len());
+            let mut output = lines[..start]
+                .iter()
+                .map(|line| (*line).to_string())
+                .collect::<Vec<_>>();
+            output.push(format!("{key}:"));
+            if lines[start].trim_end().ends_with(':') {
+                output.extend(lines[start + 1..end].iter().map(|line| (*line).to_string()));
+            }
+            output.extend(rendered);
+            output.extend(lines[end..].iter().map(|line| (*line).to_string()));
+            output.join(self.newline)
+        } else {
+            let mut output = self.frontmatter.clone();
+            if !output.is_empty() {
+                output.push_str(self.newline);
+            }
+            output.push_str(&format!("{key}:{}", self.newline));
+            output.push_str(&rendered.join(self.newline));
+            output
+        };
+
+        let object = fields.iter().cloned().collect::<Map<_, _>>();
+        self.fields
+            .entry(key.to_string())
+            .or_insert_with(|| Value::Array(Vec::new()))
+            .as_array_mut()
+            .ok_or_else(|| {
+                FrontmatterError::Invalid(format!("'{key}' must be an array of objects"))
+            })?
+            .push(Value::Object(object));
+        Ok(())
     }
 
     pub fn append_override_reason(&mut self, reason: &str) {
@@ -598,6 +670,29 @@ fn yaml_scalar(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
+fn render_object_item(fields: &[(String, Value)]) -> Vec<String> {
+    let mut rendered = Vec::new();
+    for (index, (key, value)) in fields.iter().enumerate() {
+        let prefix = if index == 0 { "  - " } else { "    " };
+        rendered.push(format!("{prefix}{key}: {}", yaml_value(value)));
+    }
+    rendered
+}
+
+fn yaml_value(value: &Value) -> String {
+    match value {
+        Value::String(value) => yaml_scalar(value),
+        Value::Bool(value) => value.to_string(),
+        Value::Null => "null".into(),
+        Value::Number(value) => value.to_string(),
+        Value::Array(values) => format!(
+            "[{}]",
+            values.iter().map(yaml_value).collect::<Vec<_>>().join(", ")
+        ),
+        Value::Object(_) => yaml_scalar(&value.to_string()),
+    }
+}
+
 pub fn atomic_write(path: &Path, content: &str) -> Result<(), FrontmatterError> {
     let parent = path.parent().ok_or(FrontmatterError::Malformed)?;
     fs::create_dir_all(parent)?;
@@ -702,6 +797,42 @@ mod tests {
                 .map(|items| items.len()),
             Some(1)
         );
+    }
+
+    #[test]
+    fn appends_typed_objects_and_rejects_an_incompatible_field() {
+        let mut document = parse("---\nid: REVIEW-001\nreview_events: []\n---\nBody");
+        document
+            .append_object(
+                "review_events",
+                &[
+                    ("id".into(), Value::String("REVIEW-001-EVENT-001".into())),
+                    (
+                        "evidence_refs".into(),
+                        Value::Array(vec![Value::String("SPEC-001".into())]),
+                    ),
+                ],
+            )
+            .unwrap();
+        let reparsed = parse(&document.render());
+        let events = reparsed.object_array("review_events");
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0]
+                .get("evidence_refs")
+                .and_then(Value::as_array)
+                .and_then(|values| values.first())
+                .and_then(Value::as_str),
+            Some("SPEC-001")
+        );
+
+        let mut invalid = parse("---\nreview_events: legacy\n---\nBody");
+        assert!(invalid
+            .append_object(
+                "review_events",
+                &[("id".into(), Value::String("EVENT-001".into()))]
+            )
+            .is_err());
     }
 
     #[test]

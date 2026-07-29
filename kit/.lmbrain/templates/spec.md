@@ -9,6 +9,9 @@ area:
 milestone: 
 # References use IDs only (e.g. [TASK-001]); use [[wikilinks]] in prose
 recommended_agent: AGENT-XXX
+depends_on: []
+dependency_events: []
+parking_events: []
 skills: []
 verification_gates: []
 related_tasks: []
@@ -44,7 +47,7 @@ tags: []
 
 ## Required verification
 
-<!-- Canonical form: ID | kind=executable|manual|operator | owner=agent|kit|operator | phase=before-submit|before-done | evidence=transcript|observation|artifact | requirement -->
+<!-- Canonical form: ID | kind=executable|manual|operator | owner=agent|kit|lead|operator | phase=before-submit|before-done | evidence=transcript|observation|artifact | requirement -->
 - [ ] GATE-ID | kind=manual | owner=agent | phase=before-submit | evidence=transcript | Describe the exact check
 
 ## Production quality and documentation

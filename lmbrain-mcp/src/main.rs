@@ -5,14 +5,22 @@ use std::{
 
 use lmbrain_core::context::{build_project_digest, build_review_context, build_spec_context};
 use lmbrain_core::transitions::{
-    create, set_agent_mnemonic_name, set_recommended_agent, transition, ArtifactKind,
-    CreateRequest, MutationOptions,
+    create, record_review_event, review_verdict, set_agent_mnemonic_name, set_recommended_agent,
+    transition, ArtifactKind, CreateRequest, MutationOptions,
 };
 use lmbrain_core::{
-    apply_improvement_proposal, approve_verification_manifest, build_agent_improvement_signals,
-    canonical_manifest_digest, canonical_verification_manifest_digest, create_improvement_proposal,
-    execute_spec_verification, load_harness_manifest, load_verification_manifest,
-    parse_harness_manifest, set_harness_manifest, HarnessManifestError, ImprovementProposalRequest,
+    accept_finding_risk, apply_improvement_proposal, approve_verification_manifest,
+    attest_spec_requirement, build_agent_improvement_signals, build_review_migration_preview,
+    canonical_manifest_digest, canonical_verification_manifest_digest, create_finding,
+    create_improvement_proposal, default_verification_approval_path, defer_finding,
+    discover_verification_manifest, execute_spec_verification, finding_candidates, finding_context,
+    load_harness_manifest, load_verification_manifest, park_spec, parse_harness_manifest,
+    plan_finding, reopen_finding, resolve_finding, rollback_verification_manifest,
+    set_harness_manifest, set_spec_dependencies, set_verification_manifest,
+    spec_dependency_candidates, spec_dependency_context, supersede_finding,
+    validate_verification_manifest_source, verification_manifest_status, FindingCreateInput,
+    HarnessManifestError, ImprovementProposalRequest, ReviewEventInput, SpecParkingInput,
+    VerificationManifest, VerificationManifestState,
 };
 use serde_json::{json, Value};
 
@@ -117,7 +125,6 @@ fn tools() -> Vec<Value> {
             "spec_discard",
             "Discard a spec (requires operator approval).",
         ),
-        ("review_accept", "Accept a review on explicit operator request."),
         ("adr_accept", "Accept a proposed ADR (on operator request)."),
         ("adr_reject", "Reject a proposed ADR (on operator request)."),
         (
@@ -161,7 +168,44 @@ fn tools() -> Vec<Value> {
     }
 
     entries.extend([
+        review_verdict_tool(
+            "review_accept",
+            "Accept a review on explicit operator request and record the verdict event.",
+            false,
+        ),
+        review_verdict_tool(
+            "review_changes_requested",
+            "Project Lead: request changes with a reason and preserve the review verdict history.",
+            true,
+        ),
+        review_verdict_tool(
+            "review_block",
+            "Project Lead: block a review with a reason and preserve the review verdict history.",
+            true,
+        ),
+        review_verdict_tool(
+            "review_supersede",
+            "Project Lead: supersede a review with a reason and preserve the review verdict history.",
+            true,
+        ),
+        review_event_tool(
+            "review_remediation",
+            "Implementation specialist: record one remediation attempt without changing review status.",
+            true,
+        ),
+        review_event_tool(
+            "review_escalate",
+            "Operator: record an explicitly authorized review escalation without changing review status.",
+            false,
+        ),
+        review_event_tool(
+            "review_takeover",
+            "Project Lead: record an operator-authorized bounded corrective takeover without changing review status.",
+            false,
+        ),
         create_tool(),
+        lead_attestation_tool(),
+        spec_park_tool(),
         setter_tool(
             "lmbrain_set_recommended_agent",
             "Set a spec recommended agent.",
@@ -177,11 +221,19 @@ fn tools() -> Vec<Value> {
             "lmbrain_validate",
             "Validate controlled-mutation invariants.",
         ),
+        read_tool(
+            "review_migration_preview",
+            "Read-only deterministic report of review lifecycle and finding-taxonomy migration coverage.",
+        ),
+        read_tool(
+            "verification_migration_preview",
+            "Read-only conservative preview for legacy operator-owned before-done gates; never rewrites specs.",
+        ),
         read_tool("lmbrain_list_ready_handoffs", "List ready handoffs."),
         // V3 context-pack tools
         context_tool(
             "lmbrain_project_digest",
-            "Compact project overview: title/status, current milestone, ready/review specs, blockers, ready handoffs, active decisions, diagnostics summary, and version/health warnings. Returns JSON and Markdown summary. Does not mutate artifacts.",
+            "Versioned, bounded project orientation: declared and derived state, lifecycle counts and spec lists, roadmap reconciliation, actionable diagnostics with exact omissions, handoffs and decisions. Read-only.",
         ),
         context_tool(
             "lmbrain_spec_context",
@@ -195,14 +247,131 @@ fn tools() -> Vec<Value> {
         harness_candidate_tool("harness_config_validate", "Validate a complete candidate project harness manifest without writing it."),
         harness_candidate_tool("harness_config_set", "Atomically replace the complete project harness manifest after strict validation and append digest-only audit evidence. This does not approve or materialize native configuration."),
         verification_manifest_tool(),
+        verification_manifest_status_tool(),
+        verification_manifest_init_tool(),
+        verification_manifest_validate_tool(),
+        verification_manifest_set_tool(),
+        verification_manifest_rollback_tool(),
         verification_approval_tool(),
         spec_verify_tool(),
         improvement_signals_tool(),
         improvement_propose_tool(),
         improvement_apply_tool(),
     ]);
+    entries.extend(finding_tools());
+    entries.extend(spec_dependency_tools());
 
     entries
+}
+
+fn spec_dependency_tools() -> Vec<Value> {
+    vec![
+        json!({
+            "name":"spec_dependency_context",
+            "description":"Read-only direct, dependent, transitive, and blocking hard-spec dependency context.",
+            "inputSchema":{
+                "type":"object","required":["spec"],
+                "properties":{"spec":{"type":"string"}},
+                "additionalProperties":false
+            }
+        }),
+        json!({
+            "name":"spec_dependency_candidates",
+            "description":"Read-only conservative inventory of explicit hard-dependency prose. Candidates are never promoted automatically.",
+            "inputSchema":{"type":"object","properties":{},"additionalProperties":false}
+        }),
+        json!({
+            "name":"spec_dependencies_set",
+            "description":"Project Lead: replace the hard prerequisite set with graph validation, audit history, and optimistic concurrency.",
+            "inputSchema":{
+                "type":"object","required":["path","depends_on","actor","reason","expected_digest"],
+                "properties":{
+                    "path":{"type":"string"},
+                    "depends_on":{"type":"array","items":{"type":"string"}},
+                    "actor":{"type":"string"},
+                    "reason":{"type":"string"},
+                    "expected_digest":{"type":"string"}
+                },
+                "additionalProperties":false
+            }
+        }),
+    ]
+}
+
+fn finding_tools() -> Vec<Value> {
+    vec![
+        json!({
+            "name":"finding_create",
+            "description":"Project Lead: create one evidence-backed open FINDING-* artifact. This does not authorize implementation or rewrite its origin.",
+            "inputSchema":{
+                "type":"object",
+                "required":["title","category","severity","statement","evidence","impact","resolution_criteria","actor","rationale"],
+                "properties":{
+                    "title":{"type":"string"},"category":{"type":"string"},
+                    "severity":{"enum":["critical","high","medium","low","info"]},
+                    "origin_severity":{"type":["string","null"]},
+                    "area":{"type":["string","null"]},"milestone":{"type":["string","null"]},
+                    "owner":{"type":["string","null"]},"origin_artifact":{"type":["string","null"]},
+                    "origin_ref":{"type":["string","null"]},
+                    "related_specs":{"type":"array","items":{"type":"string"}},
+                    "related_reviews":{"type":"array","items":{"type":"string"}},
+                    "related_decisions":{"type":"array","items":{"type":"string"}},
+                    "blocked_by":{"type":"array","items":{"type":"string"}},
+                    "tags":{"type":"array","items":{"type":"string"}},
+                    "statement":{"type":"string"},"evidence":{"type":"string"},
+                    "impact":{"type":"string"},"resolution_criteria":{"type":"string"},
+                    "actor":{"type":"string"},"rationale":{"type":"string"}
+                },"additionalProperties":false
+            }
+        }),
+        finding_transition_tool("finding_plan", "Project Lead: route an unresolved finding to validated target specs.", &[
+            ("target_specs", json!({"type":"array","items":{"type":"string"},"minItems":1}))
+        ]),
+        finding_transition_tool("finding_defer", "Project Lead: retain a finding outside active delivery with a revisit condition.", &[
+            ("revisit_condition", json!({"type":"string"}))
+        ]),
+        finding_transition_tool("finding_resolve", "Project Lead: resolve a finding only with canonical references and explicit resolution evidence.", &[
+            ("resolution_refs", json!({"type":"array","items":{"type":"string"},"minItems":1})),
+            ("resolution_evidence", json!({"type":"string"}))
+        ]),
+        finding_transition_tool("finding_accept_risk", "Operator-only: accept remaining behavior with rationale and an explicit revisit policy.", &[
+            ("revisit_condition", json!({"type":"string"})),
+            ("resolution_refs", json!({"type":"array","items":{"type":"string"}}))
+        ]),
+        finding_transition_tool("finding_supersede", "Project Lead: supersede a finding with a successor or explicit obsolescence rationale.", &[
+            ("successor", json!({"type":["string","null"]}))
+        ]),
+        finding_transition_tool("finding_reopen", "Operator-only: reopen a resolved or accepted-risk finding with rationale. Superseded history cannot be reopened.", &[]),
+        json!({
+            "name":"finding_context",
+            "description":"Read-only bounded finding detail with canonical source, targets, blockers, decisions, evidence, and event timeline.",
+            "inputSchema":{"type":"object","required":["finding"],"properties":{"finding":{"type":"string"}},"additionalProperties":false}
+        }),
+        json!({
+            "name":"finding_candidates",
+            "description":"Read-only bounded inventory of stable-form legacy review entries. It never infers disposition or creates findings.",
+            "inputSchema":{"type":"object","properties":{},"additionalProperties":false}
+        }),
+    ]
+}
+
+fn finding_transition_tool(name: &str, description: &str, extras: &[(&str, Value)]) -> Value {
+    let mut properties = serde_json::Map::from_iter([
+        ("path".into(), json!({"type":"string"})),
+        ("actor".into(), json!({"type":"string"})),
+        ("rationale".into(), json!({"type":"string"})),
+    ]);
+    let mut required = vec![json!("path"), json!("actor"), json!("rationale")];
+    for (name, schema) in extras {
+        properties.insert((*name).into(), schema.clone());
+        if schema.get("type") != Some(&json!(["string", "null"])) {
+            required.push(json!(*name));
+        }
+    }
+    json!({
+        "name":name,"description":description,
+        "inputSchema":{"type":"object","required":required,"properties":properties,"additionalProperties":false}
+    })
 }
 
 fn verification_manifest_tool() -> Value {
@@ -210,6 +379,64 @@ fn verification_manifest_tool() -> Value {
         "name": "verification_manifest_get",
         "description": "Read and validate the versioned verification manifest and return its canonical digest. Does not execute gates.",
         "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
+    })
+}
+
+fn verification_manifest_status_tool() -> Value {
+    json!({
+        "name": "verification_manifest_status",
+        "description": "Read-only typed status for the repository manifest and machine-local digest approval, with the exact next safe action.",
+        "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
+    })
+}
+
+fn verification_manifest_init_tool() -> Value {
+    json!({
+        "name": "verification_manifest_init",
+        "description": "Read-only deterministic discovery and exact TOML/diff preview. Never writes, approves, or executes discovered commands.",
+        "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
+    })
+}
+
+fn verification_manifest_validate_tool() -> Value {
+    json!({
+        "name": "verification_manifest_validate",
+        "description": "Validate complete verification TOML and return its canonical representation and digest without writing or executing it.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["source"],
+            "properties": {"source": {"type": "string", "maxLength": 262144}},
+            "additionalProperties": false
+        }
+    })
+}
+
+fn verification_manifest_set_tool() -> Value {
+    json!({
+        "name": "verification_manifest_set",
+        "description": "Project Lead: atomically create or replace a complete validated manifest after preview. This invalidates approval and never executes commands.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["manifest"],
+            "properties": {
+                "manifest": {"type": "object"},
+                "expected_current_digest": {"type": ["string", "null"]}
+            },
+            "additionalProperties": false
+        }
+    })
+}
+
+fn verification_manifest_rollback_tool() -> Value {
+    json!({
+        "name": "verification_manifest_rollback",
+        "description": "Project Lead: restore the recoverable previous manifest only when the current digest matches the previewed digest. Approval remains separate.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["expected_current_digest"],
+            "properties": {"expected_current_digest": {"type": "string"}},
+            "additionalProperties": false
+        }
     })
 }
 
@@ -308,6 +535,94 @@ fn transition_tool(name: &str, description: &str) -> Value {
     })
 }
 
+fn review_verdict_tool(name: &str, description: &str, reason_required: bool) -> Value {
+    let mut required = vec![json!("path")];
+    if reason_required {
+        required.push(json!("reason"));
+    }
+    json!({
+        "name": name,
+        "description": description,
+        "inputSchema": {
+            "type": "object",
+            "required": required,
+            "properties": {
+                "path": {"type": "string", "description": "Review path relative to repository root."},
+                "reason": {"type": "string", "description": "Verdict rationale; required for non-accepting verdicts."},
+                "evidence_refs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Artifact IDs or paths supporting the verdict."
+                },
+                "remediation_agent": {
+                    "type": "string",
+                    "description": "Optional agent expected to remediate the verdict."
+                },
+                "force": {"type": "boolean", "default": false}
+            },
+            "additionalProperties": false
+        }
+    })
+}
+
+fn review_event_tool(name: &str, description: &str, remediation_agent_required: bool) -> Value {
+    let mut required = vec![json!("path"), json!("reason")];
+    if remediation_agent_required {
+        required.push(json!("remediation_agent"));
+    }
+    json!({
+        "name": name,
+        "description": description,
+        "inputSchema": {
+            "type": "object",
+            "required": required,
+            "properties": {
+                "path": {"type": "string", "description": "Review path relative to repository root."},
+                "reason": {"type": "string", "description": "Required lifecycle-event rationale."},
+                "evidence_refs": {"type": "array", "items": {"type": "string"}},
+                "remediation_agent": {"type": "string"},
+                "force": {"type": "boolean", "default": false}
+            },
+            "additionalProperties": false
+        }
+    })
+}
+
+fn lead_attestation_tool() -> Value {
+    json!({
+        "name": "spec_attest_lead",
+        "description": "Project Lead: attest one owner=lead, phase=before-done requirement with evidence. Does not approve or change spec status.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["path", "requirement_id", "actor", "evidence_ref"],
+            "properties": {
+                "path": {"type": "string"},
+                "requirement_id": {"type": "string"},
+                "actor": {"type": "string", "description": "Lead profile ID, normally AGENT-LEAD."},
+                "evidence_ref": {"type": "string"}
+            },
+            "additionalProperties": false
+        }
+    })
+}
+
+fn spec_park_tool() -> Value {
+    json!({
+        "name":"spec_park",
+        "description":"Project Lead: park a ready spec back in backlog. This invalidates current readiness without discarding or rejecting the spec.",
+        "inputSchema":{
+            "type":"object","required":["path","actor","reason"],
+            "properties":{
+                "path":{"type":"string"},
+                "actor":{"type":"string"},
+                "reason":{"type":"string"},
+                "revisit_condition":{"type":["string","null"]}
+            },
+            "additionalProperties":false
+        }
+    })
+}
+
 fn create_tool() -> Value {
     json!({
         "name":"lmbrain_create",
@@ -392,6 +707,50 @@ fn opts(args: &Value) -> MutationOptions {
     }
 }
 
+fn required_string<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
+    args.get(key)
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("{key} missing"))
+}
+
+fn string_array(args: &Value, key: &str) -> Result<Vec<String>, String> {
+    serde_json::from_value(
+        args.get(key)
+            .cloned()
+            .ok_or_else(|| format!("{key} missing"))?,
+    )
+    .map_err(|error| format!("{key} must be an array of strings: {error}"))
+}
+
+fn review_event_input(args: &Value, actor_role: &str) -> Result<ReviewEventInput, String> {
+    let evidence_refs = match args.get("evidence_refs") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(items)) => items
+            .iter()
+            .map(|item| {
+                item.as_str()
+                    .map(str::to_owned)
+                    .ok_or_else(|| "evidence_refs must contain only strings".to_owned())
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        Some(_) => return Err("evidence_refs must be an array of strings".into()),
+    };
+    Ok(ReviewEventInput {
+        actor_role: actor_role.into(),
+        reason: args
+            .get("reason")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .into(),
+        evidence_refs,
+        remediation_agent: args
+            .get("remediation_agent")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+    })
+}
+
 fn text(value: Value) -> Value {
     json!({"content":[{"type":"text","text":value.to_string()}]})
 }
@@ -402,6 +761,34 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         .and_then(Value::as_str)
         .ok_or("tool name missing")?;
     let args = params.get("arguments").unwrap_or(&Value::Null);
+
+    if let Some((action, actor_role)) = review_event_action(name) {
+        return record_review_event(
+            root,
+            args.get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?,
+            action,
+            review_event_input(args, actor_role)?,
+            opts(args),
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string());
+    }
+
+    if let Some((status, actor_role)) = review_status(name) {
+        return review_verdict(
+            root,
+            args.get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?,
+            status,
+            review_event_input(args, actor_role)?,
+            opts(args),
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string());
+    }
 
     if let Some(status) = specific_status(name) {
         return transition(
@@ -417,6 +804,54 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
     }
 
     match name {
+        "spec_attest_lead" => attest_spec_requirement(
+            root,
+            args.get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?,
+            args.get("requirement_id")
+                .and_then(Value::as_str)
+                .ok_or("requirement_id missing")?,
+            "lead",
+            args.get("actor")
+                .and_then(Value::as_str)
+                .ok_or("actor missing")?,
+            args.get("evidence_ref")
+                .and_then(Value::as_str)
+                .ok_or("evidence_ref missing")?,
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "spec_park" => park_spec(
+            root,
+            required_string(args, "path")?,
+            SpecParkingInput {
+                actor: required_string(args, "actor")?.into(),
+                reason: required_string(args, "reason")?.into(),
+                revisit_condition: args
+                    .get("revisit_condition")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+            },
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "spec_dependency_context" => spec_dependency_context(root, required_string(args, "spec")?)
+            .map(|result| text(json!(result)))
+            .map_err(|error| error.to_string()),
+        "spec_dependency_candidates" => spec_dependency_candidates(root)
+            .map(|result| text(json!(result)))
+            .map_err(|error| error.to_string()),
+        "spec_dependencies_set" => set_spec_dependencies(
+            root,
+            PathBuf::from(required_string(args, "path")?).as_path(),
+            string_array(args, "depends_on")?,
+            required_string(args, "actor")?,
+            required_string(args, "reason")?,
+            required_string(args, "expected_digest")?,
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
         "lmbrain_create" => {
             let kind = serde_json::from_value::<ArtifactKind>(
                 args.get("kind").cloned().ok_or("kind missing")?,
@@ -513,8 +948,18 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             Ok(text(json!({ "handoffs": paths })))
         }
         "lmbrain_validate" => Ok(text(json!({
-            "unique_ids": lmbrain_core::invariants::unique_ids(root)
+            "schema_version": "2",
+            "unique_ids": lmbrain_core::invariants::unique_ids(root),
+            "diagnostics": lmbrain_core::build_diagnostics(root)
         }))),
+        "review_migration_preview" => build_review_migration_preview(root)
+            .map(|preview| text(json!(preview)))
+            .map_err(|error| error.to_string()),
+        "verification_migration_preview" => {
+            lmbrain_core::build_verification_migration_preview(root)
+                .map(|preview| text(json!(preview)))
+                .map_err(|error| error.to_string())
+        }
         "lmbrain_project_digest" => {
             let digest = build_project_digest(root);
             Ok(text(json!(digest)))
@@ -535,6 +980,74 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             let ctx = build_review_context(root, spec)?;
             Ok(text(json!(ctx)))
         }
+        "finding_create" => {
+            let input: FindingCreateInput =
+                serde_json::from_value(args.clone()).map_err(|error| error.to_string())?;
+            create_finding(root, input)
+                .map(|result| text(json!(result)))
+                .map_err(|error| error.to_string())
+        }
+        "finding_plan" => plan_finding(
+            root,
+            required_string(args, "path")?,
+            string_array(args, "target_specs")?,
+            required_string(args, "actor")?,
+            required_string(args, "rationale")?,
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "finding_defer" => defer_finding(
+            root,
+            required_string(args, "path")?,
+            required_string(args, "actor")?,
+            required_string(args, "rationale")?,
+            required_string(args, "revisit_condition")?,
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "finding_resolve" => resolve_finding(
+            root,
+            required_string(args, "path")?,
+            required_string(args, "actor")?,
+            required_string(args, "rationale")?,
+            string_array(args, "resolution_refs")?,
+            required_string(args, "resolution_evidence")?,
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "finding_accept_risk" => accept_finding_risk(
+            root,
+            required_string(args, "path")?,
+            required_string(args, "actor")?,
+            required_string(args, "rationale")?,
+            required_string(args, "revisit_condition")?,
+            string_array(args, "resolution_refs")?,
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "finding_supersede" => supersede_finding(
+            root,
+            required_string(args, "path")?,
+            required_string(args, "actor")?,
+            required_string(args, "rationale")?,
+            args.get("successor")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "finding_reopen" => reopen_finding(
+            root,
+            required_string(args, "path")?,
+            required_string(args, "actor")?,
+            required_string(args, "rationale")?,
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "finding_context" => finding_context(root, required_string(args, "finding")?)
+            .map(|context| text(json!(context)))
+            .map_err(|error| error.to_string()),
+        "finding_candidates" => Ok(text(json!(finding_candidates(root)))),
         "harness_config_get" => match load_harness_manifest(root) {
             Ok(manifest) => Ok(text(json!({
                 "configured": true,
@@ -564,9 +1077,49 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
                 .map_err(|error| error.to_string())?;
             Ok(text(json!({"manifest": manifest, "digest": digest})))
         }
+        "verification_manifest_status" => {
+            let status =
+                verification_manifest_status(root, &default_verification_approval_path(root))
+                    .map_err(|error| error.to_string())?;
+            Ok(text(json!(status)))
+        }
+        "verification_manifest_init" => {
+            let preview =
+                discover_verification_manifest(root, &default_verification_approval_path(root))
+                    .map_err(|error| error.to_string())?;
+            Ok(text(json!(preview)))
+        }
+        "verification_manifest_validate" => {
+            let source = args
+                .get("source")
+                .and_then(Value::as_str)
+                .ok_or("source missing")?;
+            validate_verification_manifest_source(source)
+                .map(|result| text(json!(result)))
+                .map_err(|error| error.to_string())
+        }
+        "verification_manifest_set" => {
+            let manifest: VerificationManifest =
+                serde_json::from_value(args.get("manifest").cloned().ok_or("manifest missing")?)
+                    .map_err(|error| format!("invalid manifest payload: {error}"))?;
+            let expected = args.get("expected_current_digest").and_then(Value::as_str);
+            set_verification_manifest(root, &manifest, expected)
+                .map(|result| text(json!(result)))
+                .map_err(|error| error.to_string())
+        }
+        "verification_manifest_rollback" => {
+            let expected = args
+                .get("expected_current_digest")
+                .and_then(Value::as_str)
+                .ok_or("expected_current_digest missing")?;
+            rollback_verification_manifest(root, expected)
+                .map(|result| text(json!(result)))
+                .map_err(|error| error.to_string())
+        }
         "verification_manifest_approve" => {
-            let approval = approve_verification_manifest(root, &verification_approval_path(root))
-                .map_err(|error| error.to_string())?;
+            let approval =
+                approve_verification_manifest(root, &default_verification_approval_path(root))
+                    .map_err(|error| error.to_string())?;
             Ok(text(json!(approval)))
         }
         "spec_verify" => {
@@ -574,12 +1127,22 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or("path missing")?;
-            let report = execute_spec_verification(
-                root,
-                &root.join(relative),
-                &verification_approval_path(root),
-            )
-            .map_err(|error| error.to_string())?;
+            let approval_path = default_verification_approval_path(root);
+            let status = verification_manifest_status(root, &approval_path)
+                .map_err(|error| error.to_string())?;
+            if status.state != VerificationManifestState::Approved {
+                return Err(format!(
+                    "spec_verify blocked: verification manifest state is {:?}. {}",
+                    status.state, status.next_action
+                ));
+            }
+            let report = execute_spec_verification(root, &root.join(relative), &approval_path)
+                .map_err(|error| match error {
+                    lmbrain_core::VerificationError::UnknownGate(gate) => format!(
+                        "unknown verification gate '{gate}'; run verification_manifest_init and reconcile the spec reference before retrying"
+                    ),
+                    other => other.to_string(),
+                })?;
             Ok(text(json!(report)))
         }
         "agent_improvement_signals" => {
@@ -607,25 +1170,6 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
     }
 }
 
-fn verification_approval_path(root: &std::path::Path) -> PathBuf {
-    if let Some(path) = std::env::var_os("LMBRAIN_VERIFICATION_APPROVAL_STORE") {
-        return PathBuf::from(path);
-    }
-    let base = std::env::var_os(if cfg!(windows) {
-        "LOCALAPPDATA"
-    } else {
-        "XDG_DATA_HOME"
-    })
-    .map(PathBuf::from)
-    .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")))
-    .unwrap_or_else(std::env::temp_dir);
-    let identity = lmbrain_core::workspace_identity(root)
-        .map(|identity| identity.fingerprint)
-        .unwrap_or_else(|_| "unknown-workspace".into());
-    base.join("lmbrain/verification-approvals")
-        .join(format!("{identity}.json"))
-}
-
 fn candidate_manifest(args: &Value) -> Result<lmbrain_core::HarnessManifest, String> {
     let candidate = args.get("manifest").ok_or("manifest missing")?;
     parse_harness_manifest(&candidate.to_string()).map_err(|error| error.to_string())
@@ -638,7 +1182,6 @@ fn specific_status(name: &str) -> Option<&'static str> {
         "spec_submit" => Some("review"),
         "spec_done" => Some("done"),
         "spec_discard" => Some("discarded"),
-        "review_accept" => Some("accepted"),
         "adr_accept" => Some("accepted"),
         "adr_reject" => Some("rejected"),
         "agent_activate" => Some("active"),
@@ -650,6 +1193,25 @@ fn specific_status(name: &str) -> Option<&'static str> {
         "handoff_consume" => Some("consumed"),
         "handoff_supersede" => Some("superseded"),
         "handoff_archive" => Some("archived"),
+        _ => None,
+    }
+}
+
+fn review_status(name: &str) -> Option<(&'static str, &'static str)> {
+    match name {
+        "review_accept" => Some(("accepted", "operator")),
+        "review_changes_requested" => Some(("changes-requested", "project-lead")),
+        "review_block" => Some(("blocked", "project-lead")),
+        "review_supersede" => Some(("superseded", "project-lead")),
+        _ => None,
+    }
+}
+
+fn review_event_action(name: &str) -> Option<(&'static str, &'static str)> {
+    match name {
+        "review_remediation" => Some(("remediation", "implementation-specialist")),
+        "review_escalate" => Some(("escalation", "operator")),
+        "review_takeover" => Some(("takeover", "project-lead")),
         _ => None,
     }
 }
@@ -723,8 +1285,525 @@ mod tests {
         assert!(!names.iter().any(|name| name.starts_with("task_")));
         assert!(names.contains(&"spec_done".to_string()));
         assert!(names.contains(&"spec_discard".to_string()));
+        assert!(names.contains(&"spec_park".to_string()));
+        assert!(names.contains(&"spec_dependency_context".to_string()));
+        assert!(names.contains(&"spec_dependency_candidates".to_string()));
+        assert!(names.contains(&"spec_dependencies_set".to_string()));
         assert!(names.contains(&"review_accept".to_string()));
+        assert!(names.contains(&"review_changes_requested".to_string()));
+        assert!(names.contains(&"review_block".to_string()));
+        assert!(names.contains(&"review_supersede".to_string()));
+        assert!(names.contains(&"review_remediation".to_string()));
+        assert!(names.contains(&"review_escalate".to_string()));
+        assert!(names.contains(&"review_takeover".to_string()));
+        assert!(names.contains(&"review_migration_preview".to_string()));
+        assert!(names.contains(&"spec_attest_lead".to_string()));
+        assert!(names.contains(&"verification_migration_preview".to_string()));
+        assert!(names.contains(&"verification_manifest_status".to_string()));
+        assert!(names.contains(&"verification_manifest_init".to_string()));
+        assert!(names.contains(&"verification_manifest_validate".to_string()));
+        assert!(names.contains(&"verification_manifest_set".to_string()));
+        assert!(names.contains(&"verification_manifest_rollback".to_string()));
+        for name in [
+            "finding_create",
+            "finding_plan",
+            "finding_defer",
+            "finding_resolve",
+            "finding_accept_risk",
+            "finding_supersede",
+            "finding_reopen",
+            "finding_context",
+            "finding_candidates",
+        ] {
+            assert!(names.contains(&name.to_string()), "{name} missing");
+        }
         assert!(names.contains(&"lmbrain_set_agent_mnemonic_name".to_string()));
+    }
+
+    #[test]
+    fn negative_review_verdict_tools_require_a_reason() {
+        let tools = super::tools();
+        for name in [
+            "review_changes_requested",
+            "review_block",
+            "review_supersede",
+        ] {
+            let tool = tools
+                .iter()
+                .find(|tool| tool.get("name").and_then(Value::as_str) == Some(name))
+                .unwrap();
+            let required = tool
+                .pointer("/inputSchema/required")
+                .and_then(Value::as_array)
+                .unwrap();
+            assert!(required.iter().any(|value| value.as_str() == Some("path")));
+            assert!(required
+                .iter()
+                .any(|value| value.as_str() == Some("reason")));
+        }
+
+        let remediation = tools
+            .iter()
+            .find(|tool| tool.get("name").and_then(Value::as_str) == Some("review_remediation"))
+            .unwrap();
+        let required = remediation
+            .pointer("/inputSchema/required")
+            .and_then(Value::as_array)
+            .unwrap();
+        assert!(required
+            .iter()
+            .any(|value| value.as_str() == Some("remediation_agent")));
+    }
+
+    #[test]
+    fn review_verdict_dispatch_moves_and_audits_without_invalid_partial_writes() {
+        let dir = tempfile::tempdir().unwrap();
+        let pending_dir = dir.path().join(".lmbrain/reviews/pending");
+        std::fs::create_dir_all(&pending_dir).unwrap();
+        let pending = pending_dir.join("REVIEW-001.md");
+        let source = "---\nid: REVIEW-001\nstatus: pending\n---\nReview\n";
+        std::fs::write(&pending, source).unwrap();
+        let root = dir.path().to_path_buf();
+
+        let invalid = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "review_block",
+                "arguments": {"path": ".lmbrain/reviews/pending/REVIEW-001.md"}
+            }),
+        );
+        assert!(invalid.is_err());
+        assert_eq!(std::fs::read_to_string(&pending).unwrap(), source);
+
+        super::call(
+            &root,
+            &serde_json::json!({
+                "name": "review_changes_requested",
+                "arguments": {
+                    "path": ".lmbrain/reviews/pending/REVIEW-001.md",
+                    "reason": "Regression is missing",
+                    "evidence_refs": ["SPEC-001", "tests/review.rs"],
+                    "remediation_agent": "AGENT-002"
+                }
+            }),
+        )
+        .unwrap();
+        let changed = dir
+            .path()
+            .join(".lmbrain/reviews/changes-requested/REVIEW-001.md");
+        assert!(changed.exists());
+        assert!(!pending.exists());
+
+        for (name, arguments) in [
+            (
+                "review_remediation",
+                serde_json::json!({
+                    "path": ".lmbrain/reviews/changes-requested/REVIEW-001.md",
+                    "reason": "Implemented the requested regression coverage",
+                    "remediation_agent": "AGENT-002",
+                    "evidence_refs": ["tests/review.rs"]
+                }),
+            ),
+            (
+                "review_escalate",
+                serde_json::json!({
+                    "path": ".lmbrain/reviews/changes-requested/REVIEW-001.md",
+                    "reason": "Operator escalated after repeated remediation"
+                }),
+            ),
+            (
+                "review_takeover",
+                serde_json::json!({
+                    "path": ".lmbrain/reviews/changes-requested/REVIEW-001.md",
+                    "reason": "Bounded corrective takeover authorized by operator"
+                }),
+            ),
+        ] {
+            super::call(
+                &root,
+                &serde_json::json!({"name": name, "arguments": arguments}),
+            )
+            .unwrap();
+        }
+
+        super::call(
+            &root,
+            &serde_json::json!({
+                "name": "review_accept",
+                "arguments": {
+                    "path": ".lmbrain/reviews/changes-requested/REVIEW-001.md",
+                    "evidence_refs": ["tests/review.rs"]
+                }
+            }),
+        )
+        .unwrap();
+        let accepted = dir.path().join(".lmbrain/reviews/accepted/REVIEW-001.md");
+        let document =
+            lmbrain_core::frontmatter::Document::parse(&std::fs::read_to_string(accepted).unwrap())
+                .unwrap();
+        let events = document.object_array("review_events");
+        assert_eq!(events.len(), 5);
+        assert_eq!(
+            events[0].get("actor_role").and_then(Value::as_str),
+            Some("project-lead")
+        );
+        assert_eq!(
+            events[0]
+                .get("evidence_refs")
+                .and_then(Value::as_array)
+                .map(Vec::len),
+            Some(2)
+        );
+        assert_eq!(
+            events[4].get("actor_role").and_then(Value::as_str),
+            Some("operator")
+        );
+        let analysis = lmbrain_core::analyze_review_lifecycle(&document);
+        assert_eq!(analysis.escalation_count, 1);
+        assert_eq!(analysis.takeover_count, 1);
+        assert_eq!(analysis.remediation_agents, vec!["AGENT-002"]);
+    }
+
+    #[test]
+    fn review_migration_preview_dispatch_is_read_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let reviews = dir.path().join(".lmbrain/reviews/accepted");
+        std::fs::create_dir_all(&reviews).unwrap();
+        let review = reviews.join("REVIEW-047.md");
+        let source = "---\nid: REVIEW-047\nstatus: accepted\nreview_cycles: 3\nfinding_categories: [metric-cannot-fail]\n---\n";
+        std::fs::write(&review, source).unwrap();
+
+        let response = super::call(
+            &dir.path().to_path_buf(),
+            &serde_json::json!({
+                "name": "review_migration_preview",
+                "arguments": {}
+            }),
+        )
+        .unwrap();
+        assert!(response.to_string().contains("legacy_explicit_reviews"));
+        assert!(response.to_string().contains("metrics-integrity"));
+        assert_eq!(std::fs::read_to_string(review).unwrap(), source);
+    }
+
+    #[test]
+    fn verification_migration_preview_dispatch_is_read_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let specs = dir.path().join(".lmbrain/specs/done");
+        std::fs::create_dir_all(&specs).unwrap();
+        let spec = specs.join("SPEC-001.md");
+        let source = "---\nid: SPEC-001\nstatus: done\n---\n## Required verification\n- [x] LEAD | kind=manual | owner=operator | phase=before-done | evidence=artifact | Project Lead review\n";
+        std::fs::write(&spec, source).unwrap();
+
+        let response = super::call(
+            &dir.path().to_path_buf(),
+            &serde_json::json!({
+                "name": "verification_migration_preview",
+                "arguments": {}
+            }),
+        )
+        .unwrap();
+        let payload: Value = serde_json::from_str(
+            response
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            payload.get("proposed_lead_count").and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(payload.get("mutated").and_then(Value::as_bool), Some(false));
+        assert_eq!(std::fs::read_to_string(spec).unwrap(), source);
+    }
+
+    #[test]
+    fn verification_onboarding_dispatch_previews_sets_and_reports_unapproved_without_execution() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain")).unwrap();
+        let root = dir.path().to_path_buf();
+
+        let preview_response = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "verification_manifest_init",
+                "arguments": {}
+            }),
+        )
+        .unwrap();
+        let preview: Value = serde_json::from_str(
+            preview_response
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            preview.pointer("/status/state").and_then(Value::as_str),
+            Some("absent")
+        );
+        assert_eq!(
+            preview
+                .pointer("/candidates/0/gate/program")
+                .and_then(Value::as_str),
+            Some("cargo")
+        );
+        assert!(!dir.path().join(".lmbrain/verification.toml").exists());
+
+        let manifest = preview.get("proposed_manifest").cloned().unwrap();
+        super::call(
+            &root,
+            &serde_json::json!({
+                "name": "verification_manifest_set",
+                "arguments": {
+                    "manifest": manifest,
+                    "expected_current_digest": null
+                }
+            }),
+        )
+        .unwrap();
+        let status_response = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "verification_manifest_status",
+                "arguments": {}
+            }),
+        )
+        .unwrap();
+        let status: Value = serde_json::from_str(
+            status_response
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            status.get("state").and_then(Value::as_str),
+            Some("unapproved")
+        );
+        assert_eq!(status.get("gate_count").and_then(Value::as_u64), Some(1));
+        assert!(!dir.path().join("target").exists());
+    }
+
+    #[test]
+    fn lead_attestation_dispatch_records_evidence_without_a_status_transition() {
+        let dir = tempfile::tempdir().unwrap();
+        let specs = dir.path().join(".lmbrain/specs/review");
+        std::fs::create_dir_all(&specs).unwrap();
+        let spec = specs.join("SPEC-001.md");
+        std::fs::write(
+            &spec,
+            "---\nid: SPEC-001\nstatus: review\n---\n## Required verification\n- [x] LEAD | kind=manual | owner=lead | phase=before-done | evidence=artifact | Independent review\n",
+        )
+        .unwrap();
+
+        super::call(
+            &dir.path().to_path_buf(),
+            &serde_json::json!({
+                "name": "spec_attest_lead",
+                "arguments": {
+                    "path": ".lmbrain/specs/review/SPEC-001.md",
+                    "requirement_id": "LEAD",
+                    "actor": "AGENT-LEAD",
+                    "evidence_ref": "lead-review:SPEC-001"
+                }
+            }),
+        )
+        .unwrap();
+        let document =
+            lmbrain_core::frontmatter::Document::parse(&std::fs::read_to_string(spec).unwrap())
+                .unwrap();
+        assert_eq!(document.value("status").as_deref(), Some("review"));
+        assert_eq!(lmbrain_core::verification_attestations(&document).len(), 1);
+        assert_eq!(
+            lmbrain_core::verification_attestations(&document)[0].actor_role,
+            "lead"
+        );
+    }
+
+    #[test]
+    fn finding_protocol_creates_plans_and_contextualizes_without_rewriting_origin() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain/reviews/accepted")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain/specs/backlog")).unwrap();
+        let review = dir.path().join(".lmbrain/reviews/accepted/REVIEW-054.md");
+        let review_source =
+            "---\nid: REVIEW-054\ntitle: Review\nstatus: accepted\n---\n- FINDING-07 debt\n";
+        std::fs::write(&review, review_source).unwrap();
+        std::fs::write(
+            dir.path().join(".lmbrain/specs/backlog/SPEC-059.md"),
+            "---\nid: SPEC-059\ntitle: Target\nstatus: backlog\n---\n",
+        )
+        .unwrap();
+        let root = dir.path().to_path_buf();
+        let created = super::call(
+            &root,
+            &serde_json::json!({
+                "name":"finding_create",
+                "arguments":{
+                    "title":"Routed debt","category":"correctness","severity":"high",
+                    "origin_artifact":"REVIEW-054","origin_ref":"FINDING-07",
+                    "related_specs":[],"related_reviews":["REVIEW-054"],
+                    "related_decisions":[],"blocked_by":[],"tags":[],
+                    "statement":"Defect remains","evidence":"Review evidence",
+                    "impact":"Incorrect behavior","resolution_criteria":"Regression passes",
+                    "actor":"AGENT-LEAD","rationale":"Routed beyond origin"
+                }
+            }),
+        )
+        .unwrap();
+        let created_payload: Value = serde_json::from_str(
+            created
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        let path = created_payload.get("path").and_then(Value::as_str).unwrap();
+        super::call(
+            &root,
+            &serde_json::json!({
+                "name":"finding_plan",
+                "arguments":{
+                    "path":path,"target_specs":["SPEC-059"],
+                    "actor":"AGENT-LEAD","rationale":"Delivery routed"
+                }
+            }),
+        )
+        .unwrap();
+        let context = super::call(
+            &root,
+            &serde_json::json!({
+                "name":"finding_context","arguments":{"finding":"FINDING-001"}
+            }),
+        )
+        .unwrap();
+        let context_payload: Value = serde_json::from_str(
+            context
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            context_payload
+                .pointer("/finding/status")
+                .and_then(Value::as_str),
+            Some("planned")
+        );
+        assert_eq!(
+            context_payload
+                .pointer("/target_specs/0/id")
+                .and_then(Value::as_str),
+            Some("SPEC-059")
+        );
+        let candidates = super::call(
+            &root,
+            &serde_json::json!({"name":"finding_candidates","arguments":{}}),
+        )
+        .unwrap();
+        let candidate_payload: Value = serde_json::from_str(
+            candidates
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            candidate_payload.get("mutated").and_then(Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(std::fs::read_to_string(review).unwrap(), review_source);
+    }
+
+    #[test]
+    fn dependency_and_parking_protocol_is_governed_and_audited() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain/specs/backlog")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain/specs/done")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain/agents/profiles")).unwrap();
+        std::fs::write(
+            dir.path().join(".lmbrain/agents/profiles/AGENT-IMPL.md"),
+            "---\nid: AGENT-IMPL\nstatus: active\n---\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join(".lmbrain/specs/done/SPEC-001.md"),
+            "---\nid: SPEC-001\ntitle: Prerequisite\nstatus: done\ndepends_on: []\n---\n",
+        )
+        .unwrap();
+        let dependent = dir.path().join(".lmbrain/specs/backlog/SPEC-002.md");
+        std::fs::write(
+            &dependent,
+            "---\nid: SPEC-002\ntitle: Dependent\nstatus: backlog\nrecommended_agent: AGENT-IMPL\ndepends_on: []\ndependency_events: []\nparking_events: []\nupdated: 2026-07-29\n---\n",
+        )
+        .unwrap();
+        let root = dir.path().to_path_buf();
+        let context = super::call(
+            &root,
+            &serde_json::json!({
+                "name":"spec_dependency_context","arguments":{"spec":"SPEC-002"}
+            }),
+        )
+        .unwrap();
+        let context: Value = serde_json::from_str(
+            context
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        let digest = context
+            .get("source_digest")
+            .and_then(Value::as_str)
+            .unwrap();
+        super::call(
+            &root,
+            &serde_json::json!({
+                "name":"spec_dependencies_set",
+                "arguments":{
+                    "path":".lmbrain/specs/backlog/SPEC-002.md",
+                    "depends_on":["SPEC-001"],"actor":"AGENT-LEAD",
+                    "reason":"Explicit delivery order","expected_digest":digest
+                }
+            }),
+        )
+        .unwrap();
+        super::call(
+            &root,
+            &serde_json::json!({
+                "name":"spec_ready",
+                "arguments":{"path":".lmbrain/specs/backlog/SPEC-002.md"}
+            }),
+        )
+        .unwrap();
+        super::call(
+            &root,
+            &serde_json::json!({
+                "name":"spec_park",
+                "arguments":{
+                    "path":".lmbrain/specs/ready/SPEC-002.md",
+                    "actor":"AGENT-LEAD","reason":"Milestone order changed",
+                    "revisit_condition":"After M-08"
+                }
+            }),
+        )
+        .unwrap();
+        let document = lmbrain_core::frontmatter::Document::parse(
+            &std::fs::read_to_string(dir.path().join(".lmbrain/specs/backlog/SPEC-002.md"))
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(document.string_array("depends_on"), vec!["SPEC-001"]);
+        assert_eq!(document.object_array("dependency_events").len(), 1);
+        assert_eq!(document.object_array("parking_events").len(), 1);
+        assert_eq!(document.value("status").as_deref(), Some("backlog"));
     }
 
     #[test]
@@ -838,7 +1917,11 @@ mod tests {
             .unwrap_err();
             let canonical = root.canonicalize().unwrap();
             assert!(
-                !error.contains(&lmbrain_core::path::clean_path(&canonical).display().to_string()),
+                !error.contains(
+                    &lmbrain_core::path::clean_path(&canonical)
+                        .display()
+                        .to_string()
+                ),
                 "error leaks host workspace path: {error}"
             );
         }
@@ -930,5 +2013,76 @@ mod tests {
         // Should have no required params
         let required = schema.get("required");
         assert!(required.is_none());
+    }
+
+    #[test]
+    fn project_digest_and_validate_share_bounded_actionable_diagnostics() {
+        let dir = tempfile::tempdir().unwrap();
+        let specs = dir.path().join(".lmbrain/specs/backlog");
+        std::fs::create_dir_all(&specs).unwrap();
+        for index in 1..=55 {
+            std::fs::write(
+                specs.join(format!("SPEC-{index:03}.md")),
+                format!("---\nid: SPEC-{index:03}\n"),
+            )
+            .unwrap();
+        }
+        let root = dir.path().to_path_buf();
+        let digest_response = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "lmbrain_project_digest",
+                "arguments": {}
+            }),
+        )
+        .unwrap();
+        let digest: Value = serde_json::from_str(
+            digest_response
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        let validation_response = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "lmbrain_validate",
+                "arguments": {}
+            }),
+        )
+        .unwrap();
+        let validation: Value = serde_json::from_str(
+            validation_response
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        let digest_diagnostics = digest
+            .pointer("/diagnostics/items")
+            .and_then(Value::as_array)
+            .unwrap();
+        let validation_diagnostics = validation
+            .get("diagnostics")
+            .and_then(Value::as_array)
+            .unwrap();
+        assert_eq!(digest_diagnostics.len(), 50);
+        assert!(
+            digest
+                .pointer("/diagnostics/omitted")
+                .and_then(Value::as_u64)
+                .unwrap()
+                > 0
+        );
+        assert_eq!(
+            digest_diagnostics[0].get("id"),
+            validation_diagnostics[0].get("id")
+        );
+        assert!(digest_diagnostics.iter().all(|diagnostic| {
+            diagnostic
+                .get("next_action")
+                .and_then(Value::as_str)
+                .is_some_and(|action| !action.is_empty())
+        }));
     }
 }

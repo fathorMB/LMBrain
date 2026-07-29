@@ -8,7 +8,11 @@ spec: SPEC-XXX
 reviewer: AGENT-LEAD
 review_requested_by: user
 implementation_agent: AGENT-XXX
+# Taxonomy v1 canonical values are listed in CONTRACT.md. New reviews use canonical values only.
+finding_taxonomy_version: 1
 finding_categories: []
+# Managed append-only history. Use semantic review MCP verbs; do not edit events by hand.
+review_events: []
 related_tasks: []
 links: []
 created: YYYY-MM-DD

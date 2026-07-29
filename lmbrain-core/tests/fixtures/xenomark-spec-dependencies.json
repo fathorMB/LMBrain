@@ -1,0 +1,6 @@
+[
+  {"id":"SPEC-055","status":"done","depends_on":[]},
+  {"id":"SPEC-057","status":"done","depends_on":["SPEC-055"]},
+  {"id":"SPEC-058","status":"working","depends_on":["SPEC-057"]},
+  {"id":"SPEC-054","status":"backlog","depends_on":["SPEC-058"]}
+]

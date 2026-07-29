@@ -53,7 +53,33 @@ Design mockups are support material. They do not replace specs, reviews, or impl
    - `changes-requested`: hand the same `specs/review/SPEC-*.md` and the review findings back to the specialist manually; the spec stays in `review` during remediation;
    - `blocked`: resolve the recorded blocker before continuing.
 
+The Project Lead records these outcomes through `review_accept`, `review_changes_requested`, `review_block`, or `review_supersede`. Each operation preserves an append-only event history; legacy reviews without that history remain readable but their earlier cycles are explicitly unknown.
+
 The Project Lead reviews; it does not fix the code itself.
+
+For a checked `owner=operator`, `phase=before-done` requirement, open the spec detail verification panel, enter your operator identity and an evidence reference, then choose **Attest evidence**. This records an append-only evidence attestation. It does not accept a review, approve the spec, check the requirement, or move the spec to `done`; closeout remains a separate governed `spec_done` action. Lead-owned requirements have no operator action in the app.
+
+## I need to configure project verification
+
+1. Open **Settings → Verification** and inspect the typed manifest status.
+2. Choose **Discover / refresh preview** to inspect bounded suggestions, provenance, exact program and arguments, environment policy, mutation policy, exclusions, and the proposed diff. Discovery does not execute commands.
+3. Create or replace the manifest only after reviewing the complete preview. LMBrain preserves the prior manifest for a guarded rollback.
+4. Approve the resulting digest separately with `verification_manifest_approve`. The app intentionally has no approval control.
+5. Use `spec_verify` only after the manifest reports `approved`. Any material manifest change makes approval `stale`.
+
+Creating, replacing, or rolling back `.lmbrain/verification.toml` does not run verification, approve configuration, attest evidence, accept a review, or change a spec status.
+
+## I need to triage a durable finding
+
+Use **Findings** to inspect active/history counts, severity, owner, origin, targets, blockers, canonical relations, and the typed timeline. The view is read-only. It offers a governed MCP prompt, not lifecycle buttons.
+
+The Board and spec detail show hard dependency blockers, prerequisite-complete filters, and preserved parking history. They are read-only: the app has no approve, park, dependency-edit, or status-change action. Governed dependency changes use `spec_dependencies_set` in backlog; intentional `ready -> backlog` parking uses `spec_park` with a reason, then normal `spec_ready` is required later.
+
+- A review can be accepted while a promoted finding remains open, planned, or deferred.
+- Planning a target spec does not authorize implementation and does not resolve the finding.
+- A done target spec produces an attention diagnostic; closure still requires explicit evidence.
+- Only you may authorize `finding_accept_risk` or `finding_reopen`. A superseded finding stays historical.
+- Legacy review bullets remain local unless you explicitly select them for promotion after inspecting `finding_candidates`.
 
 ## I need to end a Project Lead session and resume later
 

@@ -4,7 +4,23 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current released kit is `3.0.2`.
+The current kit is `3.1.0`.
+
+### 3.1.0 (governed findings, lifecycle integrity, diagnostics, and verification onboarding)
+
+Supported source version is `3.0.2`. Upgrade is explicit and additive:
+
+1. Update the application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together.
+2. Preview the Git diff, then add `findings/` status directories, their README files, and `templates/finding.md`. Opening or refreshing a workspace never creates them.
+3. Run `finding_candidates` to inventory stable-form legacy review entries. The report is read-only and treats `origin_artifact + origin_ref` as the candidate identity; repeated local tokens across reviews are not duplicates. Select promotions manually and create only observations that remain durable.
+4. Validate all new references and statuses with `lmbrain_validate`. Do not promote unresolved verification gates automatically and do not reopen limitations already resolved by documentation/evidence.
+5. If adopting repository verification gates, use `verification_manifest_init` for a non-executing preview, then validate/set the complete manifest. Approval remains a separate operator action and is intentionally absent from the app.
+6. Add `depends_on: []`, `dependency_events: []`, and `parking_events: []` to the spec template. Existing specs may omit them and behave as dependency-free, never previously parked.
+7. Run `spec_dependency_candidates` to inventory only explicit legacy hard-dependency prose. Review candidates manually, then use `spec_dependencies_set` while the spec is in backlog. Never infer or promote prose automatically.
+8. A ready spec whose contract must change first uses `spec_park`; the desktop app deliberately offers no approval or status-change action. Re-entry still requires normal `spec_ready`.
+9. Review the final Git diff and diagnostics before changing `.lmbrain/VERSION` to `3.1.0`.
+
+Rollback to 3.0.2 preserves Markdown evidence: older LMBrain versions ignore the `findings/` family, `depends_on`, and typed event fields but must not delete them. They do not enforce dependency prerequisites or understand semantic parking, so do not perform lifecycle mutations with an older binary after adopting either feature. Do not move finding content back into STATUS/BACKLOG as a competing lifecycle source. A 3.1 verification manifest using only the prior schema remains parse-compatible, but machine-local approval should be revoked/reviewed when changing app versions.
 
 ### 3.0.2 (Antigravity MCP support, complete Actions panel, declared build outputs)
 

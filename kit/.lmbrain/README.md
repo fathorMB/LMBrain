@@ -2,7 +2,7 @@
 
 This directory is the portable, versioned source of truth for a project's knowledge, planning, design mockups, agent handoffs, and reviews.
 
-**Kit version:** `2.2.2` (read from `VERSION`)
+**Kit version:** `3.1.0` (read from `VERSION`)
 
 ## Quick start
 
@@ -15,7 +15,8 @@ This directory is the portable, versioned source of truth for a project's knowle
 
 ## Principles
 
-- Markdown files are the source of truth; a future app is only a view and editor over them.
+- Markdown files are the source of truth; the app is a read-oriented operational view over them.
+- Durable cross-spec observations live in governed `FINDING-*` artifacts; ordinary review findings remain local.
 - The Project Lead analyzes, specifies, recommends, and reviews. It never implements or spawns agents.
 - Specialist agents are manually started by the user and write implementation evidence only.
 - Claude Code and Codex can both use the same repository-scoped `lmbrain-mcp` tools after LMBrain registers the workspace.
