@@ -12,6 +12,24 @@ pub fn spec_has_accepted_review(root: &Path, spec_id: &str) -> bool {
         .any(|path| read(path, "spec").as_deref() == Some(spec_id))
 }
 
+pub fn extract_waived_finding_id(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    if !trimmed.starts_with("- [~]") {
+        return None;
+    }
+    let idx = trimmed.find("waived=")?;
+    let rest = &trimmed[idx + "waived=".len()..];
+    let end = rest
+        .find(|c: char| c.is_whitespace() || c == '|' || c == ']' || c == ')')
+        .unwrap_or(rest.len());
+    let finding_id = rest[..end].trim();
+    if finding_id.starts_with("FINDING-") {
+        Some(finding_id)
+    } else {
+        None
+    }
+}
+
 pub fn criteria_complete_with_evidence(body: &str) -> bool {
     let Some(criteria_section) = markdown_section(body, &["acceptance criteria"]) else {
         return false;
@@ -24,10 +42,41 @@ pub fn criteria_complete_with_evidence(body: &str) -> bool {
     !criteria.is_empty()
         && criteria.iter().all(|line| {
             let trimmed = line.trim_start();
-            trimmed.starts_with("- [x]") || trimmed.starts_with("- [X]")
+            trimmed.starts_with("- [x]")
+                || trimmed.starts_with("- [X]")
+                || extract_waived_finding_id(trimmed).is_some()
         })
         && markdown_section(body, &["implementation evidence", "evidence"])
             .is_some_and(has_evidence_content)
+}
+
+pub fn waived_findings_are_valid(root: &Path, body: &str) -> Result<(), String> {
+    let Some(criteria_section) = markdown_section(body, &["acceptance criteria"]) else {
+        return Ok(());
+    };
+    for line in criteria_section.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("- [~]") {
+            let Some(finding_id) = extract_waived_finding_id(trimmed) else {
+                return Err(format!(
+                    "waived criterion '{trimmed}' must include '| waived=FINDING-xxx'"
+                ));
+            };
+            let finding_exists = scan(root.join(".lmbrain/findings"))
+                .iter()
+                .any(|path| {
+                    path.file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(|name| name.starts_with(finding_id))
+                });
+            if !finding_exists {
+                return Err(format!(
+                    "waived criterion references non-existent finding '{finding_id}'"
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn markdown_section<'a>(body: &'a str, headings: &[&str]) -> Option<&'a str> {
