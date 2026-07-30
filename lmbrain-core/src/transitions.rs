@@ -1192,6 +1192,11 @@ fn invariant_failure(
             )
         }
         (ArtifactKind::Spec, "done")
+            if invariants::waived_findings_are_valid(root, &document.body).is_err() =>
+        {
+            Some(invariants::waived_findings_are_valid(root, &document.body).unwrap_err())
+        }
+        (ArtifactKind::Spec, "done")
             if !invariants::spec_has_accepted_review(
                 root,
                 &document.value("id").unwrap_or_default(),

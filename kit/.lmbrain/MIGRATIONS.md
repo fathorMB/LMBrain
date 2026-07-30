@@ -4,7 +4,20 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `3.1.2`.
+The current kit is `3.1.3`.
+
+### 3.1.3 (kit-owned file realignment procedure, Node REPL kernel path fix, Browser URL policy alignment, lead gate auto-check, waived criteria, async background loading)
+
+Supported source version is `3.1.2`. Existing workspaces require no manual content migration.
+
+1. Update the application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together.
+2. **Kit-owned file realignment audit**: Compare project kit-owned files inside `.lmbrain/` (`CHANGELOG.md`, `README.md`, `MIGRATIONS.md`, `reports/README.md`, and `templates/`) against the bundled kit defaults. Realign kit-owned files that contain only additive release lines, while strictly preserving project-specific customizations (such as agent profiles and skill registers).
+3. Attesting evidence for an `owner=lead` verification gate via `spec_attest_lead` now automatically marks the checklist item `- [x]` in the spec body, aligned with `owner=operator` behavior.
+4. Spec closeout via `spec_done` now supports waived acceptance criteria syntax (`- [~] text | waived=FINDING-xxx`) when referenced active findings exist.
+5. Project Lead remediation verification checks can now be recorded without status changes using `review_remediation_verified` (`actor_role: project-lead`).
+6. Update `.lmbrain/VERSION` to `3.1.3` after validating the release.
+
+Rollback to 3.1.2 is data-safe: 3.1.3 introduces no breaking frontmatter schema changes.
 
 ### 3.1.2 (bundled template fix, operator verification auto-check, kit feedback UI, spec assignment disambiguation)
 

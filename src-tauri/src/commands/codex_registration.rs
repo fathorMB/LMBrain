@@ -156,16 +156,26 @@ fn has_trusted_project(doc: &DocumentMut, project_key: &str) -> bool {
 }
 
 fn codex_user_config_path() -> Result<PathBuf, AppError> {
-    if let Ok(home) = std::env::var("CODEX_HOME") {
+    let path = if let Ok(home) = std::env::var("CODEX_HOME") {
         if !home.trim().is_empty() {
-            return Ok(PathBuf::from(home).join("config.toml"));
+            PathBuf::from(home).join("config.toml")
+        } else {
+            let home_dir = std::env::var("USERPROFILE")
+                .or_else(|_| std::env::var("HOME"))
+                .map_err(|_| AppError::WorkspaceNotFound("Could not resolve home directory".into()))?;
+            PathBuf::from(home_dir).join(".codex").join("config.toml")
         }
-    }
+    } else {
+        let home_dir = std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .map_err(|_| AppError::WorkspaceNotFound("Could not resolve home directory".into()))?;
+        PathBuf::from(home_dir).join(".codex").join("config.toml")
+    };
 
-    let home = std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .map_err(|_| AppError::WorkspaceNotFound("Could not resolve home directory".into()))?;
-    Ok(PathBuf::from(home).join(".codex").join("config.toml"))
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    Ok(path)
 }
 
 fn codex_project_key(root: &Path) -> String {

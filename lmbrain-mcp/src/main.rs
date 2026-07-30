@@ -194,6 +194,11 @@ fn tools() -> Vec<Value> {
             true,
         ),
         review_event_tool(
+            "review_remediation_verified",
+            "Project Lead: record verification of a remediation cycle without changing review status.",
+            true,
+        ),
+        review_event_tool(
             "review_escalate",
             "Operator: record an explicitly authorized review escalation without changing review status.",
             false,
@@ -1253,6 +1258,7 @@ fn review_status(name: &str) -> Option<(&'static str, &'static str)> {
 fn review_event_action(name: &str) -> Option<(&'static str, &'static str)> {
     match name {
         "review_remediation" => Some(("remediation", "implementation-specialist")),
+        "review_remediation_verified" => Some(("remediation-verification", "project-lead")),
         "review_escalate" => Some(("escalation", "operator")),
         "review_takeover" => Some(("takeover", "project-lead")),
         _ => None,

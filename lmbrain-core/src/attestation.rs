@@ -265,8 +265,10 @@ pub fn attest_spec_requirement(
         )));
     }
     if !requirement.checked {
-        if actor_role == "operator" && requirement.owner == "operator" {
-            // Auto-check: the operator attesting their own gate implies completion.
+        if (actor_role == "operator" && requirement.owner == "operator")
+            || (actor_role == "lead" && requirement.owner == "lead")
+        {
+            // Auto-check: attesting one's own gate implies completion.
             // The two facts (completion + evidence) are recorded separately in the artifact.
             check_requirement_in_body(&mut document, &requirement.id)?;
             // Re-parse requirements after the body mutation to get a correct digest.
@@ -739,21 +741,22 @@ mod tests {
         let updated = fs::read_to_string(&review_path).unwrap();
         assert!(updated.contains("- [x] HUMAN"), "checkbox should be auto-checked");
 
-        // Lead attesting an unchecked gate still fails
+        // Lead attesting an unchecked owner=lead gate succeeds and auto-checks the spec body
         let lead_path = directory.path().join(".lmbrain/specs/review/SPEC-003.md");
         fs::create_dir_all(lead_path.parent().unwrap()).unwrap();
         let lead_source = "---\nid: SPEC-003\nstatus: review\n---\n## Required verification\n- [ ] LEAD-CHECK | kind=manual | owner=lead | phase=before-done | evidence=observation | Review\n";
         fs::write(&lead_path, lead_source).unwrap();
-        assert!(attest_spec_requirement(
+        let lead_result = attest_spec_requirement(
             directory.path(),
             ".lmbrain/specs/review/SPEC-003.md",
             "LEAD-CHECK",
             "lead",
             "Ada",
-            "review:unchecked"
-        )
-        .is_err());
-        assert_eq!(fs::read_to_string(&lead_path).unwrap(), lead_source);
+            "review:unchecked",
+        );
+        assert!(lead_result.is_ok(), "lead auto-check should succeed: {lead_result:?}");
+        let updated_lead = fs::read_to_string(&lead_path).unwrap();
+        assert!(updated_lead.contains("- [x] LEAD-CHECK"), "lead checkbox should be auto-checked");
     }
 
     #[test]

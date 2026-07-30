@@ -4,6 +4,19 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 3.1.3 - 2026-07-31
+
+### Fixed
+
+- **Kit-Owned File Realignment Procedure (#34).** Added explicit migration guidance and audit steps in `MIGRATIONS.md` to realign kit-owned governance files (`CHANGELOG.md`, `README.md`, `MIGRATIONS.md`, `reports/README.md`, `templates/`) with bundled defaults while preserving project customizations.
+- **Windows Node REPL Kernel Path Initialization (#35).** Ensured recursive parent directory creation for Node REPL user configuration and kernel asset paths on Windows, preventing `os error 3` path failures.
+- **Browser Skill & URL Policy Alignment (#36, #37).** Reconciled Browser skill specifications and integrated browser URL policy rules for trusted workspace local files and claimed user-opened tabs.
+- **Atomic Attestation and Checklist Auto-Check for `owner=lead` Gates (#38).** Updated `spec_attest_lead` to automatically check the `- [ ]` -> `- [x]` item in the spec body for `owner=lead` verification gates upon recording a passing attestation.
+- **Waived Acceptance Criteria with Active Findings (#39).** Added support for waived acceptance criteria syntax (`- [~] text | waived=FINDING-xxx`) backed by active findings during `spec_done` closeouts and validations.
+- **Asynchronous 3.1.x Background Loading (#40).** Ensured background data loading and state reconciliation introduced in 3.1.x run asynchronously without blocking the desktop UI thread.
+- **Lead Remediation Verification Event (#41).** Added the `review_remediation_verified` MCP verb (`actor_role: project-lead`) to record Lead verification of remediation cycles without changing review status.
+- **Window Close Confirmation (#42).** Intercepted application window close events to prompt for confirmation when active agent sessions are open.
+
 ## 3.1.2 - 2026-07-29
 
 ### Added
