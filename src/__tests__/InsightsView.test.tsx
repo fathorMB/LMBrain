@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InsightsView } from "../components/Insights/InsightsView";
-import { getProjectStatistics } from "../lib/commands";
 import type { ProjectStatistics } from "../types";
 
 const stats: ProjectStatistics = {
@@ -94,12 +93,9 @@ const stats: ProjectStatistics = {
   },
 };
 
-vi.mock("../lib/commands", () => ({
-  getProjectStatistics: vi.fn(),
-}));
-
 const workspaceState = vi.hoisted(() => ({
   diagnostics: [] as Array<{ message: string; severity: "info" | "warning" | "error"; path: string | null }>,
+  projectStatistics: null as ProjectStatistics | null,
 }));
 
 vi.mock("../hooks/useWorkspace", () => ({
@@ -117,11 +113,10 @@ describe("InsightsView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     workspaceState.diagnostics = [];
+    workspaceState.projectStatistics = stats;
   });
 
   it("renders project statistics and review quality KPIs", async () => {
-    vi.mocked(getProjectStatistics).mockResolvedValue(stats);
-
     render(<InsightsView />);
 
     await waitFor(() => expect(screen.getByText("Insights")).toBeDefined());
@@ -148,7 +143,7 @@ describe("InsightsView", () => {
       { severity: "warning", message: "Roadmap frontmatter is incomplete.", path: "ROADMAP.md" },
       { severity: "error", message: "Review references an unknown specification.", path: ".lmbrain/reviews/pending/REVIEW-099.md" },
     ];
-    vi.mocked(getProjectStatistics).mockResolvedValue({
+    workspaceState.projectStatistics = {
       ...stats,
       review_quality: {
         ...stats.review_quality,
@@ -161,7 +156,7 @@ describe("InsightsView", () => {
         errors: 1,
         warnings: 2,
       },
-    });
+    };
 
     render(<InsightsView />);
 

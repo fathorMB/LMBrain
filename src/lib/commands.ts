@@ -31,6 +31,7 @@ import type {
   PiPreparationResult,
   ProjectStatistics,
   PulseData,
+  WorkspaceSnapshot,
   Review,
   Roadmap,
   SessionInfo,
@@ -93,6 +94,10 @@ export async function parseMarkdown(path: string): Promise<ParsedDocument> {
 
 export async function getPulseData(): Promise<PulseData> {
   return invoke("get_pulse_data");
+}
+
+export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
+  return invoke("get_workspace_snapshot");
 }
 
 export async function getSpecs(): Promise<Spec[]> {

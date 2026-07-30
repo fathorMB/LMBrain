@@ -705,6 +705,90 @@ links: []
 }
 
 #[test]
+fn workspace_snapshot_reuses_one_collection_set_for_pulse_and_statistics() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    fs::write(
+        dir.path().join(".lmbrain/specs/ready/SPEC-SNAPSHOT.md"),
+        r#"---
+id: SPEC-SNAPSHOT
+title: Snapshot
+status: ready
+priority: high
+area: desktop-ui
+created: 2026-07-31
+updated: 2026-07-31
+tags: []
+links: []
+---
+# Snapshot
+"#,
+    )
+    .unwrap();
+
+    let snapshot = contract::build_workspace_snapshot(dir.path()).unwrap();
+
+    assert_eq!(snapshot.specs.len(), 1);
+    assert_eq!(snapshot.project_statistics.spec_flow.total_specs, 1);
+    assert_eq!(
+        snapshot
+            .pulse_data
+            .metrics
+            .iter()
+            .find(|metric| metric.label == "Ready for handoff")
+            .map(|metric| metric.count),
+        Some(1)
+    );
+    assert_eq!(
+        snapshot.project_statistics.diagnostics.total,
+        snapshot.diagnostics.len()
+    );
+}
+
+#[test]
+fn workspace_snapshot_handles_a_representative_large_artifact_set() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+
+    for index in 0..250 {
+        fs::write(
+            dir.path()
+                .join(format!(".lmbrain/specs/ready/SPEC-LARGE-{index:03}.md")),
+            format!(
+                r#"---
+id: SPEC-LARGE-{index:03}
+title: Large fixture {index}
+status: ready
+priority: high
+area: desktop-ui
+created: 2026-07-31
+updated: 2026-07-31
+tags: []
+links: []
+---
+# Large fixture {index}
+"#
+            ),
+        )
+        .unwrap();
+    }
+
+    let snapshot = contract::build_workspace_snapshot(dir.path()).unwrap();
+
+    assert_eq!(snapshot.specs.len(), 250);
+    assert_eq!(snapshot.project_statistics.spec_flow.total_specs, 250);
+    assert_eq!(
+        snapshot
+            .pulse_data
+            .metrics
+            .iter()
+            .find(|metric| metric.label == "Ready for handoff")
+            .map(|metric| metric.count),
+        Some(250)
+    );
+}
+
+#[test]
 fn test_build_diagnostics_area_domain_mismatch() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());

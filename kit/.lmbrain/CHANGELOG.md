@@ -4,6 +4,17 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 3.1.4 - 2026-07-31
+
+### Fixed
+
+- **Responsive workspace snapshots (#40).** Replaced the twelve-command workspace refresh with one coherent snapshot that parses each artifact family once and reuses the same statistics and diagnostics in Pulse and Insights.
+- **Off-main-thread desktop operations.** Tauri commands that perform filesystem, Git, verification, harness, and aggregation work now execute asynchronously instead of blocking the desktop main thread.
+- **Coalesced refresh pipeline.** Watcher and manual refresh bursts are serialized into one active request plus at most one trailing refresh, and every caller commits only the newest completed snapshot.
+- **Pulse statistics remount regression.** Pulse and Insights consume snapshot statistics from workspace state, so navigation, explicit view remounts, and React StrictMode no longer start independent whole-project scans.
+
+The 3.1.3 changelog entry for asynchronous background loading was premature: the corresponding source change was absent from that release. Version 3.1.4 is the corrective implementation and verification release for issue #40.
+
 ## 3.1.3 - 2026-07-31
 
 ### Fixed

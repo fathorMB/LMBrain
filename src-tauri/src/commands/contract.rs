@@ -11,6 +11,7 @@ use crate::commands::parser::{self, fm_string, fm_string_array};
 use crate::errors::AppError;
 use crate::models::adr::{Adr, AdrStatus};
 use crate::models::agent::{AgentProfile, AgentProposal, AgentProposalStatus, AgentStatus};
+use crate::models::design::{DesignMockup, DesignMockupKind};
 use crate::models::file::ParsedDocument;
 use crate::models::handoff::{Handoff, HandoffStatus};
 use crate::models::mcp::{McpProposal, McpProposalStatus, McpRecord, McpStatus};
@@ -27,7 +28,7 @@ use crate::models::statistics::{
     ReviewQualityStats, ReviewTrendPoint, SpecFlowStats, StatusCount,
 };
 use crate::models::wiki::{WikiNode, WikiNodeKind, WikiTree};
-use crate::models::workspace::{DiagnosticSeverity, KitDiagnostic};
+use crate::models::workspace::{DiagnosticSeverity, KitDiagnostic, WorkspaceSnapshot};
 
 const WIKI_CONTENT_DIRS: &[(&str, WikiNodeKind)] = &[
     ("decisions", WikiNodeKind::Decisions),
@@ -659,7 +660,10 @@ fn build_tree_node(dir: &Path, relative: &str) -> Result<WikiNode, AppError> {
             continue;
         }
 
-        if relative.starts_with(".lmbrain/findings") && !path.is_dir() && !name.starts_with("FINDING-") {
+        if relative.starts_with(".lmbrain/findings")
+            && !path.is_dir()
+            && !name.starts_with("FINDING-")
+        {
             continue;
         }
 
@@ -804,6 +808,83 @@ pub fn build_project_statistics(root: &Path) -> Result<ProjectStatistics, AppErr
     let design_mockups = design::scan_design_mockups(root).unwrap_or_default();
     let diagnostics = build_diagnostics(root);
 
+    Ok(build_project_statistics_from_collections(
+        &specs,
+        &reviews,
+        &findings,
+        &adrs,
+        &agents,
+        &agent_proposals,
+        &mcp_records,
+        &mcp_proposals,
+        &skills,
+        &handoffs,
+        &design_mockups,
+        &diagnostics,
+    ))
+}
+
+pub fn build_workspace_snapshot(root: &Path) -> Result<WorkspaceSnapshot, AppError> {
+    let specs = build_specs(root)?;
+    let reviews = build_reviews(root)?;
+    let findings = lmbrain_core::list_findings(root);
+    let adrs = build_adrs(root)?;
+    let agents = build_agents(root)?;
+    let agent_proposals = build_agent_proposals(root)?;
+    let mcp_records = build_mcp_records(root)?;
+    let mcp_proposals = build_mcp_proposals(root)?;
+    let skills = build_skills(root)?;
+    let handoffs = build_handoffs(root)?;
+    let design_mockups = design::scan_design_mockups(root).unwrap_or_default();
+    let diagnostics = build_diagnostics(root);
+    let pulse_data = build_pulse_data(root, &specs, &reviews, &adrs, &handoffs)?;
+    let project_statistics = build_project_statistics_from_collections(
+        &specs,
+        &reviews,
+        &findings,
+        &adrs,
+        &agents,
+        &agent_proposals,
+        &mcp_records,
+        &mcp_proposals,
+        &skills,
+        &handoffs,
+        &design_mockups,
+        &diagnostics,
+    );
+
+    Ok(WorkspaceSnapshot {
+        pulse_data,
+        specs,
+        reviews,
+        findings,
+        adrs,
+        agents,
+        agent_proposals,
+        mcp_records,
+        mcp_proposals,
+        skills,
+        handoffs,
+        diagnostics,
+        project_statistics,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_project_statistics_from_collections(
+    specs: &[Spec],
+    reviews: &[Review],
+    findings: &[lmbrain_core::Finding],
+    adrs: &[Adr],
+    agents: &[AgentProfile],
+    agent_proposals: &[AgentProposal],
+    mcp_records: &[McpRecord],
+    mcp_proposals: &[McpProposal],
+    skills: &[Skill],
+    handoffs: &[Handoff],
+    design_mockups: &[DesignMockup],
+    diagnostics: &[KitDiagnostic],
+) -> ProjectStatistics {
     let artifact_families = vec![
         family_stats(
             "specs",
@@ -869,18 +950,18 @@ pub fn build_project_statistics(root: &Path) -> Result<ProjectStatistics, AppErr
             "design",
             "Design mockups",
             design_mockups.iter().map(|mockup| match mockup.kind {
-                crate::models::design::DesignMockupKind::Package => "package".to_string(),
-                crate::models::design::DesignMockupKind::HtmlFile => "html-file".to_string(),
+                DesignMockupKind::Package => "package".to_string(),
+                DesignMockupKind::HtmlFile => "html-file".to_string(),
             }),
         ),
     ];
 
-    Ok(ProjectStatistics {
+    ProjectStatistics {
         artifact_families,
-        spec_flow: build_spec_flow_stats(&specs),
-        review_quality: build_review_quality_stats(&specs, &reviews),
-        diagnostics: build_diagnostic_stats(&diagnostics),
-    })
+        spec_flow: build_spec_flow_stats(specs),
+        review_quality: build_review_quality_stats(specs, reviews),
+        diagnostics: build_diagnostic_stats(diagnostics),
+    }
 }
 
 fn build_spec_flow_stats(specs: &[Spec]) -> SpecFlowStats {

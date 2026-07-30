@@ -8,6 +8,7 @@ const workspace = vi.hoisted(() => ({
     currentWorkspace: { name: "LMBrain" },
     gitInfo: { branch: "main" },
     watcherActive: true,
+    dataRefreshing: false,
   },
   toggleCmdk: vi.fn(),
   refreshWorkspaceData: vi.fn(),
@@ -22,6 +23,7 @@ describe("TopBar current-view refresh", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     workspace.state.view = "insights";
+    workspace.state.dataRefreshing = false;
     workspace.refreshWorkspaceData.mockResolvedValue(undefined);
     workspace.refreshSessions.mockResolvedValue(undefined);
   });
@@ -70,5 +72,14 @@ describe("TopBar current-view refresh", () => {
     await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Refresh failed"));
     expect(onViewReload).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Refresh failed. Retry current view" })).toBeDefined();
+  });
+
+  it("shows non-blocking feedback while watcher data is refreshing", () => {
+    workspace.state.dataRefreshing = true;
+
+    render(<TopBar onViewReload={vi.fn()} />);
+
+    expect(screen.getByRole("status").textContent).toContain("Syncing workspace");
+    expect(screen.getByRole("button", { name: "Refresh current view" })).toHaveProperty("disabled", false);
   });
 });
