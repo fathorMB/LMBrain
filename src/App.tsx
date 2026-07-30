@@ -6,7 +6,7 @@ import { useWorkspace } from "./hooks/useWorkspace";
 import { AppShell } from "./components/Layout/AppShell";
 
 function AppInner() {
-  const { toggleCmdk, closeCmdk, sessions } = useWorkspace();
+  const { toggleCmdk, closeCmdk, state } = useWorkspace();
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -30,7 +30,7 @@ function AppInner() {
       try {
         const appWindow = getCurrentWindow();
         unlisten = await appWindow.onCloseRequested(async (event) => {
-          if (sessions && sessions.length > 0) {
+          if (state.sessions && state.sessions.length > 0) {
             const confirmed = await confirm(
               "Active agent sessions are open. Are you sure you want to exit LMBrain?",
               { title: "Close LMBrain?", kind: "warning" }
@@ -48,7 +48,7 @@ function AppInner() {
     return () => {
       if (unlisten) unlisten();
     };
-  }, [sessions]);
+  }, [state.sessions]);
 
   return <AppShell />;
 }
