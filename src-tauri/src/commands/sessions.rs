@@ -162,14 +162,30 @@ impl SessionManager {
 
     pub fn kill(&self, id: &str) -> Result<(), AppError> {
         let mut inner = self.lock_inner();
-        let mut session = inner
-            .sessions
-            .remove(id)
-            .ok_or_else(|| AppError::Session(format!("Unknown session: {id}")))?;
-        session
-            .killer
-            .kill()
-            .map_err(|err| AppError::Session(err.to_string()))
+        let result = {
+            let Some(session) = inner.sessions.get_mut(id) else {
+                // Killing means ensuring the process is no longer managed. An
+                // already-removed session satisfies that postcondition.
+                return Ok(());
+            };
+            if session.info.status == SessionStatus::Exited {
+                Ok(())
+            } else {
+                session.killer.kill()
+            }
+        };
+
+        match result {
+            Ok(()) => {
+                inner.sessions.remove(id);
+                Ok(())
+            }
+            Err(error) if kill_error_means_process_absent(&error) => {
+                inner.sessions.remove(id);
+                Ok(())
+            }
+            Err(error) => Err(AppError::Session(error.to_string())),
+        }
     }
 
     /// Mark a session attached and return the output buffered before attach. From
@@ -234,6 +250,21 @@ impl SessionManager {
         self.inner
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
+
+fn kill_error_means_process_absent(error: &std::io::Error) -> bool {
+    #[cfg(windows)]
+    {
+        // portable-pty can surface ERROR_SUCCESS after the ConPTY process has
+        // already terminated, or ERROR_INVALID_HANDLE after its handle closed.
+        // Both mean there is no remaining managed process to terminate.
+        matches!(error.raw_os_error(), Some(0) | Some(6))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = error;
+        false
     }
 }
 
@@ -822,14 +853,24 @@ fn is_cloud_model(name: &str, host: Option<&str>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::io;
     use std::path::Path;
 
     use super::{
-        default_label, is_cloud_model, launch_spec, newest_desktop_codex_command_in,
+        default_label, is_cloud_model, kill_error_means_process_absent, launch_spec,
+        newest_desktop_codex_command_in,
         opencode_ollama_config, parse_ollama_list_output, resolve_codex_command,
         resolve_opencode_command, resolve_windows_opencode_command, validate_route, LaunchSpec,
     };
     use crate::models::session::{AgentHost, ModelRoute, SessionStartRequest};
+
+    #[cfg(windows)]
+    #[test]
+    fn treats_closed_conpty_handle_results_as_already_stopped() {
+        assert!(kill_error_means_process_absent(&io::Error::from_raw_os_error(0)));
+        assert!(kill_error_means_process_absent(&io::Error::from_raw_os_error(6)));
+        assert!(!kill_error_means_process_absent(&io::Error::from_raw_os_error(5)));
+    }
 
     #[test]
     fn parses_ollama_list_rows() {

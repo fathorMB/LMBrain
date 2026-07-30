@@ -72,6 +72,7 @@ export interface WorkspaceState {
   error: string | null;
   detailArtifact: DetailArtifact | null;
   showExitConfirm: boolean;
+  showWindowCloseConfirm: boolean;
 }
 
 export type Action =
@@ -104,6 +105,7 @@ export type Action =
   | { type: "SET_ERROR"; error: string | null }
   | { type: "SET_DETAIL_ARTIFACT"; artifact: DetailArtifact | null }
   | { type: "SET_EXIT_CONFIRM"; show: boolean }
+  | { type: "SET_WINDOW_CLOSE_CONFIRM"; show: boolean }
   | { type: "SET_SESSIONS"; sessions: SessionInfo[] }
   | { type: "ADD_SESSION"; session: SessionInfo }
   | { type: "UPDATE_SESSION"; id: string; patch: Partial<SessionInfo> }
@@ -145,6 +147,7 @@ const initialState: WorkspaceState = {
   error: null,
   detailArtifact: null,
   showExitConfirm: false,
+  showWindowCloseConfirm: false,
 };
 
 // ─── Session reducer (exported for testing) ───────────────────────
@@ -270,6 +273,8 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, detailArtifact: action.artifact };
     case "SET_EXIT_CONFIRM":
       return { ...state, showExitConfirm: action.show };
+    case "SET_WINDOW_CLOSE_CONFIRM":
+      return { ...state, showWindowCloseConfirm: action.show };
     case "SET_SESSIONS":
     case "ADD_SESSION":
     case "UPDATE_SESSION":

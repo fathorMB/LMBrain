@@ -1,12 +1,19 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { confirm } from "@tauri-apps/plugin-dialog";
 import { WorkspaceProvider } from "./context/WorkspaceContext";
 import { useWorkspace } from "./hooks/useWorkspace";
 import { AppShell } from "./components/Layout/AppShell";
+import { resolveOpenSessions, routeWindowCloseRequest } from "./lib/windowClose";
+import * as commands from "./lib/commands";
 
 function AppInner() {
-  const { toggleCmdk, closeCmdk, state } = useWorkspace();
+  const { toggleCmdk, closeCmdk, state, dispatch } = useWorkspace();
+  const sessionsRef = useRef(state.sessions);
+  const closeRequestInFlight = useRef(false);
+
+  useEffect(() => {
+    sessionsRef.current = state.sessions;
+  }, [state.sessions]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -23,32 +30,54 @@ function AppInner() {
     return () => window.removeEventListener("keydown", handler);
   }, [toggleCmdk, closeCmdk]);
 
-  // Intercept window close when active sessions are open
+  // Tauri prevents native close while a JS close listener exists. Route every
+  // request explicitly: destroy immediately when safe, otherwise show our modal.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let disposed = false;
     async function setupCloseHandler() {
       try {
         const appWindow = getCurrentWindow();
-        unlisten = await appWindow.onCloseRequested(async (event) => {
-          if (state.sessions && state.sessions.length > 0) {
-            const confirmed = await confirm(
-              "Active agent sessions are open. Are you sure you want to exit LMBrain?",
-              { title: "Close LMBrain?", kind: "warning" }
-            );
-            if (!confirmed) {
-              event.preventDefault();
+        const removeListener = await appWindow.onCloseRequested(async (event) => {
+          // @tauri-apps/api destroys the window after this handler resolves
+          // unless preventDefault is set. Claim the request synchronously, then
+          // make the close/confirm decision ourselves.
+          event.preventDefault();
+          if (closeRequestInFlight.current) return;
+          closeRequestInFlight.current = true;
+          try {
+            const openSessions = await resolveOpenSessions({
+              listSessions: commands.sessionList,
+              fallbackSessions: sessionsRef.current,
+            });
+            if (openSessions.length > 0) {
+              dispatch({ type: "SET_SESSIONS", sessions: openSessions });
             }
+            await routeWindowCloseRequest({
+              openSessionCount: openSessions.length,
+              destroy: () => appWindow.destroy(),
+              showConfirmation: () =>
+                dispatch({ type: "SET_WINDOW_CLOSE_CONFIRM", show: true }),
+            });
+          } finally {
+            closeRequestInFlight.current = false;
           }
         });
+        if (disposed) {
+          removeListener();
+        } else {
+          unlisten = removeListener;
+        }
       } catch {
         // Fallback for non-Tauri browser environments
       }
     }
-    setupCloseHandler();
+    void setupCloseHandler();
     return () => {
+      disposed = true;
       if (unlisten) unlisten();
     };
-  }, [state.sessions]);
+  }, [dispatch]);
 
   return <AppShell />;
 }
