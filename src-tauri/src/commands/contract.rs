@@ -597,26 +597,6 @@ pub fn build_wiki_tree(root: &Path) -> Result<WikiTree, AppError> {
         children.push(child);
     }
 
-    let kit_feedback_path = lmbrain.join("reports/lmbrain-kit-feedback.md");
-    if kit_feedback_path.is_file() {
-        let report_node = WikiNode {
-            name: "lmbrain-kit-feedback".into(),
-            path: ".lmbrain/reports/lmbrain-kit-feedback.md".into(),
-            kind: WikiNodeKind::File,
-            children: Vec::new(),
-            count: None,
-        };
-        let reports_folder = WikiNode {
-            name: "reports".into(),
-            path: ".lmbrain/reports".into(),
-            kind: WikiNodeKind::Folder,
-            children: vec![report_node],
-            count: Some(1),
-        };
-        file_count += 1;
-        children.push(reports_folder);
-    }
-
     children.sort_by(|left, right| left.name.cmp(&right.name));
 
     Ok(WikiTree {
@@ -1407,7 +1387,7 @@ pub fn build_wikilink_index(root: &Path) -> HashMap<String, Vec<String>> {
 }
 
 fn wiki_content_files(lmbrain: &Path) -> Vec<PathBuf> {
-    let mut files: Vec<PathBuf> = WIKI_CONTENT_DIRS
+    let files: Vec<PathBuf> = WIKI_CONTENT_DIRS
         .iter()
         .filter_map(|(directory, _)| scan_md_files(&lmbrain.join(directory)).ok())
         .flatten()
@@ -1422,10 +1402,6 @@ fn wiki_content_files(lmbrain: &Path) -> Vec<PathBuf> {
         })
         .collect();
 
-    let kit_feedback = lmbrain.join("reports/lmbrain-kit-feedback.md");
-    if kit_feedback.is_file() {
-        files.push(kit_feedback);
-    }
     files
 }
 

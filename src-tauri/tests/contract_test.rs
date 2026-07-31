@@ -981,6 +981,34 @@ fn test_wiki_tree_lists_only_operator_content_directories() {
 }
 
 #[test]
+fn test_wiki_tree_excludes_reports_but_keeps_operator_content() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let lmbrain = dir.path().join(".lmbrain");
+
+    fs::create_dir_all(lmbrain.join("knowledge")).unwrap();
+    fs::create_dir_all(lmbrain.join("reports")).unwrap();
+    fs::write(lmbrain.join("knowledge/Topic.md"), "# Topic").unwrap();
+    fs::write(
+        lmbrain.join("reports/lmbrain-kit-feedback.md"),
+        "# Kit feedback",
+    )
+    .unwrap();
+
+    let tree = contract::build_wiki_tree(dir.path()).unwrap();
+    let names: Vec<_> = tree
+        .root
+        .children
+        .iter()
+        .map(|node| node.name.as_str())
+        .collect();
+
+    assert_eq!(names, vec!["knowledge", "specs"]);
+    assert_eq!(tree.root.count, Some(1));
+    assert!(lmbrain.join("reports/lmbrain-kit-feedback.md").is_file());
+}
+
+#[test]
 fn test_wikilink_index_uses_only_operator_content_directories() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());
@@ -999,6 +1027,23 @@ fn test_wikilink_index_uses_only_operator_content_directories() {
 
     assert!(index.contains_key("visible"));
     assert!(!index.contains_key("hidden"));
+}
+
+#[test]
+fn test_wikilink_index_excludes_kit_feedback_report() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let reports = dir.path().join(".lmbrain/reports");
+    fs::create_dir_all(&reports).unwrap();
+    fs::write(
+        reports.join("lmbrain-kit-feedback.md"),
+        "# Feedback\n\nSee [[REPORT-ONLY]].",
+    )
+    .unwrap();
+
+    let index = contract::build_wikilink_index(dir.path());
+
+    assert!(!index.contains_key("report-only"));
 }
 
 #[test]
