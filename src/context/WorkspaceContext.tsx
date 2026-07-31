@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type Dispatch,
   type ReactNode,
 } from "react";
@@ -18,6 +19,7 @@ import type {
   Handoff,
   Finding,
   KitDiagnostic,
+  KitFeedbackNote,
   McpProposal,
   McpRecord,
   PulseData,
@@ -37,6 +39,21 @@ import type {
 } from "../types";
 import * as commands from "../lib/commands";
 import { createTrailingRefreshCoordinator } from "../lib/refreshCoordinator";
+import {
+  collectPageItems,
+  countAllUnread,
+  isUnreadPage,
+  loadReadState,
+  markItemRead,
+  markItemsRead,
+  saveReadState,
+  seedAllRead,
+  toUnreadItems,
+  type PageItems,
+  type ReadState,
+  type UnreadPage,
+  type UnreadSource,
+} from "../lib/unreadState";
 
 export interface WorkspaceState {
   screen: "picker" | "app";
@@ -56,6 +73,7 @@ export interface WorkspaceState {
   skills: Skill[];
   handoffs: Handoff[];
   diagnostics: KitDiagnostic[];
+  kitFeedbackNotes: KitFeedbackNote[];
   projectStatistics: ProjectStatistics | null;
   wikiTree: WikiTree | null;
   wikiPage: WikiPage | null;
@@ -131,6 +149,7 @@ const initialState: WorkspaceState = {
   skills: [],
   handoffs: [],
   diagnostics: [],
+  kitFeedbackNotes: [],
   projectStatistics: null,
   wikiTree: null,
   wikiPage: null,
@@ -200,6 +219,20 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return { ...state, activeSessionId: action.id };
     case "CLEAR_SESSIONS":
       return { ...state, sessions: [], activeSessionId: null };
+  }
+}
+
+/**
+ * Kit feedback lives outside the workspace snapshot. It is read alongside it so
+ * the sidebar can count unread notes, and it never fails the refresh: an
+ * unavailable or malformed report simply contributes no items.
+ */
+async function fetchKitFeedbackNotes(): Promise<KitFeedbackNote[]> {
+  try {
+    const report = await commands.getKitFeedback();
+    return Array.isArray(report?.notes) ? report.notes : [];
+  } catch {
+    return [];
   }
 }
 
@@ -289,6 +322,8 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
 
 export interface WorkspaceContextValue {
   state: WorkspaceState;
+  /** Unread item count per workspace page, keyed by view. */
+  unreadCounts: Record<UnreadPage, number>;
   dispatch: Dispatch<Action>;
   openWorkspace: (path: string) => Promise<void>;
   initializeWorkspaceKit: (path: string) => Promise<void>;
@@ -316,6 +351,65 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const dataRefreshRequestCount = useRef(0);
 
+  // ─── Unread read-state (sidebar badges) ────────────────────────
+  const [readState, setReadState] = useState<ReadState>({});
+  const readStateRef = useRef<ReadState>({});
+  const readPathRef = useRef<string | null>(null);
+  const seedPendingRef = useRef(false);
+  const viewRef = useRef<AppView>(initialState.view);
+  const pageItemsRef = useRef<PageItems>(collectPageItems(null));
+
+  const applyReadState = useCallback((next: ReadState, persist: boolean) => {
+    if (next === readStateRef.current) return;
+    readStateRef.current = next;
+    setReadState(next);
+    if (persist && readPathRef.current) saveReadState(readPathRef.current, next);
+  }, []);
+
+  /**
+   * Restore the read state of a workspace being opened. When nothing is stored,
+   * a baseline is scheduled for the first load so an existing project does not
+   * report its entire backlog as unread.
+   */
+  const beginReadStateForWorkspace = useCallback(
+    (path: string) => {
+      const stored = loadReadState(path);
+      readPathRef.current = path;
+      seedPendingRef.current = stored === null;
+      applyReadState(stored ?? {}, false);
+    },
+    [applyReadState],
+  );
+
+  /** Reconcile read state against freshly loaded workspace data. */
+  const reconcileReadState = useCallback(
+    (source: UnreadSource) => {
+      if (!readPathRef.current) return;
+      const items = collectPageItems(source);
+      pageItemsRef.current = items;
+      if (seedPendingRef.current) {
+        seedPendingRef.current = false;
+        applyReadState(seedAllRead(items), true);
+        return;
+      }
+      // Items updated while their page is on screen are being looked at.
+      const view = viewRef.current;
+      if (isUnreadPage(view)) {
+        applyReadState(markItemsRead(readStateRef.current, view, items[view]), true);
+      }
+    },
+    [applyReadState],
+  );
+
+  const markPageRead = useCallback(
+    (view: AppView) => {
+      if (!readPathRef.current || seedPendingRef.current || !isUnreadPage(view)) return;
+      const page: UnreadPage = view;
+      applyReadState(markItemsRead(readStateRef.current, page, pageItemsRef.current[page]), true);
+    },
+    [applyReadState],
+  );
+
   const refreshSessions = useCallback(async () => {
     const infos = await commands.sessionList();
     dispatch({ type: "SET_SESSIONS", sessions: infos });
@@ -324,8 +418,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const fetchWorkspaceData = useMemo(
     () =>
       createTrailingRefreshCoordinator<Partial<WorkspaceState>>(async () => {
-        const snapshot = await commands.getWorkspaceSnapshot();
+        const [snapshot, kitFeedbackNotes] = await Promise.all([
+          commands.getWorkspaceSnapshot(),
+          fetchKitFeedbackNotes(),
+        ]);
         return {
+          kitFeedbackNotes,
           pulseData: snapshot.pulse_data,
           specs: snapshot.specs,
           reviews: snapshot.reviews,
@@ -348,7 +446,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dataRefreshRequestCount.current += 1;
     dispatch({ type: "SET_DATA_REFRESHING", refreshing: true });
     try {
-      dispatch({ type: "MERGE_DATA", data: await fetchWorkspaceData() });
+      const data = await fetchWorkspaceData();
+      dispatch({ type: "MERGE_DATA", data });
+      reconcileReadState(data);
     } catch (err) {
       console.error("Failed to load data:", err);
     } finally {
@@ -357,7 +457,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "SET_DATA_REFRESHING", refreshing: false });
       }
     }
-  }, [fetchWorkspaceData]);
+  }, [fetchWorkspaceData, reconcileReadState]);
 
   const loadAllData = useCallback(async () => {
     await loadAllDataInternal();
@@ -381,7 +481,47 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         wikiPage,
       },
     });
-  }, [fetchWorkspaceData, state.selectedSpec, state.wikiPage]);
+    reconcileReadState(data);
+  }, [fetchWorkspaceData, reconcileReadState, state.selectedSpec, state.wikiPage]);
+
+  const pageItems = useMemo(
+    () =>
+      collectPageItems({
+        specs: state.specs,
+        reviews: state.reviews,
+        findings: state.findings,
+        adrs: state.adrs,
+        agents: state.agents,
+        agentProposals: state.agentProposals,
+        mcpRecords: state.mcpRecords,
+        mcpProposals: state.mcpProposals,
+        skills: state.skills,
+        kitFeedbackNotes: state.kitFeedbackNotes,
+      }),
+    [
+      state.specs,
+      state.reviews,
+      state.findings,
+      state.adrs,
+      state.agents,
+      state.agentProposals,
+      state.mcpRecords,
+      state.mcpProposals,
+      state.skills,
+      state.kitFeedbackNotes,
+    ],
+  );
+
+  // Keep the values the read-state callbacks need available outside of render.
+  useEffect(() => {
+    viewRef.current = state.view;
+  }, [state.view]);
+
+  useEffect(() => {
+    pageItemsRef.current = pageItems;
+  }, [pageItems]);
+
+  const unreadCounts = useMemo(() => countAllUnread(pageItems, readState), [pageItems, readState]);
 
   useEffect(() => {
     commands.listRecentWorkspaces().then((workspaces) => {
@@ -431,6 +571,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         if (info.health === "none") {
           return;
         }
+
+        beginReadStateForWorkspace(info.path ?? path);
 
         dispatch({
           type: "SET_LOADING",
@@ -487,7 +629,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "SET_LOADING", loading: false });
       }
     },
-    [loadAllDataInternal, refreshSessions]
+    [beginReadStateForWorkspace, loadAllDataInternal, refreshSessions]
   );
 
   const initializeWorkspaceKit = useCallback(
@@ -514,16 +656,28 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [openWorkspace]
   );
 
-  const navigateTo = useCallback((view: AppView) => {
-    dispatch({ type: "SET_VIEW", view });
-    dispatch({ type: "SET_CMDK", open: false });
-  }, []);
+  const navigateTo = useCallback(
+    (view: AppView) => {
+      dispatch({ type: "SET_VIEW", view });
+      dispatch({ type: "SET_CMDK", open: false });
+      viewRef.current = view;
+      markPageRead(view);
+    },
+    [markPageRead],
+  );
 
-  const openSpec = useCallback((spec: Spec) => {
-    dispatch({ type: "SET_SELECTED_SPEC", spec });
-    dispatch({ type: "SET_VIEW", view: "spec" });
-    dispatch({ type: "SET_CMDK", open: false });
-  }, []);
+  const openSpec = useCallback(
+    (spec: Spec) => {
+      dispatch({ type: "SET_SELECTED_SPEC", spec });
+      dispatch({ type: "SET_VIEW", view: "spec" });
+      dispatch({ type: "SET_CMDK", open: false });
+      viewRef.current = "spec";
+      // Opening one spec marks that spec read without clearing the whole Board.
+      const item = toUnreadItems("spec", [spec])[0] ?? null;
+      applyReadState(markItemRead(readStateRef.current, "taskboard", item), true);
+    },
+    [applyReadState],
+  );
 
   const closeSpecDetail = useCallback(() => {
     dispatch({ type: "CLOSE_SPEC_DETAIL" });
@@ -582,7 +736,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "CLEAR_SESSIONS" });
     dispatch({ type: "SET_SCREEN", screen: "picker" });
     dispatch({ type: "SET_EXIT_CONFIRM", show: false });
-  }, [state.sessions]);
+    readPathRef.current = null;
+    seedPendingRef.current = false;
+    applyReadState({}, false);
+  }, [applyReadState, state.sessions]);
 
   const triggerLeaveWorkspace = useCallback(() => {
     dispatch({ type: "SET_EXIT_CONFIRM", show: true });
@@ -604,6 +761,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     <WorkspaceContext.Provider
       value={{
         state,
+        unreadCounts,
         dispatch,
         openWorkspace,
         initializeWorkspaceKit,

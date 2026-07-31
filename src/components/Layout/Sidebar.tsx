@@ -1,4 +1,5 @@
 import { useWorkspace } from "../../hooks/useWorkspace";
+import { isUnreadPage, navItemAccessibleName } from "../../lib/unreadState";
 import type { AppView } from "../../types";
 
 interface NavItem {
@@ -27,7 +28,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Sidebar() {
-  const { state, navigateTo, triggerLeaveWorkspace, toggleCmdk } = useWorkspace();
+  const { state, unreadCounts, navigateTo, triggerLeaveWorkspace, toggleCmdk } = useWorkspace();
 
   return (
     <div
@@ -55,19 +56,25 @@ export function Sidebar() {
         Workspace
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <nav aria-label="Workspace" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {NAV_ITEMS.map((item) => {
           const active = state.view === item.key;
-          const badge = item.key === "findings"
-            ? (state.findings ?? []).filter((finding) =>
-                ["open", "planned", "deferred"].includes(finding.status)
-                && (["critical", "high"].includes(finding.severity) || !finding.owner)
-              ).length
-            : item.badge;
+          const unread = isUnreadPage(item.key) ? unreadCounts[item.key] ?? 0 : 0;
+          const badge = unread > 0 ? unread : item.badge;
           return (
             <div
               key={item.key}
+              role="link"
+              tabIndex={0}
+              aria-current={active ? "page" : undefined}
+              aria-label={navItemAccessibleName(item.label, unread)}
               onClick={() => navigateTo(item.key)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  navigateTo(item.key);
+                }
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -101,6 +108,8 @@ export function Sidebar() {
               <span style={{ flex: 1 }}>{item.label}</span>
               {Boolean(badge) && (
                 <span
+                  aria-hidden="true"
+                  title={unread > 0 ? `${unread} unread` : undefined}
                   style={{
                     fontFamily: "var(--font-mono)",
                     fontSize: 10,
@@ -117,7 +126,7 @@ export function Sidebar() {
             </div>
           );
         })}
-      </div>
+      </nav>
 
       <div style={{ flex: 1 }} />
 

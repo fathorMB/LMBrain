@@ -27,6 +27,33 @@ shared workspace artifacts, diagnostics, Git metadata, and view-local queries
 without restarting the watcher, agent processes, or persistent session
 terminals. Refresh success and failure are shown directly in the header.
 
+## Unread Badges
+
+Sidebar entries carry a numeric badge counting the items on that page the
+operator has not seen yet. One shared policy applies everywhere:
+
+- Badged pages are the ones that own a collection of items: Board, Reviews,
+  Findings, Kit Feedback, Decisions, Agents, MCP, and Skills. Agents and MCP
+  count profiles and proposals together.
+- Wiki, Design, and Repository are never badged: they render documents and Git
+  state rather than governed items. Pulse, Insights, Roadmap, and Sessions are
+  not badged either, because they derive from artifacts already counted on the
+  pages that own them.
+- An item is unread when it is new to the workspace, or when its status or its
+  `updated` date changed since the page was last displayed. Malformed records
+  still count, so parsing problems stay visible.
+- Displaying a page marks everything currently on it as read, including items
+  that arrive from a watcher update while the page is open. Opening a single
+  spec marks only that spec, leaving the rest of the Board unread.
+- A workspace opened for the first time is baselined as fully read, so badges
+  report what happened since, instead of the entire existing backlog.
+- Read state is stored per workspace path in local browser storage. It survives
+  refreshes and application restarts, and is never shared between workspaces.
+  Unreadable or malformed stored state is discarded and rebaselined rather than
+  breaking navigation.
+- The count is part of the navigation entry's accessible name (for example
+  "Reviews, 3 unread items"), so it is never conveyed by the badge alone.
+
 ## Main Views
 
 - Pulse: current project state, diagnostics, and recommended actions.
