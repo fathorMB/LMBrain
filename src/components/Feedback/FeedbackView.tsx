@@ -11,6 +11,7 @@ export function FeedbackView() {
   const [report, setReport] = useState<KitFeedbackReport | null>(null);
   const [severity, setSeverity] = useState("all");
   const [category, setCategory] = useState("all");
+  const [version, setVersion] = useState("all");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,17 +58,20 @@ export function FeedbackView() {
       
       return (severity === "all" || note.severity === severity)
         && (category === "all" || note.category === category)
+        && (version === "all" || note.lmbrain_version === version)
         && text.includes(query.trim().toLowerCase());
     }).sort((left, right) => {
       return (severityRank[right.severity] ?? 0) - (severityRank[left.severity] ?? 0)
         || right.timestamp.localeCompare(left.timestamp);
     });
-  }, [report, severity, category, query]);
+  }, [report, severity, category, version, query]);
 
   const categories = Object.keys(report?.counts_by_category ?? {}).sort();
   const severities = Object.keys(report?.counts_by_severity ?? {}).sort((a, b) => 
     (severityRank[b] ?? 0) - (severityRank[a] ?? 0)
   );
+  const versions = [...new Set((report?.notes ?? []).map((note) => note.lmbrain_version).filter(Boolean))]
+    .sort((left, right) => right.localeCompare(left, undefined, { numeric: true, sensitivity: "base" }));
 
   return (
     <div style={{ height: "100%", overflow: "auto", padding: "22px 28px 70px" }}>
@@ -108,6 +112,12 @@ export function FeedbackView() {
           </section>
 
           <section aria-label="Feedback filters" style={filters}>
+            <label style={filterLabel}>Version
+              <select style={filterControl} aria-label="Feedback version" value={version} onChange={(event) => setVersion(event.target.value)}>
+                <option value="all">All versions</option>
+                {versions.map((item) => <option value={item} key={item}>v{item}</option>)}
+              </select>
+            </label>
             <label style={filterLabel}>Severity
               <select style={filterControl} aria-label="Feedback severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
                 <option value="all">All</option>
