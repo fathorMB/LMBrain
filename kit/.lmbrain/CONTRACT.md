@@ -154,6 +154,26 @@ spec is never `minimal`; a `luna` spec is never `maximum` without a reason.
 specialists through `spec_record_effort_observation`. It records the tier the
 work actually required and never modifies the Lead's recommendation.
 
+### Decision supersession
+
+`supersedes` and `superseded_by` are the two sides of one relationship, written
+together by `adr_supersede`. The verb sets the successor's `supersedes`, and the
+predecessor's `superseded_by` plus its status.
+
+The superseding decision must already be `accepted`: a proposal may *declare*
+`supersedes` as a pending intent, but supersession only takes effect when the
+successor is approved.
+
+The verb locks both artifacts in ID order before reading either, and writes the
+successor first. A crash between the two writes therefore leaves a one-sided
+claim, which the `dangling-supersession` diagnostic reports and re-running the
+verb repairs; the verb is idempotent on an already-consistent pair. Writing the
+predecessor first would instead strip a decision of its authority with no
+successor recorded anywhere.
+
+Existing artifacts are never rewritten: one-sided relationships written before
+this verb existed surface as diagnostics until the verb is run.
+
 ## Allowed statuses
 
 | Artifact | Values |
@@ -212,6 +232,7 @@ Diagnostics use a versioned core record with a stable ID, code, severity, artifa
 - A skill is procedural knowledge, not an executable capability. LMBrain must not auto-run skill commands.
 - Skill references from specs, agent profiles, or `applies_to` must resolve to existing `SKILL-*` or `AGENT-*` artifacts where applicable; `applies_to: [all]` is allowed.
 - An ADR is not rewritten to change history: create a replacement ADR and mark the old one `superseded`.
+- Supersession agrees on both sides or it is reported. When an `accepted` decision declares `supersedes`, the named decision must be `superseded` and must record the successor in `superseded_by`; a mismatch raises `dangling-supersession` or `supersession-not-mutual`. A `proposed` decision's declaration is a pending claim and raises nothing. A decision never supersedes itself.
 - The Project Lead may write only inside `.lmbrain/` during ordinary work. It may alter application code only through the narrowly scoped, operator-authorized escalation process in `AGENT.md`.
 - All implementation and review work complies with `QUALITY.md` unless a human-approved exception is recorded.
 - A session handoff is a context snapshot and must be validated by the receiving Project Lead before it drives project decisions or status changes.

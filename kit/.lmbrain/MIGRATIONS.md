@@ -6,7 +6,7 @@ This document describes how to update an existing LMBrain kit between released v
 
 The current kit is `4.0.0`.
 
-### 4.0.0 (governed spec tags and implementation estimates)
+### 4.0.0 (governed spec tags, implementation estimates, and decision supersession)
 
 Supported source version is `3.1.4`. Existing workspaces keep parsing unchanged: the new fields are optional in the parser.
 
@@ -15,9 +15,11 @@ Supported source version is `3.1.4`. Existing workspaces keep parsing unchanged:
 3. Review the new `field-restating-tag` diagnostics. Tags that duplicate `milestone`, `area`, or `priority` (for example `3.1.0` or `milestone-m02`) remain readable but are rejected by the next `spec_set_tags` mutation. Clean them deliberately.
 4. Assign `capability_tier` and `thinking_level` through `spec_set_effort` to specs you intend to move to `ready`. The `ready` transition now fails closed without them.
 5. Specs already in `ready`, `working`, or `review` without an estimate are not blocked; they report `missing-effort-estimate` until a Lead sets one.
-6. Update `.lmbrain/VERSION` to `4.0.0` after validating the release.
+6. `supersedes` and `superseded_by` on decisions are now read, validated, and displayed. They were previously declared by the template and used by nothing, so one-sided relationships are expected in existing workspaces.
+7. Review the new `dangling-supersession` and `supersession-not-mutual` diagnostics. Each names a decision that a successor claims to have retired but which is still presented as authoritative. Running `adr_supersede` on the pair repairs both sides; the verb is idempotent, so it is safe to re-run.
+8. Update `.lmbrain/VERSION` to `4.0.0` after validating the release.
 
-Rollback to 3.1.4 is data-safe: the new frontmatter fields are ignored by the older parser, and no existing field changed shape.
+Rollback to 3.1.4 is data-safe: the new frontmatter fields are ignored by the older parser, and no existing field changed shape. A decision retired by `adr_supersede` keeps its `superseded` status after rollback, which is the correct historical record.
 
 ### 3.1.4 (responsive workspace snapshot loading)
 

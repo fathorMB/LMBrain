@@ -215,6 +215,8 @@ pub fn build_adrs(root: &Path) -> Result<Vec<Adr>, AppError> {
                 updated: common.updated,
                 tags: common.tags,
                 links: common.links,
+                supersedes: fm_string_array(&parsed.frontmatter, "supersedes"),
+                superseded_by: fm_string_array(&parsed.frontmatter, "superseded_by"),
                 malformed: common.malformed,
             })
         },

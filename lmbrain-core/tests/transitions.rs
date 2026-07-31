@@ -3,9 +3,10 @@ use lmbrain_core::{
     frontmatter::Document,
     invariants, park_spec,
     transitions::{
-        create, record_review_event, review_verdict, set_agent_mnemonic_name, transition,
-        ArtifactKind, CreateRequest, MutationOptions,
+        create, record_review_event, review_verdict, set_agent_mnemonic_name, supersede_adr,
+        transition, ArtifactKind, CreateRequest, MutationOptions,
     },
+    build_diagnostics,
     parse_review_event_history, ReviewEventInput, SpecParkingInput,
 };
 use std::fs;
@@ -1673,4 +1674,217 @@ fn governed_metadata_verbs_reject_non_spec_artifacts() {
         MutationOptions::default()
     )
     .is_err());
+}
+
+fn decision(id: &str, status: &str) -> String {
+    format!(
+        "---\nid: {id}\ntitle: Decision {id}\nstatus: {status}\ndecision_date: 2026-07-01\ndecider: user\nsupersedes: []\nsuperseded_by: []\nlinks: []\ntags: []\nactivity: []\nupdated: 2026-07-01\n---\n# Decision {id}\n"
+    )
+}
+
+/// The two known workspace inconsistencies (ADR-010/009 and ADR-014/013) exist
+/// because the relationship was written on one side only. The verb writes both.
+#[test]
+fn supersession_writes_both_sides() {
+    let dir = tempdir().unwrap();
+    let successor = ".lmbrain/decisions/ADR-010.md";
+    write(dir.path(), successor, &decision("ADR-010", "accepted"));
+    write(
+        dir.path(),
+        ".lmbrain/decisions/ADR-009.md",
+        &decision("ADR-009", "accepted"),
+    );
+
+    let result = supersede_adr(
+        dir.path(),
+        successor,
+        "ADR-009",
+        MutationOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(result.id, "ADR-010");
+
+    let new_side = Document::parse(&fs::read_to_string(dir.path().join(successor)).unwrap()).unwrap();
+    assert_eq!(new_side.string_array("supersedes"), vec!["ADR-009"]);
+
+    let old_side = Document::parse(
+        &fs::read_to_string(dir.path().join(".lmbrain/decisions/ADR-009.md")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(old_side.value("status").unwrap(), "superseded");
+    assert_eq!(old_side.string_array("superseded_by"), vec!["ADR-010"]);
+}
+
+/// Re-running the verb is the repair path for a half-written relationship, so
+/// it must be safe to run against a pair that is already consistent.
+#[test]
+fn supersession_is_idempotent() {
+    let dir = tempdir().unwrap();
+    let successor = ".lmbrain/decisions/ADR-010.md";
+    write(dir.path(), successor, &decision("ADR-010", "accepted"));
+    write(
+        dir.path(),
+        ".lmbrain/decisions/ADR-009.md",
+        &decision("ADR-009", "accepted"),
+    );
+
+    supersede_adr(dir.path(), successor, "ADR-009", MutationOptions::default()).unwrap();
+    let after_first = fs::read_to_string(dir.path().join(successor)).unwrap();
+    supersede_adr(dir.path(), successor, "ADR-009", MutationOptions::default()).unwrap();
+    assert_eq!(fs::read_to_string(dir.path().join(successor)).unwrap(), after_first);
+}
+
+/// ADR-014 is `proposed` yet declares `supersedes: [ADR-013]`. Declaring the
+/// intent is fine; enacting it before acceptance is not.
+#[test]
+fn a_proposal_cannot_retire_a_decision() {
+    let dir = tempdir().unwrap();
+    let successor = ".lmbrain/decisions/ADR-014.md";
+    write(dir.path(), successor, &decision("ADR-014", "proposed"));
+    write(
+        dir.path(),
+        ".lmbrain/decisions/ADR-013.md",
+        &decision("ADR-013", "accepted"),
+    );
+
+    let error = supersede_adr(dir.path(), successor, "ADR-013", MutationOptions::default())
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("must be accepted"), "{error}");
+
+    let untouched = Document::parse(
+        &fs::read_to_string(dir.path().join(".lmbrain/decisions/ADR-013.md")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(untouched.value("status").unwrap(), "accepted");
+}
+
+#[test]
+fn supersession_rejects_self_reference_and_unknown_targets() {
+    let dir = tempdir().unwrap();
+    let successor = ".lmbrain/decisions/ADR-010.md";
+    write(dir.path(), successor, &decision("ADR-010", "accepted"));
+
+    let self_error = supersede_adr(dir.path(), successor, "ADR-010", MutationOptions::default())
+        .unwrap_err()
+        .to_string();
+    assert!(self_error.contains("cannot supersede itself"), "{self_error}");
+
+    let missing = supersede_adr(dir.path(), successor, "ADR-404", MutationOptions::default())
+        .unwrap_err()
+        .to_string();
+    assert!(missing.contains("does not exist"), "{missing}");
+
+    let wrong_kind = supersede_adr(dir.path(), successor, "SPEC-001", MutationOptions::default())
+        .unwrap_err()
+        .to_string();
+    assert!(wrong_kind.contains("not a decision ID"), "{wrong_kind}");
+}
+
+#[test]
+fn forced_supersession_records_the_invariant_it_broke() {
+    let dir = tempdir().unwrap();
+    let successor = ".lmbrain/decisions/ADR-014.md";
+    write(dir.path(), successor, &decision("ADR-014", "proposed"));
+    write(
+        dir.path(),
+        ".lmbrain/decisions/ADR-013.md",
+        &decision("ADR-013", "accepted"),
+    );
+
+    supersede_adr(
+        dir.path(),
+        successor,
+        "ADR-013",
+        MutationOptions {
+            force: true,
+            reason: Some("Operator accepted the risk".into()),
+        },
+    )
+    .unwrap();
+
+    let document = Document::parse(&fs::read_to_string(dir.path().join(successor)).unwrap()).unwrap();
+    let overrides = document.object_array("mutation_overrides");
+    assert_eq!(overrides.len(), 1);
+    assert!(
+        overrides[0]
+            .get("unmet_invariant")
+            .and_then(|value| value.as_str())
+            .is_some_and(|value| value.contains("must be accepted")),
+        "{overrides:?}"
+    );
+}
+
+/// A one-sided claim is exactly what a crash between the two writes leaves
+/// behind, and what the workspace contains today. It must be visible.
+#[test]
+fn diagnostics_report_a_one_sided_supersession() {
+    let dir = tempdir().unwrap();
+    write(
+        dir.path(),
+        ".lmbrain/decisions/ADR-010.md",
+        &decision("ADR-010", "accepted").replace("supersedes: []", "supersedes: [ADR-009]"),
+    );
+    write(
+        dir.path(),
+        ".lmbrain/decisions/ADR-009.md",
+        &decision("ADR-009", "accepted"),
+    );
+
+    let diagnostics = build_diagnostics(dir.path());
+    let dangling: Vec<_> = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "dangling-supersession")
+        .collect();
+    assert_eq!(dangling.len(), 1, "{diagnostics:?}");
+    assert_eq!(dangling[0].artifact_id.as_deref(), Some("ADR-009"));
+
+    // Running the verb clears it.
+    supersede_adr(
+        dir.path(),
+        ".lmbrain/decisions/ADR-010.md",
+        "ADR-009",
+        MutationOptions::default(),
+    )
+    .unwrap();
+    assert!(build_diagnostics(dir.path())
+        .iter()
+        .all(|diagnostic| diagnostic.code != "dangling-supersession"));
+}
+
+#[test]
+fn diagnostics_stay_quiet_on_a_proposals_pending_claim() {
+    let dir = tempdir().unwrap();
+    write(
+        dir.path(),
+        ".lmbrain/decisions/ADR-014.md",
+        &decision("ADR-014", "proposed").replace("supersedes: []", "supersedes: [ADR-013]"),
+    );
+    write(
+        dir.path(),
+        ".lmbrain/decisions/ADR-013.md",
+        &decision("ADR-013", "accepted"),
+    );
+
+    assert!(build_diagnostics(dir.path())
+        .iter()
+        .all(|diagnostic| diagnostic.code != "dangling-supersession"));
+}
+
+#[test]
+fn diagnostics_report_an_unresolvable_successor() {
+    let dir = tempdir().unwrap();
+    write(
+        dir.path(),
+        ".lmbrain/decisions/ADR-009.md",
+        &decision("ADR-009", "superseded").replace("superseded_by: []", "superseded_by: [ADR-404]"),
+    );
+
+    let diagnostics = build_diagnostics(dir.path());
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "supersession-not-mutual"),
+        "{diagnostics:?}"
+    );
 }

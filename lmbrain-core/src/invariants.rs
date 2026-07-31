@@ -253,3 +253,35 @@ fn scan(dir: impl AsRef<Path>) -> Vec<PathBuf> {
     }
     out
 }
+
+/// Supersession must agree on both sides (issue #48): the superseding decision
+/// declares the predecessor, the predecessor names its successor, and the
+/// predecessor is no longer presented as authoritative.
+///
+/// A *proposed* decision declaring `supersedes` is a legitimate pending claim
+/// and passes: supersession only takes effect when the successor is accepted.
+pub fn supersession_is_consistent(
+    superseding_id: &str,
+    superseding_status: &str,
+    superseded_id: &str,
+    superseded_status: &str,
+    superseded_superseded_by: &[String],
+) -> Result<(), String> {
+    if superseding_status != "accepted" {
+        return Ok(());
+    }
+    if superseded_status != "superseded" {
+        return Err(format!(
+            "{superseded_id} is still `{superseded_status}` although {superseding_id} supersedes it"
+        ));
+    }
+    if !superseded_superseded_by
+        .iter()
+        .any(|value| value.trim().eq_ignore_ascii_case(superseding_id))
+    {
+        return Err(format!(
+            "{superseded_id} does not record {superseding_id} in `superseded_by`"
+        ));
+    }
+    Ok(())
+}

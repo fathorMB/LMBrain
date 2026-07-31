@@ -1516,3 +1516,199 @@ fn set_governed_spec_metadata(
         forced: options.force,
     })
 }
+
+/// Retire `superseded_id` in favour of the ADR at `artifact`, writing both
+/// sides of the relationship (issue #48).
+///
+/// Two files cannot be written atomically without a journal. The design makes
+/// the partial state benign instead: both artifacts are locked before either is
+/// read (in lexicographic ID order, so concurrent supersessions cannot
+/// deadlock), every check runs before any write, and the *superseding* ADR is
+/// written first. A crash between the two writes therefore leaves a one-sided
+/// claim -- which `diagnose_decisions` reports and re-running this verb repairs.
+/// The opposite order would strip a decision of its authority with no successor
+/// recorded anywhere, a silent loss no check could see.
+///
+/// The operation is idempotent: re-running it on an already-consistent pair
+/// succeeds without touching either file.
+pub fn supersede_adr(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    superseded_id: &str,
+    options: MutationOptions,
+) -> Result<MutationResult, TransitionError> {
+    require_force_reason(&options)?;
+
+    let guard = PathGuard::new(root)?;
+    let superseding_path = guard.resolve_existing(artifact.as_ref())?;
+    let superseding_id = Document::parse(&fs::read_to_string(&superseding_path)?)?
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    if kind_for_id(&superseding_id) != Some(ArtifactKind::Adr) {
+        return Err(TransitionError::Invariant(
+            "expected a decision artifact".into(),
+        ));
+    }
+
+    let superseded_id = superseded_id.trim().to_ascii_uppercase();
+    if kind_for_id(&superseded_id) != Some(ArtifactKind::Adr) {
+        return Err(TransitionError::Invariant(format!(
+            "{superseded_id} is not a decision ID"
+        )));
+    }
+    if superseded_id == superseding_id {
+        return Err(TransitionError::Invariant(
+            "a decision cannot supersede itself".into(),
+        ));
+    }
+    let superseded_path = decision_path_for_id(guard.root(), &superseded_id).ok_or_else(|| {
+        TransitionError::Invariant(format!("{superseded_id} does not exist in this workspace"))
+    })?;
+    let superseded_path = guard.resolve_existing(&superseded_path)?;
+
+    // Lock both artifacts before reading either, ordered by ID so two
+    // concurrent supersessions acquire them in the same sequence.
+    let (first, second) = if superseding_id <= superseded_id {
+        (superseding_id.as_str(), superseded_id.as_str())
+    } else {
+        (superseded_id.as_str(), superseding_id.as_str())
+    };
+    let _first_lock = ArtifactMutationLock::acquire(guard.root(), first)?;
+    let _second_lock = ArtifactMutationLock::acquire(guard.root(), second)?;
+
+    let superseding_source = fs::read_to_string(&superseding_path)?;
+    let mut superseding = Document::parse(&superseding_source)?;
+    let superseded_source = fs::read_to_string(&superseded_path)?;
+    let mut superseded = Document::parse(&superseded_source)?;
+
+    for (document, expected) in [
+        (&superseding, &superseding_id),
+        (&superseded, &superseded_id),
+    ] {
+        let actual = document
+            .value("id")
+            .ok_or_else(|| TransitionError::Missing("id".into()))?;
+        if &actual != expected {
+            return Err(TransitionError::Invariant(format!(
+                "artifact changed identity while waiting for its mutation lock: expected {expected}, found {actual}"
+            )));
+        }
+    }
+
+    let superseding_status = superseding.value("status").unwrap_or_default();
+    let superseded_status = superseded.value("status").unwrap_or_default();
+    let mut declares = superseding.string_array("supersedes");
+    let mut retired_by = superseded.string_array("superseded_by");
+
+    // Already consistent on both sides: nothing to do.
+    if superseded_status == "superseded"
+        && declares.iter().any(|value| value == &superseded_id)
+        && retired_by.iter().any(|value| value == &superseding_id)
+    {
+        return Ok(MutationResult {
+            id: superseding_id,
+            status: superseding_status,
+            path: superseding_path,
+            forced: options.force,
+        });
+    }
+
+    let violated = if superseding_status != "accepted" {
+        Some(format!(
+            "{superseding_id} is {superseding_status}: a decision must be accepted before it can supersede another"
+        ))
+    } else if !matches!(superseded_status.as_str(), "accepted" | "superseded") {
+        Some(format!(
+            "{superseded_id} is {superseded_status}: only an accepted decision can be superseded"
+        ))
+    } else {
+        None
+    };
+    if let Some(reason) = violated.as_deref() {
+        if !options.force {
+            return Err(TransitionError::Invariant(reason.into()));
+        }
+    }
+
+    let activity = format!("supersede {superseded_id}");
+
+    if !declares.iter().any(|value| value == &superseded_id) {
+        declares.push(superseded_id.clone());
+    }
+    superseding.set("supersedes", &render_inline_array(&declares));
+    superseding.set("updated", &today());
+    superseding.append_activity(&activity);
+
+    if !retired_by.iter().any(|value| value == &superseding_id) {
+        retired_by.push(superseding_id.clone());
+    }
+    superseded.set("superseded_by", &render_inline_array(&retired_by));
+    superseded.set("status", "superseded");
+    superseded.set("updated", &today());
+    superseded.append_activity(&format!("superseded by {superseding_id}"));
+
+    if options.force {
+        if let Some(reason) = options.reason.as_deref() {
+            let invariant = violated
+                .clone()
+                .unwrap_or_else(|| format!("forced mutation: {activity}"));
+            append_mutation_override(
+                &mut superseding,
+                &superseding_id,
+                &superseding_status,
+                &superseding_status,
+                "project-lead",
+                reason,
+                &invariant,
+            )?;
+            append_mutation_override(
+                &mut superseded,
+                &superseded_id,
+                &superseded_status,
+                "superseded",
+                "project-lead",
+                reason,
+                &invariant,
+            )?;
+        }
+    }
+
+    if fs::read_to_string(&superseding_path)? != superseding_source
+        || fs::read_to_string(&superseded_path)? != superseded_source
+    {
+        return Err(TransitionError::Invariant(
+            "a decision changed while the supersession was being prepared".into(),
+        ));
+    }
+
+    atomic_write(&superseding_path, &superseding.render())?;
+    atomic_write(&superseded_path, &superseded.render())?;
+
+    Ok(MutationResult {
+        id: superseding_id,
+        status: superseding.value("status").unwrap_or_default(),
+        path: superseding_path,
+        forced: options.force,
+    })
+}
+
+/// Decisions live flat in `.lmbrain/decisions/`, so locating one by ID is a
+/// single directory scan rather than a status-folder walk.
+fn decision_path_for_id(root: &Path, id: &str) -> Option<PathBuf> {
+    let entries = fs::read_dir(root.join(".lmbrain/decisions")).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|value| value.to_str()) != Some("md") {
+            continue;
+        }
+        let matches = fs::read_to_string(&path)
+            .ok()
+            .and_then(|source| Document::parse(&source).ok())
+            .and_then(|document| document.value("id"))
+            .is_some_and(|value| value == id);
+        if matches {
+            return Some(path);
+        }
+    }
+    None
+}

@@ -368,6 +368,8 @@ export interface Adr {
   updated: string;
   tags: string[];
   links: string[];
+  supersedes: string[];
+  superseded_by: string[];
   malformed?: boolean;
 }
 

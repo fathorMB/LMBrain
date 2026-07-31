@@ -6,8 +6,8 @@ use std::{
 use lmbrain_core::context::{build_project_digest, build_review_context, build_spec_context};
 use lmbrain_core::transitions::{
     create, record_effort_observation, record_review_event, review_verdict,
-    set_agent_mnemonic_name, set_recommended_agent, set_spec_effort, set_spec_tags, transition,
-    ArtifactKind, CreateRequest, MutationOptions,
+    set_agent_mnemonic_name, set_recommended_agent, set_spec_effort, set_spec_tags, supersede_adr,
+    transition, ArtifactKind, CreateRequest, MutationOptions,
 };
 use lmbrain_core::{
     accept_finding_risk, apply_improvement_proposal, approve_verification_manifest,
@@ -264,6 +264,21 @@ fn tools() -> Vec<Value> {
                     "observed_tier": {"type":"string","enum":["luna","terra","sol"]},
                     "actor": {"type":"string"},
                     "note": {"type":"string"},
+                    "force": {"type":"boolean","default":false},
+                    "reason": {"type":"string","description":"Required only when force is true."}
+                },
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "adr_supersede",
+            "description": "Project Lead: retire a decision in favour of an accepted one, writing both sides of the relationship. The superseding ADR must already be accepted. Idempotent.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["path", "superseded_id"],
+                "properties": {
+                    "path": {"type":"string","description":"Path to the superseding (new) decision."},
+                    "superseded_id": {"type":"string","description":"ID of the decision being retired, e.g. ADR-009."},
                     "force": {"type":"boolean","default":false},
                     "reason": {"type":"string","description":"Required only when force is true."}
                 },
@@ -1002,6 +1017,18 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             args.get("agent")
                 .and_then(Value::as_str)
                 .ok_or("agent missing")?,
+            opts(args),
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "adr_supersede" => supersede_adr(
+            root,
+            args.get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?,
+            args.get("superseded_id")
+                .and_then(Value::as_str)
+                .ok_or("superseded_id missing")?,
             opts(args),
         )
         .map(|result| text(json!(result)))
@@ -1893,7 +1920,7 @@ mod tests {
         let dependent = dir.path().join(".lmbrain/specs/backlog/SPEC-002.md");
         std::fs::write(
             &dependent,
-            "---\nid: SPEC-002\ntitle: Dependent\nstatus: backlog\nrecommended_agent: AGENT-IMPL\ndepends_on: []\ndependency_events: []\nparking_events: []\nupdated: 2026-07-29\n---\n",
+            "---\nid: SPEC-002\ntitle: Dependent\nstatus: backlog\nrecommended_agent: AGENT-IMPL\ncapability_tier: terra\nthinking_level: standard\ndepends_on: []\ndependency_events: []\nparking_events: []\nupdated: 2026-07-29\n---\n",
         )
         .unwrap();
         let root = dir.path().to_path_buf();
