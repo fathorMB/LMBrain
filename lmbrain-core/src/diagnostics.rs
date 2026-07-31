@@ -7,7 +7,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    content_digest, frontmatter::Document, invariants, unsupported_verification_requirements,
+    content_digest, context::parse_verification_requirements, frontmatter::Document, invariants,
+    unsupported_verification_requirements,
     verification_blockers_for_workspace,
 };
 
@@ -479,6 +480,7 @@ fn diagnose_references(root: &Path, artifacts: &[Artifact], diagnostics: &mut Ve
 
 fn diagnose_verification(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<Diagnostic>) {
     let mut referenced_gates = Vec::new();
+    let mut declared_executable_gates = BTreeSet::new();
     for artifact in artifacts {
         let id = artifact.document.value("id").unwrap_or_default();
         if !id.starts_with("SPEC-") {
@@ -486,6 +488,14 @@ fn diagnose_verification(root: &Path, artifacts: &[Artifact], diagnostics: &mut 
         }
         let status = artifact.document.value("status").unwrap_or_default();
         let gates = artifact.document.string_array("verification_gates");
+        let (requirements, _, _) =
+            parse_verification_requirements(&artifact.document.body, &gates);
+        declared_executable_gates.extend(
+            requirements
+                .into_iter()
+                .filter(|requirement| requirement.kind == "executable")
+                .map(|requirement| requirement.id),
+        );
         if !gates.is_empty() {
             referenced_gates.push((id.clone(), artifact.relative.clone(), gates));
         }
@@ -526,6 +536,7 @@ fn diagnose_verification(root: &Path, artifacts: &[Artifact], diagnostics: &mut 
             ));
         }
     }
+    diagnose_executable_gate_coverage(root, &declared_executable_gates, diagnostics);
     if referenced_gates.is_empty() {
         return;
     }
@@ -600,6 +611,80 @@ fn diagnose_verification(root: &Path, artifacts: &[Artifact], diagnostics: &mut 
             ));
         }
     }
+}
+
+fn diagnose_executable_gate_coverage(
+    root: &Path,
+    declared_executable_gates: &BTreeSet<String>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if declared_executable_gates.is_empty() {
+        return;
+    }
+    let approval_path = crate::default_verification_approval_path(root);
+    let status = match crate::verification_manifest_status(root, &approval_path) {
+        Ok(status) => status,
+        Err(error) => {
+            diagnostics.push(diagnostic(
+                "executable-gates-manifest-unavailable",
+                DiagnosticSeverity::Warning,
+                None,
+                Some("verification.toml".into()),
+                format!(
+                    "Declared executable verification gates: {}; available in manifest: 0; manifest state unavailable: {error}",
+                    declared_executable_gates.len()
+                ),
+                "Inspect verification_manifest_status and reconcile the verification manifest before claiming kit execution.",
+                DiagnosticFixability::ReadOnly,
+                "executable-gates",
+            ));
+            return;
+        }
+    };
+    let known = crate::load_verification_manifest(root)
+        .ok()
+        .map(|manifest| {
+            manifest
+                .gates
+                .into_iter()
+                .map(|gate| gate.id)
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    let available = declared_executable_gates
+        .intersection(&known)
+        .count();
+    let message = format!(
+        "Declared executable verification gates: {}; available in manifest: {}; manifest state: {}",
+        declared_executable_gates.len(),
+        available,
+        manifest_state_code(&status.state)
+    );
+    let (code, next_action) = match status.state {
+        crate::VerificationManifestState::Absent => (
+            "executable-gates-without-manifest",
+            "Run verification_manifest_init, review the deterministic candidates, and explicitly configure and approve a manifest before relying on kit-executed gates.",
+        ),
+        crate::VerificationManifestState::Approved if available < declared_executable_gates.len() => (
+            "executable-gates-partially-mapped",
+            "Add every declared executable gate to the manifest and obtain approval for the resulting digest.",
+        ),
+        crate::VerificationManifestState::Approved => return,
+        _ => (
+            "executable-gates-manifest-unapproved",
+            "Review the manifest and explicitly approve its current digest before relying on kit-executed gates.",
+        ),
+    };
+    diagnostics.push(diagnostic(
+        code,
+        DiagnosticSeverity::Warning,
+        None,
+        Some("verification.toml".into()),
+        message,
+        next_action,
+        DiagnosticFixability::Manual,
+        "executable-gates",
+    ));
 }
 
 fn manifest_state_code(state: &crate::VerificationManifestState) -> &'static str {
@@ -1130,6 +1215,82 @@ mod tests {
         assert!(configured
             .iter()
             .any(|diagnostic| diagnostic.code == "verification-manifest-unapproved"));
+    }
+
+    #[test]
+    fn executable_gate_coverage_reports_absent_unapproved_and_partial_manifests() {
+        let directory = tempdir().unwrap();
+        let spec_dir = directory.path().join(".lmbrain/specs/working");
+        fs::create_dir_all(&spec_dir).unwrap();
+        fs::write(
+            spec_dir.join("SPEC-001.md"),
+            "---\nid: SPEC-001\nstatus: working\n---\n## Required verification\n- [ ] cargo-tests | kind=executable | owner=agent | phase=before-submit | evidence=transcript | Run tests\n",
+        )
+        .unwrap();
+
+        let absent = build_diagnostics(directory.path());
+        let absent_diagnostic = absent
+            .iter()
+            .find(|diagnostic| diagnostic.code == "executable-gates-without-manifest")
+            .unwrap();
+        assert!(absent_diagnostic
+            .message
+            .contains("Declared executable verification gates: 1"));
+        assert!(absent_diagnostic
+            .message
+            .contains("available in manifest: 0"));
+
+        let gate = crate::VerificationGate {
+            id: "cargo-tests".into(),
+            title: None,
+            program: "cargo".into(),
+            args: vec!["test".into()],
+            cwd: ".".into(),
+            timeout_seconds: Some(30),
+            output_limit_bytes: Some(1024),
+            expected_exit_code: Some(0),
+            result_matcher: None,
+            environment: std::collections::BTreeMap::new(),
+            fingerprint_exclude: Vec::new(),
+        };
+        let manifest = crate::VerificationManifest {
+            schema_version: 1,
+            gates: vec![gate.clone()],
+        };
+        crate::set_verification_manifest(directory.path(), &manifest, None).unwrap();
+        let unapproved = build_diagnostics(directory.path());
+        assert!(unapproved
+            .iter()
+            .any(|diagnostic| diagnostic.code == "executable-gates-manifest-unapproved"));
+
+        let approval = crate::default_verification_approval_path(directory.path());
+        crate::approve_verification_manifest(directory.path(), &approval).unwrap();
+        let approved = build_diagnostics(directory.path());
+        assert!(!approved.iter().any(|diagnostic| {
+            diagnostic.code == "executable-gates-manifest-unapproved"
+                || diagnostic.code == "executable-gates-partially-mapped"
+        }));
+
+        let partial_manifest = crate::VerificationManifest {
+            schema_version: 1,
+            gates: vec![crate::VerificationGate {
+                id: "other-gate".into(),
+                ..gate
+            }],
+        };
+        crate::set_verification_manifest(
+            directory.path(),
+            &partial_manifest,
+            Some(
+                &crate::canonical_verification_manifest_digest(&manifest).unwrap(),
+            ),
+        )
+        .unwrap();
+        crate::approve_verification_manifest(directory.path(), &approval).unwrap();
+        let partial = build_diagnostics(directory.path());
+        assert!(partial
+            .iter()
+            .any(|diagnostic| diagnostic.code == "executable-gates-partially-mapped"));
     }
 
     #[test]

@@ -2899,6 +2899,10 @@ tags: []
 links: []
 ---
 # No agent
+
+## Required verification
+
+- [ ] cargo-tests | kind=executable | owner=agent | phase=before-submit | evidence=transcript | Run tests
 "#,
         )
         .unwrap();
@@ -2961,6 +2965,10 @@ tags: []
 links: []
 ---
 # No agent
+
+## Required verification
+
+- [ ] cargo-tests | kind=executable | owner=agent | phase=before-submit | evidence=transcript | Run tests
 "#,
         )
         .unwrap();
@@ -2974,6 +2982,11 @@ links: []
             !digest.blockers.is_empty() || !digest.warnings.is_empty(),
             "Expected blockers or warnings from diagnostics"
         );
+        assert!(digest
+            .diagnostics
+            .items
+            .iter()
+            .any(|diagnostic| diagnostic.code == "executable-gates-without-manifest"));
     }
 
     #[test]
