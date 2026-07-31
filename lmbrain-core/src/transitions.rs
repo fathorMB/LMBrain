@@ -262,7 +262,10 @@ pub fn record_review_event(
     options: MutationOptions,
 ) -> Result<MutationResult, TransitionError> {
     require_force_reason(&options)?;
-    if !matches!(action, "remediation" | "escalation" | "takeover") {
+    if !matches!(
+        action,
+        "remediation" | "remediation-verification" | "escalation" | "takeover"
+    ) {
         return Err(TransitionError::Invariant(format!(
             "unsupported review lifecycle event '{action}'"
         )));
@@ -274,6 +277,7 @@ pub fn record_review_event(
     }
     let expected_actor = match action {
         "remediation" => "implementation-specialist",
+        "remediation-verification" => "project-lead",
         "escalation" => "operator",
         "takeover" => "project-lead",
         _ => unreachable!(),
@@ -321,6 +325,30 @@ pub fn record_review_event(
         return Err(TransitionError::Invariant(
             "cannot append lifecycle events to a superseded review".into(),
         ));
+    }
+    if action == "remediation-verification" {
+        if event.evidence_refs.is_empty()
+            || event
+                .evidence_refs
+                .iter()
+                .any(|reference| reference.trim().is_empty())
+        {
+            return Err(TransitionError::Invariant(
+                "review remediation verification requires non-empty evidence_refs".into(),
+            ));
+        }
+        let history = parse_review_event_history(&document);
+        let previous = history.events.last().ok_or_else(|| {
+            TransitionError::Invariant(
+                "review remediation verification requires a preceding remediation event".into(),
+            )
+        })?;
+        if previous.action != "remediation" {
+            return Err(TransitionError::Invariant(
+                "review remediation verification must immediately follow a remediation event"
+                    .into(),
+            ));
+        }
     }
     document.set("updated", &today());
     document.append_activity(&format!("recorded review {action}"));

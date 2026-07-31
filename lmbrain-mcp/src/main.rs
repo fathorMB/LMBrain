@@ -195,7 +195,7 @@ fn tools() -> Vec<Value> {
         ),
         review_event_tool(
             "review_remediation_verified",
-            "Project Lead: record verification of a remediation cycle without changing review status.",
+            "Project Lead: record one evidence-backed verification immediately after a remediation attempt without changing review status.",
             true,
         ),
         review_event_tool(

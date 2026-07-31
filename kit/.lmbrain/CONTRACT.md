@@ -175,6 +175,14 @@ Diagnostics use a versioned core record with a stable ID, code, severity, artifa
 - At most one `ready` session handoff may exist in `handoffs/active/`.
 - The application should warn about duplicate IDs, broken links, directory/status mismatches, missing references, and circular dependencies.
 
+Review remediation lifecycle events are append-only. `review_remediation` is an
+implementation-specialist event and must identify `remediation_agent`.
+`review_remediation_verified` is a Project Lead-only event: it preserves review
+status, requires at least one non-empty `evidence_refs` value, and is legal only
+immediately after a remediation event. A second consecutive verification is
+rejected; the next remediation starts a new verification cycle. Existing review
+events are never rewritten.
+
 ## Authority
 
 | Artifact | Project Lead | Specialist | User |

@@ -6,7 +6,7 @@ use lmbrain_core::{
         create, record_review_event, review_verdict, set_agent_mnemonic_name, transition,
         ArtifactKind, CreateRequest, MutationOptions,
     },
-    ReviewEventInput, SpecParkingInput,
+    parse_review_event_history, ReviewEventInput, SpecParkingInput,
 };
 use std::fs;
 use tempfile::tempdir;
@@ -514,6 +514,115 @@ fn review_non_verdict_events_enforce_authority_and_required_attribution() {
         );
         assert_eq!(fs::read_to_string(d.path().join(path)).unwrap(), before);
     }
+}
+
+#[test]
+fn review_remediation_verification_requires_order_and_evidence() {
+    let d = tempdir().unwrap();
+    let path = ".lmbrain/reviews/changes-requested/REVIEW-001.md";
+    write(d.path(), path, &source("REVIEW-001", "changes-requested"));
+    let verification = || ReviewEventInput {
+        actor_role: "project-lead".into(),
+        reason: "Verified the remediation independently".into(),
+        evidence_refs: vec!["REVIEW-001".into()],
+        remediation_agent: None,
+    };
+
+    let before_remediation = record_review_event(
+        d.path(),
+        path,
+        "remediation-verification",
+        verification(),
+        MutationOptions::default(),
+    );
+    assert!(before_remediation.is_err());
+
+    record_review_event(
+        d.path(),
+        path,
+        "remediation",
+        ReviewEventInput {
+            actor_role: "implementation-specialist".into(),
+            reason: "Implemented the requested change".into(),
+            evidence_refs: vec!["tests/review.rs".into()],
+            remediation_agent: Some("AGENT-002".into()),
+        },
+        MutationOptions::default(),
+    )
+    .unwrap();
+    record_review_event(
+        d.path(),
+        path,
+        "remediation-verification",
+        verification(),
+        MutationOptions::default(),
+    )
+    .unwrap();
+
+    let repeated = record_review_event(
+        d.path(),
+        path,
+        "remediation-verification",
+        verification(),
+        MutationOptions::default(),
+    );
+    assert!(repeated.is_err());
+    assert_eq!(
+        parse_review_event_history(
+            &Document::parse(&fs::read_to_string(d.path().join(path)).unwrap()).unwrap()
+        )
+        .events
+        .len(),
+        2
+    );
+}
+
+#[test]
+fn review_remediation_verification_requires_evidence_and_lead_authority() {
+    let d = tempdir().unwrap();
+    let path = ".lmbrain/reviews/changes-requested/REVIEW-001.md";
+    write(d.path(), path, &source("REVIEW-001", "changes-requested"));
+    record_review_event(
+        d.path(),
+        path,
+        "remediation",
+        ReviewEventInput {
+            actor_role: "implementation-specialist".into(),
+            reason: "Implemented the requested change".into(),
+            evidence_refs: vec![],
+            remediation_agent: Some("AGENT-002".into()),
+        },
+        MutationOptions::default(),
+    )
+    .unwrap();
+
+    let no_evidence = record_review_event(
+        d.path(),
+        path,
+        "remediation-verification",
+        ReviewEventInput {
+            actor_role: "project-lead".into(),
+            reason: "Checked the remediation".into(),
+            evidence_refs: vec![],
+            remediation_agent: None,
+        },
+        MutationOptions::default(),
+    );
+    assert!(no_evidence.is_err());
+
+    let wrong_actor = record_review_event(
+        d.path(),
+        path,
+        "remediation-verification",
+        ReviewEventInput {
+            actor_role: "implementation-specialist".into(),
+            reason: "Checked the remediation".into(),
+            evidence_refs: vec!["tests/review.rs".into()],
+            remediation_agent: None,
+        },
+        MutationOptions::default(),
+    );
+    assert!(wrong_actor.is_err());
 }
 
 #[test]
