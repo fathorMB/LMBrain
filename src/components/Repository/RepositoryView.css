@@ -22,6 +22,12 @@
   min-width: 0;
 }
 
+.repository-branch-card {
+  width: 100%;
+  margin-top: 24px;
+  box-sizing: border-box;
+}
+
 .repository-column,
 .repository-card,
 .repository-metadata-grid,

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { CommitGraph } from "commit-graph";
 import * as commands from "../../lib/commands";
 import type { GitDetails, GitHubDashboard, GitFile, GitHubWorkflowRun } from "../../types";
 import { GitDiffModal } from "./GitDiffModal";
@@ -594,6 +595,11 @@ export function RepositoryView() {
 
         </div>
 
+        <BranchGraphCard
+          dashboard={githubDashboard}
+          currentBranch={gitDetails?.branch ?? null}
+        />
+
       </div>
       {selectedFile && (
         <GitDiffModal
@@ -609,6 +615,185 @@ export function RepositoryView() {
           onClose={() => setSelectedRun(null)}
         />
       )}
+    </div>
+  );
+}
+
+/*
+                  <text x={x} y="18" textAnchor="middle" fill={isCurrent ? "#bcaef6" : "var(--text-secondary)"} fontSize="10" fontFamily="var(--font-mono)"><title>{branch.name}</title>{isCurrent ? "● " : isDefault ? "★ " : ""}{shortBranchName(branch.name)}</text>
+                  {branchPoints.length > 0 ? <line x1={x} y1={branchPoints[0].y} x2={x} y2={branchPoints[branchPoints.length - 1].y + 18} stroke={branchPoints[0].color} strokeOpacity=".6" strokeWidth="2" /> : <text x={x} y="42" textAnchor="middle" fill="var(--text-muted)" fontSize="10">no unique commits</text>}
+                </g>;
+              })}
+              {points.flatMap((point) => point.commit.parents.map((parentSha) => {
+                const parent = points.find((candidate) => candidate.branch === point.branch && candidate.commit.sha === parentSha);
+                if (!parent) return null;
+                const curve = (point.y + parent.y) / 2;
+                return <path key={`${point.commit.sha}-${parentSha}-${point.branch}`} d={`M ${point.x} ${point.y} C ${point.x} ${curve}, ${parent.x} ${curve}, ${parent.x} ${parent.y}`} fill="none" stroke={point.color} strokeOpacity=".65" strokeWidth="2" />;
+              }))}
+              {branches.map((branch) => {
+                if (!branch.merge_base_sha || branch.name === dashboard.default_branch || branch.commits.length === 0) return null;
+                const branchPoint = points.find((point) => point.branch === branch.name && point.commit.sha === branch.commits[branch.commits.length - 1].sha);
+                const basePoint = points.find((point) => point.branch === dashboard.default_branch && point.commit.sha === branch.merge_base_sha);
+                if (!branchPoint || !basePoint) return null;
+                const curve = (branchPoint.y + basePoint.y) / 2;
+                return <path key={`${branch.name}-merge-base`} d={`M ${branchPoint.x} ${branchPoint.y} C ${branchPoint.x} ${curve}, ${basePoint.x} ${curve}, ${basePoint.x} ${basePoint.y}`} fill="none" stroke={branchPoint.color} strokeOpacity=".65" strokeWidth="2" strokeDasharray="4 4" />;
+              })}
+              {points.map((point) => {
+                const description = `${point.branch}, commit ${point.commit.sha.slice(0, 8)}${point.commit.message ? `, ${point.commit.message}` : ""}`;
+                return <circle key={`${point.branch}-${point.commit.sha}`} cx={point.x} cy={point.y} r="7" fill={point.color} stroke="#11151d" strokeWidth="3" tabIndex={0} role="button" aria-label={description} onMouseEnter={(event) => showTooltip(point.branch, point.commit, point.color, event.currentTarget)} onFocus={(event) => showTooltip(point.branch, point.commit, point.color, event.currentTarget)} onMouseLeave={() => setHoveredCommit(null)} onBlur={() => setHoveredCommit(null)}><title>{description}</title></circle>;
+              })}
+            </svg>
+            {hoveredCommit && <div role="tooltip" style={{ position: "absolute", left: hoveredCommit.left, top: hoveredCommit.top, transform: "translate(-50%, -100%)", width: "min(300px, calc(100% - 24px))", padding: "9px 10px", borderRadius: 8, background: "#1a1622", border: `1px solid ${hoveredCommit.color}`, boxShadow: "0 8px 24px rgba(0,0,0,.35)", pointerEvents: "none", zIndex: 2 }}><div style={{ color: "var(--text-primary)", fontSize: 12, fontWeight: 650, lineHeight: 1.35 }}>{hoveredCommit.commit.message || "Untitled commit"}</div><div style={{ marginTop: 4, color: "var(--text-tertiary)", fontSize: 10.5, fontFamily: "var(--font-mono)" }}>{hoveredCommit.branch} · {hoveredCommit.commit.sha.slice(0, 12)}{hoveredCommit.commit.author ? ` · ${hoveredCommit.commit.author}` : ""}</div></div>}
+          </div>
+          {dashboard.branches.length > branches.length && <div style={{ marginTop: 8, fontSize: 10.5, color: "var(--text-muted)" }}>Showing the first {branches.length} branches in the graph; {dashboard.branches.length - branches.length} additional branches are not graphed.</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function shortBranchName(name: string): string {
+  return name.length > 16 ? `${name.slice(0, 14)}…` : name;
+}
+
+*/
+const BRANCH_GRAPH_COLORS = ["#67e8f9", "#f87171", "#c084fc", "#facc15", "#4ade80", "#fb923c", "#60a5fa"];
+
+function getBranchLegendColor(branchName: string, index: number, currentBranch: string, defaultBranch: string | null): string {
+  if (branchName === currentBranch || branchName === defaultBranch) return BRANCH_GRAPH_COLORS[0];
+  return BRANCH_GRAPH_COLORS[(index + 1) % BRANCH_GRAPH_COLORS.length];
+}
+
+function BranchGraphCard({ dashboard, currentBranch }: { dashboard: GitHubDashboard | null; currentBranch: string | null }) {
+  const graphContainerRef = useRef<HTMLDivElement>(null);
+  const [resolvedBranchColors, setResolvedBranchColors] = useState<Record<string, string>>({});
+  const branches = dashboard ? [...dashboard.branches].sort((left, right) => left.name.localeCompare(right.name)).slice(0, 24) : [];
+  const branchSignature = branches.map((branch) => `${branch.name}:${branch.sha}`).join("|");
+
+  useLayoutEffect(() => {
+    const container = graphContainerRef.current;
+    if (!container || !dashboard) return;
+
+    const colors: Record<string, string> = {};
+    const effectBranches = [...dashboard.branches].sort((left, right) => left.name.localeCompare(right.name)).slice(0, 24);
+    for (const branch of effectBranches) {
+      const badge = [...container.querySelectorAll<HTMLElement>("[style]")].find(
+        (element) => element.textContent?.trim() === branch.name && element.style.borderColor,
+      );
+      if (badge?.style.borderColor) colors[branch.name] = badge.style.borderColor;
+    }
+    if (Object.keys(colors).length > 0) {
+      const frame = window.requestAnimationFrame(() => setResolvedBranchColors(colors));
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [branchSignature, dashboard]);
+
+  if (!dashboard) {
+    return <div className="repository-card" style={branchCardStyle}><BranchGraphHeading count={null} /><div style={branchEmptyStyle}>No remote branch data available.</div></div>;
+  }
+
+  const entries = buildBranchGraphEntries(branches);
+  const graphBranch = currentBranch && branches.some((branch) => branch.name === currentBranch)
+    ? currentBranch
+    : dashboard.default_branch ?? branches[0]?.name ?? "";
+  return (
+    <div className="repository-card repository-branch-card" style={branchCardStyle}>
+      <BranchGraphHeading count={dashboard.branches.length} />
+      <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--text-tertiary)" }}>Remote branch history, read-only. The graph is calculated from real commit parent SHAs.</p>
+      <div aria-label="Branch color legend" style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginBottom: 14 }}>
+        {branches.map((branch, index) => (
+          <span key={branch.name} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--text-secondary)", fontSize: 11 }}>
+            <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: "50%", background: resolvedBranchColors[branch.name] ?? getBranchLegendColor(branch.name, index, graphBranch, dashboard.default_branch), boxShadow: `0 0 0 2px ${(resolvedBranchColors[branch.name] ?? getBranchLegendColor(branch.name, index, graphBranch, dashboard.default_branch))}33` }} />
+            <span className="repository-ellipsis" title={branch.name}>{branch.name}</span>
+          </span>
+        ))}
+      </div>
+      {dashboard.branches_error && <div role="alert" style={branchEmptyStyle}>Remote branch history is unavailable. Other GitHub data remains available.</div>}
+      {!dashboard.branches_error && branches.length === 0 && <div style={branchEmptyStyle}>No remote branches found.</div>}
+      {!dashboard.branches_error && branches.length > 0 && (
+        <>
+          <div ref={graphContainerRef} aria-label="Remote branch commit graph" style={{ overflowX: "auto", border: "1px solid var(--border-primary)", borderRadius: 9, background: "#11151d", padding: 12 }}>
+            <CommitGraph
+              commits={entries.commits}
+              branchHeads={entries.branchHeads}
+              currentBranch={graphBranch}
+              fullSha={false}
+              graphStyle={{
+                commitSpacing: 58,
+                branchSpacing: 22,
+                nodeRadius: 5,
+                branchColors: BRANCH_GRAPH_COLORS,
+              }}
+            />
+          </div>
+          {dashboard.branches.length > branches.length && <div style={{ marginTop: 8, fontSize: 10.5, color: "var(--text-muted)" }}>Showing the first {branches.length} branches in the graph; {dashboard.branches.length - branches.length} additional branches are not graphed.</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+type CommitGraphCommit = {
+  sha: string;
+  commit: { author: { name: string; date: string }; message: string };
+  parents: Array<{ sha: string }>;
+  html_url?: string;
+};
+
+type CommitGraphBranch = {
+  name: string;
+  commit: { sha: string };
+  link?: string;
+};
+
+function buildBranchGraphEntries(branches: GitHubDashboard["branches"]): { commits: CommitGraphCommit[]; branchHeads: CommitGraphBranch[] } {
+  const commits = new Map<string, CommitGraphCommit>();
+
+  for (const branch of branches) {
+    for (const commit of branch.commits) {
+      if (commits.has(commit.sha)) continue;
+      commits.set(commit.sha, {
+        sha: commit.sha,
+        commit: {
+          author: { name: commit.author ?? "Unknown", date: commit.date ?? "" },
+          message: commit.message,
+        },
+        parents: commit.parents.map((parent) => ({ sha: parent })),
+      });
+    }
+  }
+
+  return {
+    commits: [...commits.values()].sort((left, right) => Date.parse(right.commit.author.date) - Date.parse(left.commit.author.date)),
+    branchHeads: branches.map((branch) => ({
+      name: branch.name,
+      commit: { sha: branch.sha },
+    })),
+  };
+}
+
+const branchCardStyle = {
+  background: "var(--bg-tertiary)",
+  border: "1px solid var(--border-secondary)",
+  borderRadius: 12,
+  padding: 18,
+};
+
+const branchEmptyStyle = {
+  padding: "20px 0",
+  textAlign: "center" as const,
+  color: "var(--text-tertiary)",
+  fontSize: 13,
+};
+
+function BranchGraphHeading({ count }: { count: number | null }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+      <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
+        <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>account_tree</i>
+        GitHub Branch Graph
+      </h2>
+      {count !== null && <span style={{ fontSize: 11.5, color: "var(--text-tertiary)" }}>{count} remote</span>}
     </div>
   );
 }

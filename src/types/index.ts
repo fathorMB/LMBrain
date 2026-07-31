@@ -1029,8 +1029,27 @@ export interface GitHubWorkflowRun {
   run_started_at: string | null;
 }
 
+export interface GitHubBranch {
+  name: string;
+  sha: string;
+  protected: boolean;
+  commits: GitHubCommit[];
+  merge_base_sha: string | null;
+}
+
+export interface GitHubCommit {
+  sha: string;
+  message: string;
+  author: string | null;
+  date: string | null;
+  parents: string[];
+}
+
 export interface GitHubDashboard {
   has_token: boolean;
+  default_branch: string | null;
+  branches: GitHubBranch[];
+  branches_error: string | null;
   pull_requests: GitHubPullRequest[];
   workflow_runs: GitHubWorkflowRun[];
 }
