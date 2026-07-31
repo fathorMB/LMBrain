@@ -127,13 +127,18 @@ describe("FindingsView", () => {
     fireEvent.click(screen.getByRole("button", { name: /Open FINDING-001/ }));
     const dialog = await screen.findByRole("dialog");
     const close = screen.getByRole("button", { name: "Close finding detail" });
-    const copyPrompt = screen.getByRole("button", { name: "Copy governed action prompt" });
-    copyPrompt.focus();
-    fireEvent.keyDown(copyPrompt, { key: "Tab" });
+    const focusable = Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+      ),
+    );
+    const last = focusable[focusable.length - 1];
+    last.focus();
+    fireEvent.keyDown(last, { key: "Tab" });
     expect(document.activeElement).toBe(close);
     close.focus();
     fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
-    expect(document.activeElement).toBe(copyPrompt);
+    expect(document.activeElement).toBe(last);
     expect(dialog).toBeDefined();
   });
 
