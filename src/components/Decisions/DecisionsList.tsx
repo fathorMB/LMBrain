@@ -1,9 +1,53 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { getAdrs } from "../../lib/commands";
+import {
+  EMPTY_DECISION_FILTERS,
+  buildInboundIndex,
+  collectAttentionItems,
+  collectDecisionTags,
+  groupDecisions,
+  hasActiveDecisionFilters,
+  indexById,
+  matchesDecisionFilters,
+  supersessionChain,
+  type AttentionItem,
+  type DecisionFilters,
+  type DecisionSort,
+} from "../../lib/decisionIndex";
+import type { Adr, AdrStatus } from "../../types";
+import { CardGrid, EmptyState, PageHeader, PageShell, Toolbar } from "../Shared/PageLayout";
+
+const STATUS_COLORS: Record<AdrStatus, { color: string; bg: string }> = {
+  accepted: { color: "#46b07d", bg: "rgba(70,176,125,.12)" },
+  proposed: { color: "#8a8d99", bg: "rgba(139,141,152,.12)" },
+  superseded: { color: "#e0a23a", bg: "rgba(224,162,58,.12)" },
+  deprecated: { color: "#c07ad8", bg: "rgba(192,122,216,.12)" },
+  // `rejected` used to fall through to the `proposed` grey, so a refused
+  // decision read as one still awaiting an answer.
+  rejected: { color: "#e0584a", bg: "rgba(224,88,74,.12)" },
+};
+
+const ATTENTION_ICONS = {
+  integrity: { icon: "link_off", color: "#e0a23a" },
+  malformed: { icon: "warning", color: "#e0584a" },
+  pending: { icon: "pending", color: "var(--text-tertiary)" },
+} as const;
+
+const selectStyle = {
+  background: "var(--bg-tertiary)",
+  color: "var(--text-primary)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-sm)",
+  padding: "5px 7px",
+} as const;
+
+const STATUSES: AdrStatus[] = ["accepted", "proposed", "superseded", "deprecated", "rejected"];
 
 export function DecisionsList() {
   const { state, dispatch } = useWorkspace();
+  const [filters, setFilters] = useState<DecisionFilters>(EMPTY_DECISION_FILTERS);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     getAdrs()
@@ -11,150 +55,371 @@ export function DecisionsList() {
       .catch(console.error);
   }, [dispatch]);
 
-  const statusColors: Record<string, { color: string; bg: string }> = {
-    accepted: { color: "#46b07d", bg: "rgba(70,176,125,.12)" },
-    proposed: { color: "#8a8d99", bg: "rgba(139,141,152,.12)" },
-    superseded: { color: "#e0a23a", bg: "rgba(224,162,58,.12)" },
-    deprecated: { color: "#e0584a", bg: "rgba(224,88,74,.12)" },
-  };
+  const adrs = state.adrs;
+  const byId = useMemo(() => indexById(adrs), [adrs]);
+  const inbound = useMemo(
+    () => buildInboundIndex(state.specs, state.findings),
+    [state.specs, state.findings],
+  );
+  const attention = useMemo(() => collectAttentionItems(adrs), [adrs]);
+  const tags = useMemo(() => collectDecisionTags(adrs), [adrs]);
+
+  const filtersActive = hasActiveDecisionFilters(filters);
+  const visible = useMemo(
+    () => adrs.filter((adr) => matchesDecisionFilters(adr, filters)),
+    [adrs, filters],
+  );
+  const groups = useMemo(() => groupDecisions(visible, filters.sort), [visible, filters.sort]);
+
+  const open = (adr: { title: string; path: string }) =>
+    dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: { title: adr.title, path: adr.path } });
 
   return (
-    <div style={{ overflowY: "auto", height: "100%" }}>
-      <div style={{ maxWidth: 920, margin: "0 auto", padding: "24px 36px 70px" }}>
-        <h1
-          style={{
-            fontSize: 24,
-            fontWeight: 800,
-            letterSpacing: "-.025em",
-            margin: "0 0 5px",
-          }}
-        >
-          Decisions
-        </h1>
-        <p
-          style={{
-            fontSize: 13.5,
-            color: "var(--text-tertiary)",
-            margin: "0 0 22px",
-          }}
-        >
-          Architecture decision records in{" "}
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 12,
-              color: "#9a949f",
-            }}
-          >
-            .lmbrain/decisions/
-          </span>
-          .
-        </p>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-          {state.adrs.length === 0 && (
-            <div
+    <PageShell archetype="dense">
+      <PageHeader
+        title="Decisions"
+        description={
+          <>
+            Architecture decision records in{" "}
+            <span
               style={{
-                textAlign: "center",
-                padding: 40,
-                color: "var(--text-tertiary)",
+                fontFamily: "var(--font-mono)",
+                fontSize: "var(--text-sm)",
+                color: "var(--text-secondary)",
               }}
             >
-              No decisions recorded yet.
-            </div>
+              .lmbrain/decisions/
+            </span>
+            .
+          </>
+        }
+      />
+
+      {adrs.length === 0 ? (
+        <EmptyState>No decisions recorded yet.</EmptyState>
+      ) : (
+        <>
+          {attention.length > 0 && <AttentionBand items={attention} onOpen={open} byId={byId} />}
+
+          <Toolbar>
+            <input
+              type="search"
+              aria-label="Search decisions"
+              placeholder="Search by ID or title"
+              value={filters.query}
+              onChange={(event) => setFilters({ ...filters, query: event.target.value })}
+              style={{ ...selectStyle, minWidth: 200 }}
+            />
+            <select
+              aria-label="Status"
+              value={filters.status}
+              onChange={(event) =>
+                setFilters({ ...filters, status: event.target.value as AdrStatus | "" })
+              }
+              style={selectStyle}
+            >
+              <option value="">All statuses</option>
+              {STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+            {tags.length > 0 && (
+              <select
+                aria-label="Tag"
+                value={filters.tag}
+                onChange={(event) => setFilters({ ...filters, tag: event.target.value })}
+                style={selectStyle}
+              >
+                <option value="">All tags</option>
+                {tags.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {tag}
+                  </option>
+                ))}
+              </select>
+            )}
+            <select
+              aria-label="Sort"
+              value={filters.sort}
+              onChange={(event) =>
+                setFilters({ ...filters, sort: event.target.value as DecisionSort })
+              }
+              style={selectStyle}
+            >
+              <option value="recent">Most recent</option>
+              <option value="id">By ID</option>
+            </select>
+            {filtersActive && (
+              <button
+                type="button"
+                onClick={() => setFilters({ ...EMPTY_DECISION_FILTERS, sort: filters.sort })}
+                style={{ ...selectStyle, cursor: "pointer" }}
+              >
+                Clear filters
+              </button>
+            )}
+          </Toolbar>
+
+          {groups.length === 0 ? (
+            <EmptyState>No decisions match these filters.</EmptyState>
+          ) : (
+            groups.map((group) => {
+              const collapsible = group.key === "historical";
+              const expanded = collapsible ? historyOpen : true;
+              const headingId = `decision-group-${group.key}`;
+              return (
+                <section
+                  key={group.key}
+                  aria-labelledby={headingId}
+                  style={{ marginBottom: "var(--space-5)" }}
+                >
+                  {collapsible ? (
+                    <button
+                      type="button"
+                      id={headingId}
+                      aria-expanded={expanded}
+                      onClick={() => setHistoryOpen((value) => !value)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "var(--space-2)",
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        marginBottom: "var(--space-3)",
+                        color: "var(--text-secondary)",
+                        font: "inherit",
+                        fontSize: "var(--text-sm)",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <i className="material-symbols-outlined" style={{ fontSize: "var(--text-md)" }}>
+                        {expanded ? "expand_more" : "chevron_right"}
+                      </i>
+                      {group.label} · {group.decisions.length}
+                    </button>
+                  ) : (
+                    <h2
+                      id={headingId}
+                      style={{
+                        fontSize: "var(--text-sm)",
+                        fontWeight: 700,
+                        color: "var(--text-secondary)",
+                        margin: "0 0 var(--space-3)",
+                      }}
+                    >
+                      {group.label} · {group.decisions.length}
+                    </h2>
+                  )}
+                  {expanded && (
+                    <CardGrid>
+                      {group.decisions.map((adr) => (
+                        <DecisionCard
+                          key={adr.id}
+                          adr={adr}
+                          byId={byId}
+                          inbound={inbound.get(adr.id.toUpperCase())?.length ?? 0}
+                          onOpen={open}
+                        />
+                      ))}
+                    </CardGrid>
+                  )}
+                </section>
+              );
+            })
           )}
-          {state.adrs.map((adr) => {
-            const sc = statusColors[adr.status] || statusColors.proposed;
-            const isMalformed = !!adr.malformed;
-            return (
-              <div
-                key={adr.id}
-                onClick={() => dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: { title: adr.title, path: adr.path } })}
+        </>
+      )}
+    </PageShell>
+  );
+}
+
+function AttentionBand({
+  items,
+  byId,
+  onOpen,
+}: {
+  items: AttentionItem[];
+  byId: Map<string, Adr>;
+  onOpen: (adr: { title: string; path: string }) => void;
+}) {
+  return (
+    <section
+      aria-label="Needs attention"
+      style={{
+        border: "1px solid var(--border-secondary)",
+        borderRadius: "var(--radius-lg)",
+        background: "var(--bg-tertiary)",
+        padding: "var(--space-3)",
+        marginBottom: "var(--space-4)",
+      }}
+    >
+      <h2
+        style={{
+          fontSize: "var(--text-sm)",
+          fontWeight: 700,
+          color: "var(--text-secondary)",
+          margin: "0 0 var(--space-2)",
+        }}
+      >
+        Needs attention · {items.length}
+      </h2>
+      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: "var(--space-1)" }}>
+        {items.map((item) => {
+          const visual = ATTENTION_ICONS[item.kind];
+          const target = byId.get(item.adrId.toUpperCase());
+          return (
+            <li key={`${item.kind}:${item.adrId}:${item.message}`}>
+              <button
+                type="button"
+                onClick={() => onOpen({ title: target?.title ?? item.adrId, path: item.path })}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 14,
-                  background: "var(--bg-tertiary)",
-                  border: isMalformed ? "1px solid #e0584a" : "1px solid var(--border-secondary)",
-                  borderRadius: 11,
-                  padding: "14px 16px",
+                  gap: "var(--space-2)",
+                  width: "100%",
+                  textAlign: "left",
+                  background: "none",
+                  border: "none",
+                  padding: "var(--space-1) 0",
+                  font: "inherit",
+                  fontSize: "var(--text-sm)",
+                  color: "var(--text-secondary)",
                   cursor: "pointer",
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = isMalformed ? "#f06f60" : "#36303f";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = isMalformed ? "#e0584a" : "var(--border-secondary)";
-                }}
               >
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 12,
-                    color: "#bcaef6",
-                    width: 62,
-                    flex: "none",
-                  }}
+                <i
+                  className="material-symbols-outlined"
+                  aria-hidden="true"
+                  style={{ fontSize: "var(--text-md)", color: visual.color }}
                 >
-                  {adr.id}
-                </span>
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "var(--text-primary)",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    {adr.title}
-                    {isMalformed && (
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: "#e0584a",
-                          background: "rgba(224,88,74,0.13)",
-                          borderRadius: 5,
-                          padding: "2px 6px",
-                        }}
-                      >
-                        <i className="material-symbols-outlined" style={{ fontSize: 11 }}>warning</i>
-                        MALFORMED
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11.5,
-                      color: "#6c6671",
-                    }}
-                  >
-                    {adr.status} {adr.decision_date ? `· ${adr.decision_date}` : ""}
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: 10.5,
-                    fontWeight: 700,
-                    color: sc.color,
-                    background: sc.bg,
-                    borderRadius: 5,
-                    padding: "3px 8px",
-                  }}
-                >
-                  {adr.status.toUpperCase()}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                  {visual.icon}
+                </i>
+                {item.message}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function DecisionCard({
+  adr,
+  byId,
+  inbound,
+  onOpen,
+}: {
+  adr: Adr;
+  byId: Map<string, Adr>;
+  inbound: number;
+  onOpen: (adr: { title: string; path: string }) => void;
+}) {
+  const status = STATUS_COLORS[adr.status] ?? STATUS_COLORS.proposed;
+  const isMalformed = Boolean(adr.malformed);
+  const retires = supersessionChain(adr, byId, "supersedes")[0];
+  const retiredBy = supersessionChain(adr, byId, "superseded_by")[0];
+  const provenance = [adr.decision_date, adr.decider].filter(Boolean).join(" · ");
+
+  const cardStyle: CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    gap: "var(--space-2)",
+    width: "100%",
+    textAlign: "left",
+    font: "inherit",
+    color: "inherit",
+    background: "var(--bg-tertiary)",
+    border: `1px solid ${isMalformed ? "#e0584a" : "var(--border-secondary)"}`,
+    borderRadius: "var(--radius-lg)",
+    padding: "var(--space-3)",
+  };
+
+  return (
+    <button
+      type="button"
+      aria-label={`${adr.id}, ${adr.title}, ${adr.status}`}
+      onClick={() => onOpen(adr)}
+      style={cardStyle}
+      onMouseEnter={(event) => {
+        event.currentTarget.style.borderColor = isMalformed ? "#f06f60" : "var(--border-hover)";
+      }}
+      onMouseLeave={(event) => {
+        event.currentTarget.style.borderColor = isMalformed ? "#e0584a" : "var(--border-secondary)";
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+        <span
+          style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-sm)", color: "#bcaef6" }}
+        >
+          {adr.id}
+        </span>
+        <span style={{ flex: 1 }} />
+        {isMalformed && (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "var(--space-1)",
+              fontSize: "var(--text-2xs)",
+              fontWeight: 700,
+              color: "#e0584a",
+              background: "rgba(224,88,74,0.13)",
+              borderRadius: "var(--radius-sm)",
+              padding: "var(--space-0) var(--space-2)",
+            }}
+          >
+            <i className="material-symbols-outlined" style={{ fontSize: "var(--text-xs)" }}>
+              warning
+            </i>
+            MALFORMED
+          </span>
+        )}
+        <span
+          style={{
+            fontSize: "var(--text-2xs)",
+            fontWeight: 700,
+            color: status.color,
+            background: status.bg,
+            borderRadius: "var(--radius-sm)",
+            padding: "var(--space-0) var(--space-2)",
+          }}
+        >
+          {adr.status.toUpperCase()}
+        </span>
       </div>
-    </div>
+
+      <div style={{ fontSize: "var(--text-lg)", fontWeight: 600, color: "var(--text-primary)" }}>
+        {adr.title}
+      </div>
+
+      {provenance && (
+        <div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>{provenance}</div>
+      )}
+
+      {(retires || retiredBy || inbound > 0) && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "var(--space-3)",
+            fontSize: "var(--text-xs)",
+            color: "var(--text-tertiary)",
+          }}
+        >
+          {retires && <span>replaces {retires.id}</span>}
+          {retiredBy && <span>replaced by {retiredBy.id}</span>}
+          {inbound > 0 && (
+            <span>
+              {inbound} {inbound === 1 ? "reference" : "references"}
+            </span>
+          )}
+        </div>
+      )}
+    </button>
   );
 }

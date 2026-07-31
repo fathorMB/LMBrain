@@ -981,6 +981,34 @@ fn test_wiki_tree_lists_only_operator_content_directories() {
 }
 
 #[test]
+fn test_wiki_tree_excludes_reports_but_keeps_operator_content() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let lmbrain = dir.path().join(".lmbrain");
+
+    fs::create_dir_all(lmbrain.join("knowledge")).unwrap();
+    fs::create_dir_all(lmbrain.join("reports")).unwrap();
+    fs::write(lmbrain.join("knowledge/Topic.md"), "# Topic").unwrap();
+    fs::write(
+        lmbrain.join("reports/lmbrain-kit-feedback.md"),
+        "# Kit feedback",
+    )
+    .unwrap();
+
+    let tree = contract::build_wiki_tree(dir.path()).unwrap();
+    let names: Vec<_> = tree
+        .root
+        .children
+        .iter()
+        .map(|node| node.name.as_str())
+        .collect();
+
+    assert_eq!(names, vec!["knowledge", "specs"]);
+    assert_eq!(tree.root.count, Some(1));
+    assert!(lmbrain.join("reports/lmbrain-kit-feedback.md").is_file());
+}
+
+#[test]
 fn test_wikilink_index_uses_only_operator_content_directories() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());
@@ -999,6 +1027,23 @@ fn test_wikilink_index_uses_only_operator_content_directories() {
 
     assert!(index.contains_key("visible"));
     assert!(!index.contains_key("hidden"));
+}
+
+#[test]
+fn test_wikilink_index_excludes_kit_feedback_report() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    let reports = dir.path().join(".lmbrain/reports");
+    fs::create_dir_all(&reports).unwrap();
+    fs::write(
+        reports.join("lmbrain-kit-feedback.md"),
+        "# Feedback\n\nSee [[REPORT-ONLY]].",
+    )
+    .unwrap();
+
+    let index = contract::build_wikilink_index(dir.path());
+
+    assert!(!index.contains_key("report-only"));
 }
 
 #[test]
@@ -1067,6 +1112,35 @@ fn test_build_adrs_excludes_readme_and_non_genuine_artifacts() {
     let adrs = contract::build_adrs(dir.path()).unwrap();
     assert_eq!(adrs.len(), 1);
     assert_eq!(adrs[0].id, "ADR-001");
+    // The ADR above predates governed supersession, so both sides parse empty
+    // rather than failing.
+    assert!(adrs[0].supersedes.is_empty());
+    assert!(adrs[0].superseded_by.is_empty());
+}
+
+#[test]
+fn test_build_adrs_reads_both_sides_of_a_supersession() {
+    let dir = tempfile::tempdir().unwrap();
+    let decisions_dir = dir.path().join(".lmbrain").join("decisions");
+    fs::create_dir_all(&decisions_dir).unwrap();
+
+    fs::write(
+        decisions_dir.join("ADR-010.md"),
+        "---\nid: ADR-010\ntitle: Successor\nstatus: accepted\nsupersedes: [ADR-009]\nsuperseded_by: []\ncreated: 2026-07-14\nupdated: 2026-07-14\ntags: []\nlinks: []\n---\nBody",
+    )
+    .unwrap();
+    fs::write(
+        decisions_dir.join("ADR-009.md"),
+        "---\nid: ADR-009\ntitle: Predecessor\nstatus: superseded\nsupersedes: []\nsuperseded_by: [ADR-010]\ncreated: 2026-07-01\nupdated: 2026-07-14\ntags: []\nlinks: []\n---\nBody",
+    )
+    .unwrap();
+
+    let adrs = contract::build_adrs(dir.path()).unwrap();
+    let successor = adrs.iter().find(|adr| adr.id == "ADR-010").unwrap();
+    let predecessor = adrs.iter().find(|adr| adr.id == "ADR-009").unwrap();
+    assert_eq!(successor.supersedes, vec!["ADR-009"]);
+    assert!(successor.superseded_by.is_empty());
+    assert_eq!(predecessor.superseded_by, vec!["ADR-010"]);
 }
 
 #[test]
@@ -1301,6 +1375,8 @@ fn test_set_artifact_status_and_rejected_diagnostics() {
 id: SPEC-001
 title: Test Spec
 status: backlog
+capability_tier: terra
+thinking_level: standard
 created: 2026-06-22
 updated: 2026-06-22
 ---

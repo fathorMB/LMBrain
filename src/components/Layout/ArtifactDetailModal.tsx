@@ -79,7 +79,7 @@ function GovernancePromptCard({ prompt }: { prompt: string }) {
           borderRadius: 6,
           padding: "8px 12px",
           fontFamily: "var(--font-mono)",
-          fontSize: 11.5,
+          fontSize: "var(--text-xs)",
           color: "var(--text-secondary)",
           resize: "none",
           outline: "none",
@@ -99,7 +99,7 @@ function GovernancePromptCard({ prompt }: { prompt: string }) {
           border: "1px solid rgba(255,255,255,0.1)",
           borderRadius: 6,
           padding: "4px 10px",
-          fontSize: 11.5,
+          fontSize: "var(--text-xs)",
           color: "#fff",
           cursor: "pointer",
           fontWeight: 600,
@@ -246,7 +246,7 @@ export function ArtifactDetailModal() {
           border: "1px solid var(--border-primary)",
           borderRadius: 16,
           width: "100%",
-          maxWidth: 800,
+          maxWidth: "var(--page-reading)",
           maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
@@ -266,10 +266,10 @@ export function ArtifactDetailModal() {
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>
+            <h2 style={{ margin: 0, fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--text-primary)" }}>
               {artifact.title}
             </h2>
-            <span style={{ fontSize: 11.5, color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
+            <span style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
               {artifact.path}
             </span>
           </div>
@@ -327,11 +327,11 @@ export function ArtifactDetailModal() {
                     <i className="material-symbols-outlined" style={{ color: "#e0584a", fontSize: 20 }}>
                       info
                     </i>
-                    <span style={{ fontSize: 13.5, fontWeight: 600, color: "#fff" }}>
+                    <span style={{ fontSize: "var(--text-md)", fontWeight: 600, color: "#fff" }}>
                       Artifact Rejected
                     </span>
                   </div>
-                  <p style={{ fontSize: 12.5, color: "var(--text-secondary)", margin: "0 0 12px" }}>
+                  <p style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)", margin: "0 0 12px" }}>
                     This proposal was rejected. Copy the corrective prompt below to have an agent revise the file:
                   </p>
                   <div style={{ position: "relative" }}>
@@ -346,7 +346,7 @@ export function ArtifactDetailModal() {
                         borderRadius: 6,
                         padding: "8px 12px",
                         fontFamily: "var(--font-mono)",
-                        fontSize: 11.5,
+                        fontSize: "var(--text-xs)",
                         color: "var(--text-secondary)",
                         resize: "none",
                         outline: "none",
@@ -366,7 +366,7 @@ export function ArtifactDetailModal() {
                         border: "1px solid rgba(255,255,255,0.1)",
                         borderRadius: 6,
                         padding: "4px 10px",
-                        fontSize: 11.5,
+                        fontSize: "var(--text-xs)",
                         color: "#fff",
                         cursor: "pointer",
                         fontWeight: 600,
@@ -393,7 +393,7 @@ export function ArtifactDetailModal() {
                     <i className="material-symbols-outlined" style={{ color: "#7fa8f5", fontSize: 20 }}>
                       info
                     </i>
-                    <span style={{ fontSize: 13.5, fontWeight: 600, color: "#fff" }}>
+                    <span style={{ fontSize: "var(--text-md)", fontWeight: 600, color: "#fff" }}>
                       {id.startsWith("SPEC-")
                         ? "Spec Approval"
                         : id.startsWith("ADR-")
@@ -401,7 +401,7 @@ export function ArtifactDetailModal() {
                           : "Agent Profile Activation"}
                     </span>
                   </div>
-                  <p style={{ fontSize: 12.5, color: "var(--text-secondary)", margin: "0 0 12px" }}>
+                  <p style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)", margin: "0 0 12px" }}>
                     {id.startsWith("SPEC-")
                       ? "Spec approval is performed by the Project Lead on explicit operator instruction. Copy the prompt below and give it to the Project Lead."
                       : id.startsWith("ADR-")
@@ -411,13 +411,13 @@ export function ArtifactDetailModal() {
                   {id.startsWith("ADR-") ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                       <div>
-                        <div style={{ fontSize: 11.5, color: "var(--text-tertiary)", marginBottom: 6 }}>
+                        <div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", marginBottom: 6 }}>
                           Accept decision prompt
                         </div>
                         <GovernancePromptCard prompt={generateAdrDecisionPrompt(id, artifact.title, artifact.path, "accepted")} />
                       </div>
                       <div>
-                        <div style={{ fontSize: 11.5, color: "var(--text-tertiary)", marginBottom: 6 }}>
+                        <div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", marginBottom: 6 }}>
                           Reject decision prompt
                         </div>
                         <GovernancePromptCard prompt={generateAdrDecisionPrompt(id, artifact.title, artifact.path, "rejected")} />
@@ -459,7 +459,7 @@ export function ArtifactDetailModal() {
                 border: "1px solid rgba(255,255,255,0.1)",
                 borderRadius: 8,
                 padding: "6px 14px",
-                fontSize: 12.5,
+                fontSize: "var(--text-sm)",
                 color: "#fff",
                 cursor: "pointer",
                 fontWeight: 600,
@@ -470,7 +470,7 @@ export function ArtifactDetailModal() {
               Close
             </button>
           </div>
-          <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+          <span style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>
             Read-only · approval and lifecycle status actions are unavailable in the app
           </span>
         </div>

@@ -92,6 +92,9 @@ export interface Spec {
   area: string | null;
   milestone: string | null;
   recommended_agent: string | null;
+  /** Lead-owned implementation estimate (issue #64); absent on legacy specs. */
+  capability_tier: string | null;
+  thinking_level: string | null;
   depends_on?: string[];
   parking_events?: SpecParkingEvent[];
   skills: string[];
@@ -365,6 +368,8 @@ export interface Adr {
   updated: string;
   tags: string[];
   links: string[];
+  supersedes: string[];
+  superseded_by: string[];
   malformed?: boolean;
 }
 
@@ -1029,8 +1034,27 @@ export interface GitHubWorkflowRun {
   run_started_at: string | null;
 }
 
+export interface GitHubBranch {
+  name: string;
+  sha: string;
+  protected: boolean;
+  commits: GitHubCommit[];
+  merge_base_sha: string | null;
+}
+
+export interface GitHubCommit {
+  sha: string;
+  message: string;
+  author: string | null;
+  date: string | null;
+  parents: string[];
+}
+
 export interface GitHubDashboard {
   has_token: boolean;
+  default_branch: string | null;
+  branches: GitHubBranch[];
+  branches_error: string | null;
   pull_requests: GitHubPullRequest[];
   workflow_runs: GitHubWorkflowRun[];
 }

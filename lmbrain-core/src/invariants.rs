@@ -142,6 +142,41 @@ fn has_evidence_content(section: &str) -> bool {
     })
 }
 
+/// A spec becomes `ready` only with a valid Lead-owned implementation estimate.
+/// Legacy specs already past `ready` are never rewritten: they surface a
+/// diagnostic instead, so this gate only applies to the transition itself.
+pub fn spec_effort_is_declared(document: &Document) -> Result<(), String> {
+    let raw_tier = document.value("capability_tier").unwrap_or_default();
+    if raw_tier.trim().is_empty() {
+        return Err(format!(
+            "a ready spec requires `capability_tier` (one of {})",
+            crate::taxonomy::capability_tiers().join(", ")
+        ));
+    }
+    let Some(tier) = crate::taxonomy::normalize_capability_tier(&raw_tier) else {
+        return Err(format!(
+            "unknown capability tier `{raw_tier}`; expected one of {}",
+            crate::taxonomy::capability_tiers().join(", ")
+        ));
+    };
+
+    let raw_level = document.value("thinking_level").unwrap_or_default();
+    if raw_level.trim().is_empty() {
+        return Err(format!(
+            "a ready spec requires `thinking_level` (one of {})",
+            crate::taxonomy::thinking_levels().join(", ")
+        ));
+    }
+    let Some(level) = crate::taxonomy::normalize_thinking_level(&raw_level) else {
+        return Err(format!(
+            "unknown thinking level `{raw_level}`; expected one of {}",
+            crate::taxonomy::thinking_levels().join(", ")
+        ));
+    };
+
+    crate::taxonomy::thinking_level_allowed(&tier, &level)
+}
+
 pub fn single_ready_handoff(root: &Path, excluding: Option<&Path>) -> bool {
     scan(root.join(".lmbrain/handoffs/active"))
         .into_iter()
@@ -217,4 +252,36 @@ fn scan(dir: impl AsRef<Path>) -> Vec<PathBuf> {
         }
     }
     out
+}
+
+/// Supersession must agree on both sides (issue #48): the superseding decision
+/// declares the predecessor, the predecessor names its successor, and the
+/// predecessor is no longer presented as authoritative.
+///
+/// A *proposed* decision declaring `supersedes` is a legitimate pending claim
+/// and passes: supersession only takes effect when the successor is accepted.
+pub fn supersession_is_consistent(
+    superseding_id: &str,
+    superseding_status: &str,
+    superseded_id: &str,
+    superseded_status: &str,
+    superseded_superseded_by: &[String],
+) -> Result<(), String> {
+    if superseding_status != "accepted" {
+        return Ok(());
+    }
+    if superseded_status != "superseded" {
+        return Err(format!(
+            "{superseded_id} is still `{superseded_status}` although {superseding_id} supersedes it"
+        ));
+    }
+    if !superseded_superseded_by
+        .iter()
+        .any(|value| value.trim().eq_ignore_ascii_case(superseding_id))
+    {
+        return Err(format!(
+            "{superseded_id} does not record {superseding_id} in `superseded_by`"
+        ));
+    }
+    Ok(())
 }

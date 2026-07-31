@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getFindingContext, getFindings } from "../../lib/commands";
 import type { Finding, FindingContext, FindingRelation } from "../../types";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { RefreshButton } from "../RefreshButton";
+import { CardGrid, PageHeader, PageShell } from "../Shared/PageLayout";
 import { MarkdownRenderer } from "../../lib/markdown";
+import { ModalCloseButton } from "../Layout/ModalCloseButton";
 
 const ACTIVE = new Set(["open", "planned", "deferred"]);
 const severityRank: Record<string, number> = {
@@ -21,6 +23,7 @@ export function FindingsView() {
   const [selected, setSelected] = useState<FindingContext | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const closeSelected = useCallback(() => setSelected(null), []);
 
   const findings = useMemo(() => {
     const filtered = state.findings.filter((finding) => {
@@ -74,14 +77,12 @@ export function FindingsView() {
     }
   };
 
-  return <div style={{ height: "100%", overflow: "auto", padding: "22px 28px 70px" }}>
-    <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-      <div>
-        <h1 style={{ margin: 0, fontSize: 24 }}>Findings</h1>
-        <p style={muted}>Durable cross-spec observations and obligations. This view is read-only.</p>
-      </div>
-      <RefreshButton loading={loading} onClick={refresh} />
-    </header>
+  return <PageShell archetype="dense">
+    <PageHeader
+      title="Findings"
+      description="Durable cross-spec observations and obligations. This view is read-only."
+      actions={<RefreshButton loading={loading} onClick={refresh} />}
+    />
     {error && <div role="alert" style={errorStyle}>{error}</div>}
     {loading && <p role="status" style={muted}>Loading findings…</p>}
 
@@ -136,7 +137,7 @@ export function FindingsView() {
 
     {state.findings.length === 0 && !loading && <div style={empty}>No first-class findings exist. Legacy review entries are not promoted automatically.</div>}
     {state.findings.length > 0 && findings.length === 0 && <div style={empty}>No findings match these filters.</div>}
-    <div style={{ display: "grid", gap: 10 }}>
+    <CardGrid>
       {findings.map((finding) => <button
         key={finding.id}
         type="button"
@@ -167,15 +168,15 @@ export function FindingsView() {
             : nextAction(finding)}
         </div>
       </button>)}
-    </div>
+    </CardGrid>
 
     {selected && <FindingDetail
       context={selected}
-      onClose={() => setSelected(null)}
+      onClose={closeSelected}
       onOpenRelation={(relation) => openDetailArtifact({ title: `${relation.id}: ${relation.title}`, path: relation.path })}
       onOpenMarkdown={() => openDetailArtifact({ title: `${selected.finding.id}: ${selected.finding.title}`, path: selected.finding.path })}
     />}
-  </div>;
+  </PageShell>;
 }
 
 function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
@@ -184,6 +185,7 @@ function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
   onOpenRelation: (relation: FindingRelation) => void;
   onOpenMarkdown: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const groups: Array<[string, FindingRelation[]]> = [
     ["Origin", context.origin ? [context.origin] : []],
     ["Related work", [...context.related_specs, ...context.related_reviews]],
@@ -207,11 +209,67 @@ function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
     ? "Superseded by newer finding or decision."
     : "Active open finding awaiting triage or assignment.";
 
-  return <div role="dialog" aria-modal="true" aria-labelledby="finding-detail-title" style={dialogBackdrop}>
-    <div style={dialog}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-        <div><div style={mono}>{f.id}</div><h2 id="finding-detail-title">{f.title}</h2></div>
-        <button aria-label="Close finding detail" style={secondary} onClick={onClose}>Close</button>
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+        ),
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const activeElement = document.activeElement;
+      if (!dialogRef.current.contains(activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    dialogRef.current?.focus();
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, [onClose]);
+
+  return <div
+    role="presentation"
+    style={dialogBackdrop}
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}
+  >
+    <div
+      ref={dialogRef}
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="finding-detail-title"
+      style={dialog}
+      onMouseDown={(event) => event.stopPropagation()}
+    >
+      <div style={dialogHeader}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={mono}>{f.id}</div>
+          <h2 id="finding-detail-title" style={dialogTitle}>{f.title}</h2>
+        </div>
+        <ModalCloseButton label="Close finding detail" onClick={onClose} />
       </div>
 
       <div style={{ display: "flex", gap: 6, margin: "10px 0 14px", flexWrap: "wrap" }}>
@@ -223,11 +281,11 @@ function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
         {f.milestone && <Indicator text={`Milestone: ${f.milestone}`} />}
       </div>
 
-      <div style={{ padding: "10px 12px", background: "rgba(124,108,246,.08)", border: "1px solid rgba(124,108,246,.2)", borderRadius: 8, fontSize: 12, color: "#c2bdc8", marginBottom: 14 }}>
+      <div style={{ padding: "10px 12px", background: "rgba(124,108,246,.08)", border: "1px solid rgba(124,108,246,.2)", borderRadius: 8, fontSize: "var(--text-sm)", color: "#c2bdc8", marginBottom: 14 }}>
         <strong>State disposition:</strong> {statusExplanation}
       </div>
 
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12, color: "var(--text-tertiary)", marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: "var(--text-sm)", color: "var(--text-tertiary)", marginBottom: 14 }}>
         <div>Origin: <strong style={{ color: "var(--text-primary)" }}>{f.origin_artifact || "direct observation"}</strong></div>
         {f.origin_ref && <div>Origin Ref: <code style={{ fontFamily: "var(--font-mono)", color: "var(--accent-light)" }}>{f.origin_ref}</code></div>}
         <div>Created: {f.created || "—"}</div>
@@ -236,7 +294,7 @@ function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
 
       {f.body && <section style={{ marginBottom: 16 }}>
         <h3>Details & Statement</h3>
-        <div style={{ padding: 14, background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 8, fontSize: 13, lineHeight: 1.6 }}>
+        <div style={{ padding: 14, background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 8, fontSize: "var(--text-md)", lineHeight: 1.6 }}>
           <MarkdownRenderer content={f.body} />
         </div>
       </section>}
@@ -262,7 +320,7 @@ function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
 }
 
 function Indicator({ text }: { text: string }) {
-  return <span style={{ border: "1px solid var(--border-secondary)", borderRadius: 999, padding: "2px 7px", fontSize: 10.5 }}>{text}</span>;
+  return <span style={{ border: "1px solid var(--border-secondary)", borderRadius: 999, padding: "2px 7px", fontSize: "var(--text-xs)" }}>{text}</span>;
 }
 function option(value: string) { return <option value={value} key={value}>{value}</option>; }
 function nextAction(finding: Finding) {
@@ -273,12 +331,12 @@ function nextAction(finding: Finding) {
 }
 function stateLine(finding: Finding): React.CSSProperties {
   const attention = finding.malformed || finding.blocked_by.length > 0 || (finding.status === "open" && !finding.owner);
-  return { marginTop: 9, fontSize: 11.5, color: attention ? "#d9b86d" : "var(--text-tertiary)" };
+  return { marginTop: 9, fontSize: "var(--text-xs)", color: attention ? "#d9b86d" : "var(--text-tertiary)" };
 }
 function message(value: unknown) { return value instanceof Error ? value.message : String(value); }
 
-const muted: React.CSSProperties = { color: "var(--text-tertiary)", fontSize: 12.5, lineHeight: 1.55 };
-const mono: React.CSSProperties = { fontFamily: "var(--font-mono)", color: "var(--text-tertiary)", fontSize: 11 };
+const muted: React.CSSProperties = { color: "var(--text-tertiary)", fontSize: "var(--text-sm)", lineHeight: 1.55 };
+const mono: React.CSSProperties = { fontFamily: "var(--font-mono)", color: "var(--text-tertiary)", fontSize: "var(--text-xs)" };
 const card: React.CSSProperties = { padding: 13, border: "1px solid var(--border-secondary)", borderRadius: 9, background: "var(--bg-tertiary)" };
 const summaryGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 9, margin: "18px 0" };
 const summaryValue: React.CSSProperties = { fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700 };
@@ -299,7 +357,7 @@ const filterLabel: React.CSSProperties = {
   flex: "1 1 118px",
   minWidth: 0,
   color: "var(--text-tertiary)",
-  fontSize: 11.5,
+  fontSize: "var(--text-xs)",
   fontWeight: 650,
 };
 const filterControl: React.CSSProperties = {
@@ -314,13 +372,15 @@ const filterControl: React.CSSProperties = {
   colorScheme: "dark",
   padding: "0 9px",
   fontFamily: "inherit",
-  fontSize: 12,
+  fontSize: "var(--text-sm)",
 };
 const findingCard: React.CSSProperties = { ...card, width: "100%", color: "var(--text-primary)", textAlign: "left", cursor: "pointer" };
 const meta: React.CSSProperties = { ...muted, display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: 6 };
 const secondary: React.CSSProperties = { border: "1px solid var(--border-secondary)", borderRadius: 7, background: "var(--bg-secondary)", color: "var(--text-secondary)", padding: "7px 11px", cursor: "pointer" };
-const relationButton: React.CSSProperties = { ...secondary, fontFamily: "var(--font-mono)", fontSize: 11 };
-const errorStyle: React.CSSProperties = { padding: 10, margin: "10px 0", borderRadius: 7, background: "rgba(224,88,74,.10)", color: "#e9857b", fontSize: 12 };
+const relationButton: React.CSSProperties = { ...secondary, fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)" };
+const errorStyle: React.CSSProperties = { padding: 10, margin: "10px 0", borderRadius: 7, background: "rgba(224,88,74,.10)", color: "#e9857b", fontSize: "var(--text-sm)" };
 const empty: React.CSSProperties = { ...muted, padding: 24, textAlign: "center", border: "1px dashed var(--border-secondary)", borderRadius: 9 };
 const dialogBackdrop: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 60, background: "rgba(6,5,8,.72)", display: "grid", placeItems: "center", padding: 20 };
-const dialog: React.CSSProperties = { width: "min(800px, 94vw)", maxHeight: "88vh", overflow: "auto", padding: 22, background: "var(--bg-secondary)", border: "1px solid var(--border-primary)", borderRadius: 13 };
+const dialog: React.CSSProperties = { width: "min(800px, 94vw)", maxHeight: "88vh", overflow: "auto", padding: 22, background: "var(--bg-secondary)", border: "1px solid var(--border-primary)", borderRadius: 13, outline: "none" };
+const dialogHeader: React.CSSProperties = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minWidth: 0, marginBottom: 4 };
+const dialogTitle: React.CSSProperties = { margin: 0, maxWidth: "100%", overflowWrap: "anywhere", fontSize: 20, lineHeight: 1.25 };

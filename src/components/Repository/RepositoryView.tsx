@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { CommitGraph } from "commit-graph";
 import * as commands from "../../lib/commands";
 import type { GitDetails, GitHubDashboard, GitFile, GitHubWorkflowRun } from "../../types";
 import { GitDiffModal } from "./GitDiffModal";
@@ -140,10 +141,10 @@ export function RepositoryView() {
         {/* Header Section */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-.025em", margin: "0 0 5px", color: "var(--text-primary)" }}>
+            <h1 style={{ fontSize: "var(--text-2xl)", fontWeight: 800, letterSpacing: "-.025em", margin: "0 0 5px", color: "var(--text-primary)" }}>
               Repository Dashboard
             </h1>
-            <p style={{ fontSize: 13.5, color: "var(--text-tertiary)", margin: 0 }}>
+            <p style={{ fontSize: "var(--text-md)", color: "var(--text-tertiary)", margin: 0 }}>
               Observe Git status and delivery information for this repository.
             </p>
           </div>
@@ -152,7 +153,7 @@ export function RepositoryView() {
         </div>
 
         {error && (
-          <div style={{ padding: 16, borderRadius: 9, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", color: "#f87171", fontSize: 13.5, marginBottom: 24 }}>
+          <div style={{ padding: 16, borderRadius: 9, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", color: "#f87171", fontSize: "var(--text-md)", marginBottom: 24 }}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Error loading repository data</div>
             {error}
           </div>
@@ -166,7 +167,7 @@ export function RepositoryView() {
             
             {/* Git Metadata Card */}
             <div className="repository-card" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 16px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 style={{ fontSize: "var(--text-lg)", fontWeight: 700, margin: "0 0 16px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
                 <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>schema</i>
                 Local Git Status
               </h2>
@@ -177,20 +178,20 @@ export function RepositoryView() {
                     
                     {/* Branch */}
                     <div style={{ background: "var(--bg-primary)", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--border-primary)" }}>
-                      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-muted)", marginBottom: 4 }}>
+                      <div style={{ fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-muted)", marginBottom: 4 }}>
                         Current Branch
                       </div>
-                      <div className="repository-ellipsis" title={gitDetails.branch} style={{ fontSize: 13, fontWeight: 700, color: "#bcaef6", fontFamily: "var(--font-mono)" }}>
+                      <div className="repository-ellipsis" title={gitDetails.branch} style={{ fontSize: "var(--text-md)", fontWeight: 700, color: "#bcaef6", fontFamily: "var(--font-mono)" }}>
                         {gitDetails.branch}
                       </div>
                     </div>
 
                     {/* Commit */}
                     <div style={{ background: "var(--bg-primary)", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--border-primary)" }}>
-                      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-muted)", marginBottom: 4 }}>
+                      <div style={{ fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-muted)", marginBottom: 4 }}>
                         Active Commit
                       </div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
+                      <div style={{ fontSize: "var(--text-md)", fontWeight: 700, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
                         {gitDetails.current_commit}
                       </div>
                     </div>
@@ -198,20 +199,20 @@ export function RepositoryView() {
 
                   {/* Sync State info */}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-primary)", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--border-primary)" }}>
-                    <span style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>Tracking Branch Status</span>
+                    <span style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)" }}>Tracking Branch Status</span>
                     {gitDetails.ahead === 0 && gitDetails.behind === 0 ? (
-                      <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-muted)", background: "rgba(255,255,255,.05)", padding: "3px 8px", borderRadius: 5 }}>
+                      <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--text-muted)", background: "rgba(255,255,255,.05)", padding: "3px 8px", borderRadius: 5 }}>
                         In sync with remote
                       </span>
                     ) : (
                       <div style={{ display: "flex", gap: 8 }}>
                         {gitDetails.ahead > 0 && (
-                          <span style={{ fontSize: 11.5, fontWeight: 700, color: "#10b981", background: "rgba(16,185,129,.1)", padding: "3px 8px", borderRadius: 5 }}>
+                          <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "#10b981", background: "rgba(16,185,129,.1)", padding: "3px 8px", borderRadius: 5 }}>
                             ↑ {gitDetails.ahead} ahead
                           </span>
                         )}
                         {gitDetails.behind > 0 && (
-                          <span style={{ fontSize: 11.5, fontWeight: 700, color: "#ef4444", background: "rgba(239,68,68,.1)", padding: "3px 8px", borderRadius: 5 }}>
+                          <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "#ef4444", background: "rgba(239,68,68,.1)", padding: "3px 8px", borderRadius: 5 }}>
                             ↓ {gitDetails.behind} behind
                           </span>
                         )}
@@ -221,25 +222,25 @@ export function RepositoryView() {
 
                   {/* Remote URL info */}
                   {gitDetails.remote_url && (
-                    <div className="repository-remote repository-ellipsis" title={gitDetails.remote_url} style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+                    <div className="repository-remote repository-ellipsis" title={gitDetails.remote_url} style={{ fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>
                       Remote: <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>{gitDetails.remote_url}</span>
                     </div>
                   )}
                 </div>
               ) : (
-                <div style={{ color: "var(--text-tertiary)", fontSize: 13 }}>Loading git metadata...</div>
+                <div style={{ color: "var(--text-tertiary)", fontSize: "var(--text-md)" }}>Loading git metadata...</div>
               )}
             </div>
 
             {/* Changed Files List */}
             <div className="repository-card" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18, flex: 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
+                <h2 style={{ fontSize: "var(--text-lg)", fontWeight: 700, margin: 0, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
                   <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>edit_document</i>
                   Changed Files
                 </h2>
                 {gitDetails && (
-                  <span style={{ fontSize: 11.5, color: "var(--text-tertiary)", background: "var(--bg-primary)", padding: "2px 6px", borderRadius: 5, border: "1px solid var(--border-primary)" }}>
+                  <span style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", background: "var(--bg-primary)", padding: "2px 6px", borderRadius: 5, border: "1px solid var(--border-primary)" }}>
                     {gitDetails.files.length} changes
                   </span>
                 )}
@@ -247,7 +248,7 @@ export function RepositoryView() {
 
               <div className="repository-file-list">
                 {gitDetails && gitDetails.files.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-tertiary)", fontSize: 13 }}>
+                  <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-tertiary)", fontSize: "var(--text-md)" }}>
                     <i className="material-symbols-outlined" style={{ fontSize: 32, color: "#46b07d", marginBottom: 8, display: "block" }}>check_circle</i>
                     Working directory clean.
                   </div>
@@ -260,7 +261,7 @@ export function RepositoryView() {
                     className="repository-file-row"
                     aria-label={`View diff for ${file.path}, status ${file.status}, ${file.diff_target}`}
                     onClick={() => setSelectedFile(file)}
-                    style={{ fontSize: 12.5 }}
+                    style={{ fontSize: "var(--text-sm)" }}
                   >
                     <div className="repository-file-copy">
                       <div
@@ -274,7 +275,7 @@ export function RepositoryView() {
                         {file.path}
                       </div>
                       {file.original_path && (
-                        <div className="repository-ellipsis" title={file.original_path} style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                        <div className="repository-ellipsis" title={file.original_path} style={{ fontSize: "var(--text-2xs)", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
                           renamed from: {file.original_path}
                         </div>
                       )}
@@ -282,7 +283,7 @@ export function RepositoryView() {
 
                     <span
                       style={{
-                        fontSize: 10,
+                        fontSize: "var(--text-2xs)",
                         fontWeight: 700,
                         textTransform: "uppercase",
                         color: getStatusColor(file.status),
@@ -307,14 +308,14 @@ export function RepositoryView() {
             {/* GitHub Token configuration panel */}
             <div className="repository-card" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
+                <h2 style={{ fontSize: "var(--text-lg)", fontWeight: 700, margin: 0, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
                   <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>key</i>
                   GitHub Authentication
                 </h2>
                 
                 <span
                   style={{
-                    fontSize: 10.5,
+                    fontSize: "var(--text-xs)",
                     fontWeight: 700,
                     color: hasToken ? "#10b981" : "#f59e0b",
                     background: hasToken ? "rgba(16,185,129,.12)" : "rgba(245,158,11,.12)",
@@ -328,7 +329,7 @@ export function RepositoryView() {
 
               {!hasToken && !showTokenInput && (
                 <div>
-                  <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                  <p style={{ margin: "0 0 12px", fontSize: "var(--text-sm)", color: "var(--text-secondary)", lineHeight: 1.5 }}>
                     No Personal Access Token (PAT) configured. Storing a PAT enables secure calls to the GitHub API for checking private repos, branch status, and PRs.
                   </p>
                   <button
@@ -339,7 +340,7 @@ export function RepositoryView() {
                       background: "linear-gradient(135deg,#806cf6,#557ff2)",
                       color: "#fff",
                       padding: "6px 12px",
-                      fontSize: 11.5,
+                      fontSize: "var(--text-xs)",
                       fontWeight: 700,
                       cursor: "pointer",
                     }}
@@ -351,7 +352,7 @@ export function RepositoryView() {
 
               {showTokenInput && (
                 <form onSubmit={handleSaveToken} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                  <div style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)" }}>
                     Enter GitHub PAT (stored safely in your OS keyring):
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -366,7 +367,7 @@ export function RepositoryView() {
                         border: "1px solid var(--border-primary)",
                         borderRadius: 6,
                         padding: "6px 10px",
-                        fontSize: 12.5,
+                        fontSize: "var(--text-sm)",
                         color: "var(--text-primary)",
                         fontFamily: "var(--font-mono)",
                         outline: "none",
@@ -381,7 +382,7 @@ export function RepositoryView() {
                         background: "linear-gradient(135deg,#46b07d,#3a9368)",
                         color: "#fff",
                         padding: "6px 12px",
-                        fontSize: 11.5,
+                        fontSize: "var(--text-xs)",
                         fontWeight: 700,
                         cursor: "pointer",
                         opacity: savingToken || !newToken.trim() ? 0.6 : 1,
@@ -398,7 +399,7 @@ export function RepositoryView() {
                         background: "#19151f",
                         color: "var(--text-secondary)",
                         padding: "6px 12px",
-                        fontSize: 11.5,
+                        fontSize: "var(--text-xs)",
                         fontWeight: 650,
                         cursor: "pointer",
                       }}
@@ -411,7 +412,7 @@ export function RepositoryView() {
 
               {hasToken && (
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
+                  <span style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)" }}>
                     PAT token is securely stored in Windows Credential Manager.
                   </span>
                   <button
@@ -422,7 +423,7 @@ export function RepositoryView() {
                       background: "transparent",
                       color: "#ef4444",
                       padding: "5px 10px",
-                      fontSize: 11,
+                      fontSize: "var(--text-xs)",
                       fontWeight: 600,
                       cursor: "pointer",
                     }}
@@ -435,20 +436,20 @@ export function RepositoryView() {
 
             {/* GitHub Pull Requests List */}
             <div className="repository-card" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 14px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 style={{ fontSize: "var(--text-lg)", fontWeight: 700, margin: "0 0 14px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
                 <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>call_merge</i>
                 GitHub Open Pull Requests
               </h2>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 260, overflowY: "auto" }}>
                 {githubDashboard && githubDashboard.pull_requests.length === 0 && (
-                  <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-tertiary)", fontSize: 13 }}>
+                  <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--text-md)" }}>
                     No open pull requests found.
                   </div>
                 )}
 
                 {!githubDashboard && (
-                  <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-tertiary)", fontSize: 13 }}>
+                  <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--text-md)" }}>
                     No remote delivery info (public rate limits or missing token).
                   </div>
                 )}
@@ -478,16 +479,16 @@ export function RepositoryView() {
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-                      <span className="repository-link-copy repository-ellipsis" style={{ fontSize: 13, fontWeight: 650, color: "var(--text-primary)", flex: 1, paddingRight: 8 }}>
+                      <span className="repository-link-copy repository-ellipsis" style={{ fontSize: "var(--text-md)", fontWeight: 650, color: "var(--text-primary)", flex: 1, paddingRight: 8 }}>
                         #{pr.number} {pr.title}
                       </span>
                       {pr.draft && (
-                        <span style={{ fontSize: 9, fontWeight: 700, color: "#9ca3af", background: "rgba(156,163,175,.15)", padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>
+                        <span style={{ fontSize: "var(--text-2xs)", fontWeight: 700, color: "#9ca3af", background: "rgba(156,163,175,.15)", padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>
                           DRAFT
                         </span>
                       )}
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-tertiary)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>
                       <span>Opened by {pr.user}</span>
                       <span>{new Date(pr.created_at).toLocaleDateString()}</span>
                     </div>
@@ -498,20 +499,20 @@ export function RepositoryView() {
 
             {/* GitHub Actions Workflows List */}
             <div className="repository-card" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 12, padding: 18 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 14px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 style={{ fontSize: "var(--text-lg)", fontWeight: 700, margin: "0 0 14px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
                 <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>cycle</i>
                 GitHub Actions Runs
               </h2>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 260, overflowY: "auto" }}>
                 {githubDashboard && githubDashboard.workflow_runs.length === 0 && (
-                  <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-tertiary)", fontSize: 13 }}>
+                  <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--text-md)" }}>
                     No workflow runs found.
                   </div>
                 )}
 
                 {!githubDashboard && (
-                  <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-tertiary)", fontSize: 13 }}>
+                  <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--text-md)" }}>
                     No workflow run statistics available.
                   </div>
                 )}
@@ -557,10 +558,10 @@ export function RepositoryView() {
                       </i>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="repository-ellipsis" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-primary)" }}>
+                        <div className="repository-ellipsis" style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--text-primary)" }}>
                           {run.name}
                         </div>
-                        <div style={{ fontSize: 10.5, color: "var(--text-tertiary)", marginTop: 2 }}>
+                        <div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", marginTop: 2 }}>
                           branch: <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>{run.head_branch}</span>
                         </div>
                       </div>
@@ -568,7 +569,7 @@ export function RepositoryView() {
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0 }}>
                         <span
                           style={{
-                            fontSize: 9.5,
+                            fontSize: "var(--text-2xs)",
                             fontWeight: 700,
                             textTransform: "uppercase",
                             color: s.color,
@@ -580,7 +581,7 @@ export function RepositoryView() {
                         >
                           {s.label}
                         </span>
-                        <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>
+                        <span style={{ fontSize: "var(--text-2xs)", color: "var(--text-tertiary)" }}>
                           {new Date(run.created_at).toLocaleDateString()}
                         </span>
                       </div>
@@ -593,6 +594,11 @@ export function RepositoryView() {
           </div>
 
         </div>
+
+        <BranchGraphCard
+          dashboard={githubDashboard}
+          currentBranch={gitDetails?.branch ?? null}
+        />
 
       </div>
       {selectedFile && (
@@ -609,6 +615,185 @@ export function RepositoryView() {
           onClose={() => setSelectedRun(null)}
         />
       )}
+    </div>
+  );
+}
+
+/*
+                  <text x={x} y="18" textAnchor="middle" fill={isCurrent ? "#bcaef6" : "var(--text-secondary)"} fontSize="10" fontFamily="var(--font-mono)"><title>{branch.name}</title>{isCurrent ? "● " : isDefault ? "★ " : ""}{shortBranchName(branch.name)}</text>
+                  {branchPoints.length > 0 ? <line x1={x} y1={branchPoints[0].y} x2={x} y2={branchPoints[branchPoints.length - 1].y + 18} stroke={branchPoints[0].color} strokeOpacity=".6" strokeWidth="2" /> : <text x={x} y="42" textAnchor="middle" fill="var(--text-muted)" fontSize="10">no unique commits</text>}
+                </g>;
+              })}
+              {points.flatMap((point) => point.commit.parents.map((parentSha) => {
+                const parent = points.find((candidate) => candidate.branch === point.branch && candidate.commit.sha === parentSha);
+                if (!parent) return null;
+                const curve = (point.y + parent.y) / 2;
+                return <path key={`${point.commit.sha}-${parentSha}-${point.branch}`} d={`M ${point.x} ${point.y} C ${point.x} ${curve}, ${parent.x} ${curve}, ${parent.x} ${parent.y}`} fill="none" stroke={point.color} strokeOpacity=".65" strokeWidth="2" />;
+              }))}
+              {branches.map((branch) => {
+                if (!branch.merge_base_sha || branch.name === dashboard.default_branch || branch.commits.length === 0) return null;
+                const branchPoint = points.find((point) => point.branch === branch.name && point.commit.sha === branch.commits[branch.commits.length - 1].sha);
+                const basePoint = points.find((point) => point.branch === dashboard.default_branch && point.commit.sha === branch.merge_base_sha);
+                if (!branchPoint || !basePoint) return null;
+                const curve = (branchPoint.y + basePoint.y) / 2;
+                return <path key={`${branch.name}-merge-base`} d={`M ${branchPoint.x} ${branchPoint.y} C ${branchPoint.x} ${curve}, ${basePoint.x} ${curve}, ${basePoint.x} ${basePoint.y}`} fill="none" stroke={branchPoint.color} strokeOpacity=".65" strokeWidth="2" strokeDasharray="4 4" />;
+              })}
+              {points.map((point) => {
+                const description = `${point.branch}, commit ${point.commit.sha.slice(0, 8)}${point.commit.message ? `, ${point.commit.message}` : ""}`;
+                return <circle key={`${point.branch}-${point.commit.sha}`} cx={point.x} cy={point.y} r="7" fill={point.color} stroke="#11151d" strokeWidth="3" tabIndex={0} role="button" aria-label={description} onMouseEnter={(event) => showTooltip(point.branch, point.commit, point.color, event.currentTarget)} onFocus={(event) => showTooltip(point.branch, point.commit, point.color, event.currentTarget)} onMouseLeave={() => setHoveredCommit(null)} onBlur={() => setHoveredCommit(null)}><title>{description}</title></circle>;
+              })}
+            </svg>
+            {hoveredCommit && <div role="tooltip" style={{ position: "absolute", left: hoveredCommit.left, top: hoveredCommit.top, transform: "translate(-50%, -100%)", width: "min(300px, calc(100% - 24px))", padding: "9px 10px", borderRadius: 8, background: "#1a1622", border: `1px solid ${hoveredCommit.color}`, boxShadow: "0 8px 24px rgba(0,0,0,.35)", pointerEvents: "none", zIndex: 2 }}><div style={{ color: "var(--text-primary)", fontSize: "var(--text-sm)", fontWeight: 650, lineHeight: 1.35 }}>{hoveredCommit.commit.message || "Untitled commit"}</div><div style={{ marginTop: 4, color: "var(--text-tertiary)", fontSize: "var(--text-xs)", fontFamily: "var(--font-mono)" }}>{hoveredCommit.branch} · {hoveredCommit.commit.sha.slice(0, 12)}{hoveredCommit.commit.author ? ` · ${hoveredCommit.commit.author}` : ""}</div></div>}
+          </div>
+          {dashboard.branches.length > branches.length && <div style={{ marginTop: 8, fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>Showing the first {branches.length} branches in the graph; {dashboard.branches.length - branches.length} additional branches are not graphed.</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function shortBranchName(name: string): string {
+  return name.length > 16 ? `${name.slice(0, 14)}…` : name;
+}
+
+*/
+const BRANCH_GRAPH_COLORS = ["#67e8f9", "#f87171", "#c084fc", "#facc15", "#4ade80", "#fb923c", "#60a5fa"];
+
+function getBranchLegendColor(branchName: string, index: number, currentBranch: string, defaultBranch: string | null): string {
+  if (branchName === currentBranch || branchName === defaultBranch) return BRANCH_GRAPH_COLORS[0];
+  return BRANCH_GRAPH_COLORS[(index + 1) % BRANCH_GRAPH_COLORS.length];
+}
+
+function BranchGraphCard({ dashboard, currentBranch }: { dashboard: GitHubDashboard | null; currentBranch: string | null }) {
+  const graphContainerRef = useRef<HTMLDivElement>(null);
+  const [resolvedBranchColors, setResolvedBranchColors] = useState<Record<string, string>>({});
+  const branches = dashboard ? [...dashboard.branches].sort((left, right) => left.name.localeCompare(right.name)).slice(0, 24) : [];
+  const branchSignature = branches.map((branch) => `${branch.name}:${branch.sha}`).join("|");
+
+  useLayoutEffect(() => {
+    const container = graphContainerRef.current;
+    if (!container || !dashboard) return;
+
+    const colors: Record<string, string> = {};
+    const effectBranches = [...dashboard.branches].sort((left, right) => left.name.localeCompare(right.name)).slice(0, 24);
+    for (const branch of effectBranches) {
+      const badge = [...container.querySelectorAll<HTMLElement>("[style]")].find(
+        (element) => element.textContent?.trim() === branch.name && element.style.borderColor,
+      );
+      if (badge?.style.borderColor) colors[branch.name] = badge.style.borderColor;
+    }
+    if (Object.keys(colors).length > 0) {
+      const frame = window.requestAnimationFrame(() => setResolvedBranchColors(colors));
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [branchSignature, dashboard]);
+
+  if (!dashboard) {
+    return <div className="repository-card" style={branchCardStyle}><BranchGraphHeading count={null} /><div style={branchEmptyStyle}>No remote branch data available.</div></div>;
+  }
+
+  const entries = buildBranchGraphEntries(branches);
+  const graphBranch = currentBranch && branches.some((branch) => branch.name === currentBranch)
+    ? currentBranch
+    : dashboard.default_branch ?? branches[0]?.name ?? "";
+  return (
+    <div className="repository-card repository-branch-card" style={branchCardStyle}>
+      <BranchGraphHeading count={dashboard.branches.length} />
+      <p style={{ margin: "0 0 12px", fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>Remote branch history, read-only. The graph is calculated from real commit parent SHAs.</p>
+      <div aria-label="Branch color legend" style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginBottom: 14 }}>
+        {branches.map((branch, index) => (
+          <span key={branch.name} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--text-secondary)", fontSize: "var(--text-xs)" }}>
+            <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: "50%", background: resolvedBranchColors[branch.name] ?? getBranchLegendColor(branch.name, index, graphBranch, dashboard.default_branch), boxShadow: `0 0 0 2px ${(resolvedBranchColors[branch.name] ?? getBranchLegendColor(branch.name, index, graphBranch, dashboard.default_branch))}33` }} />
+            <span className="repository-ellipsis" title={branch.name}>{branch.name}</span>
+          </span>
+        ))}
+      </div>
+      {dashboard.branches_error && <div role="alert" style={branchEmptyStyle}>Remote branch history is unavailable. Other GitHub data remains available.</div>}
+      {!dashboard.branches_error && branches.length === 0 && <div style={branchEmptyStyle}>No remote branches found.</div>}
+      {!dashboard.branches_error && branches.length > 0 && (
+        <>
+          <div ref={graphContainerRef} aria-label="Remote branch commit graph" style={{ overflowX: "auto", border: "1px solid var(--border-primary)", borderRadius: 9, background: "#11151d", padding: 12 }}>
+            <CommitGraph
+              commits={entries.commits}
+              branchHeads={entries.branchHeads}
+              currentBranch={graphBranch}
+              fullSha={false}
+              graphStyle={{
+                commitSpacing: 58,
+                branchSpacing: 22,
+                nodeRadius: 5,
+                branchColors: BRANCH_GRAPH_COLORS,
+              }}
+            />
+          </div>
+          {dashboard.branches.length > branches.length && <div style={{ marginTop: 8, fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>Showing the first {branches.length} branches in the graph; {dashboard.branches.length - branches.length} additional branches are not graphed.</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+type CommitGraphCommit = {
+  sha: string;
+  commit: { author: { name: string; date: string }; message: string };
+  parents: Array<{ sha: string }>;
+  html_url?: string;
+};
+
+type CommitGraphBranch = {
+  name: string;
+  commit: { sha: string };
+  link?: string;
+};
+
+function buildBranchGraphEntries(branches: GitHubDashboard["branches"]): { commits: CommitGraphCommit[]; branchHeads: CommitGraphBranch[] } {
+  const commits = new Map<string, CommitGraphCommit>();
+
+  for (const branch of branches) {
+    for (const commit of branch.commits) {
+      if (commits.has(commit.sha)) continue;
+      commits.set(commit.sha, {
+        sha: commit.sha,
+        commit: {
+          author: { name: commit.author ?? "Unknown", date: commit.date ?? "" },
+          message: commit.message,
+        },
+        parents: commit.parents.map((parent) => ({ sha: parent })),
+      });
+    }
+  }
+
+  return {
+    commits: [...commits.values()].sort((left, right) => Date.parse(right.commit.author.date) - Date.parse(left.commit.author.date)),
+    branchHeads: branches.map((branch) => ({
+      name: branch.name,
+      commit: { sha: branch.sha },
+    })),
+  };
+}
+
+const branchCardStyle = {
+  background: "var(--bg-tertiary)",
+  border: "1px solid var(--border-secondary)",
+  borderRadius: 12,
+  padding: 18,
+};
+
+const branchEmptyStyle = {
+  padding: "20px 0",
+  textAlign: "center" as const,
+  color: "var(--text-tertiary)",
+  fontSize: "var(--text-md)",
+};
+
+function BranchGraphHeading({ count }: { count: number | null }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+      <h2 style={{ fontSize: "var(--text-lg)", fontWeight: 700, margin: 0, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
+        <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>account_tree</i>
+        GitHub Branch Graph
+      </h2>
+      {count !== null && <span style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>{count} remote</span>}
     </div>
   );
 }

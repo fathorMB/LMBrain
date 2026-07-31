@@ -90,7 +90,7 @@ export function CommandPalette() {
         >
           <i
             className="material-symbols-outlined"
-            style={{ fontSize: 20, color: "#6c6671" }}
+            style={{ fontSize: 20, color: "var(--text-tertiary)" }}
           >
             search
           </i>
@@ -103,7 +103,7 @@ export function CommandPalette() {
             placeholder="Search specs, files…"
             style={{
               flex: 1,
-              fontSize: 14.5,
+              fontSize: "var(--text-md)",
               color: "var(--text-primary)",
               background: "transparent",
               border: "none",
@@ -114,8 +114,8 @@ export function CommandPalette() {
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              color: "#6c6671",
+              fontSize: "var(--text-2xs)",
+              color: "var(--text-tertiary)",
               border: "1px solid #2b2833",
               borderRadius: 5,
               padding: "2px 6px",
@@ -130,10 +130,10 @@ export function CommandPalette() {
           <div style={{ padding: 8 }}>
             <div
               style={{
-                fontSize: 10,
+                fontSize: "var(--text-2xs)",
                 letterSpacing: ".09em",
                 textTransform: "uppercase",
-                color: "#56525b",
+                color: "var(--text-muted)",
                 fontWeight: 600,
                 padding: "8px 10px 6px",
               }}
@@ -177,7 +177,7 @@ export function CommandPalette() {
                 <span
                   style={{
                     flex: 1,
-                    fontSize: 13.5,
+                    fontSize: "var(--text-md)",
                     color: "var(--text-primary)",
                   }}
                 >
@@ -186,8 +186,8 @@ export function CommandPalette() {
                 <span
                   style={{
                     fontFamily: "var(--font-mono)",
-                    fontSize: 10.5,
-                    color: "#6c6671",
+                    fontSize: "var(--text-xs)",
+                    color: "var(--text-tertiary)",
                   }}
                 >
                   {item.shortcut}
@@ -197,10 +197,10 @@ export function CommandPalette() {
 
             <div
               style={{
-                fontSize: 10,
+                fontSize: "var(--text-2xs)",
                 letterSpacing: ".09em",
                 textTransform: "uppercase",
-                color: "#56525b",
+                color: "var(--text-muted)",
                 fontWeight: 600,
                 padding: "12px 10px 6px",
               }}
@@ -241,7 +241,7 @@ export function CommandPalette() {
               <span
                 style={{
                   flex: 1,
-                  fontSize: 13.5,
+                  fontSize: "var(--text-md)",
                   color: "var(--text-primary)",
                 }}
               >
@@ -277,7 +277,7 @@ export function CommandPalette() {
               <span
                 style={{
                   flex: 1,
-                  fontSize: 13.5,
+                  fontSize: "var(--text-md)",
                   color: "var(--text-primary)",
                 }}
               >
@@ -296,7 +296,7 @@ export function CommandPalette() {
                   padding: "12px",
                   textAlign: "center",
                   color: "var(--text-tertiary)",
-                  fontSize: 13,
+                  fontSize: "var(--text-md)",
                 }}
               >
                 Searching…
@@ -308,7 +308,7 @@ export function CommandPalette() {
                   padding: "12px",
                   textAlign: "center",
                   color: "var(--text-tertiary)",
-                  fontSize: 13,
+                  fontSize: "var(--text-md)",
                 }}
               >
                 No results found.
@@ -348,7 +348,7 @@ export function CommandPalette() {
                   <span
                     style={{
                       fontFamily: "var(--font-mono)",
-                      fontSize: 12,
+                      fontSize: "var(--text-sm)",
                       color: "#bcaef6",
                     }}
                   >
@@ -357,7 +357,7 @@ export function CommandPalette() {
                 </div>
                 <div
                   style={{
-                    fontSize: 12,
+                    fontSize: "var(--text-sm)",
                     color: "var(--text-tertiary)",
                     lineHeight: 1.4,
                     paddingLeft: 24,

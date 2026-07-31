@@ -39,11 +39,17 @@ The kit includes directories for:
 
 Status-directory artifacts must keep filesystem location and frontmatter `status` aligned. LMBrain surfaces diagnostics for mismatches and related consistency problems.
 
+Specs carry two kinds of Project Lead-owned metadata. `tags` is descriptive planning vocabulary: normalized, validated, and rejected when it restates `milestone`, `area`, or `priority`, since a duplicated field is a second source of truth that diverges. `capability_tier` (`luna`/`terra`/`sol`) and `thinking_level` are the implementation estimate: the tier states the expected change footprint, the level the expected deliberation. The estimate is mandatory at the `ready` transition, appears in handoff context with the reason it applies, and never names a provider or model. Implementation specialists append `effort_observations` when the estimate proved wrong; that evidence never rewrites the Lead's recommendation and no tier selects or starts an agent.
+
+Decisions record supersession on both sides. `supersedes` and `superseded_by` are written together by `adr_supersede`, which requires the successor to already be accepted and moves the predecessor to `superseded` in the same operation. Writing only one side is what let a retired decision keep presenting itself as authoritative, so the drift is now reported as a diagnostic rather than left to convention.
+
 `FINDING-*` is the durable cross-spec obligation domain. Most review findings stay local; promotion is explicit, evidence-backed, and identified by the source pair plus a globally allocated ID. Planning never means resolution, a done target never auto-closes the finding, and operator-only risk/reopen decisions remain semantic MCP actions rather than app buttons.
 
 `design/` is intentionally not a managed artifact directory. It stores self-contained HTML/CSS/JS mockups and optional README/manifest metadata that the Project Lead may reference from specs.
 
 `reports/lmbrain-kit-feedback.md` is a structured append-only exception to ordinary snapshot reports. It records evidence-backed LMBrain product/kit observations, not project work. The Project Lead writes it autonomously with `lmbrain_feedback_record`, reads it with `lmbrain_feedback_report`, and reports newly added notes to the operator for later delivery to the LMBrain team.
+
+Feedback text fields support newlines, blank lines, quotes, Unicode, and tabs. They are stored as escaped YAML scalars and validated after serialization; field character limits still apply.
 
 `skills/` stores `SKILL-*` project-scoped procedures in `active/`, `proposed/`, and `retired/`. Skills are Markdown runbooks for manually started agents; LMBrain displays their commands and includes applicable active skills in context packs, but does not execute them.
 
@@ -59,6 +65,15 @@ The current board tracks specs, not tasks. Spec status values are:
 - `discarded`
 
 Acceptance criteria inside a spec provide sub-spec granularity.
+
+## Declared Branching Strategy
+
+The project can declare an explicit, machine-readable Git branching strategy in `.lmbrain/BRANCHING.json`.
+
+- **Topology & Authority:** Supports `main-only`, `github-flow`, `git-flow`, and `custom` topologies, specifying default branch, protected branches, allowed branch prefixes, and Lead commit/push authority.
+- **Lead & Agent Context:** Surfaced in `lmbrain_project_digest` and `lmbrain_spec_context` so the Project Lead and implementing agents understand branch naming and commit authority without guessing.
+- **Governed Mutations:** Read via `branching_strategy_get` and mutated atomically with operator approval (`actor: operator`) via `branching_strategy_set`.
+- **Drift Diagnostics:** Non-destructive diagnostics (`branching-strategy-absent`, `invalid-branch-name`, `unprotected-branch-divergence`) report discrepancies without executing automated Git commands or mutating files silently.
 
 ## V3 context economy
 
@@ -92,6 +107,8 @@ The Project Lead has two deliberate communication registers: concise plain langu
 Improvement proposals use the existing `agents/proposals/` mechanism with `proposal_type: improvement`, `target_profile`, target digest, evidence links, and a constrained additive patch. Deterministic signals require recurrence across distinct specs (or an integrity escalation), and scanning is read-only. Proposal creation is explicit; operator approval and a non-stale target digest are required before atomic application. Effectiveness metrics expose sample sizes and caveats rather than claiming causality.
 
 `.lmbrain/verification.toml` optionally declares named direct-execution gates. The repository manifest is inert until its exact digest is approved locally. `spec_verify` runs only gates referenced by the selected spec and writes real bounded output into its managed transcript section. It never runs during workspace open, refresh, watching, or submission.
+
+A `Required verification` item with `kind=executable` is kit-executable only when its ID is covered by the approved manifest. Manual or operator transcript evidence remains self-reported and does not claim kit execution. Validator and project-digest diagnostics expose declared-gate count, manifest coverage, and approval state when coverage is missing or incomplete.
 
 Verification evidence is snapshot-checked: a workspace content fingerprint is captured before the first gate and again after the final gate, and both are recorded in the transcript. If they differ, the transcript is explicitly marked invalidated with the reason, the run reports failure, and the evidence can never satisfy submission freshness checks — even if the workspace later matches the post-gate fingerprint. Note the artifact mutation lock only protects the final transcript write, not the gate-execution interval; full isolated-worktree/per-gate input scoping is deferred to 3.0.0.
 

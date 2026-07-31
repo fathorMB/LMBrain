@@ -50,8 +50,8 @@ describe("MarkdownRenderer integration", () => {
     expect(unresolvedSpan!.getAttribute("tabindex")).toBeNull();
     // Should NOT have role="button"
     expect(unresolvedSpan!.getAttribute("role")).toBeNull();
-    // Should have muted color
-    expect(unresolvedSpan!.style.color).toBe("rgb(108, 102, 113)");
+    // Should have muted color, routed through the shared text token
+    expect(unresolvedSpan!.style.color).toBe("var(--text-tertiary)");
     // Click should NOT invoke handler
     unresolvedSpan!.click();
     expect(handler).not.toHaveBeenCalled();

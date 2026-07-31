@@ -129,7 +129,7 @@ export function OperatorVerificationPanel({
       <div style={{ marginBottom: 14 }}>
         <div
           style={{
-            fontSize: 13.5,
+            fontSize: "var(--text-md)",
             fontWeight: 700,
             color: "var(--text-primary)",
             marginBottom: 4,
@@ -137,7 +137,7 @@ export function OperatorVerificationPanel({
         >
           Before-done verification
         </div>
-        <div style={{ fontSize: 12, color: "#9a949f", lineHeight: 1.45 }}>
+        <div style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)", lineHeight: 1.45 }}>
           Evidence attestation only — this does not approve the spec or change
           its status.
         </div>
@@ -174,27 +174,27 @@ export function OperatorVerificationPanel({
                   flexWrap: "wrap",
                 }}
               >
-                <code style={{ color: "#bcaef6", fontSize: 11.5 }}>
+                <code style={{ color: "#bcaef6", fontSize: "var(--text-xs)" }}>
                   {requirement.id}
                 </code>
-                <span style={{ fontSize: 11, color: "#807986" }}>
+                <span style={{ fontSize: "var(--text-xs)", color: "#807986" }}>
                   owner={requirement.owner}
                 </span>
                 <span
                   style={{
-                    fontSize: 10.5,
+                    fontSize: "var(--text-xs)",
                     color: blocker ? "#f0a2a2" : "#91d5ad",
                   }}
                 >
                   {blocker ? "BLOCKED" : "ATTESTED"}
                 </span>
               </div>
-              <div style={{ fontSize: 12.5, marginTop: 5 }}>
+              <div style={{ fontSize: "var(--text-sm)", marginTop: 5 }}>
                 {requirement.text}
               </div>
               <div
                 style={{
-                  fontSize: 11,
+                  fontSize: "var(--text-xs)",
                   color: blocker ? "#c88f8f" : "#77717d",
                   marginTop: 5,
                 }}
@@ -264,7 +264,7 @@ export function OperatorVerificationPanel({
           {selected && !selected.checked && (
             <div
               role="status"
-              style={{ color: "#9aadcf", fontSize: 11.5, marginTop: 10 }}
+              style={{ color: "#9aadcf", fontSize: "var(--text-xs)", marginTop: 10 }}
             >
               This checklist item will be marked complete when you attest.
             </div>
@@ -285,7 +285,7 @@ export function OperatorVerificationPanel({
               background: "rgba(124,108,246,.14)",
               color: "var(--accent-light)",
               padding: "9px 13px",
-              fontSize: 12,
+              fontSize: "var(--text-sm)",
               fontWeight: 650,
               cursor: submitting ? "wait" : "pointer",
               opacity:
@@ -334,7 +334,7 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label style={{ display: "grid", gap: 5, fontSize: 11, color: "#8f8994" }}>
+    <label style={{ display: "grid", gap: 5, fontSize: "var(--text-xs)", color: "#8f8994" }}>
       {label}
       {children}
     </label>
@@ -343,7 +343,7 @@ function Field({
 
 function InlineError({ message }: { message: string }) {
   return (
-    <div role="alert" style={{ color: "#efaaaa", fontSize: 11.5, marginTop: 10 }}>
+    <div role="alert" style={{ color: "#efaaaa", fontSize: "var(--text-xs)", marginTop: 10 }}>
       {message}
     </div>
   );
@@ -369,5 +369,5 @@ const fieldStyle: CSSProperties = {
   border: "1px solid #332e3a",
   borderRadius: 7,
   padding: "8px 9px",
-  fontSize: 12,
+  fontSize: "var(--text-sm)",
 };

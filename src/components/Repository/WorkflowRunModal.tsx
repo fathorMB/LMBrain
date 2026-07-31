@@ -23,13 +23,13 @@ function text(value: string | null | undefined): string {
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="repository-run-field">
-      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-muted)", marginBottom: 4 }}>
+      <div style={{ fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-muted)", marginBottom: 4 }}>
         {label}
       </div>
       <div
         className="repository-ellipsis"
         title={value}
-        style={{ fontSize: 13, fontWeight: 650, color: "var(--text-secondary)", fontFamily: mono ? "var(--font-mono)" : undefined }}
+        style={{ fontSize: "var(--text-md)", fontWeight: 650, color: "var(--text-secondary)", fontFamily: mono ? "var(--font-mono)" : undefined }}
       >
         {value}
       </div>
@@ -69,7 +69,7 @@ export function WorkflowRunModal({ run, onClose }: WorkflowRunModalProps) {
         <div className="repository-diff-header">
           <div className="repository-diff-header-copy">
             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-              <h2 id="repository-run-title" className="repository-ellipsis" title={run.name} style={{ margin: 0, fontSize: 15, color: "var(--text-primary)" }}>
+              <h2 id="repository-run-title" className="repository-ellipsis" title={run.name} style={{ margin: 0, fontSize: "var(--text-lg)", color: "var(--text-primary)" }}>
                 {text(run.name)}
                 {run.run_number > 0 && (
                   <span style={{ color: "var(--text-tertiary)", fontWeight: 500 }}> #{run.run_number}</span>
@@ -88,7 +88,7 @@ export function WorkflowRunModal({ run, onClose }: WorkflowRunModalProps) {
                   borderRadius: 5,
                   background: s.bg,
                   color: s.color,
-                  fontSize: 10,
+                  fontSize: "var(--text-2xs)",
                   fontWeight: 700,
                   textTransform: "uppercase",
                 }}
@@ -100,7 +100,7 @@ export function WorkflowRunModal({ run, onClose }: WorkflowRunModalProps) {
               </span>
             </div>
             {run.display_title && run.display_title !== run.name && (
-              <div className="repository-ellipsis" title={run.display_title} style={{ marginTop: 3, color: "var(--text-tertiary)", fontSize: 11.5 }}>
+              <div className="repository-ellipsis" title={run.display_title} style={{ marginTop: 3, color: "var(--text-tertiary)", fontSize: "var(--text-xs)" }}>
                 {run.display_title}
               </div>
             )}
@@ -141,7 +141,7 @@ export function WorkflowRunModal({ run, onClose }: WorkflowRunModalProps) {
               background: "linear-gradient(135deg,#806cf6,#557ff2)",
               color: "#fff",
               padding: "8px 14px",
-              fontSize: 12,
+              fontSize: "var(--text-sm)",
               fontWeight: 700,
               textDecoration: "none",
             }}

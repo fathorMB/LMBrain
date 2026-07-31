@@ -9,6 +9,12 @@ area:
 milestone: 
 # References use IDs only (e.g. [TASK-001]); use [[wikilinks]] in prose
 recommended_agent: AGENT-XXX
+# Implementation estimate. Required before this spec can become `ready`.
+# capability_tier: luna | terra | sol   (expected change footprint)
+# thinking_level: minimal | standard | extended | maximum (defaults from the tier)
+capability_tier: 
+thinking_level: 
+effort_observations: []
 depends_on: []
 dependency_events: []
 parking_events: []

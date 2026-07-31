@@ -136,9 +136,9 @@ The server exposes specific tools such as:
 - `spec_ready`, `spec_start`, `spec_submit`, `spec_done`, `spec_discard`, `spec_park`;
 - `spec_dependencies_set`, `spec_dependency_context`, `spec_dependency_candidates`;
 - `spec_attest_lead` plus the desktop-only operator evidence-attestation command; neither attestation operation changes spec status;
-- `review_accept`, `review_changes_requested`, `review_block`, `review_supersede`, `review_remediation`, `review_escalate`, `review_takeover`, `review_migration_preview`;
+- `review_accept`, `review_changes_requested`, `review_block`, `review_supersede`, `review_remediation`, `review_remediation_verified`, `review_escalate`, `review_takeover`, `review_migration_preview`;
 - `verification_migration_preview`, which proposes unambiguous legacy Lead-owner corrections without mutating artifacts;
-- `adr_accept`, `adr_reject`;
+- `adr_accept`, `adr_reject`, `adr_supersede`;
 - `agent_activate`, `agent_deactivate`;
 - `skill_activate`, `skill_retire`;
 - `lmbrain_create`;

@@ -79,7 +79,7 @@ export function VerificationPanel() {
     }
   };
 
-  return <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px 30px 70px" }}>
+  return <div style={{ maxWidth: "var(--page-wide)", margin: "0 auto", padding: "var(--page-top) var(--page-gutter) var(--page-bottom)" }}>
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
       <div>
         <h2 style={{ marginTop: 0 }}>Verification</h2>
@@ -176,7 +176,7 @@ function GateCard(props: {
   return <article style={card}>
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
       <strong>{gate.id}</strong>
-      <span style={{ color: props.selected ? "#70c99a" : "#d9b86d", fontSize: 12 }}>
+      <span style={{ color: props.selected ? "#70c99a" : "#d9b86d", fontSize: "var(--text-sm)" }}>
         {props.selected ? "Selected" : "Review required"} · {props.confidence}
       </span>
     </div>
@@ -197,20 +197,20 @@ function GateCard(props: {
 }
 
 function Info({ label, value }: { label: string; value: string }) {
-  return <div><dt style={{ color: "var(--text-tertiary)", fontSize: 11 }}>{label}</dt><dd style={{ margin: "2px 0 0", overflowWrap: "anywhere" }}>{value}</dd></div>;
+  return <div><dt style={{ color: "var(--text-tertiary)", fontSize: "var(--text-xs)" }}>{label}</dt><dd style={{ margin: "2px 0 0", overflowWrap: "anywhere" }}>{value}</dd></div>;
 }
 
 function message(value: unknown) {
   return value instanceof Error ? value.message : String(value);
 }
 
-const muted: React.CSSProperties = { color: "var(--text-tertiary)", fontSize: 12.5, lineHeight: 1.55 };
-const mono: React.CSSProperties = { color: "var(--text-tertiary)", fontFamily: "var(--font-mono)", fontSize: 10.5, overflowWrap: "anywhere" };
+const muted: React.CSSProperties = { color: "var(--text-tertiary)", fontSize: "var(--text-sm)", lineHeight: 1.55 };
+const mono: React.CSSProperties = { color: "var(--text-tertiary)", fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", overflowWrap: "anywhere" };
 const card: React.CSSProperties = { marginBottom: 12, padding: 15, border: "1px solid var(--border-secondary)", borderRadius: 10, background: "var(--bg-tertiary)" };
 const details: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, margin: "12px 0" };
 const secondary: React.CSSProperties = { border: "1px solid var(--border-secondary)", borderRadius: 7, background: "var(--bg-secondary)", color: "var(--text-secondary)", padding: "7px 11px", cursor: "pointer" };
 const primary: React.CSSProperties = { ...secondary, background: "var(--accent-primary)", color: "white" };
-const errorStyle: React.CSSProperties = { padding: 10, marginBottom: 12, borderRadius: 7, background: "rgba(224,88,74,.10)", color: "#e9857b", fontSize: 12 };
+const errorStyle: React.CSSProperties = { padding: 10, marginBottom: 12, borderRadius: 7, background: "rgba(224,88,74,.10)", color: "#e9857b", fontSize: "var(--text-sm)" };
 const warningStyle: React.CSSProperties = { ...errorStyle, background: "rgba(224,162,58,.10)", color: "#d9b86d" };
 const boundary: React.CSSProperties = { ...muted, padding: 10, borderLeft: "3px solid var(--accent-primary)", background: "rgba(80,120,220,.08)" };
-const codeBlock: React.CSSProperties = { whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 360, overflow: "auto", padding: 12, borderRadius: 7, background: "var(--bg-primary)", fontSize: 11 };
+const codeBlock: React.CSSProperties = { whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 360, overflow: "auto", padding: 12, borderRadius: 7, background: "var(--bg-primary)", fontSize: "var(--text-xs)" };

@@ -7,7 +7,8 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    content_digest, frontmatter::Document, invariants, unsupported_verification_requirements,
+    content_digest, context::parse_verification_requirements, frontmatter::Document, invariants,
+    unsupported_verification_requirements,
     verification_blockers_for_workspace,
 };
 
@@ -146,6 +147,8 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
     diagnose_verification(root, &artifacts, &mut diagnostics);
     diagnose_roadmap(root, &artifacts, &mut diagnostics);
     diagnose_kit_feedback(root, &mut diagnostics);
+    diagnose_spec_metadata(&artifacts, &mut diagnostics);
+    diagnose_decisions(&artifacts, &mut diagnostics);
 
     let harness = lmbrain.join("HARNESSES.json");
     if harness.exists() {
@@ -163,6 +166,33 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
         }
     }
 
+    let branching_path = lmbrain.join("BRANCHING.json");
+    if !branching_path.exists() {
+        diagnostics.push(diagnostic(
+            "branching-strategy-absent",
+            DiagnosticSeverity::Info,
+            None,
+            Some("BRANCHING.json".into()),
+            "No declared branching strategy file (.lmbrain/BRANCHING.json) was found.".into(),
+            "Initialize a branching strategy using the operator-governed verb 'branching_strategy_set'.".into(),
+            DiagnosticFixability::GovernedMutation,
+            "branching-strategy-absent",
+        ));
+    } else {
+        if let Err(error) = crate::load_branching_strategy(root) {
+            diagnostics.push(diagnostic(
+                "branching-strategy-invalid",
+                DiagnosticSeverity::Warning,
+                None,
+                Some("BRANCHING.json".into()),
+                format!("Invalid branching strategy declaration: {error}"),
+                "Correct .lmbrain/BRANCHING.json according to the kit branching strategy schema.".into(),
+                DiagnosticFixability::Manual,
+                "branching-strategy-invalid",
+            ));
+        }
+    }
+
     diagnostics.sort_by(|left, right| {
         severity_rank(right.severity)
             .cmp(&severity_rank(left.severity))
@@ -173,6 +203,84 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
     });
     diagnostics.dedup_by(|left, right| left.id == right.id);
     diagnostics
+}
+
+/// Spec metadata diagnostics (issues #49 and #64). These never block: they make
+/// legacy and unrecognized values visible so the Lead can clean them
+/// deliberately, which is what keeps existing workspaces readable.
+fn diagnose_spec_metadata(artifacts: &[Artifact], diagnostics: &mut Vec<Diagnostic>) {
+    for artifact in artifacts {
+        if !artifact.relative.starts_with("specs/") {
+            continue;
+        }
+        let document = &artifact.document;
+        let artifact_id = document.value("id");
+        let status = document.value("status").unwrap_or_default();
+
+        let (_, issues) = crate::taxonomy::validate_spec_tags(
+            &document.string_array("tags"),
+            document.value("milestone").as_deref(),
+            document.value("area").as_deref(),
+            document.value("priority").as_deref(),
+        );
+        for issue in &issues {
+            let (code, next_action) = match issue {
+                crate::taxonomy::SpecTagIssue::RestatesField { field, .. } => (
+                    "field-restating-tag",
+                    format!(
+                        "Remove the tag and rely on the `{field}` field; the next governed tag mutation will reject it."
+                    ),
+                ),
+                _ => (
+                    "invalid-spec-tag",
+                    "Correct the tag through the governed tag mutation.".to_string(),
+                ),
+            };
+            diagnostics.push(diagnostic(
+                code,
+                DiagnosticSeverity::Warning,
+                artifact_id.clone(),
+                Some(artifact.relative.clone()),
+                issue.message(),
+                &next_action,
+                DiagnosticFixability::GovernedMutation,
+                &issue.message(),
+            ));
+        }
+
+        for tag in document.string_array("tags") {
+            let normalization = crate::taxonomy::normalize_spec_tag(&tag);
+            if normalization.value.is_some() && !normalization.is_canonical {
+                diagnostics.push(diagnostic(
+                    "unknown-spec-tag",
+                    DiagnosticSeverity::Info,
+                    artifact_id.clone(),
+                    Some(artifact.relative.clone()),
+                    format!("Tag `{tag}` is outside the canonical spec-tag vocabulary"),
+                    "Keep it if it is meaningful project vocabulary, or align it with the canonical set.",
+                    DiagnosticFixability::ReadOnly,
+                    &tag,
+                ));
+            }
+        }
+
+        // Legacy specs already past `ready` are never rewritten; they surface
+        // the missing estimate instead of blocking.
+        if matches!(status.as_str(), "ready" | "working" | "review") {
+            if let Err(reason) = invariants::spec_effort_is_declared(document) {
+                diagnostics.push(diagnostic(
+                    "missing-effort-estimate",
+                    DiagnosticSeverity::Warning,
+                    artifact_id.clone(),
+                    Some(artifact.relative.clone()),
+                    format!("Spec has no usable implementation estimate: {reason}"),
+                    "Set the capability tier and thinking level through the governed effort mutation.",
+                    DiagnosticFixability::GovernedMutation,
+                    &status,
+                ));
+            }
+        }
+    }
 }
 
 fn diagnose_kit_feedback(root: &Path, diagnostics: &mut Vec<Diagnostic>) {
@@ -479,6 +587,7 @@ fn diagnose_references(root: &Path, artifacts: &[Artifact], diagnostics: &mut Ve
 
 fn diagnose_verification(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<Diagnostic>) {
     let mut referenced_gates = Vec::new();
+    let mut declared_executable_gates = BTreeSet::new();
     for artifact in artifacts {
         let id = artifact.document.value("id").unwrap_or_default();
         if !id.starts_with("SPEC-") {
@@ -486,6 +595,14 @@ fn diagnose_verification(root: &Path, artifacts: &[Artifact], diagnostics: &mut 
         }
         let status = artifact.document.value("status").unwrap_or_default();
         let gates = artifact.document.string_array("verification_gates");
+        let (requirements, _, _) =
+            parse_verification_requirements(&artifact.document.body, &gates);
+        declared_executable_gates.extend(
+            requirements
+                .into_iter()
+                .filter(|requirement| requirement.kind == "executable")
+                .map(|requirement| requirement.id),
+        );
         if !gates.is_empty() {
             referenced_gates.push((id.clone(), artifact.relative.clone(), gates));
         }
@@ -526,6 +643,7 @@ fn diagnose_verification(root: &Path, artifacts: &[Artifact], diagnostics: &mut 
             ));
         }
     }
+    diagnose_executable_gate_coverage(root, &declared_executable_gates, diagnostics);
     if referenced_gates.is_empty() {
         return;
     }
@@ -600,6 +718,80 @@ fn diagnose_verification(root: &Path, artifacts: &[Artifact], diagnostics: &mut 
             ));
         }
     }
+}
+
+fn diagnose_executable_gate_coverage(
+    root: &Path,
+    declared_executable_gates: &BTreeSet<String>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if declared_executable_gates.is_empty() {
+        return;
+    }
+    let approval_path = crate::default_verification_approval_path(root);
+    let status = match crate::verification_manifest_status(root, &approval_path) {
+        Ok(status) => status,
+        Err(error) => {
+            diagnostics.push(diagnostic(
+                "executable-gates-manifest-unavailable",
+                DiagnosticSeverity::Warning,
+                None,
+                Some("verification.toml".into()),
+                format!(
+                    "Declared executable verification gates: {}; available in manifest: 0; manifest state unavailable: {error}",
+                    declared_executable_gates.len()
+                ),
+                "Inspect verification_manifest_status and reconcile the verification manifest before claiming kit execution.",
+                DiagnosticFixability::ReadOnly,
+                "executable-gates",
+            ));
+            return;
+        }
+    };
+    let known = crate::load_verification_manifest(root)
+        .ok()
+        .map(|manifest| {
+            manifest
+                .gates
+                .into_iter()
+                .map(|gate| gate.id)
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    let available = declared_executable_gates
+        .intersection(&known)
+        .count();
+    let message = format!(
+        "Declared executable verification gates: {}; available in manifest: {}; manifest state: {}",
+        declared_executable_gates.len(),
+        available,
+        manifest_state_code(&status.state)
+    );
+    let (code, next_action) = match status.state {
+        crate::VerificationManifestState::Absent => (
+            "executable-gates-without-manifest",
+            "Run verification_manifest_init, review the deterministic candidates, and explicitly configure and approve a manifest before relying on kit-executed gates.",
+        ),
+        crate::VerificationManifestState::Approved if available < declared_executable_gates.len() => (
+            "executable-gates-partially-mapped",
+            "Add every declared executable gate to the manifest and obtain approval for the resulting digest.",
+        ),
+        crate::VerificationManifestState::Approved => return,
+        _ => (
+            "executable-gates-manifest-unapproved",
+            "Review the manifest and explicitly approve its current digest before relying on kit-executed gates.",
+        ),
+    };
+    diagnostics.push(diagnostic(
+        code,
+        DiagnosticSeverity::Warning,
+        None,
+        Some("verification.toml".into()),
+        message,
+        next_action,
+        DiagnosticFixability::Manual,
+        "executable-gates",
+    ));
 }
 
 fn manifest_state_code(state: &crate::VerificationManifestState) -> &'static str {
@@ -1133,6 +1325,82 @@ mod tests {
     }
 
     #[test]
+    fn executable_gate_coverage_reports_absent_unapproved_and_partial_manifests() {
+        let directory = tempdir().unwrap();
+        let spec_dir = directory.path().join(".lmbrain/specs/working");
+        fs::create_dir_all(&spec_dir).unwrap();
+        fs::write(
+            spec_dir.join("SPEC-001.md"),
+            "---\nid: SPEC-001\nstatus: working\n---\n## Required verification\n- [ ] cargo-tests | kind=executable | owner=agent | phase=before-submit | evidence=transcript | Run tests\n",
+        )
+        .unwrap();
+
+        let absent = build_diagnostics(directory.path());
+        let absent_diagnostic = absent
+            .iter()
+            .find(|diagnostic| diagnostic.code == "executable-gates-without-manifest")
+            .unwrap();
+        assert!(absent_diagnostic
+            .message
+            .contains("Declared executable verification gates: 1"));
+        assert!(absent_diagnostic
+            .message
+            .contains("available in manifest: 0"));
+
+        let gate = crate::VerificationGate {
+            id: "cargo-tests".into(),
+            title: None,
+            program: "cargo".into(),
+            args: vec!["test".into()],
+            cwd: ".".into(),
+            timeout_seconds: Some(30),
+            output_limit_bytes: Some(1024),
+            expected_exit_code: Some(0),
+            result_matcher: None,
+            environment: std::collections::BTreeMap::new(),
+            fingerprint_exclude: Vec::new(),
+        };
+        let manifest = crate::VerificationManifest {
+            schema_version: 1,
+            gates: vec![gate.clone()],
+        };
+        crate::set_verification_manifest(directory.path(), &manifest, None).unwrap();
+        let unapproved = build_diagnostics(directory.path());
+        assert!(unapproved
+            .iter()
+            .any(|diagnostic| diagnostic.code == "executable-gates-manifest-unapproved"));
+
+        let approval = crate::default_verification_approval_path(directory.path());
+        crate::approve_verification_manifest(directory.path(), &approval).unwrap();
+        let approved = build_diagnostics(directory.path());
+        assert!(!approved.iter().any(|diagnostic| {
+            diagnostic.code == "executable-gates-manifest-unapproved"
+                || diagnostic.code == "executable-gates-partially-mapped"
+        }));
+
+        let partial_manifest = crate::VerificationManifest {
+            schema_version: 1,
+            gates: vec![crate::VerificationGate {
+                id: "other-gate".into(),
+                ..gate
+            }],
+        };
+        crate::set_verification_manifest(
+            directory.path(),
+            &partial_manifest,
+            Some(
+                &crate::canonical_verification_manifest_digest(&manifest).unwrap(),
+            ),
+        )
+        .unwrap();
+        crate::approve_verification_manifest(directory.path(), &approval).unwrap();
+        let partial = build_diagnostics(directory.path());
+        assert!(partial
+            .iter()
+            .any(|diagnostic| diagnostic.code == "executable-gates-partially-mapped"));
+    }
+
+    #[test]
     fn templates_are_excluded_from_diagnostics_and_migration_validation() {
         let directory = tempdir().unwrap();
         let templates_dir = directory.path().join(".lmbrain/templates");
@@ -1157,5 +1425,114 @@ mod tests {
 
         let diagnostics_with_misplaced = build_diagnostics(directory.path());
         assert!(diagnostics_with_misplaced.iter().any(|d| d.artifact_id.as_deref() == Some("FINDING-999")));
+    }
+}
+
+/// Decision diagnostics (issue #48). Supersession is written on one side by the
+/// agent authoring the successor, so the other side drifts. These never block:
+/// they name the drift and point at the verb that repairs it.
+fn diagnose_decisions(artifacts: &[Artifact], diagnostics: &mut Vec<Diagnostic>) {
+    let decisions: Vec<&Artifact> = artifacts
+        .iter()
+        .filter(|artifact| artifact.relative.starts_with("decisions/"))
+        .collect();
+    let by_id: BTreeMap<String, &Artifact> = decisions
+        .iter()
+        .filter_map(|artifact| {
+            artifact
+                .document
+                .value("id")
+                .map(|id| (id, *artifact))
+        })
+        .collect();
+
+    for artifact in &decisions {
+        let document = &artifact.document;
+        let Some(id) = document.value("id") else {
+            continue;
+        };
+        let status = document.value("status").unwrap_or_default();
+
+        for declared in document.string_array("supersedes") {
+            let declared = declared.trim().to_string();
+            if declared.is_empty() {
+                continue;
+            }
+            let Some(target) = by_id.get(&declared) else {
+                diagnostics.push(diagnostic(
+                    "unknown-decision-reference",
+                    DiagnosticSeverity::Warning,
+                    Some(id.clone()),
+                    Some(artifact.relative.clone()),
+                    format!("{id} supersedes {declared}, which does not exist in this workspace"),
+                    "Correct the reference, or create the decision it points at.",
+                    DiagnosticFixability::Manual,
+                    &declared,
+                ));
+                continue;
+            };
+            if declared == id {
+                diagnostics.push(diagnostic(
+                    "dangling-supersession",
+                    DiagnosticSeverity::Warning,
+                    Some(id.clone()),
+                    Some(artifact.relative.clone()),
+                    format!("{id} lists itself as superseded"),
+                    "Remove the self-reference.",
+                    DiagnosticFixability::Manual,
+                    "self",
+                ));
+                continue;
+            }
+            if let Err(reason) = invariants::supersession_is_consistent(
+                &id,
+                &status,
+                &declared,
+                &target.document.value("status").unwrap_or_default(),
+                &target.document.string_array("superseded_by"),
+            ) {
+                diagnostics.push(diagnostic(
+                    "dangling-supersession",
+                    DiagnosticSeverity::Warning,
+                    Some(declared.clone()),
+                    Some(target.relative.clone()),
+                    reason,
+                    "Run the governed supersession so both decisions record the same relationship.",
+                    DiagnosticFixability::GovernedMutation,
+                    &id,
+                ));
+            }
+        }
+
+        // The reverse side pointing at nothing is the other half of the same
+        // drift, and is what a crash mid-supersession would leave behind.
+        for successor in document.string_array("superseded_by") {
+            let successor = successor.trim().to_string();
+            if successor.is_empty() {
+                continue;
+            }
+            let declares_back = by_id
+                .get(&successor)
+                .map(|artifact| {
+                    artifact
+                        .document
+                        .string_array("supersedes")
+                        .iter()
+                        .any(|value| value.trim() == id)
+                })
+                .unwrap_or(false);
+            if !declares_back {
+                diagnostics.push(diagnostic(
+                    "supersession-not-mutual",
+                    DiagnosticSeverity::Warning,
+                    Some(id.clone()),
+                    Some(artifact.relative.clone()),
+                    format!("{id} names {successor} as its successor, but {successor} does not declare it"),
+                    "Run the governed supersession so both decisions record the same relationship.",
+                    DiagnosticFixability::GovernedMutation,
+                    &successor,
+                ));
+            }
+        }
     }
 }

@@ -82,4 +82,11 @@ describe("TopBar current-view refresh", () => {
     expect(screen.getByRole("status").textContent).toContain("Syncing workspace");
     expect(screen.getByRole("button", { name: "Refresh current view" })).toHaveProperty("disabled", false);
   });
+
+  it("does not expose an unused notifications control", () => {
+    render(<TopBar onViewReload={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: /notification/i })).toBeNull();
+    expect(screen.queryByText("notifications")).toBeNull();
+  });
 });

@@ -116,6 +116,10 @@ export async function getKitFeedback(): Promise<KitFeedbackReport> {
   return invoke("get_kit_feedback");
 }
 
+export async function saveTextFile(path: string, content: string): Promise<void> {
+  return invoke("write_export_file", { path, content });
+}
+
 export async function getFindingContext(finding: string): Promise<FindingContext> {
   return invoke("get_finding_context", { finding });
 }

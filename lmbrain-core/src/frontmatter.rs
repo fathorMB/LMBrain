@@ -218,16 +218,6 @@ impl Document {
         Ok(())
     }
 
-    pub fn append_override_reason(&mut self, reason: &str) {
-        self.body.push_str(&format!(
-            "{}{}## Mutation override{}{}",
-            self.newline,
-            self.newline,
-            self.newline,
-            reason.trim()
-        ));
-    }
-
     pub fn render(&self) -> String {
         format!(
             "---{}{}{}---{}{}",
@@ -667,7 +657,13 @@ fn trim_inline_comment(value: &str) -> &str {
 }
 
 fn yaml_scalar(value: &str) -> String {
-    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+    let escaped = value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t");
+    format!("\"{escaped}\"")
 }
 
 fn render_object_item(fields: &[(String, Value)]) -> Vec<String> {

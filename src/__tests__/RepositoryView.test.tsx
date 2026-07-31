@@ -20,6 +20,18 @@ const mockGitDetails: GitDetails = {
 
 const mockGitHubDashboard: GitHubDashboard = {
   has_token: true,
+  default_branch: "main",
+  branches: [
+    {
+      name: "main",
+      sha: "a1b2c3d4e5f6a7b8",
+      protected: true,
+      commits: [{ sha: "a1b2c3d4e5f6a7b8", message: "Add branch graph", author: "fathorMB", date: "2026-07-31T10:00:00Z", parents: [] }],
+      merge_base_sha: null,
+    },
+    { name: "feature/x", sha: "d4e5f6a7b8c9d0e1", protected: false, commits: [{ sha: "d4e5f6a7b8c9d0e1", message: "Feature commit", author: "fathorMB", date: "2026-07-31T11:00:00Z", parents: ["a1b2c3d4e5f6a7b8"] }], merge_base_sha: "a1b2c3d4e5f6a7b8" },
+  ],
+  branches_error: null,
   pull_requests: [
     {
       number: 12,
@@ -174,6 +186,13 @@ describe("RepositoryView", () => {
 
     expect(screen.getAllByText("CI Build").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/success/i).length).toBeGreaterThan(0);
+  });
+
+  it("renders remote branches with read-only state metadata", async () => {
+    render(<RepositoryView />);
+
+    await waitFor(() => expect(screen.getByText("GitHub Branch Graph")).toBeDefined());
+    expect(screen.getByLabelText("Remote branch commit graph")).toBeDefined();
   });
 
   it("shows runs of every outcome with distinct status labels", async () => {

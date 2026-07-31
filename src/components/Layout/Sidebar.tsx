@@ -1,4 +1,5 @@
 import { useWorkspace } from "../../hooks/useWorkspace";
+import { isUnreadPage, navItemAccessibleName } from "../../lib/unreadState";
 import type { AppView } from "../../types";
 
 interface NavItem {
@@ -27,7 +28,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Sidebar() {
-  const { state, navigateTo, triggerLeaveWorkspace, toggleCmdk } = useWorkspace();
+  const { state, unreadCounts, navigateTo, triggerLeaveWorkspace, toggleCmdk } = useWorkspace();
 
   return (
     <div
@@ -44,7 +45,7 @@ export function Sidebar() {
 
       <div
         style={{
-          fontSize: 10,
+          fontSize: "var(--text-2xs)",
           letterSpacing: ".1em",
           textTransform: "uppercase",
           color: "var(--text-muted)",
@@ -55,26 +56,32 @@ export function Sidebar() {
         Workspace
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <nav aria-label="Workspace" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {NAV_ITEMS.map((item) => {
           const active = state.view === item.key;
-          const badge = item.key === "findings"
-            ? (state.findings ?? []).filter((finding) =>
-                ["open", "planned", "deferred"].includes(finding.status)
-                && (["critical", "high"].includes(finding.severity) || !finding.owner)
-              ).length
-            : item.badge;
+          const unread = isUnreadPage(item.key) ? unreadCounts[item.key] ?? 0 : 0;
+          const badge = unread > 0 ? unread : item.badge;
           return (
             <div
               key={item.key}
+              role="link"
+              tabIndex={0}
+              aria-current={active ? "page" : undefined}
+              aria-label={navItemAccessibleName(item.label, unread)}
               onClick={() => navigateTo(item.key)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  navigateTo(item.key);
+                }
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 11,
                 padding: "7px 10px",
                 borderRadius: 8,
-                fontSize: 13,
+                fontSize: "var(--text-md)",
                 fontWeight: active ? 600 : 500,
                 cursor: "pointer",
                 color: active ? "var(--text-primary)" : "var(--text-secondary)",
@@ -101,9 +108,11 @@ export function Sidebar() {
               <span style={{ flex: 1 }}>{item.label}</span>
               {Boolean(badge) && (
                 <span
+                  aria-hidden="true"
+                  title={unread > 0 ? `${unread} unread` : undefined}
                   style={{
                     fontFamily: "var(--font-mono)",
-                    fontSize: 10,
+                    fontSize: "var(--text-2xs)",
                     color: "var(--text-tertiary)",
                     background: "#1a1722",
                     border: "1px solid #2b2833",
@@ -117,7 +126,7 @@ export function Sidebar() {
             </div>
           );
         })}
-      </div>
+      </nav>
 
       <div style={{ flex: 1 }} />
 
@@ -132,7 +141,7 @@ export function Sidebar() {
           borderRadius: 9,
           cursor: "pointer",
           color: "var(--text-secondary)",
-          fontSize: 13,
+          fontSize: "var(--text-md)",
           fontWeight: 500,
         }}
         onMouseEnter={(e) => {
@@ -156,7 +165,7 @@ export function Sidebar() {
         <span
           style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 10,
+            fontSize: "var(--text-2xs)",
             color: "var(--text-tertiary)",
             border: "1px solid #2b2833",
             borderRadius: 5,
@@ -178,7 +187,7 @@ export function Sidebar() {
           borderRadius: 9,
           cursor: "pointer",
           color: "var(--text-secondary)",
-          fontSize: 13,
+          fontSize: "var(--text-md)",
           fontWeight: 500,
         }}
         onMouseEnter={(e) => {
@@ -212,7 +221,7 @@ export function Sidebar() {
           borderRadius: 9,
           cursor: "pointer",
           color: "#f87171",
-          fontSize: 13,
+          fontSize: "var(--text-md)",
           fontWeight: 500,
           marginTop: 4,
         }}

@@ -66,6 +66,8 @@ pub fn build_specs(root: &Path) -> Result<Vec<Spec>, AppError> {
                 area: fm_string(&parsed.frontmatter, "area"),
                 milestone: fm_string(&parsed.frontmatter, "milestone"),
                 recommended_agent: fm_string(&parsed.frontmatter, "recommended_agent"),
+                capability_tier: fm_string(&parsed.frontmatter, "capability_tier"),
+                thinking_level: fm_string(&parsed.frontmatter, "thinking_level"),
                 depends_on: fm_string_array(&parsed.frontmatter, "depends_on"),
                 parking_events: parsed
                     .frontmatter
@@ -213,6 +215,8 @@ pub fn build_adrs(root: &Path) -> Result<Vec<Adr>, AppError> {
                 updated: common.updated,
                 tags: common.tags,
                 links: common.links,
+                supersedes: fm_string_array(&parsed.frontmatter, "supersedes"),
+                superseded_by: fm_string_array(&parsed.frontmatter, "superseded_by"),
                 malformed: common.malformed,
             })
         },
@@ -595,26 +599,6 @@ pub fn build_wiki_tree(root: &Path) -> Result<WikiTree, AppError> {
             build_tree_node_with_kind(&path, &format!(".lmbrain/{directory}"), kind.clone())?;
         file_count += child.count.unwrap_or(0);
         children.push(child);
-    }
-
-    let kit_feedback_path = lmbrain.join("reports/lmbrain-kit-feedback.md");
-    if kit_feedback_path.is_file() {
-        let report_node = WikiNode {
-            name: "lmbrain-kit-feedback".into(),
-            path: ".lmbrain/reports/lmbrain-kit-feedback.md".into(),
-            kind: WikiNodeKind::File,
-            children: Vec::new(),
-            count: None,
-        };
-        let reports_folder = WikiNode {
-            name: "reports".into(),
-            path: ".lmbrain/reports".into(),
-            kind: WikiNodeKind::Folder,
-            children: vec![report_node],
-            count: Some(1),
-        };
-        file_count += 1;
-        children.push(reports_folder);
     }
 
     children.sort_by(|left, right| left.name.cmp(&right.name));
@@ -1407,7 +1391,7 @@ pub fn build_wikilink_index(root: &Path) -> HashMap<String, Vec<String>> {
 }
 
 fn wiki_content_files(lmbrain: &Path) -> Vec<PathBuf> {
-    let mut files: Vec<PathBuf> = WIKI_CONTENT_DIRS
+    let files: Vec<PathBuf> = WIKI_CONTENT_DIRS
         .iter()
         .filter_map(|(directory, _)| scan_md_files(&lmbrain.join(directory)).ok())
         .flatten()
@@ -1422,10 +1406,6 @@ fn wiki_content_files(lmbrain: &Path) -> Vec<PathBuf> {
         })
         .collect();
 
-    let kit_feedback = lmbrain.join("reports/lmbrain-kit-feedback.md");
-    if kit_feedback.is_file() {
-        files.push(kit_feedback);
-    }
     files
 }
 

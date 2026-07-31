@@ -96,7 +96,8 @@ pub fn record_kit_feedback(
     let guard = PathGuard::new(root)?;
     let _lock = ArtifactMutationLock::acquire(guard.root(), "lmbrain-kit-feedback")?;
     let path = guard.root().join(KIT_FEEDBACK_REPORT_PATH);
-    let source = if path.exists() {
+    let source_exists = path.exists();
+    let source = if source_exists {
         fs::read_to_string(&path)?
     } else {
         initial_report(&read_version(guard.root()))
@@ -156,13 +157,31 @@ pub fn record_kit_feedback(
     fs::create_dir_all(path.parent().ok_or_else(|| {
         KitFeedbackError::Invalid("feedback report has no parent directory".into())
     })?)?;
-    atomic_write(&path, &document.render())?;
+    let rendered = document.render();
+    validate_serialized_report(&rendered)?;
+    atomic_write(&path, &rendered)?;
+    let read_back = fs::read_to_string(&path)?;
+    if let Err(error) = validate_serialized_report(&read_back) {
+        if source_exists {
+            atomic_write(&path, &source)?;
+        } else {
+            fs::remove_file(&path)?;
+        }
+        return Err(error);
+    }
     Ok(KitFeedbackMutation {
         path: KIT_FEEDBACK_REPORT_PATH.into(),
         note,
         total: existing.len() + 1,
         mutated: true,
     })
+}
+
+fn validate_serialized_report(source: &str) -> Result<(), KitFeedbackError> {
+    let document = Document::parse(source)?;
+    validate_report_document(&document)?;
+    parse_notes(&document)?;
+    Ok(())
 }
 
 pub fn read_kit_feedback(root: &Path) -> Result<KitFeedbackReport, KitFeedbackError> {
@@ -420,6 +439,51 @@ mod tests {
                 .unwrap()
                 .contains("KIT-NOTE-002")
         );
+    }
+
+    #[test]
+    fn multiline_fields_round_trip_and_followup_writes_remain_readable() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".lmbrain")).unwrap();
+        fs::write(dir.path().join(".lmbrain/VERSION"), "3.1.4\n").unwrap();
+        let mut first = input("Quoted \"summary\" with Unicode €");
+        first.observed_behavior =
+            "Paragraph one.\n\nParagraph two with \"quotes\" and \\slashes\\.".into();
+        first.expected_behavior = "Expected line one.\nExpected line two.".into();
+        first.impact = "Impact before\n\nImpact after".into();
+        first.evidence = "Evidence\r\nwith a tab\there".into();
+
+        record_kit_feedback(dir.path(), first).unwrap();
+        let mut second = input("Follow-up note");
+        second.related_note = Some("KIT-NOTE-001".into());
+        second.impact = "Second note\nwith a newline".into();
+        record_kit_feedback(dir.path(), second).unwrap();
+
+        let report = read_kit_feedback(dir.path()).unwrap();
+        assert_eq!(report.total, 2);
+        assert_eq!(
+            report.notes[0].observed_behavior,
+            "Paragraph one.\n\nParagraph two with \"quotes\" and \\slashes\\."
+        );
+        assert_eq!(report.notes[0].evidence, "Evidence\r\nwith a tab\there");
+        assert_eq!(report.notes[1].impact, "Second note\nwith a newline");
+    }
+
+    #[test]
+    fn oversized_multiline_input_is_rejected_without_mutating_existing_report() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".lmbrain")).unwrap();
+        fs::write(dir.path().join(".lmbrain/VERSION"), "3.1.4\n").unwrap();
+        record_kit_feedback(dir.path(), input("Existing note")).unwrap();
+        let path = dir.path().join(KIT_FEEDBACK_REPORT_PATH);
+        let before = fs::read_to_string(&path).unwrap();
+
+        let mut oversized = input("Too large");
+        oversized.impact = format!("{}\ncontinued", "x".repeat(1200));
+        let error = record_kit_feedback(dir.path(), oversized).unwrap_err();
+        assert!(error.to_string().contains("impact exceeds"));
+        assert_eq!(fs::read_to_string(path).unwrap(), before);
+        assert_eq!(read_kit_feedback(dir.path()).unwrap().total, 1);
     }
 
     #[test]

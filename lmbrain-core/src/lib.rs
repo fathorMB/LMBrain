@@ -1,5 +1,6 @@
 //! Tauri-free, filesystem-backed controlled mutations for LMBrain artifacts.
 pub mod attestation;
+pub mod branching_strategy;
 pub mod context;
 pub mod diagnostics;
 pub mod finding;
@@ -23,6 +24,12 @@ pub use attestation::{
     verification_blockers_for_workspace, verification_requirements, AttestationError,
     AttestationResult, VerificationAttestation, VerificationBlocker, VerificationMigrationItem,
     VerificationMigrationPreview, VERIFICATION_ATTESTATION_SCHEMA_VERSION,
+};
+pub use branching_strategy::{
+    load_branching_strategy, parse_branching_strategy, set_branching_strategy,
+    validate_branching_strategy, BranchAuthorityConfig, BranchNamingConfig, BranchingStrategy,
+    BranchingStrategyError, BranchingTopology, CommitTriggersConfig, BRANCHING_STRATEGY_PATH,
+    BRANCHING_STRATEGY_SCHEMA_VERSION,
 };
 pub use context::{
     build_project_digest, build_review_context, build_spec_context, AgentProfileSummary,
@@ -71,12 +78,16 @@ pub use spec_dependencies::{
     SpecDependencyError, SpecDependencyMutation, SPEC_DEPENDENCY_EVENT_SCHEMA_VERSION,
 };
 pub use taxonomy::{
-    canonical_finding_categories, normalize_finding_category, CategoryNormalization,
-    FINDING_TAXONOMY_VERSION,
+    canonical_finding_categories, canonical_spec_tags, capability_tiers, default_thinking_level,
+    normalize_capability_tier, normalize_finding_category, normalize_spec_tag,
+    normalize_thinking_level, thinking_level_allowed, thinking_levels, validate_spec_tags,
+    CategoryNormalization, SpecTagIssue, SpecTagNormalization, EFFORT_TAXONOMY_VERSION,
+    FINDING_TAXONOMY_VERSION, SPEC_TAG_TAXONOMY_VERSION,
 };
 pub use transitions::{
-    park_spec, record_review_event, review_verdict, ArtifactKind, CreateRequest, MutationOptions,
-    MutationResult, SpecParkingInput, TransitionError,
+    park_spec, record_effort_observation, record_review_event, review_verdict, set_spec_effort,
+    set_spec_tags, supersede_adr, ArtifactKind, CreateRequest, MutationOptions, MutationResult,
+    SpecParkingInput, TransitionError,
 };
 pub use verification::parse_manifest as parse_verification_manifest;
 pub use verification::{

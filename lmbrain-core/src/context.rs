@@ -38,6 +38,7 @@ pub struct ProjectDigest {
     pub diagnostics: BoundedDiagnosticList,
     pub findings: FindingDigest,
     pub spec_dependencies: SpecDependencyDigest,
+    pub branching_strategy: BranchingStrategyDigest,
     pub markdown: String,
 }
 
@@ -177,6 +178,45 @@ const DIGEST_SPEC_LIMIT: usize = 20;
 const DIGEST_DIAGNOSTIC_LIMIT: usize = 50;
 const DIGEST_FINDING_LIMIT: usize = 30;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BranchingStrategyDigest {
+    pub status: String,
+    pub topology: Option<String>,
+    pub default_branch: Option<String>,
+    pub lead_only_push_branches: Vec<String>,
+    pub allow_specialist_push: bool,
+    pub allowed_prefixes: Vec<String>,
+}
+
+pub fn build_branching_strategy_digest(root: &Path) -> BranchingStrategyDigest {
+    match crate::load_branching_strategy(root) {
+        Ok(Some(strategy)) => BranchingStrategyDigest {
+            status: "declared".to_string(),
+            topology: Some(format!("{:?}", strategy.topology).to_lowercase()),
+            default_branch: Some(strategy.default_branch),
+            lead_only_push_branches: strategy.authority.lead_only_push_branches,
+            allow_specialist_push: strategy.authority.allow_specialist_push,
+            allowed_prefixes: strategy.branch_naming.allowed_prefixes,
+        },
+        Ok(None) => BranchingStrategyDigest {
+            status: "absent".to_string(),
+            topology: None,
+            default_branch: None,
+            lead_only_push_branches: Vec::new(),
+            allow_specialist_push: false,
+            allowed_prefixes: Vec::new(),
+        },
+        Err(_) => BranchingStrategyDigest {
+            status: "invalid".to_string(),
+            topology: None,
+            default_branch: None,
+            lead_only_push_branches: Vec::new(),
+            allow_specialist_push: false,
+            allowed_prefixes: Vec::new(),
+        },
+    }
+}
+
 /// Spec handoff context for specialist orientation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpecContext {
@@ -187,6 +227,11 @@ pub struct SpecContext {
     pub area: Option<String>,
     pub milestone: Option<String>,
     pub recommended_agent: Option<String>,
+    pub tags: Vec<String>,
+    pub capability_tier: Option<String>,
+    pub thinking_level: Option<String>,
+    /// Why the recommendation applies, in plain language. Never names a model.
+    pub effort_rationale: Option<String>,
     pub parking: Option<SpecParkingSummary>,
     pub agent_profile: Option<AgentProfileSummary>,
     pub acceptance_criteria: Vec<Criterion>,
@@ -200,6 +245,7 @@ pub struct SpecContext {
     pub diagnostics: Vec<String>,
     pub findings: Vec<CompactFinding>,
     pub dependencies: crate::SpecDependencyContext,
+    pub branching_strategy: BranchingStrategyDigest,
     pub warnings: Vec<String>,
     pub markdown: String,
 }
@@ -448,6 +494,7 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
         diagnostics,
         findings,
         spec_dependencies,
+        branching_strategy: build_branching_strategy_digest(root),
         markdown,
     }
 }
@@ -466,6 +513,12 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
     let area = document.value("area");
     let milestone = document.value("milestone");
     let recommended_agent = document.value("recommended_agent");
+    let capability_tier = document
+        .value("capability_tier")
+        .and_then(|raw| crate::taxonomy::normalize_capability_tier(&raw));
+    let thinking_level = document
+        .value("thinking_level")
+        .and_then(|raw| crate::taxonomy::normalize_thinking_level(&raw));
     let parking = latest_parking(&document);
     let spec_skills = document.string_array("skills");
     let spec_tags = document.string_array("tags");
@@ -531,6 +584,9 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         &milestone,
         &recommended_agent,
         &agent_profile,
+        &capability_tier,
+        &thinking_level,
+        &spec_tags,
         &criteria,
         &required_verification,
         &linked_decisions,
@@ -565,6 +621,10 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         area,
         milestone,
         recommended_agent,
+        tags: spec_tags.clone(),
+        capability_tier: capability_tier.clone(),
+        thinking_level: thinking_level.clone(),
+        effort_rationale: effort_rationale(capability_tier.as_deref(), thinking_level.as_deref()),
         parking,
         agent_profile,
         acceptance_criteria: criteria,
@@ -578,9 +638,35 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         diagnostics,
         findings,
         dependencies,
+        branching_strategy: build_branching_strategy_digest(root),
         warnings,
         markdown,
     })
+}
+
+/// Explains an implementation estimate in plain language for handoff context.
+/// It describes capability classes only: naming a provider or model here would
+/// bake one vendor's product names into a committed artifact.
+fn effort_rationale(tier: Option<&str>, level: Option<&str>) -> Option<String> {
+    let tier = tier?;
+    let footprint = match tier {
+        "luna" => "a small footprint: about two files and a change that is known before starting",
+        "terra" => "a moderate footprint: several files in one layer, possibly a new shared helper",
+        "sol" => {
+            "a large footprint: many files, or work crossing the frontend, core, MCP, and the Markdown contract"
+        }
+        _ => return None,
+    };
+    let deliberation = match level.unwrap_or(crate::taxonomy::default_thinking_level(tier)) {
+        "minimal" => "mechanical work that needs little deliberation",
+        "standard" => "ordinary deliberation",
+        "extended" => "careful deliberation: consequences are not local",
+        "maximum" => "maximum deliberation: invariants or compatibility are at stake",
+        _ => "ordinary deliberation",
+    };
+    Some(format!(
+        "The Project Lead expects {footprint}, and {deliberation}. This is a recommendation, not a guarantee, and it never selects or starts an agent."
+    ))
 }
 
 /// Build review context for a given spec ID or path.
@@ -2036,6 +2122,9 @@ fn format_spec_context_md(
     milestone: &Option<String>,
     recommended_agent: &Option<String>,
     agent_profile: &Option<AgentProfileSummary>,
+    capability_tier: &Option<String>,
+    thinking_level: &Option<String>,
+    tags: &[String],
     criteria: &[Criterion],
     required_verification: &[VerificationRequirement],
     linked_decisions: &[CompactAdr],
@@ -2068,6 +2157,20 @@ fn format_spec_context_md(
             ));
             md.push_str(&format!("  - Status: {}\n", profile.status));
         }
+    }
+    if let Some(tier) = capability_tier.as_deref() {
+        let level = thinking_level
+            .as_deref()
+            .unwrap_or_else(|| crate::taxonomy::default_thinking_level(tier));
+        md.push_str(&format!(
+            "**Implementation estimate:** {tier} · {level} reasoning\n"
+        ));
+        if let Some(rationale) = effort_rationale(Some(tier), Some(level)) {
+            md.push_str(&format!("  - {rationale}\n"));
+        }
+    }
+    if !tags.is_empty() {
+        md.push_str(&format!("**Tags:** {}\n", tags.join(", ")));
     }
     md.push('\n');
 
@@ -2899,6 +3002,10 @@ tags: []
 links: []
 ---
 # No agent
+
+## Required verification
+
+- [ ] cargo-tests | kind=executable | owner=agent | phase=before-submit | evidence=transcript | Run tests
 "#,
         )
         .unwrap();
@@ -2961,6 +3068,10 @@ tags: []
 links: []
 ---
 # No agent
+
+## Required verification
+
+- [ ] cargo-tests | kind=executable | owner=agent | phase=before-submit | evidence=transcript | Run tests
 "#,
         )
         .unwrap();
@@ -2974,6 +3085,11 @@ links: []
             !digest.blockers.is_empty() || !digest.warnings.is_empty(),
             "Expected blockers or warnings from diagnostics"
         );
+        assert!(digest
+            .diagnostics
+            .items
+            .iter()
+            .any(|diagnostic| diagnostic.code == "executable-gates-without-manifest"));
     }
 
     #[test]

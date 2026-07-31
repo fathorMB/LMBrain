@@ -745,6 +745,18 @@ fn get_spec_verification(
 }
 
 #[tauri::command(async)]
+fn write_export_file(path: String, content: String) -> Result<(), String> {
+    let target = Path::new(&path);
+    if path.trim().is_empty() {
+        return Err("Export path is empty".to_string());
+    }
+    if target.is_dir() {
+        return Err("Export path points to a directory".to_string());
+    }
+    std::fs::write(target, content).map_err(|error| format!("Unable to write export: {error}"))
+}
+
+#[tauri::command(async)]
 fn attest_operator_verification(
     state: State<'_, AppState>,
     path: String,
@@ -922,6 +934,7 @@ pub fn run() {
             get_reviews,
             get_findings,
             get_kit_feedback,
+            write_export_file,
             get_finding_context,
             get_adrs,
             get_agents,

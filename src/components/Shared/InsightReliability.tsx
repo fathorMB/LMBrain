@@ -42,22 +42,22 @@ export function InsightReliability({
   const orderedDiagnostics = [...diagnostics].sort((a: KitDiagnostic, b: KitDiagnostic) => (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9));
 
   if (needsStatistics && !stats) {
-    return <div style={{ fontSize: 12.5, color: "var(--text-tertiary)" }}>Loading reliability details…</div>;
+    return <div style={{ fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>Loading reliability details…</div>;
   }
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 24, marginBottom: 15 }}>
         <div>
-          <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7, color: summaryColor, fontSize: 14, fontWeight: 750 }}>
+          <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7, color: summaryColor, fontSize: "var(--text-md)", fontWeight: 750 }}>
             <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: summaryColor }} />
             {summary}
           </div>
-          <p style={{ margin: "0 0 11px", fontSize: 11.5, lineHeight: 1.5, color: "var(--text-tertiary)", maxWidth: 680 }}>
+          <p style={{ margin: "0 0 11px", fontSize: "var(--text-xs)", lineHeight: 1.5, color: "var(--text-tertiary)", maxWidth: 680 }}>
             These checks show whether missing metadata or contract diagnostics may make the metrics incomplete.
           </p>
         </div>
-        <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-tertiary)", whiteSpace: "nowrap" }}>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "var(--text-tertiary)", whiteSpace: "nowrap" }}>
           {diagnostics.length} workspace diagnostic{diagnostics.length === 1 ? "" : "s"}
         </div>
       </div>
@@ -66,16 +66,16 @@ export function InsightReliability({
           const color = check.tone === "error" ? "#e0584a" : check.tone === "warning" ? "#e0a23a" : "#46b07d";
           return (
             <div key={check.label} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "3px 12px", padding: "11px 12px", border: "1px solid rgba(255,255,255,.07)", borderRadius: 7, background: "rgba(255,255,255,.025)" }}>
-              <span style={{ fontSize: 11.5, color: "var(--text-secondary)" }}>{check.label}</span>
-              <span style={{ gridRow: "1 / span 2", gridColumn: 2, alignSelf: "center", fontFamily: "var(--font-mono)", fontSize: 18, fontWeight: 800, color }}>{check.value}</span>
-              <span style={{ fontSize: 10.5, color: "var(--text-tertiary)" }}>{check.detail}</span>
+              <span style={{ fontSize: "var(--text-xs)", color: "var(--text-secondary)" }}>{check.label}</span>
+              <span style={{ gridRow: "1 / span 2", gridColumn: 2, alignSelf: "center", fontFamily: "var(--font-mono)", fontSize: "var(--text-xl)", fontWeight: 800, color }}>{check.value}</span>
+              <span style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>{check.detail}</span>
             </div>
           );
         })}
       </div>
       {orderedDiagnostics.length > 0 ? (
         <details style={{ marginTop: 12, border: "1px solid rgba(255,255,255,.08)", borderRadius: 7, background: "rgba(255,255,255,.02)", overflow: "hidden" }}>
-          <summary style={{ cursor: "pointer", padding: "11px 13px", color: "var(--text-secondary)", fontSize: 12, fontWeight: 700, userSelect: "none" }}>
+          <summary style={{ cursor: "pointer", padding: "11px 13px", color: "var(--text-secondary)", fontSize: "var(--text-sm)", fontWeight: 700, userSelect: "none" }}>
             Diagnostic details ({orderedDiagnostics.length})
           </summary>
           <div style={{ display: "flex", flexDirection: "column", gap: 7, padding: "0 12px 12px" }}>
@@ -85,11 +85,11 @@ export function InsightReliability({
           </div>
         </details>
       ) : (
-        <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 7, background: "rgba(70,176,125,.06)", color: "#70c99a", fontSize: 11.5 }}>
+        <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 7, background: "rgba(70,176,125,.06)", color: "#70c99a", fontSize: "var(--text-xs)" }}>
           No workspace diagnostics to inspect.
         </div>
       )}
-      <div style={{ marginTop: 11, fontSize: 11, lineHeight: 1.45, color: "var(--text-tertiary)" }}>
+      <div style={{ marginTop: 11, fontSize: "var(--text-xs)", lineHeight: 1.45, color: "var(--text-tertiary)" }}>
         Review and resolve diagnostic issues to maintain reliable project metrics.
       </div>
     </div>
@@ -111,10 +111,10 @@ function DiagnosticDetail({ diagnostic }: { diagnostic: KitDiagnostic }) {
       </i>
       <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <span style={{ marginRight: 8, color: presentation.color, fontSize: 10, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase" }}>
+          <span style={{ marginRight: 8, color: presentation.color, fontSize: "var(--text-2xs)", fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase" }}>
             {diagnostic.severity}
           </span>
-          <span style={{ color: "var(--text-secondary)", fontSize: 12, lineHeight: 1.5 }}>{diagnostic.message}</span>
+          <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)", lineHeight: 1.5 }}>{diagnostic.message}</span>
         </div>
         <button
           type="button"
@@ -137,7 +137,7 @@ function DiagnosticDetail({ diagnostic }: { diagnostic: KitDiagnostic }) {
             borderRadius: 6,
             background: "rgba(255,255,255,.055)",
             color: copyState === "error" ? "#e0584a" : "var(--text-secondary)",
-            fontSize: 10.5,
+            fontSize: "var(--text-xs)",
             fontWeight: 650,
             cursor: "pointer",
           }}
@@ -149,7 +149,7 @@ function DiagnosticDetail({ diagnostic }: { diagnostic: KitDiagnostic }) {
         </button>
       </div>
       {diagnostic.path && (
-        <div style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--text-tertiary)", overflowWrap: "anywhere" }}>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "var(--text-tertiary)", overflowWrap: "anywhere" }}>
           {diagnostic.path}
         </div>
       )}

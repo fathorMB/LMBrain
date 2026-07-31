@@ -70,15 +70,15 @@ export function DesignView() {
           overflowY: "auto",
           borderRight: "1px solid var(--border-primary)",
           background: "#0e0c12",
-          padding: "18px 14px",
+          padding: "var(--space-4) var(--space-3)",
         }}
       >
         <div
           style={{
-            fontSize: 10.5,
+            fontSize: "var(--text-xs)",
             letterSpacing: ".09em",
             textTransform: "uppercase",
-            color: "#6c6671",
+            color: "var(--text-tertiary)",
             fontWeight: 600,
             margin: "0 0 10px 4px",
           }}
@@ -110,13 +110,13 @@ export function DesignView() {
                   {mockup.kind === "package" ? "folder_special" : "html"}
                 </i>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700 }}>
+                  <div style={{ fontSize: "var(--text-md)", fontWeight: 700 }}>
                     {mockup.manifest_title || mockup.name}
                   </div>
                   <div
                     style={{
                       fontFamily: "var(--font-mono)",
-                      fontSize: 10.5,
+                      fontSize: "var(--text-xs)",
                       color: "var(--text-tertiary)",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -130,7 +130,7 @@ export function DesignView() {
               {mockup.summary && (
                 <div
                   style={{
-                    fontSize: 12,
+                    fontSize: "var(--text-sm)",
                     color: "var(--text-tertiary)",
                     lineHeight: 1.45,
                     marginTop: 8,
@@ -166,7 +166,7 @@ export function DesignView() {
                   gap: 12,
                   color: "var(--text-tertiary)",
                   fontFamily: "var(--font-mono)",
-                  fontSize: 11,
+                  fontSize: "var(--text-xs)",
                   flexWrap: "wrap",
                 }}
               >
@@ -189,7 +189,7 @@ export function DesignView() {
                 display: "flex",
                 alignItems: "center",
                 gap: 7,
-                fontSize: 12,
+                fontSize: "var(--text-sm)",
               }}
               title="Copy entry path"
             >
@@ -264,10 +264,10 @@ function CenteredState({
         <i className="material-symbols-outlined" style={{ fontSize: 30, marginBottom: 10 }}>
           {icon}
         </i>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: description ? 6 : 0 }}>
+        <div style={{ fontSize: "var(--text-lg)", fontWeight: 700, marginBottom: description ? 6 : 0 }}>
           {title}
         </div>
-        {description && <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>{description}</div>}
+        {description && <div style={{ fontSize: "var(--text-sm)", lineHeight: 1.5 }}>{description}</div>}
       </div>
     </div>
   );

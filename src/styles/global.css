@@ -15,9 +15,11 @@
   --border-secondary: #242029;
   --border-hover: #36303f;
   --text-primary: #ece9ef;
-  --text-secondary: #9a949f;
-  --text-tertiary: #6c6671;
-  --text-muted: #56525b;
+  --text-secondary: #9a949f; /* 6.7:1 on --bg-primary */
+  /* Raised from #6c6671 (3.6:1) and #56525b (2.7:1): both carried body copy
+     below the WCAG AA 4.5:1 threshold. See ISSUE-50-PLAN.md §2.4 and §7. */
+  --text-tertiary: #8b8592; /* 5.5:1 */
+  --text-muted: #827d8b; /* 4.9:1 */
   --accent: #7c6cf6;
   --accent-light: #a596f5;
   --accent-gradient: linear-gradient(180deg, #8676f7, #6e5bf2);
@@ -28,6 +30,48 @@
   --red-light: #f0a89f;
   --font-sans: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
+
+  /* ─── Layout system (issue #50) ─────────────────────────────────
+     Spacing: 4px base, no in-between values. */
+  --space-0: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radius: three steps and a pill. */
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* Type: seven steps, integers only. */
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --text-2xl: 24px;
+
+  /* Page geometry. See ISSUE-50-PLAN.md §3.1 and §3.6. */
+  --page-reading: 780px;
+  --page-wide: 1600px;
+  --page-wide-xl: 2000px;
+  --page-gutter: var(--space-5);
+  --page-gutter-wide: var(--space-6);
+  --page-top: var(--space-5);
+  --page-bottom: var(--space-7);
+}
+
+/* Shared focus ring. Zero specificity via :where(), so component-specific
+   focus styles still win. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent-light);
+  outline-offset: 2px;
 }
 
 html,
@@ -73,6 +117,37 @@ body {
 button {
   font-family: inherit;
   cursor: pointer;
+}
+
+.modal-close-button {
+  flex: 0 0 32px;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-tertiary);
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.modal-close-button:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.modal-close-button:focus-visible {
+  outline: 2px solid var(--accent-light);
+  outline-offset: 2px;
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.modal-close-button .material-symbols-outlined {
+  font-size: 20px;
 }
 
 a {

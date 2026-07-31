@@ -3,6 +3,7 @@ import { MarkdownRenderer } from "../../lib/markdown";
 import type { Spec } from "../../types";
 import { buildHandoffPrompt } from "../../lib/handoffPrompt";
 import { OperatorVerificationPanel } from "./OperatorVerificationPanel";
+import { PageShell } from "../Shared/PageLayout";
 
 export function SpecDetail() {
   const { state, closeSpecDetail, loadAllData, navigateTo } = useWorkspace();
@@ -45,8 +46,7 @@ export function SpecDetail() {
   }
 
   return (
-    <div style={{ overflowY: "auto", height: "100%" }}>
-      <div style={{ maxWidth: 880, margin: "0 auto", padding: "22px 36px 70px" }}>
+    <PageShell archetype="reading">
         {/* Breadcrumb */}
         <button
           type="button"
@@ -57,8 +57,8 @@ export function SpecDetail() {
             alignItems: "center",
             gap: 6,
             fontFamily: "var(--font-mono)",
-            fontSize: 11.5,
-            color: "#6c6671",
+            fontSize: "var(--text-xs)",
+            color: "var(--text-tertiary)",
             marginBottom: 18,
             cursor: "pointer",
             width: "max-content",
@@ -96,7 +96,7 @@ export function SpecDetail() {
               <span
                 style={{
                   fontFamily: "var(--font-mono)",
-                  fontSize: 13,
+                  fontSize: "var(--text-md)",
                   color: "#bcaef6",
                   fontWeight: 500,
                 }}
@@ -109,7 +109,7 @@ export function SpecDetail() {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 5,
-                    fontSize: 11,
+                    fontSize: "var(--text-xs)",
                     fontWeight: 700,
                     color: "var(--accent)",
                     background: "rgba(124,108,246,.13)",
@@ -196,7 +196,7 @@ export function SpecDetail() {
               background: dependencyBlockers.length ? "rgba(224,162,58,.06)" : "var(--bg-tertiary)",
             }}
           >
-            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
+            <div style={{ fontSize: "var(--text-sm)", fontWeight: 700, marginBottom: 8 }}>
               Hard prerequisites
               {dependencyBlockers.length > 0 && (
                 <span style={{ marginLeft: 8, color: "#d9b86d" }}>
@@ -207,12 +207,12 @@ export function SpecDetail() {
             {directDependencies.map((dependency) => (
               <div
                 key={dependency.id}
-                style={{ fontFamily: "var(--font-mono)", fontSize: 11, marginTop: 5 }}
+                style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", marginTop: 5 }}
               >
                 {dependency.id} · {dependency.spec?.status ?? "missing"}
               </div>
             ))}
-            <div style={{ marginTop: 9, fontSize: 11, color: "var(--text-tertiary)" }}>
+            <div style={{ marginTop: 9, fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>
               Dependency lifecycle changes are intentionally unavailable in the app.
             </div>
           </section>
@@ -228,15 +228,15 @@ export function SpecDetail() {
               background: "var(--bg-tertiary)",
             }}
           >
-            <div style={{ fontSize: 12, fontWeight: 700 }}>Previously parked in backlog</div>
-            <div style={{ marginTop: 7, fontSize: 12 }}>{latestParking.reason}</div>
-            <div style={{ marginTop: 5, fontSize: 11, color: "var(--text-tertiary)" }}>
+            <div style={{ fontSize: "var(--text-sm)", fontWeight: 700 }}>Previously parked in backlog</div>
+            <div style={{ marginTop: 7, fontSize: "var(--text-sm)" }}>{latestParking.reason}</div>
+            <div style={{ marginTop: 5, fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>
               {latestParking.actor} · {latestParking.timestamp}
               {latestParking.revisit_condition
                 ? ` · Revisit: ${latestParking.revisit_condition}`
                 : ""}
             </div>
-            <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-tertiary)" }}>
+            <div style={{ marginTop: 8, fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>
               Re-approval and lifecycle actions are intentionally unavailable in the app.
             </div>
           </section>
@@ -259,8 +259,7 @@ export function SpecDetail() {
 
         {/* Body */}
         <MarkdownRenderer content={spec.body} />
-      </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -294,15 +293,15 @@ function MetaPill({
       <div>
         <div
           style={{
-            fontSize: 10,
-            color: "#6c6671",
+            fontSize: "var(--text-2xs)",
+            color: "var(--text-tertiary)",
             textTransform: "uppercase",
             letterSpacing: ".06em",
           }}
         >
           {label}
         </div>
-        <div style={{ fontSize: 12.5, fontWeight: 600 }}>{value}</div>
+        <div style={{ fontSize: "var(--text-sm)", fontWeight: 600 }}>{value}</div>
       </div>
     </div>
   );
@@ -337,10 +336,10 @@ function LifecycleRail({ status }: { status: string }) {
     >
       <div
         style={{
-          fontSize: 10.5,
+          fontSize: "var(--text-xs)",
           letterSpacing: ".09em",
           textTransform: "uppercase",
-          color: "#6c6671",
+          color: "var(--text-tertiary)",
           fontWeight: 600,
           marginBottom: 14,
         }}
@@ -393,7 +392,7 @@ function LifecycleRail({ status }: { status: string }) {
                         ? isCurrent
                           ? "#fff"
                           : "var(--accent-light)"
-                        : "#6c6671",
+                        : "var(--text-tertiary)",
                     }}
                   >
                     {icons[stage] || "circle"}
@@ -405,8 +404,8 @@ function LifecycleRail({ status }: { status: string }) {
                     color: isCurrent
                       ? "var(--text-primary)"
                       : isActive
-                        ? "#9a949f"
-                        : "#6c6671",
+                        ? "var(--text-secondary)"
+                        : "var(--text-tertiary)",
                     fontWeight: isCurrent ? 700 : 400,
                   }}
                 >
@@ -478,7 +477,7 @@ function HandoffCTA({ spec }: { spec: Spec }) {
       <div style={{ flex: 1 }}>
         <div
           style={{
-            fontSize: 14.5,
+            fontSize: "var(--text-md)",
             fontWeight: 700,
             marginBottom: 2,
           }}
@@ -487,7 +486,7 @@ function HandoffCTA({ spec }: { spec: Spec }) {
         </div>
         <div
           style={{
-            fontSize: 12.5,
+            fontSize: "var(--text-sm)",
             color: "#b6b1bb",
             lineHeight: 1.5,
           }}
@@ -500,7 +499,7 @@ function HandoffCTA({ spec }: { spec: Spec }) {
         </div>
         <div
           style={{
-            fontSize: 11.5,
+            fontSize: "var(--text-xs)",
             color: "#7fa8f5",
             marginTop: 6,
             lineHeight: 1.4,
@@ -513,7 +512,7 @@ function HandoffCTA({ spec }: { spec: Spec }) {
             lightbulb
           </i>
           The prompt now includes v3 context-economy guidance. The agent will use{" "}
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)" }}>
             lmbrain_spec_context
           </span>{" "}
           for a compact handoff context before expanding to full artifacts.
@@ -530,7 +529,7 @@ function HandoffCTA({ spec }: { spec: Spec }) {
           color: "#fff",
           borderRadius: 9,
           padding: "11px 17px",
-          fontSize: 13,
+          fontSize: "var(--text-md)",
           fontWeight: 600,
           cursor: "pointer",
           whiteSpace: "nowrap",

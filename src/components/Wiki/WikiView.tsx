@@ -91,16 +91,16 @@ export function WikiView() {
           minHeight: 0,
           borderRight: "1px solid var(--border-primary)",
           overflowY: "auto",
-          padding: "15px 11px",
+          padding: "var(--space-4) var(--space-3)",
           background: "#0e0c12",
         }}
       >
         <div
           style={{
-            fontSize: 10,
+            fontSize: "var(--text-2xs)",
             letterSpacing: ".1em",
             textTransform: "uppercase",
-            color: "#56525b",
+            color: "var(--text-muted)",
             fontWeight: 600,
             padding: "0 8px 9px",
           }}
@@ -112,7 +112,7 @@ export function WikiView() {
             display: "flex",
             flexDirection: "column",
             gap: 1,
-            fontSize: 13,
+            fontSize: "var(--text-md)",
           }}
         >
           {tree ? (
@@ -122,7 +122,7 @@ export function WikiView() {
               style={{
                 padding: "8px",
                 color: "var(--text-tertiary)",
-                fontSize: 12,
+                fontSize: "var(--text-sm)",
               }}
             >
               Loading…
@@ -147,7 +147,7 @@ export function WikiView() {
           </div>
         ) : currentPage ? (
           <div
-            style={{ maxWidth: 760, margin: "0 auto", padding: "24px 40px 70px" }}
+            style={{ maxWidth: "var(--page-reading)", margin: "0 auto", padding: "var(--page-top) var(--page-gutter-wide) var(--page-bottom)" }}
           >
             <div
               style={{
@@ -163,8 +163,8 @@ export function WikiView() {
                   alignItems: "center",
                   gap: 7,
                   fontFamily: "var(--font-mono)",
-                  fontSize: 11.5,
-                  color: "#6c6671",
+                  fontSize: "var(--text-xs)",
+                  color: "var(--text-tertiary)",
                 }}
               >
                 {currentPage.path.split("/").slice(-2).join("/")}
@@ -236,10 +236,10 @@ export function WikiView() {
         >
           <div
             style={{
-              fontSize: 10.5,
+              fontSize: "var(--text-xs)",
               letterSpacing: ".09em",
               textTransform: "uppercase",
-              color: "#6c6671",
+              color: "var(--text-tertiary)",
               fontWeight: 600,
               marginBottom: 11,
             }}
@@ -271,10 +271,10 @@ export function WikiView() {
             <>
               <div
                 style={{
-                  fontSize: 10.5,
+                  fontSize: "var(--text-xs)",
                   letterSpacing: ".09em",
                   textTransform: "uppercase",
-                  color: "#6c6671",
+                  color: "var(--text-tertiary)",
                   fontWeight: 600,
                   marginBottom: 10,
                 }}
@@ -300,8 +300,8 @@ export function WikiView() {
                         display: "flex",
                         alignItems: "center",
                         gap: 7,
-                        fontSize: 12.5,
-                        color: resolved ? "var(--accent-light)" : "#9a949f",
+                        fontSize: "var(--text-sm)",
+                        color: resolved ? "var(--accent-light)" : "var(--text-secondary)",
                         cursor: resolved ? "pointer" : "default",
                       }}
                     >
@@ -309,7 +309,7 @@ export function WikiView() {
                         className="material-symbols-outlined"
                         style={{
                           fontSize: 14,
-                          color: resolved ? "var(--accent-light)" : "#6c6671",
+                          color: resolved ? "var(--accent-light)" : "var(--text-tertiary)",
                         }}
                       >
                         {resolved ? "link" : "link_off"}
@@ -327,10 +327,10 @@ export function WikiView() {
             <>
               <div
                 style={{
-                  fontSize: 10.5,
+                  fontSize: "var(--text-xs)",
                   letterSpacing: ".09em",
                   textTransform: "uppercase",
-                  color: "#6c6671",
+                  color: "var(--text-tertiary)",
                   fontWeight: 600,
                   marginBottom: 10,
                 }}
@@ -352,14 +352,14 @@ export function WikiView() {
                       display: "flex",
                       alignItems: "center",
                       gap: 7,
-                      fontSize: 12.5,
-                      color: "#9a949f",
+                      fontSize: "var(--text-sm)",
+                      color: "var(--text-secondary)",
                       cursor: "pointer",
                     }}
                   >
                     <i
                       className="material-symbols-outlined"
-                      style={{ fontSize: 14, color: "#6c6671" }}
+                      style={{ fontSize: 14, color: "var(--text-tertiary)" }}
                     >
                       link
                     </i>
@@ -421,7 +421,7 @@ function TreeNode({
           alignItems: "center",
           gap: 8,
           padding: `6px 8px 6px ${16 + depth * 20}px`,
-          color: isFile ? "#9a949f" : "#b6b1bb",
+          color: isFile ? "var(--text-secondary)" : "#b6b1bb",
           cursor: "pointer",
           borderRadius: 7,
           outline: "none",
@@ -430,7 +430,7 @@ function TreeNode({
           e.currentTarget.style.color = "var(--text-primary)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.color = isFile ? "#9a949f" : "#b6b1bb";
+          e.currentTarget.style.color = isFile ? "var(--text-secondary)" : "#b6b1bb";
         }}
         onFocus={(e) => {
           if (!isFile) e.currentTarget.style.background = "#ffffff0c";
@@ -445,7 +445,7 @@ function TreeNode({
             className="material-symbols-outlined"
             style={{
               fontSize: 16,
-              color: "#6c6671",
+              color: "var(--text-tertiary)",
               userSelect: "none",
               marginRight: -4,
             }}
@@ -459,7 +459,7 @@ function TreeNode({
           className="material-symbols-outlined"
           style={{
             fontSize: isFile ? 15 : 17,
-            color: isFile ? "#6c6671" : "#8a858f",
+            color: isFile ? "var(--text-tertiary)" : "#8a858f",
           }}
         >
           {icon}
@@ -469,8 +469,8 @@ function TreeNode({
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              color: "#56525b",
+              fontSize: "var(--text-2xs)",
+              color: "var(--text-muted)",
             }}
           >
             {node.count}
@@ -505,7 +505,7 @@ function InfoRow({
         justifyContent: "space-between",
       }}
     >
-      <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+      <span style={{ fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>
         {label}
       </span>
       <span

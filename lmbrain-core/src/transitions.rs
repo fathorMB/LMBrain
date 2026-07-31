@@ -262,7 +262,10 @@ pub fn record_review_event(
     options: MutationOptions,
 ) -> Result<MutationResult, TransitionError> {
     require_force_reason(&options)?;
-    if !matches!(action, "remediation" | "escalation" | "takeover") {
+    if !matches!(
+        action,
+        "remediation" | "remediation-verification" | "escalation" | "takeover"
+    ) {
         return Err(TransitionError::Invariant(format!(
             "unsupported review lifecycle event '{action}'"
         )));
@@ -274,6 +277,7 @@ pub fn record_review_event(
     }
     let expected_actor = match action {
         "remediation" => "implementation-specialist",
+        "remediation-verification" => "project-lead",
         "escalation" => "operator",
         "takeover" => "project-lead",
         _ => unreachable!(),
@@ -322,12 +326,33 @@ pub fn record_review_event(
             "cannot append lifecycle events to a superseded review".into(),
         ));
     }
+    if action == "remediation-verification" {
+        if event.evidence_refs.is_empty()
+            || event
+                .evidence_refs
+                .iter()
+                .any(|reference| reference.trim().is_empty())
+        {
+            return Err(TransitionError::Invariant(
+                "review remediation verification requires non-empty evidence_refs".into(),
+            ));
+        }
+        let history = parse_review_event_history(&document);
+        let previous = history.events.last().ok_or_else(|| {
+            TransitionError::Invariant(
+                "review remediation verification requires a preceding remediation event".into(),
+            )
+        })?;
+        if previous.action != "remediation" {
+            return Err(TransitionError::Invariant(
+                "review remediation verification must immediately follow a remediation event"
+                    .into(),
+            ));
+        }
+    }
     document.set("updated", &today());
     document.append_activity(&format!("recorded review {action}"));
     append_review_event(&mut document, &id, action, &status, &status, &event)?;
-    if let Some(reason) = options.reason.as_deref() {
-        document.append_override_reason(reason);
-    }
     if fs::read_to_string(&path)? != current_source {
         return Err(TransitionError::Invariant(
             "artifact changed while the lifecycle mutation was being prepared".into(),
@@ -447,14 +472,6 @@ fn transition_internal(
         });
         append_review_event(&mut document, &id, "verdict", &from, target, &event)?;
     }
-    if let Some(reason) = options.reason.as_deref() {
-        let audit = invariant_message
-            .as_deref()
-            .map(|invariant| format!("{reason}\n\nUnmet invariant: {invariant}"))
-            .unwrap_or_else(|| reason.to_string());
-        document.append_override_reason(&audit);
-    }
-
     let destination = destination_for(kind, &path, target)?;
     if destination != path && destination.exists() {
         return Err(TransitionError::Invariant(format!(
@@ -737,15 +754,32 @@ fn set_field(
         }
     }
 
-    if !valid(guard.root()) && !options.force {
+    let field_valid = valid(guard.root());
+    if !field_valid && !options.force {
         return Err(TransitionError::Invariant(format!("invalid {key}")));
     }
 
     document.set(key, value);
     document.set("updated", &today());
     document.append_activity(&format!("set {key}"));
-    if let Some(reason) = options.reason.as_deref() {
-        document.append_override_reason(reason);
+    if options.force {
+        if let Some(reason) = options.reason.as_deref() {
+            let status = document.value("status").unwrap_or_default();
+            let invariant = if field_valid {
+                format!("forced field mutation: {key}")
+            } else {
+                format!("invalid {key}")
+            };
+            append_mutation_override(
+                &mut document,
+                &id,
+                &status,
+                &status,
+                "project-lead",
+                reason,
+                &invariant,
+            )?;
+        }
     }
 
     if fs::read_to_string(&path)? != current_source {
@@ -1154,6 +1188,11 @@ fn invariant_failure(
             ));
         }
     }
+    if kind == ArtifactKind::Spec && target == "ready" {
+        if let Err(reason) = invariants::spec_effort_is_declared(document) {
+            return Some(reason);
+        }
+    }
     if kind == ArtifactKind::Spec && matches!(target, "review" | "done") {
         let phase = if target == "review" {
             "before-submit"
@@ -1275,4 +1314,401 @@ fn slug(title: &str) -> String {
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
         .join("-")
+}
+
+// ─── Governed spec metadata (issues #49 and #64) ──────────────────
+
+/// Replaces a spec's descriptive tags. Values are normalized, validated against
+/// the spec's own structured fields, and written as one atomic mutation.
+pub fn set_spec_tags(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    tags: &[String],
+    options: MutationOptions,
+) -> Result<MutationResult, TransitionError> {
+    set_governed_spec_metadata(root, artifact, options, "set tags", |document, forced| {
+        let (normalized, issues) = crate::taxonomy::validate_spec_tags(
+            tags,
+            document.value("milestone").as_deref(),
+            document.value("area").as_deref(),
+            document.value("priority").as_deref(),
+        );
+        if !issues.is_empty() && !forced {
+            return Err(issues
+                .iter()
+                .map(crate::taxonomy::SpecTagIssue::message)
+                .collect::<Vec<_>>()
+                .join("; "));
+        }
+        document.set("tags", &render_inline_array(&normalized));
+        Ok(if issues.is_empty() {
+            None
+        } else {
+            Some("invalid tags".to_string())
+        })
+    })
+}
+
+/// Sets the Lead-owned implementation estimate. `level` defaults from the tier
+/// when omitted, so a Lead states one decision rather than two.
+pub fn set_spec_effort(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    tier: &str,
+    level: Option<&str>,
+    options: MutationOptions,
+) -> Result<MutationResult, TransitionError> {
+    set_governed_spec_metadata(root, artifact, options, "set effort", |document, forced| {
+        let Some(tier) = crate::taxonomy::normalize_capability_tier(tier) else {
+            return Err(format!(
+                "unknown capability tier `{tier}`; expected one of {}",
+                crate::taxonomy::capability_tiers().join(", ")
+            ));
+        };
+        let level = match level {
+            Some(raw) => crate::taxonomy::normalize_thinking_level(raw).ok_or_else(|| {
+                format!(
+                    "unknown thinking level `{raw}`; expected one of {}",
+                    crate::taxonomy::thinking_levels().join(", ")
+                )
+            })?,
+            None => crate::taxonomy::default_thinking_level(&tier).to_string(),
+        };
+        let constrained = crate::taxonomy::thinking_level_allowed(&tier, &level);
+        if let Err(reason) = &constrained {
+            if !forced {
+                return Err(reason.clone());
+            }
+        }
+        document.set("capability_tier", &tier);
+        document.set("thinking_level", &level);
+        Ok(constrained.err().map(|_| "constrained effort combination".to_string()))
+    })
+}
+
+/// Appends a specialist's observation of the effort the work actually required.
+/// It is evidence for a later Lead revision and never rewrites the estimate.
+pub fn record_effort_observation(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    observed_tier: &str,
+    actor: &str,
+    note: &str,
+    options: MutationOptions,
+) -> Result<MutationResult, TransitionError> {
+    let observed = crate::taxonomy::normalize_capability_tier(observed_tier).ok_or_else(|| {
+        TransitionError::Invariant(format!(
+            "unknown capability tier `{observed_tier}`; expected one of {}",
+            crate::taxonomy::capability_tiers().join(", ")
+        ))
+    })?;
+    let actor = actor.trim();
+    let note = note.trim();
+    if actor.is_empty() {
+        return Err(TransitionError::Missing("actor".into()));
+    }
+    if note.is_empty() {
+        return Err(TransitionError::Missing("note".into()));
+    }
+
+    set_governed_spec_metadata(
+        root,
+        artifact,
+        options,
+        "record effort observation",
+        |document, _| {
+            let recommended = document.value("capability_tier").unwrap_or_default();
+            document
+                .append_object(
+                    "effort_observations",
+                    &[
+                        (
+                            "timestamp".into(),
+                            serde_json::Value::String(today()),
+                        ),
+                        ("actor".into(), serde_json::Value::String(actor.into())),
+                        (
+                            "observed_tier".into(),
+                            serde_json::Value::String(observed.clone()),
+                        ),
+                        (
+                            "recommended_tier".into(),
+                            serde_json::Value::String(recommended),
+                        ),
+                        ("note".into(), serde_json::Value::String(note.into())),
+                    ],
+                )
+                .map_err(|error| error.to_string())?;
+            Ok(None)
+        },
+    )
+}
+
+fn render_inline_array(values: &[String]) -> String {
+    format!("[{}]", values.join(", "))
+}
+
+/// Shared body for the governed spec-metadata mutations: the same locking,
+/// identity, concurrency, and audit guarantees as `set_field`, with a
+/// caller-supplied edit that reports whether it violated an invariant.
+fn set_governed_spec_metadata(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    options: MutationOptions,
+    activity: &str,
+    edit: impl Fn(&mut Document, bool) -> Result<Option<String>, String>,
+) -> Result<MutationResult, TransitionError> {
+    require_force_reason(&options)?;
+
+    let guard = PathGuard::new(root)?;
+    let artifact = artifact.as_ref();
+    let path = guard.resolve_existing(artifact)?;
+    let initial = Document::parse(&fs::read_to_string(&path)?)?;
+    let initial_id = initial
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
+    let path = guard.resolve_existing(artifact)?;
+    let current_source = fs::read_to_string(&path)?;
+    let mut document = Document::parse(&current_source)?;
+    let id = document
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    if id != initial_id {
+        return Err(TransitionError::Invariant(format!(
+            "artifact changed identity while waiting for its mutation lock: expected {initial_id}, found {id}"
+        )));
+    }
+    if kind_for_id(&id) != Some(ArtifactKind::Spec) {
+        return Err(TransitionError::Invariant("expected a spec artifact".into()));
+    }
+
+    let violated = edit(&mut document, options.force).map_err(TransitionError::Invariant)?;
+
+    document.set("updated", &today());
+    document.append_activity(activity);
+    if options.force {
+        if let Some(reason) = options.reason.as_deref() {
+            let status = document.value("status").unwrap_or_default();
+            let invariant = violated.unwrap_or_else(|| format!("forced mutation: {activity}"));
+            append_mutation_override(
+                &mut document,
+                &id,
+                &status,
+                &status,
+                "project-lead",
+                reason,
+                &invariant,
+            )?;
+        }
+    }
+
+    if fs::read_to_string(&path)? != current_source {
+        return Err(TransitionError::Invariant(
+            "artifact changed while the metadata mutation was being prepared".into(),
+        ));
+    }
+    atomic_write(&path, &document.render())?;
+    Ok(MutationResult {
+        id,
+        status: document.value("status").unwrap_or_default(),
+        path,
+        forced: options.force,
+    })
+}
+
+/// Retire `superseded_id` in favour of the ADR at `artifact`, writing both
+/// sides of the relationship (issue #48).
+///
+/// Two files cannot be written atomically without a journal. The design makes
+/// the partial state benign instead: both artifacts are locked before either is
+/// read (in lexicographic ID order, so concurrent supersessions cannot
+/// deadlock), every check runs before any write, and the *superseding* ADR is
+/// written first. A crash between the two writes therefore leaves a one-sided
+/// claim -- which `diagnose_decisions` reports and re-running this verb repairs.
+/// The opposite order would strip a decision of its authority with no successor
+/// recorded anywhere, a silent loss no check could see.
+///
+/// The operation is idempotent: re-running it on an already-consistent pair
+/// succeeds without touching either file.
+pub fn supersede_adr(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    superseded_id: &str,
+    options: MutationOptions,
+) -> Result<MutationResult, TransitionError> {
+    require_force_reason(&options)?;
+
+    let guard = PathGuard::new(root)?;
+    let superseding_path = guard.resolve_existing(artifact.as_ref())?;
+    let superseding_id = Document::parse(&fs::read_to_string(&superseding_path)?)?
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    if kind_for_id(&superseding_id) != Some(ArtifactKind::Adr) {
+        return Err(TransitionError::Invariant(
+            "expected a decision artifact".into(),
+        ));
+    }
+
+    let superseded_id = superseded_id.trim().to_ascii_uppercase();
+    if kind_for_id(&superseded_id) != Some(ArtifactKind::Adr) {
+        return Err(TransitionError::Invariant(format!(
+            "{superseded_id} is not a decision ID"
+        )));
+    }
+    if superseded_id == superseding_id {
+        return Err(TransitionError::Invariant(
+            "a decision cannot supersede itself".into(),
+        ));
+    }
+    let superseded_path = decision_path_for_id(guard.root(), &superseded_id).ok_or_else(|| {
+        TransitionError::Invariant(format!("{superseded_id} does not exist in this workspace"))
+    })?;
+    let superseded_path = guard.resolve_existing(&superseded_path)?;
+
+    // Lock both artifacts before reading either, ordered by ID so two
+    // concurrent supersessions acquire them in the same sequence.
+    let (first, second) = if superseding_id <= superseded_id {
+        (superseding_id.as_str(), superseded_id.as_str())
+    } else {
+        (superseded_id.as_str(), superseding_id.as_str())
+    };
+    let _first_lock = ArtifactMutationLock::acquire(guard.root(), first)?;
+    let _second_lock = ArtifactMutationLock::acquire(guard.root(), second)?;
+
+    let superseding_source = fs::read_to_string(&superseding_path)?;
+    let mut superseding = Document::parse(&superseding_source)?;
+    let superseded_source = fs::read_to_string(&superseded_path)?;
+    let mut superseded = Document::parse(&superseded_source)?;
+
+    for (document, expected) in [
+        (&superseding, &superseding_id),
+        (&superseded, &superseded_id),
+    ] {
+        let actual = document
+            .value("id")
+            .ok_or_else(|| TransitionError::Missing("id".into()))?;
+        if &actual != expected {
+            return Err(TransitionError::Invariant(format!(
+                "artifact changed identity while waiting for its mutation lock: expected {expected}, found {actual}"
+            )));
+        }
+    }
+
+    let superseding_status = superseding.value("status").unwrap_or_default();
+    let superseded_status = superseded.value("status").unwrap_or_default();
+    let mut declares = superseding.string_array("supersedes");
+    let mut retired_by = superseded.string_array("superseded_by");
+
+    // Already consistent on both sides: nothing to do.
+    if superseded_status == "superseded"
+        && declares.iter().any(|value| value == &superseded_id)
+        && retired_by.iter().any(|value| value == &superseding_id)
+    {
+        return Ok(MutationResult {
+            id: superseding_id,
+            status: superseding_status,
+            path: superseding_path,
+            forced: options.force,
+        });
+    }
+
+    let violated = if superseding_status != "accepted" {
+        Some(format!(
+            "{superseding_id} is {superseding_status}: a decision must be accepted before it can supersede another"
+        ))
+    } else if !matches!(superseded_status.as_str(), "accepted" | "superseded") {
+        Some(format!(
+            "{superseded_id} is {superseded_status}: only an accepted decision can be superseded"
+        ))
+    } else {
+        None
+    };
+    if let Some(reason) = violated.as_deref() {
+        if !options.force {
+            return Err(TransitionError::Invariant(reason.into()));
+        }
+    }
+
+    let activity = format!("supersede {superseded_id}");
+
+    if !declares.iter().any(|value| value == &superseded_id) {
+        declares.push(superseded_id.clone());
+    }
+    superseding.set("supersedes", &render_inline_array(&declares));
+    superseding.set("updated", &today());
+    superseding.append_activity(&activity);
+
+    if !retired_by.iter().any(|value| value == &superseding_id) {
+        retired_by.push(superseding_id.clone());
+    }
+    superseded.set("superseded_by", &render_inline_array(&retired_by));
+    superseded.set("status", "superseded");
+    superseded.set("updated", &today());
+    superseded.append_activity(&format!("superseded by {superseding_id}"));
+
+    if options.force {
+        if let Some(reason) = options.reason.as_deref() {
+            let invariant = violated
+                .clone()
+                .unwrap_or_else(|| format!("forced mutation: {activity}"));
+            append_mutation_override(
+                &mut superseding,
+                &superseding_id,
+                &superseding_status,
+                &superseding_status,
+                "project-lead",
+                reason,
+                &invariant,
+            )?;
+            append_mutation_override(
+                &mut superseded,
+                &superseded_id,
+                &superseded_status,
+                "superseded",
+                "project-lead",
+                reason,
+                &invariant,
+            )?;
+        }
+    }
+
+    if fs::read_to_string(&superseding_path)? != superseding_source
+        || fs::read_to_string(&superseded_path)? != superseded_source
+    {
+        return Err(TransitionError::Invariant(
+            "a decision changed while the supersession was being prepared".into(),
+        ));
+    }
+
+    atomic_write(&superseding_path, &superseding.render())?;
+    atomic_write(&superseded_path, &superseded.render())?;
+
+    Ok(MutationResult {
+        id: superseding_id,
+        status: superseding.value("status").unwrap_or_default(),
+        path: superseding_path,
+        forced: options.force,
+    })
+}
+
+/// Decisions live flat in `.lmbrain/decisions/`, so locating one by ID is a
+/// single directory scan rather than a status-folder walk.
+fn decision_path_for_id(root: &Path, id: &str) -> Option<PathBuf> {
+    let entries = fs::read_dir(root.join(".lmbrain/decisions")).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|value| value.to_str()) != Some("md") {
+            continue;
+        }
+        let matches = fs::read_to_string(&path)
+            .ok()
+            .and_then(|source| Document::parse(&source).ok())
+            .and_then(|document| document.value("id"))
+            .is_some_and(|value| value == id);
+        if matches {
+            return Some(path);
+        }
+    }
+    None
 }

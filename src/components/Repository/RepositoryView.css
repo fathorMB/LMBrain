@@ -9,17 +9,23 @@
 .repository-page {
   box-sizing: border-box;
   width: 100%;
-  max-width: 1560px;
+  max-width: var(--page-wide);
   min-width: 0;
   margin: 0 auto;
-  padding: 24px 36px 70px;
+  padding: var(--page-top) var(--page-gutter-wide) var(--page-bottom);
 }
 
 .repository-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
-  gap: 24px;
+  gap: var(--space-5);
   min-width: 0;
+}
+
+.repository-branch-card {
+  width: 100%;
+  margin-top: 24px;
+  box-sizing: border-box;
 }
 
 .repository-column,
@@ -132,7 +138,7 @@
   overflow: auto;
   background: #0b090e;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1.55;
 }
 
@@ -201,8 +207,12 @@
 }
 
 @media (max-width: 700px) {
-  .repository-page { padding: 18px 16px 52px; }
+  .repository-page { padding: var(--space-4) var(--space-4) var(--space-7); }
   .repository-metadata-grid { grid-template-columns: minmax(0, 1fr); }
   .repository-diff-overlay { padding: 10px; }
   .repository-diff-modal { height: 96vh; }
+}
+
+@media (min-width: 2200px) {
+  .repository-page { max-width: var(--page-wide-xl); }
 }
