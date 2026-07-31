@@ -20,7 +20,7 @@ use models::file::{FileContent, GitInfo, ParsedDocument};
 use models::harness::{HarnessStatus, HarnessUpdateRequest, HarnessUpdateResult};
 use models::pulse::PulseData;
 use models::session::{OllamaModel, SessionInfo, SessionStartRequest};
-use models::workspace::{WorkspaceInfo, WorkspaceSummary};
+use models::workspace::{WorkspaceInfo, WorkspaceSnapshot, WorkspaceSummary};
 use serde::Serialize;
 use tauri::{http, AppHandle, Manager, Runtime, State};
 
@@ -37,7 +37,7 @@ pub struct AppState {
 
 // ─── Tauri Commands ───────────────────────────────────────────────
 
-#[tauri::command]
+#[tauri::command(async)]
 fn open_workspace(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -86,7 +86,7 @@ fn open_workspace(
     Ok(info)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn initialize_workspace_kit(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -116,7 +116,7 @@ fn bundled_kit_path(app: &AppHandle) -> Result<PathBuf, Box<dyn std::error::Erro
     Ok(app.path().resource_dir()?.join("kit/.lmbrain"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn list_recent_workspaces(state: State<'_, AppState>) -> Vec<WorkspaceSummary> {
     state.workspace_service.list_recent()
 }
@@ -136,7 +136,7 @@ async fn prepare_pi_integration(
     .map_err(|error| format!("Pi preparation worker failed: {error}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn remove_recent_workspace(state: State<'_, AppState>, path: String) -> Result<(), String> {
     state
         .workspace_service
@@ -144,12 +144,12 @@ fn remove_recent_workspace(state: State<'_, AppState>, path: String) -> Result<(
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn read_file(state: State<'_, AppState>, path: String) -> Result<FileContent, String> {
     state.path_guard.read_file(&path).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn list_directory(
     state: State<'_, AppState>,
     path: String,
@@ -160,7 +160,7 @@ fn list_directory(
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn parse_markdown(state: State<'_, AppState>, path: String) -> Result<ParsedDocument, String> {
     let content = state
         .path_guard
@@ -170,13 +170,13 @@ fn parse_markdown(state: State<'_, AppState>, path: String) -> Result<ParsedDocu
     Ok(parsed)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_harness_approval_status(state: State<'_, AppState>) -> Result<HarnessApprovalStatus, String> {
     let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
     state.harness_approvals.status(&root)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn approve_harness_manifest(
     state: State<'_, AppState>,
     expected_digest: String,
@@ -185,7 +185,7 @@ fn approve_harness_manifest(
     state.harness_approvals.approve(&root, &expected_digest)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn revoke_harness_manifest_approval(
     state: State<'_, AppState>,
 ) -> Result<HarnessApprovalStatus, String> {
@@ -193,14 +193,14 @@ fn revoke_harness_manifest_approval(
     state.harness_approvals.revoke(&root)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn plan_harness_configuration(state: State<'_, AppState>) -> Result<HarnessConfigurationPlan, String> {
     let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
     let command = commands::mcp_registration::resolve_mcp_command_for_root(&root);
     commands::harness_planner::plan_harness_configuration(&root, &command)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn apply_harness_configuration(state: State<'_, AppState>) -> Result<HarnessApplyResult, String> {
     let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
     let approval = state.harness_approvals.status(&root)?;
@@ -213,14 +213,14 @@ fn apply_harness_configuration(state: State<'_, AppState>) -> Result<HarnessAppl
     Ok(result)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_harness_drift(state: State<'_, AppState>) -> Result<Vec<HarnessDriftEntry>, String> {
     let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
     let applied = state.harness_approvals.applied_files(&root)?;
     Ok(commands::harness_materializer::detect_drift(&root, &applied))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_pulse_data(state: State<'_, AppState>) -> Result<PulseData, String> {
     let root = state
         .path_guard
@@ -235,7 +235,17 @@ fn get_pulse_data(state: State<'_, AppState>) -> Result<PulseData, String> {
     contract::build_pulse_data(&root, &specs, &reviews, &adrs, &handoffs).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
+fn get_workspace_snapshot(state: State<'_, AppState>) -> Result<WorkspaceSnapshot, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+
+    contract::build_workspace_snapshot(&root).map_err(|error| error.to_string())
+}
+
+#[tauri::command(async)]
 fn get_specs(state: State<'_, AppState>) -> Result<Vec<models::spec::Spec>, String> {
     let root = state
         .path_guard
@@ -244,7 +254,7 @@ fn get_specs(state: State<'_, AppState>) -> Result<Vec<models::spec::Spec>, Stri
     contract::build_specs(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_reviews(state: State<'_, AppState>) -> Result<Vec<models::review::Review>, String> {
     let root = state
         .path_guard
@@ -253,7 +263,7 @@ fn get_reviews(state: State<'_, AppState>) -> Result<Vec<models::review::Review>
     contract::build_reviews(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_findings(state: State<'_, AppState>) -> Result<Vec<lmbrain_core::Finding>, String> {
     let root = state
         .path_guard
@@ -262,7 +272,7 @@ fn get_findings(state: State<'_, AppState>) -> Result<Vec<lmbrain_core::Finding>
     Ok(lmbrain_core::list_findings(&root))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_kit_feedback(state: State<'_, AppState>) -> Result<lmbrain_core::KitFeedbackReport, String> {
     let root = state
         .path_guard
@@ -271,7 +281,7 @@ fn get_kit_feedback(state: State<'_, AppState>) -> Result<lmbrain_core::KitFeedb
     lmbrain_core::read_kit_feedback(&root).map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_finding_context(
     state: State<'_, AppState>,
     finding: String,
@@ -283,7 +293,7 @@ fn get_finding_context(
     lmbrain_core::finding_context(&root, &finding).map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_adrs(state: State<'_, AppState>) -> Result<Vec<models::adr::Adr>, String> {
     let root = state
         .path_guard
@@ -292,7 +302,7 @@ fn get_adrs(state: State<'_, AppState>) -> Result<Vec<models::adr::Adr>, String>
     contract::build_adrs(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_agents(state: State<'_, AppState>) -> Result<Vec<models::agent::AgentProfile>, String> {
     let root = state
         .path_guard
@@ -301,7 +311,7 @@ fn get_agents(state: State<'_, AppState>) -> Result<Vec<models::agent::AgentProf
     contract::build_agents(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_agent_proposals(
     state: State<'_, AppState>,
 ) -> Result<Vec<models::agent::AgentProposal>, String> {
@@ -312,7 +322,7 @@ fn get_agent_proposals(
     contract::build_agent_proposals(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_agent_improvement_insights(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let root = state
         .path_guard
@@ -323,7 +333,7 @@ fn get_agent_improvement_insights(state: State<'_, AppState>) -> Result<serde_js
     Ok(serde_json::json!({ "signals": signals, "metrics": metrics }))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_mcp_records(state: State<'_, AppState>) -> Result<Vec<models::mcp::McpRecord>, String> {
     let root = state
         .path_guard
@@ -332,7 +342,7 @@ fn get_mcp_records(state: State<'_, AppState>) -> Result<Vec<models::mcp::McpRec
     contract::build_mcp_records(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_mcp_proposals(state: State<'_, AppState>) -> Result<Vec<models::mcp::McpProposal>, String> {
     let root = state
         .path_guard
@@ -341,7 +351,7 @@ fn get_mcp_proposals(state: State<'_, AppState>) -> Result<Vec<models::mcp::McpP
     contract::build_mcp_proposals(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_skills(state: State<'_, AppState>) -> Result<Vec<models::skill::Skill>, String> {
     let root = state
         .path_guard
@@ -350,7 +360,7 @@ fn get_skills(state: State<'_, AppState>) -> Result<Vec<models::skill::Skill>, S
     contract::build_skills(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_handoffs(state: State<'_, AppState>) -> Result<Vec<models::handoff::Handoff>, String> {
     let root = state
         .path_guard
@@ -359,7 +369,7 @@ fn get_handoffs(state: State<'_, AppState>) -> Result<Vec<models::handoff::Hando
     contract::build_handoffs(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_design_mockups(state: State<'_, AppState>) -> Result<Vec<DesignMockup>, String> {
     let root = state
         .path_guard
@@ -368,7 +378,7 @@ fn get_design_mockups(state: State<'_, AppState>) -> Result<Vec<DesignMockup>, S
     design::scan_design_mockups(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn read_design_mockup_html(
     state: State<'_, AppState>,
     entry_path: String,
@@ -380,7 +390,7 @@ fn read_design_mockup_html(
     design::read_design_html(&root, Path::new(&entry_path)).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn read_design_mockup_preview_html(
     state: State<'_, AppState>,
     entry_path: String,
@@ -392,7 +402,7 @@ fn read_design_mockup_preview_html(
     design::read_design_preview_html(&root, Path::new(&entry_path)).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_roadmap(state: State<'_, AppState>) -> Result<models::roadmap::Roadmap, String> {
     let root = state
         .path_guard
@@ -401,7 +411,7 @@ fn get_roadmap(state: State<'_, AppState>) -> Result<models::roadmap::Roadmap, S
     contract::build_roadmap(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_milestone_overview(
     state: State<'_, AppState>,
 ) -> Result<models::roadmap::MilestoneOverview, String> {
@@ -412,7 +422,7 @@ fn get_milestone_overview(
     contract::build_milestone_overview(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_project_statistics(
     state: State<'_, AppState>,
 ) -> Result<models::statistics::ProjectStatistics, String> {
@@ -423,7 +433,7 @@ fn get_project_statistics(
     contract::build_project_statistics(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_wikilink_index(
     state: State<'_, AppState>,
 ) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
@@ -434,7 +444,7 @@ fn get_wikilink_index(
     Ok(contract::build_wikilink_index(&root))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_diagnostics(
     state: State<'_, AppState>,
 ) -> Result<Vec<models::workspace::KitDiagnostic>, String> {
@@ -445,7 +455,7 @@ fn get_diagnostics(
     Ok(contract::build_diagnostics(&root))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn search_content(
     state: State<'_, AppState>,
     query: String,
@@ -457,7 +467,7 @@ fn search_content(
     Ok(contract::search_content(&root, &query))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_wiki_tree(state: State<'_, AppState>) -> Result<models::wiki::WikiTree, String> {
     let root = state
         .path_guard
@@ -466,7 +476,7 @@ fn get_wiki_tree(state: State<'_, AppState>) -> Result<models::wiki::WikiTree, S
     contract::build_wiki_tree(&root).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_wiki_page(
     state: State<'_, AppState>,
     path: String,
@@ -499,7 +509,7 @@ fn get_wiki_page(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_git_info(state: State<'_, AppState>) -> Result<GitInfo, String> {
     let root = state
         .path_guard
@@ -508,7 +518,7 @@ fn get_git_info(state: State<'_, AppState>) -> Result<GitInfo, String> {
     Ok(git::get_git_info(&root.to_string_lossy()))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_git_details(state: State<'_, AppState>) -> Result<commands::git_details::GitDetails, String> {
     let root = state
         .path_guard
@@ -517,7 +527,7 @@ fn get_git_details(state: State<'_, AppState>) -> Result<commands::git_details::
     commands::git_details::get_git_details(&root.to_string_lossy())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_git_file_diff(
     state: State<'_, AppState>,
     path: String,
@@ -530,27 +540,27 @@ fn get_git_file_diff(
     commands::git_details::get_git_file_diff(&root, &path, &diff_target)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_github_pat_configured() -> Result<bool, String> {
     commands::github_integration::get_github_pat().map(|token| token.is_some())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn save_github_pat(token: String) -> Result<(), String> {
     commands::github_integration::save_github_pat(&token)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn delete_github_pat() -> Result<(), String> {
     commands::github_integration::delete_github_pat()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_github_dashboard(owner: String, repo: String) -> Result<commands::github_integration::GitHubDashboard, String> {
     commands::github_integration::get_github_dashboard(&owner, &repo)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn start_watcher(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let root = state
         .path_guard
@@ -562,7 +572,7 @@ fn start_watcher(app: AppHandle, state: State<'_, AppState>) -> Result<(), Strin
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn stop_watcher(state: State<'_, AppState>) -> Result<(), String> {
     state.watcher.stop();
     Ok(())
@@ -573,7 +583,7 @@ fn watcher_status(state: State<'_, AppState>) -> bool {
     state.watcher.is_active()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn session_start(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -634,12 +644,12 @@ fn session_resize(
         .map_err(|err| err.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn session_kill(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state.sessions.kill(&id).map_err(|err| err.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn session_attach(state: State<'_, AppState>, id: String) -> Result<String, String> {
     state.sessions.attach(&id).map_err(|err| err.to_string())
 }
@@ -649,7 +659,7 @@ fn session_list(state: State<'_, AppState>) -> Vec<SessionInfo> {
     state.sessions.list()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn session_get_transcript(state: State<'_, AppState>, id: String) -> Result<String, String> {
     state
         .sessions
@@ -658,7 +668,7 @@ fn session_get_transcript(state: State<'_, AppState>, id: String) -> Result<Stri
 }
 
 
-#[tauri::command]
+#[tauri::command(async)]
 fn list_ollama_models() -> Result<Vec<OllamaModel>, String> {
     commands::sessions::list_ollama_models().map_err(|err| err.to_string())
 }
@@ -690,7 +700,7 @@ async fn update_harness(
     .map_err(|error| format!("Harness update worker failed: {error}"))?
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn set_artifact_status(
     state: State<'_, AppState>,
     path: String,
@@ -708,7 +718,7 @@ struct SpecVerificationState {
     blockers: Vec<lmbrain_core::VerificationBlocker>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_spec_verification(
     state: State<'_, AppState>,
     path: String,
@@ -734,7 +744,7 @@ fn get_spec_verification(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn attest_operator_verification(
     state: State<'_, AppState>,
     path: String,
@@ -764,7 +774,7 @@ fn verification_root(state: &State<'_, AppState>) -> Result<PathBuf, String> {
         .ok_or_else(|| "No workspace root is set".to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_verification_manifest_status(
     state: State<'_, AppState>,
 ) -> Result<lmbrain_core::VerificationManifestStatus, String> {
@@ -774,7 +784,7 @@ fn get_verification_manifest_status(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn preview_verification_manifest(
     state: State<'_, AppState>,
 ) -> Result<lmbrain_core::VerificationManifestPreview, String> {
@@ -784,7 +794,7 @@ fn preview_verification_manifest(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn set_verification_manifest(
     state: State<'_, AppState>,
     manifest: lmbrain_core::VerificationManifest,
@@ -799,7 +809,7 @@ fn set_verification_manifest(
     .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn rollback_verification_manifest(
     state: State<'_, AppState>,
     expected_current_digest: String,
@@ -907,6 +917,7 @@ pub fn run() {
             apply_harness_configuration,
             get_harness_drift,
             get_pulse_data,
+            get_workspace_snapshot,
             get_specs,
             get_reviews,
             get_findings,

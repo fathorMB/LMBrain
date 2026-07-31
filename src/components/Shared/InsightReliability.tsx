@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { getProjectStatistics } from "../../lib/commands";
 import { buildDiagnosticFixPrompt } from "../../lib/diagnosticPrompt";
-import type { KitDiagnostic, ProjectStatistics } from "../../types";
+import type { KitDiagnostic } from "../../types";
 
 export interface InsightReliabilityProps {
   reviewsWithoutSpec?: number;
@@ -20,34 +19,8 @@ export function InsightReliability({
   diagnostics: propDiagnostics,
 }: InsightReliabilityProps) {
   const { state: workspaceState } = useWorkspace();
-  const needsFetch = propReviewsWithoutSpec === undefined || propReviewsWithoutCreated === undefined;
-  const [stats, setStats] = useState<ProjectStatistics | null>(null);
-  const [loadingStats, setLoadingStats] = useState(needsFetch);
-  const [statsError, setStatsError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!needsFetch) return;
-    let active = true;
-    getProjectStatistics()
-      .then((data) => {
-        if (active) {
-          setStats(data);
-          setStatsError(null);
-        }
-      })
-      .catch((err) => {
-        if (active) {
-          console.error(err);
-          setStatsError(typeof err === "string" ? err : "Failed to load review quality metrics.");
-        }
-      })
-      .finally(() => {
-        if (active) setLoadingStats(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [needsFetch]);
+  const stats = workspaceState.projectStatistics;
+  const needsStatistics = propReviewsWithoutSpec === undefined || propReviewsWithoutCreated === undefined;
 
   const diagnostics = propDiagnostics ?? workspaceState.diagnostics ?? [];
   const errors = propErrors ?? diagnostics.filter((d: KitDiagnostic) => d.severity === "error").length;
@@ -68,12 +41,8 @@ export function InsightReliability({
   const severityOrder: Record<KitDiagnostic["severity"], number> = { error: 0, warning: 1, info: 2 };
   const orderedDiagnostics = [...diagnostics].sort((a: KitDiagnostic, b: KitDiagnostic) => (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9));
 
-  if (loadingStats && !stats) {
+  if (needsStatistics && !stats) {
     return <div style={{ fontSize: 12.5, color: "var(--text-tertiary)" }}>Loading reliability details…</div>;
-  }
-
-  if (statsError && needsFetch && !stats) {
-    return <div style={{ fontSize: 12.5, color: "#e0584a" }}>{statsError}</div>;
   }
 
   return (

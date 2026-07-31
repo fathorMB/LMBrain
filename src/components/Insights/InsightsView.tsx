@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { getProjectStatistics } from "../../lib/commands";
 import { InsightReliability } from "../Shared/InsightReliability";
 import type {
   ArtifactFamilyStats,
-  ProjectStatistics,
   ReviewDimensionStat,
   StatusCount,
 } from "../../types";
@@ -30,40 +28,17 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function InsightsView() {
   const { state: workspaceState } = useWorkspace();
-  const [stats, setStats] = useState<ProjectStatistics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    getProjectStatistics()
-      .then((data) => {
-        setStats(data);
-        setError(null);
-      })
-      .catch((err) => {
-        console.error(err);
-        setError(typeof err === "string" ? err : "Failed to load project insights.");
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  const stats = workspaceState.projectStatistics;
 
   const totalArtifacts = useMemo(
     () => stats?.artifact_families.reduce((sum, family) => sum + family.total, 0) ?? 0,
     [stats]
   );
 
-  if (loading) {
+  if (!stats) {
     return (
       <div style={{ padding: 40, textAlign: "center", color: "var(--text-tertiary)" }}>
         Loading insights...
-      </div>
-    );
-  }
-
-  if (error || !stats) {
-    return (
-      <div style={{ padding: 40, textAlign: "center", color: "#e0584a" }}>
-        {error || "No project insights available."}
       </div>
     );
   }

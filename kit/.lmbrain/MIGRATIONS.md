@@ -4,7 +4,17 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `3.1.3`.
+The current kit is `3.1.4`.
+
+### 3.1.4 (responsive workspace snapshot loading)
+
+Supported source version is `3.1.3`. Existing workspaces require no artifact or frontmatter migration.
+
+1. Update the desktop application and bundled kit together.
+2. No project content rewrite is required; the change is limited to desktop loading, refresh coordination, and statistics reuse.
+3. Update `.lmbrain/VERSION` to `3.1.4` after validating the release.
+
+Rollback to 3.1.3 is data-safe but restores the main-thread loading regression fixed by 3.1.4.
 
 ### 3.1.3 (kit-owned file realignment procedure, Node REPL kernel path fix, Browser URL policy alignment, lead gate auto-check, waived criteria, async background loading)
 

@@ -22,6 +22,7 @@ import { SessionsView } from "../Sessions/SessionsView";
 import { CommandPalette } from "../CommandPalette";
 import { ArtifactDetailModal } from "./ArtifactDetailModal";
 import { LeaveWorkspaceModal } from "./LeaveWorkspaceModal";
+import { WindowCloseConfirmModal } from "./WindowCloseConfirmModal";
 import { RepositoryView } from "../Repository/RepositoryView";
 
 export function AppShell() {
@@ -165,6 +166,7 @@ export function AppShell() {
 
       {/* Leave Workspace Confirmation Modal */}
       {state.showExitConfirm && <LeaveWorkspaceModal />}
+      {state.showWindowCloseConfirm && <WindowCloseConfirmModal />}
     </div>
   );
 }

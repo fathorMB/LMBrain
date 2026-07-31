@@ -3,6 +3,8 @@ import {
   useReducer,
   useCallback,
   useEffect,
+  useMemo,
+  useRef,
   type Dispatch,
   type ReactNode,
 } from "react";
@@ -19,6 +21,7 @@ import type {
   McpProposal,
   McpRecord,
   PulseData,
+  ProjectStatistics,
   Review,
   SessionInfo,
   AgentHost,
@@ -33,6 +36,7 @@ import type {
   AgentProposal,
 } from "../types";
 import * as commands from "../lib/commands";
+import { createTrailingRefreshCoordinator } from "../lib/refreshCoordinator";
 
 export interface WorkspaceState {
   screen: "picker" | "app";
@@ -52,6 +56,7 @@ export interface WorkspaceState {
   skills: Skill[];
   handoffs: Handoff[];
   diagnostics: KitDiagnostic[];
+  projectStatistics: ProjectStatistics | null;
   wikiTree: WikiTree | null;
   wikiPage: WikiPage | null;
   selectedSpec: Spec | null;
@@ -59,6 +64,7 @@ export interface WorkspaceState {
   activeSessionId: string | null;
   cmdkOpen: boolean;
   watcherActive: boolean;
+  dataRefreshing: boolean;
   loading: boolean;
   loadingMessage: string;
   loadingPath: string | null;
@@ -66,6 +72,7 @@ export interface WorkspaceState {
   error: string | null;
   detailArtifact: DetailArtifact | null;
   showExitConfirm: boolean;
+  showWindowCloseConfirm: boolean;
 }
 
 export type Action =
@@ -92,11 +99,13 @@ export type Action =
   | { type: "CLOSE_SPEC_DETAIL" }
   | { type: "SET_CMDK"; open: boolean }
   | { type: "SET_WATCHER"; active: boolean }
+  | { type: "SET_DATA_REFRESHING"; refreshing: boolean }
   | { type: "SET_LOADING"; loading: boolean; message?: string; path?: string | null }
   | { type: "SET_WORKSPACE_NOTICE"; notice: string | null }
   | { type: "SET_ERROR"; error: string | null }
   | { type: "SET_DETAIL_ARTIFACT"; artifact: DetailArtifact | null }
   | { type: "SET_EXIT_CONFIRM"; show: boolean }
+  | { type: "SET_WINDOW_CLOSE_CONFIRM"; show: boolean }
   | { type: "SET_SESSIONS"; sessions: SessionInfo[] }
   | { type: "ADD_SESSION"; session: SessionInfo }
   | { type: "UPDATE_SESSION"; id: string; patch: Partial<SessionInfo> }
@@ -122,6 +131,7 @@ const initialState: WorkspaceState = {
   skills: [],
   handoffs: [],
   diagnostics: [],
+  projectStatistics: null,
   wikiTree: null,
   wikiPage: null,
   selectedSpec: null,
@@ -129,6 +139,7 @@ const initialState: WorkspaceState = {
   activeSessionId: null,
   cmdkOpen: false,
   watcherActive: false,
+  dataRefreshing: false,
   loading: false,
   loadingMessage: "Preparing workspace...",
   loadingPath: null,
@@ -136,6 +147,7 @@ const initialState: WorkspaceState = {
   error: null,
   detailArtifact: null,
   showExitConfirm: false,
+  showWindowCloseConfirm: false,
 };
 
 // ─── Session reducer (exported for testing) ───────────────────────
@@ -244,6 +256,8 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, cmdkOpen: action.open };
     case "SET_WATCHER":
       return { ...state, watcherActive: action.active };
+    case "SET_DATA_REFRESHING":
+      return { ...state, dataRefreshing: action.refreshing };
     case "SET_LOADING":
       return {
         ...state,
@@ -259,6 +273,8 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, detailArtifact: action.artifact };
     case "SET_EXIT_CONFIRM":
       return { ...state, showExitConfirm: action.show };
+    case "SET_WINDOW_CLOSE_CONFIRM":
+      return { ...state, showWindowCloseConfirm: action.show };
     case "SET_SESSIONS":
     case "ADD_SESSION":
     case "UPDATE_SESSION":
@@ -298,62 +314,48 @@ export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const dataRefreshRequestCount = useRef(0);
 
   const refreshSessions = useCallback(async () => {
     const infos = await commands.sessionList();
     dispatch({ type: "SET_SESSIONS", sessions: infos });
   }, []);
 
-  const fetchWorkspaceData = useCallback(async (): Promise<Partial<WorkspaceState>> => {
-    const [
-        pulseData,
-        specs,
-        reviews,
-        findings,
-        adrs,
-        agents,
-        agentProposals,
-        mcpRecords,
-        mcpProposals,
-        skills,
-        handoffs,
-        diagnostics,
-    ] = await Promise.all([
-        commands.getPulseData(),
-        commands.getSpecs(),
-        commands.getReviews(),
-        commands.getFindings(),
-        commands.getAdrs(),
-        commands.getAgents(),
-        commands.getAgentProposals(),
-        commands.getMcpRecords(),
-        commands.getMcpProposals(),
-        commands.getSkills(),
-        commands.getHandoffs(),
-        commands.getDiagnostics(),
-    ]);
-
-    return {
-      pulseData,
-      specs,
-      reviews,
-      findings,
-      adrs,
-      agents,
-      agentProposals,
-      mcpRecords,
-      mcpProposals,
-      skills,
-      handoffs,
-      diagnostics,
-    };
-  }, []);
+  const fetchWorkspaceData = useMemo(
+    () =>
+      createTrailingRefreshCoordinator<Partial<WorkspaceState>>(async () => {
+        const snapshot = await commands.getWorkspaceSnapshot();
+        return {
+          pulseData: snapshot.pulse_data,
+          specs: snapshot.specs,
+          reviews: snapshot.reviews,
+          findings: snapshot.findings,
+          adrs: snapshot.adrs,
+          agents: snapshot.agents,
+          agentProposals: snapshot.agent_proposals,
+          mcpRecords: snapshot.mcp_records,
+          mcpProposals: snapshot.mcp_proposals,
+          skills: snapshot.skills,
+          handoffs: snapshot.handoffs,
+          diagnostics: snapshot.diagnostics,
+          projectStatistics: snapshot.project_statistics,
+        };
+      }),
+    [],
+  );
 
   const loadAllDataInternal = useCallback(async () => {
+    dataRefreshRequestCount.current += 1;
+    dispatch({ type: "SET_DATA_REFRESHING", refreshing: true });
     try {
       dispatch({ type: "MERGE_DATA", data: await fetchWorkspaceData() });
     } catch (err) {
       console.error("Failed to load data:", err);
+    } finally {
+      dataRefreshRequestCount.current -= 1;
+      if (dataRefreshRequestCount.current === 0) {
+        dispatch({ type: "SET_DATA_REFRESHING", refreshing: false });
+      }
     }
   }, [fetchWorkspaceData]);
 

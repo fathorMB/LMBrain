@@ -1,5 +1,17 @@
 use serde::{Deserialize, Serialize};
 
+use crate::models::{
+    adr::Adr,
+    agent::{AgentProfile, AgentProposal},
+    handoff::Handoff,
+    mcp::{McpProposal, McpRecord},
+    pulse::PulseData,
+    review::Review,
+    skill::Skill,
+    spec::Spec,
+    statistics::ProjectStatistics,
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum KitHealth {
     #[serde(rename = "ok")]
@@ -82,4 +94,21 @@ pub struct WorkspaceInfo {
 pub struct WorkspaceRegistry {
     pub recent: Vec<WorkspaceSummary>,
     pub pinned: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkspaceSnapshot {
+    pub pulse_data: PulseData,
+    pub specs: Vec<Spec>,
+    pub reviews: Vec<Review>,
+    pub findings: Vec<lmbrain_core::Finding>,
+    pub adrs: Vec<Adr>,
+    pub agents: Vec<AgentProfile>,
+    pub agent_proposals: Vec<AgentProposal>,
+    pub mcp_records: Vec<McpRecord>,
+    pub mcp_proposals: Vec<McpProposal>,
+    pub skills: Vec<Skill>,
+    pub handoffs: Vec<Handoff>,
+    pub diagnostics: Vec<KitDiagnostic>,
+    pub project_statistics: ProjectStatistics,
 }

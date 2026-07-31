@@ -3,7 +3,7 @@ import { useWorkspace } from "../../hooks/useWorkspace";
 
 export function TopBar({ onViewReload }: { onViewReload: () => void }) {
   const { state, toggleCmdk, refreshWorkspaceData, refreshSessions } = useWorkspace();
-  const { gitInfo, watcherActive } = state;
+  const { gitInfo, watcherActive, dataRefreshing } = state;
   const [refreshStatus, setRefreshStatus] = useState<"idle" | "refreshing" | "success" | "error">("idle");
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -117,6 +117,21 @@ export function TopBar({ onViewReload }: { onViewReload: () => void }) {
       {refreshStatus === "success" && (
         <span role="status" style={{ fontSize: 11, color: "var(--green)" }}>
           Updated
+        </span>
+      )}
+      {dataRefreshing && refreshStatus !== "refreshing" && (
+        <span
+          role="status"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-tertiary)" }}
+        >
+          <i
+            className="material-symbols-outlined lmbrain-loading-spinner"
+            aria-hidden="true"
+            style={{ fontSize: 14 }}
+          >
+            progress_activity
+          </i>
+          Syncing workspace
         </span>
       )}
       {refreshStatus === "error" && (

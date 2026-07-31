@@ -700,6 +700,22 @@ export interface ProjectStatistics {
   diagnostics: DiagnosticStats;
 }
 
+export interface WorkspaceSnapshot {
+  pulse_data: PulseData;
+  specs: Spec[];
+  reviews: Review[];
+  findings: Finding[];
+  adrs: Adr[];
+  agents: AgentProfile[];
+  agent_proposals: AgentProposal[];
+  mcp_records: McpRecord[];
+  mcp_proposals: McpProposal[];
+  skills: Skill[];
+  handoffs: Handoff[];
+  diagnostics: KitDiagnostic[];
+  project_statistics: ProjectStatistics;
+}
+
 export interface MetricCard {
   label: string;
   count: number;
