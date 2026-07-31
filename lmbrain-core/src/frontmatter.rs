@@ -218,16 +218,6 @@ impl Document {
         Ok(())
     }
 
-    pub fn append_override_reason(&mut self, reason: &str) {
-        self.body.push_str(&format!(
-            "{}{}## Mutation override{}{}",
-            self.newline,
-            self.newline,
-            self.newline,
-            reason.trim()
-        ));
-    }
-
     pub fn render(&self) -> String {
         format!(
             "---{}{}{}---{}{}",

@@ -175,6 +175,10 @@ Diagnostics use a versioned core record with a stable ID, code, severity, artifa
 - At most one `ready` session handoff may exist in `handoffs/active/`.
 - The application should warn about duplicate IDs, broken links, directory/status mismatches, missing references, and circular dependencies.
 
+Mutation reasons are stored in typed frontmatter audit fields and are not
+duplicated into the Markdown body. Existing historical `## Mutation override`
+sections remain readable and are not rewritten automatically.
+
 Review remediation lifecycle events are append-only. `review_remediation` is an
 implementation-specialist event and must identify `remediation_agent`.
 `review_remediation_verified` is a Project Lead-only event: it preserves review

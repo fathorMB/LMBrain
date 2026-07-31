@@ -483,6 +483,55 @@ fn review_non_verdict_events_are_append_only_and_attributable() {
 }
 
 #[test]
+fn review_lifecycle_reasons_stay_typed_and_preserve_final_decision_body() {
+    let d = tempdir().unwrap();
+    let path = ".lmbrain/reviews/changes-requested/REVIEW-001.md";
+    let long_reason = "independent verification ".repeat(80);
+    write(
+        d.path(),
+        path,
+        "---\nid: REVIEW-001\nstatus: changes-requested\n---\n\n## Analysis\nHuman-authored analysis\n\n## Final decision\nKeep this conclusion last.\n",
+    );
+    record_review_event(
+        d.path(),
+        path,
+        "remediation",
+        ReviewEventInput {
+            actor_role: "implementation-specialist".into(),
+            reason: "Remediation completed".into(),
+            evidence_refs: vec!["tests/review.rs".into()],
+            remediation_agent: Some("AGENT-002".into()),
+        },
+        MutationOptions::default(),
+    )
+    .unwrap();
+    record_review_event(
+        d.path(),
+        path,
+        "remediation-verification",
+        ReviewEventInput {
+            actor_role: "project-lead".into(),
+            reason: long_reason.clone(),
+            evidence_refs: vec!["REVIEW-001".into()],
+            remediation_agent: None,
+        },
+        MutationOptions::default(),
+    )
+    .unwrap();
+
+    let output = fs::read_to_string(d.path().join(path)).unwrap();
+    assert!(!output.contains("## Mutation override"));
+    assert!(output.ends_with("## Final decision\nKeep this conclusion last.\n"));
+    let document = Document::parse(&output).unwrap();
+    let events = document.object_array("review_events");
+    assert_eq!(events.len(), 2);
+    assert_eq!(
+        events[1].get("reason").and_then(serde_json::Value::as_str),
+        Some(long_reason.trim())
+    );
+}
+
+#[test]
 fn review_non_verdict_events_enforce_authority_and_required_attribution() {
     let d = tempdir().unwrap();
     let path = ".lmbrain/reviews/pending/REVIEW-001.md";
@@ -1043,8 +1092,15 @@ fn force_reason_is_required_and_audited() {
     .unwrap();
     let out = fs::read_to_string(result.path).unwrap();
     assert!(out.contains("activity:"));
-    assert!(out.contains("Mutation override"));
+    assert!(!out.contains("## Mutation override"));
     assert!(out.contains("operator accepted without a formal review"));
+    assert_eq!(
+        Document::parse(&out)
+            .unwrap()
+            .object_array("mutation_overrides")
+            .len(),
+        1
+    );
 }
 
 #[test]
@@ -1106,8 +1162,15 @@ fn spec_submit_force_bypass_requires_reason_and_is_audited() {
     )
     .unwrap();
     let output = fs::read_to_string(result.path).unwrap();
-    assert!(output.contains("Mutation override"));
+    assert!(!output.contains("## Mutation override"));
     assert!(output.contains("operator accepts unavailable platform gate"));
+    assert_eq!(
+        Document::parse(&output)
+            .unwrap()
+            .object_array("mutation_overrides")
+            .len(),
+        1
+    );
 }
 
 fn snapshot(dir: &std::path::Path) -> Vec<String> {

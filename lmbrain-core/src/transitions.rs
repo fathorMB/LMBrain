@@ -353,9 +353,6 @@ pub fn record_review_event(
     document.set("updated", &today());
     document.append_activity(&format!("recorded review {action}"));
     append_review_event(&mut document, &id, action, &status, &status, &event)?;
-    if let Some(reason) = options.reason.as_deref() {
-        document.append_override_reason(reason);
-    }
     if fs::read_to_string(&path)? != current_source {
         return Err(TransitionError::Invariant(
             "artifact changed while the lifecycle mutation was being prepared".into(),
@@ -475,14 +472,6 @@ fn transition_internal(
         });
         append_review_event(&mut document, &id, "verdict", &from, target, &event)?;
     }
-    if let Some(reason) = options.reason.as_deref() {
-        let audit = invariant_message
-            .as_deref()
-            .map(|invariant| format!("{reason}\n\nUnmet invariant: {invariant}"))
-            .unwrap_or_else(|| reason.to_string());
-        document.append_override_reason(&audit);
-    }
-
     let destination = destination_for(kind, &path, target)?;
     if destination != path && destination.exists() {
         return Err(TransitionError::Invariant(format!(
@@ -765,15 +754,32 @@ fn set_field(
         }
     }
 
-    if !valid(guard.root()) && !options.force {
+    let field_valid = valid(guard.root());
+    if !field_valid && !options.force {
         return Err(TransitionError::Invariant(format!("invalid {key}")));
     }
 
     document.set(key, value);
     document.set("updated", &today());
     document.append_activity(&format!("set {key}"));
-    if let Some(reason) = options.reason.as_deref() {
-        document.append_override_reason(reason);
+    if options.force {
+        if let Some(reason) = options.reason.as_deref() {
+            let status = document.value("status").unwrap_or_default();
+            let invariant = if field_valid {
+                format!("forced field mutation: {key}")
+            } else {
+                format!("invalid {key}")
+            };
+            append_mutation_override(
+                &mut document,
+                &id,
+                &status,
+                &status,
+                "project-lead",
+                reason,
+                &invariant,
+            )?;
+        }
     }
 
     if fs::read_to_string(&path)? != current_source {
