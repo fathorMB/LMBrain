@@ -210,32 +210,6 @@ export function TopBar({ onViewReload }: { onViewReload: () => void }) {
         </span>
       </div>
 
-      <button
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 9,
-          background: "#141118",
-          border: "1px solid #262330",
-          color: "var(--text-secondary)",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = "#36303f";
-          e.currentTarget.style.color = "var(--text-primary)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = "#262330";
-          e.currentTarget.style.color = "var(--text-secondary)";
-        }}
-      >
-        <i className="material-symbols-outlined" style={{ fontSize: 19 }}>
-          notifications
-        </i>
-      </button>
     </div>
   );
 }
