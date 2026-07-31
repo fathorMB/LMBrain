@@ -45,6 +45,8 @@ Status-directory artifacts must keep filesystem location and frontmatter `status
 
 `reports/lmbrain-kit-feedback.md` is a structured append-only exception to ordinary snapshot reports. It records evidence-backed LMBrain product/kit observations, not project work. The Project Lead writes it autonomously with `lmbrain_feedback_record`, reads it with `lmbrain_feedback_report`, and reports newly added notes to the operator for later delivery to the LMBrain team.
 
+Feedback text fields support newlines, blank lines, quotes, Unicode, and tabs. They are stored as escaped YAML scalars and validated after serialization; field character limits still apply.
+
 `skills/` stores `SKILL-*` project-scoped procedures in `active/`, `proposed/`, and `retired/`. Skills are Markdown runbooks for manually started agents; LMBrain displays their commands and includes applicable active skills in context packs, but does not execute them.
 
 ## Spec Board

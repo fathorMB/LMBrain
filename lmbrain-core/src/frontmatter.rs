@@ -657,7 +657,13 @@ fn trim_inline_comment(value: &str) -> &str {
 }
 
 fn yaml_scalar(value: &str) -> String {
-    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+    let escaped = value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t");
+    format!("\"{escaped}\"")
 }
 
 fn render_object_item(fields: &[(String, Value)]) -> Vec<String> {
