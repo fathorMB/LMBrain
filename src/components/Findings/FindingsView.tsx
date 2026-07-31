@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getFindingContext, getFindings } from "../../lib/commands";
 import type { Finding, FindingContext, FindingRelation } from "../../types";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { RefreshButton } from "../RefreshButton";
 import { MarkdownRenderer } from "../../lib/markdown";
+import { ModalCloseButton } from "../Layout/ModalCloseButton";
 
 const ACTIVE = new Set(["open", "planned", "deferred"]);
 const severityRank: Record<string, number> = {
@@ -184,6 +185,7 @@ function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
   onOpenRelation: (relation: FindingRelation) => void;
   onOpenMarkdown: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const groups: Array<[string, FindingRelation[]]> = [
     ["Origin", context.origin ? [context.origin] : []],
     ["Related work", [...context.related_specs, ...context.related_reviews]],
@@ -207,11 +209,41 @@ function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
     ? "Superseded by newer finding or decision."
     : "Active open finding awaiting triage or assignment.";
 
-  return <div role="dialog" aria-modal="true" aria-labelledby="finding-detail-title" style={dialogBackdrop}>
-    <div style={dialog}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-        <div><div style={mono}>{f.id}</div><h2 id="finding-detail-title">{f.title}</h2></div>
-        <button aria-label="Close finding detail" style={secondary} onClick={onClose}>Close</button>
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    dialogRef.current?.focus();
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      previousFocus?.focus();
+    };
+  }, [onClose]);
+
+  return <div
+    role="presentation"
+    style={dialogBackdrop}
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}
+  >
+    <div
+      ref={dialogRef}
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="finding-detail-title"
+      style={dialog}
+      onMouseDown={(event) => event.stopPropagation()}
+    >
+      <div style={dialogHeader}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={mono}>{f.id}</div>
+          <h2 id="finding-detail-title" style={dialogTitle}>{f.title}</h2>
+        </div>
+        <ModalCloseButton label="Close finding detail" onClick={onClose} />
       </div>
 
       <div style={{ display: "flex", gap: 6, margin: "10px 0 14px", flexWrap: "wrap" }}>
@@ -323,4 +355,6 @@ const relationButton: React.CSSProperties = { ...secondary, fontFamily: "var(--f
 const errorStyle: React.CSSProperties = { padding: 10, margin: "10px 0", borderRadius: 7, background: "rgba(224,88,74,.10)", color: "#e9857b", fontSize: 12 };
 const empty: React.CSSProperties = { ...muted, padding: 24, textAlign: "center", border: "1px dashed var(--border-secondary)", borderRadius: 9 };
 const dialogBackdrop: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 60, background: "rgba(6,5,8,.72)", display: "grid", placeItems: "center", padding: 20 };
-const dialog: React.CSSProperties = { width: "min(800px, 94vw)", maxHeight: "88vh", overflow: "auto", padding: 22, background: "var(--bg-secondary)", border: "1px solid var(--border-primary)", borderRadius: 13 };
+const dialog: React.CSSProperties = { width: "min(800px, 94vw)", maxHeight: "88vh", overflow: "auto", padding: 22, background: "var(--bg-secondary)", border: "1px solid var(--border-primary)", borderRadius: 13, outline: "none" };
+const dialogHeader: React.CSSProperties = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minWidth: 0, marginBottom: 4 };
+const dialogTitle: React.CSSProperties = { margin: 0, maxWidth: "100%", overflowWrap: "anywhere", fontSize: 20, lineHeight: 1.25 };

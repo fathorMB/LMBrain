@@ -75,6 +75,37 @@ button {
   cursor: pointer;
 }
 
+.modal-close-button {
+  flex: 0 0 32px;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-tertiary);
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.modal-close-button:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.modal-close-button:focus-visible {
+  outline: 2px solid var(--accent-light);
+  outline-offset: 2px;
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.modal-close-button .material-symbols-outlined {
+  font-size: 20px;
+}
+
 a {
   color: var(--accent-light);
   text-decoration: none;

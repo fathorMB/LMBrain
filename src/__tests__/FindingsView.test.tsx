@@ -71,6 +71,33 @@ describe("FindingsView", () => {
     expect(screen.queryByRole("button", { name: /resolve|accept risk|reopen/i })).toBeNull();
   });
 
+  it("closes from the compact control, Escape, and the backdrop", async () => {
+    vi.mocked(getFindingContext).mockResolvedValue({
+      schema_version: "1", finding: findings[0],
+      origin: null, related_specs: [], related_reviews: [], related_decisions: [],
+      target_specs: [], blockers: [], resolution_refs: [], superseded_by: null,
+      events: [], warnings: [], omitted_relations: 0,
+    });
+    render(<FindingsView />);
+    fireEvent.click(screen.getByRole("button", { name: /Open FINDING-001/ }));
+    await screen.findByRole("dialog");
+
+    const close = screen.getByRole("button", { name: "Close finding detail" });
+    expect(close.className).toContain("modal-close-button");
+    fireEvent.click(close);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Open FINDING-001/ }));
+    await screen.findByRole("dialog");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Open FINDING-001/ }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.mouseDown(dialog.parentElement as HTMLElement);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("refreshes read-only data through the loader", async () => {
     vi.mocked(getFindings).mockResolvedValue(findings);
     render(<FindingsView />);

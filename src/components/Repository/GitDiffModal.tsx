@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as commands from "../../lib/commands";
 import { parseUnifiedDiff } from "../../lib/gitDiff";
 import type { GitFile, GitFileDiff } from "../../types";
+import { ModalCloseButton } from "../Layout/ModalCloseButton";
 import "./RepositoryView.css";
 
 interface GitDiffModalProps {
@@ -79,9 +80,7 @@ export function GitDiffModal({ file, onClose }: GitDiffModalProps) {
               {file.diff_target === "staged" ? "Index changes" : file.diff_target === "untracked" ? "Untracked file" : "Working tree changes"}
             </div>
           </div>
-          <button type="button" aria-label="Close diff" onClick={onClose} style={{ flexShrink: 0, display: "grid", placeItems: "center", border: "none", borderRadius: 7, padding: 6, background: "transparent", color: "var(--text-secondary)", cursor: "pointer" }}>
-            <i className="material-symbols-outlined" style={{ fontSize: 20 }}>close</i>
-          </button>
+          <ModalCloseButton label="Close diff" onClick={onClose} />
         </div>
 
         {(result?.truncated || linesTruncated) && (
