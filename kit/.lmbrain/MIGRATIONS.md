@@ -4,7 +4,20 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `3.1.4`.
+The current kit is `4.0.0`.
+
+### 4.0.0 (governed spec tags and implementation estimates)
+
+Supported source version is `3.1.4`. Existing workspaces keep parsing unchanged: the new fields are optional in the parser.
+
+1. Update the desktop application, `lmbrain-core`, `lmbrain-mcp`, and the bundled kit together.
+2. **No automatic rewrite happens.** Existing `tags` values are preserved exactly as written.
+3. Review the new `field-restating-tag` diagnostics. Tags that duplicate `milestone`, `area`, or `priority` (for example `3.1.0` or `milestone-m02`) remain readable but are rejected by the next `spec_set_tags` mutation. Clean them deliberately.
+4. Assign `capability_tier` and `thinking_level` through `spec_set_effort` to specs you intend to move to `ready`. The `ready` transition now fails closed without them.
+5. Specs already in `ready`, `working`, or `review` without an estimate are not blocked; they report `missing-effort-estimate` until a Lead sets one.
+6. Update `.lmbrain/VERSION` to `4.0.0` after validating the release.
+
+Rollback to 3.1.4 is data-safe: the new frontmatter fields are ignored by the older parser, and no existing field changed shape.
 
 ### 3.1.4 (responsive workspace snapshot loading)
 

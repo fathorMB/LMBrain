@@ -92,6 +92,9 @@ export interface Spec {
   area: string | null;
   milestone: string | null;
   recommended_agent: string | null;
+  /** Lead-owned implementation estimate (issue #64); absent on legacy specs. */
+  capability_tier: string | null;
+  thinking_level: string | null;
   depends_on?: string[];
   parking_events?: SpecParkingEvent[];
   skills: string[];

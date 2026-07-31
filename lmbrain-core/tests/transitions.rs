@@ -24,7 +24,7 @@ fn spec_parking_is_semantic_audited_and_requires_normal_reapproval() {
     write(
         dir.path(),
         ready,
-        "---\nid: SPEC-077\ntitle: Park me\nstatus: ready\nrecommended_agent: AGENT-IMPL\ndepends_on: []\nparking_events: []\nactivity: []\nupdated: 2026-07-29\n---\n# Park me\n",
+        "---\nid: SPEC-077\ntitle: Park me\nstatus: ready\nrecommended_agent: AGENT-IMPL\ncapability_tier: terra\nthinking_level: standard\ndepends_on: []\nparking_events: []\nactivity: []\nupdated: 2026-07-29\n---\n# Park me\n",
     );
     write(
         dir.path(),
@@ -1438,4 +1438,239 @@ fn before_done_reports_every_authority_blocker_and_force_audits_them() {
         .is_some_and(|invariant| {
             invariant.contains("LEAD-CHECK") && invariant.contains("HUMAN-PLAY")
         }));
+}
+
+// ─── Governed spec metadata (issues #49 and #64) ──────────────────
+
+fn spec_fixture(root: &std::path::Path, relative: &str, extra: &str) {
+    write(
+        root,
+        relative,
+        &format!(
+            "---\nid: SPEC-200\ntitle: Metadata subject\nstatus: backlog\nmilestone: 4.0.0\narea: rust\npriority: high\ntags: []\nlinks: []\nactivity: []\ncreated: 2026-07-01\nupdated: 2026-07-01\n{extra}---\n# Metadata subject\n"
+        ),
+    );
+}
+
+#[test]
+fn setting_tags_normalizes_and_rejects_field_restating_values() {
+    let dir = tempdir().unwrap();
+    let spec = ".lmbrain/specs/backlog/SPEC-200.md";
+    spec_fixture(dir.path(), spec, "");
+
+    let error = lmbrain_core::set_spec_tags(
+        dir.path(),
+        spec,
+        &["4.0.0".into(), "wiki".into()],
+        MutationOptions::default(),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("milestone"));
+    // The rejected mutation leaves the artifact untouched.
+    let untouched = Document::parse(&fs::read_to_string(dir.path().join(spec)).unwrap()).unwrap();
+    assert!(untouched.string_array("tags").is_empty());
+
+    let result = lmbrain_core::set_spec_tags(
+        dir.path(),
+        spec,
+        &["  Kit_Feedback ".into(), "#Docs".into(), "wiki".into()],
+        MutationOptions::default(),
+    )
+    .unwrap();
+    let document = Document::parse(&fs::read_to_string(&result.path).unwrap()).unwrap();
+    assert_eq!(
+        document.string_array("tags"),
+        vec![
+            "kit-feedback".to_string(),
+            "documentation".to_string(),
+            "wiki".to_string()
+        ]
+    );
+}
+
+#[test]
+fn forcing_invalid_tags_records_an_audited_reason() {
+    let dir = tempdir().unwrap();
+    let spec = ".lmbrain/specs/backlog/SPEC-200.md";
+    spec_fixture(dir.path(), spec, "");
+
+    let result = lmbrain_core::set_spec_tags(
+        dir.path(),
+        spec,
+        &["4.0.0".into(), "wiki".into()],
+        MutationOptions {
+            force: true,
+            reason: Some("importing a legacy planning tag".into()),
+        },
+    )
+    .unwrap();
+    assert!(result.forced);
+    let document = Document::parse(&fs::read_to_string(&result.path).unwrap()).unwrap();
+    // The offending value is dropped, not written, but the override is recorded.
+    assert_eq!(document.string_array("tags"), vec!["wiki".to_string()]);
+    assert!(!document.object_array("mutation_overrides").is_empty());
+}
+
+#[test]
+fn effort_defaults_the_thinking_level_from_the_tier() {
+    let dir = tempdir().unwrap();
+    let spec = ".lmbrain/specs/backlog/SPEC-200.md";
+    spec_fixture(dir.path(), spec, "");
+
+    let result =
+        lmbrain_core::set_spec_effort(dir.path(), spec, "Sol", None, MutationOptions::default())
+            .unwrap();
+    let document = Document::parse(&fs::read_to_string(&result.path).unwrap()).unwrap();
+    assert_eq!(document.value("capability_tier").as_deref(), Some("sol"));
+    assert_eq!(
+        document.value("thinking_level").as_deref(),
+        Some("extended")
+    );
+}
+
+#[test]
+fn effort_rejects_unknown_and_constrained_combinations() {
+    let dir = tempdir().unwrap();
+    let spec = ".lmbrain/specs/backlog/SPEC-200.md";
+    spec_fixture(dir.path(), spec, "");
+
+    let unknown =
+        lmbrain_core::set_spec_effort(dir.path(), spec, "jupiter", None, MutationOptions::default())
+            .unwrap_err();
+    assert!(unknown.to_string().contains("unknown capability tier"));
+
+    let constrained = lmbrain_core::set_spec_effort(
+        dir.path(),
+        spec,
+        "sol",
+        Some("minimal"),
+        MutationOptions::default(),
+    )
+    .unwrap_err();
+    assert!(constrained.to_string().contains("Sol"));
+
+    // Forcing it keeps the value but records why the invariant was crossed.
+    let forced = lmbrain_core::set_spec_effort(
+        dir.path(),
+        spec,
+        "sol",
+        Some("minimal"),
+        MutationOptions {
+            force: true,
+            reason: Some("mechanical rename across layers".into()),
+        },
+    )
+    .unwrap();
+    let document = Document::parse(&fs::read_to_string(&forced.path).unwrap()).unwrap();
+    assert_eq!(
+        document.value("thinking_level").as_deref(),
+        Some("minimal")
+    );
+    assert!(!document.object_array("mutation_overrides").is_empty());
+}
+
+#[test]
+fn a_spec_cannot_become_ready_without_a_valid_estimate() {
+    let dir = tempdir().unwrap();
+    let spec = ".lmbrain/specs/backlog/SPEC-200.md";
+    spec_fixture(dir.path(), spec, "depends_on: []\n");
+
+    let blocked = transition(dir.path(), spec, "ready", MutationOptions::default()).unwrap_err();
+    assert!(blocked.to_string().contains("capability_tier"));
+
+    lmbrain_core::set_spec_effort(dir.path(), spec, "terra", None, MutationOptions::default())
+        .unwrap();
+    let ready = transition(dir.path(), spec, "ready", MutationOptions::default()).unwrap();
+    assert_eq!(ready.status, "ready");
+}
+
+#[test]
+fn effort_observations_are_append_only_and_never_rewrite_the_recommendation() {
+    let dir = tempdir().unwrap();
+    let spec = ".lmbrain/specs/working/SPEC-200.md";
+    spec_fixture(
+        dir.path(),
+        spec,
+        "capability_tier: luna\nthinking_level: minimal\neffort_observations: []\n",
+    );
+
+    lmbrain_core::record_effort_observation(
+        dir.path(),
+        spec,
+        "sol",
+        "AGENT-IMPL",
+        "Needed contract changes the estimate did not anticipate",
+        MutationOptions::default(),
+    )
+    .unwrap();
+    let result = lmbrain_core::record_effort_observation(
+        dir.path(),
+        spec,
+        "terra",
+        "AGENT-IMPL",
+        "Second pass was smaller",
+        MutationOptions::default(),
+    )
+    .unwrap();
+
+    let document = Document::parse(&fs::read_to_string(&result.path).unwrap()).unwrap();
+    let observations = document.object_array("effort_observations");
+    assert_eq!(observations.len(), 2);
+    assert_eq!(
+        observations[0].get("observed_tier").and_then(|v| v.as_str()),
+        Some("sol")
+    );
+    assert_eq!(
+        observations[0]
+            .get("recommended_tier")
+            .and_then(|v| v.as_str()),
+        Some("luna")
+    );
+    // The Lead-owned recommendation is untouched by specialist feedback.
+    assert_eq!(document.value("capability_tier").as_deref(), Some("luna"));
+    assert_eq!(document.value("thinking_level").as_deref(), Some("minimal"));
+}
+
+#[test]
+fn effort_observations_require_an_actor_and_a_note() {
+    let dir = tempdir().unwrap();
+    let spec = ".lmbrain/specs/working/SPEC-200.md";
+    spec_fixture(dir.path(), spec, "effort_observations: []\n");
+
+    assert!(lmbrain_core::record_effort_observation(
+        dir.path(),
+        spec,
+        "terra",
+        "   ",
+        "note",
+        MutationOptions::default()
+    )
+    .is_err());
+    assert!(lmbrain_core::record_effort_observation(
+        dir.path(),
+        spec,
+        "terra",
+        "AGENT-IMPL",
+        "  ",
+        MutationOptions::default()
+    )
+    .is_err());
+}
+
+#[test]
+fn governed_metadata_verbs_reject_non_spec_artifacts() {
+    let dir = tempdir().unwrap();
+    let adr = ".lmbrain/decisions/ADR-010.md";
+    write(
+        dir.path(),
+        adr,
+        "---\nid: ADR-010\ntitle: A decision\nstatus: accepted\ntags: []\n---\n# A decision\n",
+    );
+    assert!(lmbrain_core::set_spec_tags(
+        dir.path(),
+        adr,
+        &["wiki".into()],
+        MutationOptions::default()
+    )
+    .is_err());
 }

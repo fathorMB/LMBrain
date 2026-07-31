@@ -142,6 +142,41 @@ fn has_evidence_content(section: &str) -> bool {
     })
 }
 
+/// A spec becomes `ready` only with a valid Lead-owned implementation estimate.
+/// Legacy specs already past `ready` are never rewritten: they surface a
+/// diagnostic instead, so this gate only applies to the transition itself.
+pub fn spec_effort_is_declared(document: &Document) -> Result<(), String> {
+    let raw_tier = document.value("capability_tier").unwrap_or_default();
+    if raw_tier.trim().is_empty() {
+        return Err(format!(
+            "a ready spec requires `capability_tier` (one of {})",
+            crate::taxonomy::capability_tiers().join(", ")
+        ));
+    }
+    let Some(tier) = crate::taxonomy::normalize_capability_tier(&raw_tier) else {
+        return Err(format!(
+            "unknown capability tier `{raw_tier}`; expected one of {}",
+            crate::taxonomy::capability_tiers().join(", ")
+        ));
+    };
+
+    let raw_level = document.value("thinking_level").unwrap_or_default();
+    if raw_level.trim().is_empty() {
+        return Err(format!(
+            "a ready spec requires `thinking_level` (one of {})",
+            crate::taxonomy::thinking_levels().join(", ")
+        ));
+    }
+    let Some(level) = crate::taxonomy::normalize_thinking_level(&raw_level) else {
+        return Err(format!(
+            "unknown thinking level `{raw_level}`; expected one of {}",
+            crate::taxonomy::thinking_levels().join(", ")
+        ));
+    };
+
+    crate::taxonomy::thinking_level_allowed(&tier, &level)
+}
+
 pub fn single_ready_handoff(root: &Path, excluding: Option<&Path>) -> bool {
     scan(root.join(".lmbrain/handoffs/active"))
         .into_iter()

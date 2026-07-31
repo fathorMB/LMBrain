@@ -1,6 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { getSpecs } from "../../lib/commands";
+import {
+  CAPABILITY_TIERS,
+  EMPTY_BOARD_FILTERS,
+  collectTagVocabulary,
+  hasActiveBoardFilters,
+  matchesBoardFilters,
+  toggleValue,
+  type BoardFilters,
+} from "../../lib/boardFilters";
 import type { Spec, SpecStatus } from "../../types";
 
 const COLUMNS: { status: SpecStatus; label: string; color: string }[] = [
@@ -27,9 +36,33 @@ function criteriaProgress(body: string): { done: number; total: number } {
   return { done, total };
 }
 
+/** Tier colours track footprint: cool for small, warm for cross-layer. */
+const TIER_COLORS: Record<string, string> = {
+  luna: "#5b8def",
+  terra: "#46b07d",
+  sol: "#e0a23a",
+};
+
+const selectStyle = {
+  background: "var(--bg-tertiary)",
+  color: "var(--text-primary)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-sm)",
+  padding: "5px 7px",
+} as const;
+
+const chipButtonStyle = {
+  background: "var(--bg-tertiary)",
+  color: "var(--text-secondary)",
+  border: "1px solid var(--border-secondary)",
+  borderRadius: "var(--radius-pill)",
+  padding: "2px 9px",
+  fontSize: "var(--text-xs)",
+} as const;
+
 export function TaskboardView() {
   const { state, dispatch, openSpec } = useWorkspace();
-  const [dependencyFilter, setDependencyFilter] = useState<"all" | "blocked" | "ready-after">("all");
+  const [filters, setFilters] = useState<BoardFilters>(EMPTY_BOARD_FILTERS);
 
   useEffect(() => {
     getSpecs()
@@ -37,17 +70,15 @@ export function TaskboardView() {
       .catch(console.error);
   }, [dispatch]);
 
+  const tagVocabulary = useMemo(() => collectTagVocabulary(state.specs), [state.specs]);
+  const filtersActive = hasActiveBoardFilters(filters);
+
   const specsByStatus = (status: SpecStatus) =>
-    state.specs.filter((spec) => {
-      if (spec.status !== status) return false;
-      const dependencies = spec.depends_on ?? [];
-      const blocked = dependencies.some(
-        (id) => state.specs.find((candidate) => candidate.id === id)?.status !== "done",
-      );
-      if (dependencyFilter === "blocked") return blocked;
-      if (dependencyFilter === "ready-after") return dependencies.length > 0 && !blocked;
-      return true;
-    });
+    state.specs.filter(
+      (spec) => spec.status === status && matchesBoardFilters(spec, filters, state.specs),
+    );
+  const totalByStatus = (status: SpecStatus) =>
+    state.specs.filter((spec) => spec.status === status).length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
@@ -104,26 +135,169 @@ export function TaskboardView() {
             Dependency view{" "}
             <select
               aria-label="Dependency view"
-              value={dependencyFilter}
+              value={filters.dependency}
               onChange={(event) =>
-                setDependencyFilter(event.target.value as "all" | "blocked" | "ready-after")
+                setFilters((current) => ({
+                  ...current,
+                  dependency: event.target.value as BoardFilters["dependency"],
+                }))
               }
-              style={{
-                background: "var(--bg-tertiary)",
-                color: "var(--text-primary)",
-                border: "1px solid var(--border-primary)",
-                borderRadius: 6,
-                padding: "5px 7px",
-              }}
+              style={selectStyle}
             >
               <option value="all">All specs</option>
               <option value="blocked">Blocked by dependency</option>
               <option value="ready-after">Prerequisites complete</option>
             </select>
           </label>
+
+          <label>
+            Tier{" "}
+            <select
+              aria-label="Capability tier"
+              value={filters.tiers[0] ?? "all"}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  tiers: event.target.value === "all" ? [] : [event.target.value],
+                }))
+              }
+              style={selectStyle}
+            >
+              <option value="all">Any tier</option>
+              {CAPABILITY_TIERS.map((tier) => (
+                <option key={tier} value={tier}>
+                  {tier}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {tagVocabulary.length > 0 && (
+            <>
+              <label>
+                Tag{" "}
+                <select
+                  aria-label="Add tag filter"
+                  value=""
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (!value) return;
+                    setFilters((current) => ({
+                      ...current,
+                      includeTags: toggleValue(current.includeTags, value),
+                      excludeTags: current.excludeTags.filter((tag) => tag !== value),
+                    }));
+                  }}
+                  style={selectStyle}
+                >
+                  <option value="">Include…</option>
+                  {tagVocabulary.map((tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <select
+                  aria-label="Exclude tag filter"
+                  value=""
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (!value) return;
+                    setFilters((current) => ({
+                      ...current,
+                      excludeTags: toggleValue(current.excludeTags, value),
+                      includeTags: current.includeTags.filter((tag) => tag !== value),
+                    }));
+                  }}
+                  style={selectStyle}
+                >
+                  <option value="">Exclude…</option>
+                  {tagVocabulary.map((tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {filters.includeTags.length > 1 && (
+                <button
+                  type="button"
+                  aria-pressed={filters.includeMode === "all"}
+                  onClick={() =>
+                    setFilters((current) => ({
+                      ...current,
+                      includeMode: current.includeMode === "all" ? "any" : "all",
+                    }))
+                  }
+                  style={chipButtonStyle}
+                >
+                  match {filters.includeMode}
+                </button>
+              )}
+              <label style={{ display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
+                <input
+                  type="checkbox"
+                  checked={filters.untaggedOnly}
+                  onChange={(event) =>
+                    setFilters((current) => ({ ...current, untaggedOnly: event.target.checked }))
+                  }
+                />
+                Untagged only
+              </label>
+            </>
+          )}
+
+          {filtersActive && (
+            <button type="button" onClick={() => setFilters(EMPTY_BOARD_FILTERS)} style={chipButtonStyle}>
+              Clear filters
+            </button>
+          )}
+
           <span style={{ flex: 1 }} />
           Read-only view · specs move through these states via the `lmbrain-mcp` tools
         </div>
+
+        {(filters.includeTags.length > 0 || filters.excludeTags.length > 0) && (
+          <div
+            aria-label="Active tag filters"
+            style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-1)", marginTop: "var(--space-2)" }}
+          >
+            {filters.includeTags.map((tag) => (
+              <button
+                key={`include-${tag}`}
+                type="button"
+                aria-label={`Remove include filter ${tag}`}
+                onClick={() =>
+                  setFilters((current) => ({
+                    ...current,
+                    includeTags: toggleValue(current.includeTags, tag),
+                  }))
+                }
+                style={{ ...chipButtonStyle, color: "#bcaef6" }}
+              >
+                {tag} ×
+              </button>
+            ))}
+            {filters.excludeTags.map((tag) => (
+              <button
+                key={`exclude-${tag}`}
+                type="button"
+                aria-label={`Remove exclude filter ${tag}`}
+                onClick={() =>
+                  setFilters((current) => ({
+                    ...current,
+                    excludeTags: toggleValue(current.excludeTags, tag),
+                  }))
+                }
+                style={{ ...chipButtonStyle, color: "#e0a23a" }}
+              >
+                −{tag} ×
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Columns */}
@@ -152,9 +326,10 @@ export function TaskboardView() {
                     {col.label}
                   </span>
                   <span
+                    title={filtersActive ? "shown / total in this status" : undefined}
                     style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "var(--text-muted)" }}
                   >
-                    {specs.length}
+                    {filtersActive ? `${specs.length}/${totalByStatus(col.status)}` : specs.length}
                   </span>
                 </div>
                 <div
@@ -255,6 +430,35 @@ function SpecCard({
       <div style={{ fontSize: "var(--text-md)", fontWeight: 600, lineHeight: 1.35, color: "var(--text-primary)" }}>
         {spec.title}
       </div>
+      {(spec.tags ?? []).length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-1)" }}>
+          {/* Three chips plus an overflow count: enough to explain why a spec
+              matched a filter without turning the card into a tag cloud. */}
+          {(spec.tags ?? []).slice(0, 3).map((tag) => (
+            <span
+              key={tag}
+              style={{
+                fontSize: "var(--text-2xs)",
+                color: "var(--text-secondary)",
+                background: "#1a1722",
+                border: "1px solid var(--border-secondary)",
+                borderRadius: "var(--radius-pill)",
+                padding: "1px 7px",
+              }}
+            >
+              {tag}
+            </span>
+          ))}
+          {(spec.tags ?? []).length > 3 && (
+            <span
+              title={(spec.tags ?? []).join(", ")}
+              style={{ fontSize: "var(--text-2xs)", color: "var(--text-muted)" }}
+            >
+              +{(spec.tags ?? []).length - 3}
+            </span>
+          )}
+        </div>
+      )}
       {spec.status === "backlog" && (spec.parking_events?.length ?? 0) > 0 && (
         <div
           title={spec.parking_events?.at(-1)?.reason}
@@ -264,6 +468,24 @@ function SpecCard({
         </div>
       )}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 1 }}>
+        {spec.capability_tier && (
+          <span
+            aria-label={`Capability tier ${spec.capability_tier}${spec.thinking_level ? `, ${spec.thinking_level} reasoning` : ""}`}
+            title={`Implementation estimate: ${spec.capability_tier}${spec.thinking_level ? ` · ${spec.thinking_level} reasoning` : ""}`}
+            style={{
+              fontSize: "var(--text-2xs)",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: ".05em",
+              color: TIER_COLORS[spec.capability_tier] ?? "var(--text-secondary)",
+              border: `1px solid ${TIER_COLORS[spec.capability_tier] ?? "var(--border-secondary)"}`,
+              borderRadius: "var(--radius-sm)",
+              padding: "1px 6px",
+            }}
+          >
+            {spec.capability_tier}
+          </span>
+        )}
         {spec.recommended_agent && (
           <span
             style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "#bcaef6" }}

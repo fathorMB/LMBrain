@@ -147,6 +147,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
     diagnose_verification(root, &artifacts, &mut diagnostics);
     diagnose_roadmap(root, &artifacts, &mut diagnostics);
     diagnose_kit_feedback(root, &mut diagnostics);
+    diagnose_spec_metadata(&artifacts, &mut diagnostics);
 
     let harness = lmbrain.join("HARNESSES.json");
     if harness.exists() {
@@ -174,6 +175,84 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
     });
     diagnostics.dedup_by(|left, right| left.id == right.id);
     diagnostics
+}
+
+/// Spec metadata diagnostics (issues #49 and #64). These never block: they make
+/// legacy and unrecognized values visible so the Lead can clean them
+/// deliberately, which is what keeps existing workspaces readable.
+fn diagnose_spec_metadata(artifacts: &[Artifact], diagnostics: &mut Vec<Diagnostic>) {
+    for artifact in artifacts {
+        if !artifact.relative.starts_with("specs/") {
+            continue;
+        }
+        let document = &artifact.document;
+        let artifact_id = document.value("id");
+        let status = document.value("status").unwrap_or_default();
+
+        let (_, issues) = crate::taxonomy::validate_spec_tags(
+            &document.string_array("tags"),
+            document.value("milestone").as_deref(),
+            document.value("area").as_deref(),
+            document.value("priority").as_deref(),
+        );
+        for issue in &issues {
+            let (code, next_action) = match issue {
+                crate::taxonomy::SpecTagIssue::RestatesField { field, .. } => (
+                    "field-restating-tag",
+                    format!(
+                        "Remove the tag and rely on the `{field}` field; the next governed tag mutation will reject it."
+                    ),
+                ),
+                _ => (
+                    "invalid-spec-tag",
+                    "Correct the tag through the governed tag mutation.".to_string(),
+                ),
+            };
+            diagnostics.push(diagnostic(
+                code,
+                DiagnosticSeverity::Warning,
+                artifact_id.clone(),
+                Some(artifact.relative.clone()),
+                issue.message(),
+                &next_action,
+                DiagnosticFixability::GovernedMutation,
+                &issue.message(),
+            ));
+        }
+
+        for tag in document.string_array("tags") {
+            let normalization = crate::taxonomy::normalize_spec_tag(&tag);
+            if normalization.value.is_some() && !normalization.is_canonical {
+                diagnostics.push(diagnostic(
+                    "unknown-spec-tag",
+                    DiagnosticSeverity::Info,
+                    artifact_id.clone(),
+                    Some(artifact.relative.clone()),
+                    format!("Tag `{tag}` is outside the canonical spec-tag vocabulary"),
+                    "Keep it if it is meaningful project vocabulary, or align it with the canonical set.",
+                    DiagnosticFixability::ReadOnly,
+                    &tag,
+                ));
+            }
+        }
+
+        // Legacy specs already past `ready` are never rewritten; they surface
+        // the missing estimate instead of blocking.
+        if matches!(status.as_str(), "ready" | "working" | "review") {
+            if let Err(reason) = invariants::spec_effort_is_declared(document) {
+                diagnostics.push(diagnostic(
+                    "missing-effort-estimate",
+                    DiagnosticSeverity::Warning,
+                    artifact_id.clone(),
+                    Some(artifact.relative.clone()),
+                    format!("Spec has no usable implementation estimate: {reason}"),
+                    "Set the capability tier and thinking level through the governed effort mutation.",
+                    DiagnosticFixability::GovernedMutation,
+                    &status,
+                ));
+            }
+        }
+    }
 }
 
 fn diagnose_kit_feedback(root: &Path, diagnostics: &mut Vec<Diagnostic>) {

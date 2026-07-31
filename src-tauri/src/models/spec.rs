@@ -57,6 +57,10 @@ pub struct Spec {
     pub area: Option<String>,
     pub milestone: Option<String>,
     pub recommended_agent: Option<String>,
+    /// Lead-owned implementation estimate (issue #64). Optional in the parser:
+    /// it is mandatory only at the `ready` transition, so legacy specs load.
+    pub capability_tier: Option<String>,
+    pub thinking_level: Option<String>,
     pub depends_on: Vec<String>,
     pub parking_events: Vec<SpecParkingEvent>,
     pub skills: Vec<String>,

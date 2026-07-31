@@ -116,6 +116,44 @@ Skill optional fields: `scope`, `kind`, `risk`, `applies_to`, `domains`, `comman
 
 Priority values: `critical`, `high`, `medium`, `low`.
 
+### Spec tags
+
+`tags` is descriptive planning vocabulary owned by the Project Lead and assigned
+through `spec_set_tags`. Values are normalized to lowercase, with spaces and
+underscores replaced by `-`, a leading `#` stripped, duplicates collapsed, and a
+2–32 character `^[a-z0-9][a-z0-9-]*$` shape.
+
+A tag must not restate a structured field. Values equal to the spec's own
+`milestone`, `area`, or `priority`, values shaped like a release (`3.1.0`,
+`v2.8`), and values starting with `milestone-` are rejected: set the field
+instead. Existing artifacts are never rewritten automatically; they surface a
+`field-restating-tag` diagnostic until the next governed tag mutation.
+
+The kit ships a canonical starter vocabulary. Values outside it stay usable and
+report an informational `unknown-spec-tag` diagnostic.
+
+### Spec implementation estimate
+
+`capability_tier` and `thinking_level` are the Project Lead's implementation
+estimate, assigned through `spec_set_effort`.
+
+| Field | Values | Meaning |
+| --- | --- | --- |
+| `capability_tier` | `luna`, `terra`, `sol` | Expected change footprint |
+| `thinking_level` | `minimal`, `standard`, `extended`, `maximum` | Expected deliberation |
+
+`luna` is roughly two files and a change known before starting; `terra` is
+several files in one layer; `sol` is a large footprint, or any work crossing the
+frontend, `lmbrain-core`, MCP, and this contract, at any size.
+
+`thinking_level` defaults from the tier (`luna`→`minimal`, `terra`→`standard`,
+`sol`→`extended`) and may be raised or lowered with a recorded reason. A `sol`
+spec is never `minimal`; a `luna` spec is never `maximum` without a reason.
+
+`effort_observations` is an append-only list written by implementation
+specialists through `spec_record_effort_observation`. It records the tier the
+work actually required and never modifies the Lead's recommendation.
+
 ## Allowed statuses
 
 | Artifact | Values |
@@ -158,6 +196,9 @@ Diagnostics use a versioned core record with a stable ID, code, severity, artifa
 
 - A spec reaches `done` only with its acceptance criteria checked, evidence recorded, and an accepted review.
 - A spec cannot normally become `ready` or `working` until every `depends_on` prerequisite is `done`; dependency graph errors fail closed.
+- A spec cannot become `ready` without a valid `capability_tier` and `thinking_level`; the gate fails closed and forced transitions retain the blocker in the audit trail. Specs already past `ready` without an estimate are never rewritten: they surface a `missing-effort-estimate` diagnostic.
+- Spec tags are descriptive metadata and never carry authority. A tag that restates `milestone`, `area`, or `priority` is rejected by the governed tag mutation.
+- An effort observation is specialist evidence. It is append-only and never changes the Lead-owned recommendation, and no tier ever selects or starts an agent.
 - A ready spec returns to backlog only through `spec_park`; a parked spec cannot start until normal re-approval and its parking history is retained.
 - Kit feedback is append-only and informational. Recording it never authorizes a project mutation, LMBrain implementation, external submission, or lifecycle transition.
 - Verification authority is distinct: `agent`/`kit` requirements belong to `before-submit`; `lead`/`operator` requirements belong to `before-done`. Lead and operator requirements need both an already-checked checklist item and a fresh typed attestation from the matching authority. Attestation records evidence only: it never approves a spec, checks the item, or changes lifecycle status. Lead uses `spec_attest_lead`; the human operator uses the desktop verification panel. Normal `spec_submit`/`spec_done` report every blocker; forced transitions retain the blocker details in the audit trail. Legacy completed specs remain completed and surface unresolved gates as diagnostics.

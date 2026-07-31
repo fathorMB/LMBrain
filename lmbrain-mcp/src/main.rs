@@ -5,8 +5,9 @@ use std::{
 
 use lmbrain_core::context::{build_project_digest, build_review_context, build_spec_context};
 use lmbrain_core::transitions::{
-    create, record_review_event, review_verdict, set_agent_mnemonic_name, set_recommended_agent,
-    transition, ArtifactKind, CreateRequest, MutationOptions,
+    create, record_effort_observation, record_review_event, review_verdict,
+    set_agent_mnemonic_name, set_recommended_agent, set_spec_effort, set_spec_tags, transition,
+    ArtifactKind, CreateRequest, MutationOptions,
 };
 use lmbrain_core::{
     accept_finding_risk, apply_improvement_proposal, approve_verification_manifest,
@@ -221,6 +222,54 @@ fn tools() -> Vec<Value> {
             "Set an agent profile mnemonic human name.",
             "mnemonic_name",
         ),
+        json!({
+            "name": "spec_set_tags",
+            "description": "Project Lead: replace a spec's descriptive tags. Values are normalized; tags that restate `milestone`, `area`, or `priority` are rejected.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["path", "tags"],
+                "properties": {
+                    "path": {"type":"string"},
+                    "tags": {"type":"array","items":{"type":"string"}},
+                    "force": {"type":"boolean","default":false},
+                    "reason": {"type":"string","description":"Required only when force is true."}
+                },
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "spec_set_effort",
+            "description": "Project Lead: set the implementation estimate. `capability_tier` is the expected change footprint; `thinking_level` defaults from the tier when omitted. Required before a spec can become ready.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["path", "capability_tier"],
+                "properties": {
+                    "path": {"type":"string"},
+                    "capability_tier": {"type":"string","enum":["luna","terra","sol"]},
+                    "thinking_level": {"type":"string","enum":["minimal","standard","extended","maximum"]},
+                    "force": {"type":"boolean","default":false},
+                    "reason": {"type":"string","description":"Required only when force is true."}
+                },
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "spec_record_effort_observation",
+            "description": "Implementation specialist: append the effort the work actually required. Evidence only — it never changes the Lead's recommendation.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["path", "observed_tier", "actor", "note"],
+                "properties": {
+                    "path": {"type":"string"},
+                    "observed_tier": {"type":"string","enum":["luna","terra","sol"]},
+                    "actor": {"type":"string"},
+                    "note": {"type":"string"},
+                    "force": {"type":"boolean","default":false},
+                    "reason": {"type":"string","description":"Required only when force is true."}
+                },
+                "additionalProperties": false
+            }
+        }),
         read_tool("lmbrain_get_artifact", "Read a repository artifact."),
         read_tool(
             "lmbrain_validate",
@@ -953,6 +1002,58 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             args.get("agent")
                 .and_then(Value::as_str)
                 .ok_or("agent missing")?,
+            opts(args),
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "spec_set_tags" => set_spec_tags(
+            root,
+            args.get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?,
+            &args
+                .get("tags")
+                .and_then(Value::as_array)
+                .ok_or("tags missing")?
+                .iter()
+                .map(|value| {
+                    value
+                        .as_str()
+                        .map(str::to_string)
+                        .ok_or("tags must be strings")
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            opts(args),
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "spec_set_effort" => set_spec_effort(
+            root,
+            args.get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?,
+            args.get("capability_tier")
+                .and_then(Value::as_str)
+                .ok_or("capability_tier missing")?,
+            args.get("thinking_level").and_then(Value::as_str),
+            opts(args),
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "spec_record_effort_observation" => record_effort_observation(
+            root,
+            args.get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?,
+            args.get("observed_tier")
+                .and_then(Value::as_str)
+                .ok_or("observed_tier missing")?,
+            args.get("actor")
+                .and_then(Value::as_str)
+                .ok_or("actor missing")?,
+            args.get("note")
+                .and_then(Value::as_str)
+                .ok_or("note missing")?,
             opts(args),
         )
         .map(|result| text(json!(result)))

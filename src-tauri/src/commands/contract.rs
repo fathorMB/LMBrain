@@ -66,6 +66,8 @@ pub fn build_specs(root: &Path) -> Result<Vec<Spec>, AppError> {
                 area: fm_string(&parsed.frontmatter, "area"),
                 milestone: fm_string(&parsed.frontmatter, "milestone"),
                 recommended_agent: fm_string(&parsed.frontmatter, "recommended_agent"),
+                capability_tier: fm_string(&parsed.frontmatter, "capability_tier"),
+                thinking_level: fm_string(&parsed.frontmatter, "thinking_level"),
                 depends_on: fm_string_array(&parsed.frontmatter, "depends_on"),
                 parking_events: parsed
                     .frontmatter

@@ -1188,6 +1188,11 @@ fn invariant_failure(
             ));
         }
     }
+    if kind == ArtifactKind::Spec && target == "ready" {
+        if let Err(reason) = invariants::spec_effort_is_declared(document) {
+            return Some(reason);
+        }
+    }
     if kind == ArtifactKind::Spec && matches!(target, "review" | "done") {
         let phase = if target == "review" {
             "before-submit"
@@ -1309,4 +1314,205 @@ fn slug(title: &str) -> String {
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
         .join("-")
+}
+
+// ─── Governed spec metadata (issues #49 and #64) ──────────────────
+
+/// Replaces a spec's descriptive tags. Values are normalized, validated against
+/// the spec's own structured fields, and written as one atomic mutation.
+pub fn set_spec_tags(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    tags: &[String],
+    options: MutationOptions,
+) -> Result<MutationResult, TransitionError> {
+    set_governed_spec_metadata(root, artifact, options, "set tags", |document, forced| {
+        let (normalized, issues) = crate::taxonomy::validate_spec_tags(
+            tags,
+            document.value("milestone").as_deref(),
+            document.value("area").as_deref(),
+            document.value("priority").as_deref(),
+        );
+        if !issues.is_empty() && !forced {
+            return Err(issues
+                .iter()
+                .map(crate::taxonomy::SpecTagIssue::message)
+                .collect::<Vec<_>>()
+                .join("; "));
+        }
+        document.set("tags", &render_inline_array(&normalized));
+        Ok(if issues.is_empty() {
+            None
+        } else {
+            Some("invalid tags".to_string())
+        })
+    })
+}
+
+/// Sets the Lead-owned implementation estimate. `level` defaults from the tier
+/// when omitted, so a Lead states one decision rather than two.
+pub fn set_spec_effort(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    tier: &str,
+    level: Option<&str>,
+    options: MutationOptions,
+) -> Result<MutationResult, TransitionError> {
+    set_governed_spec_metadata(root, artifact, options, "set effort", |document, forced| {
+        let Some(tier) = crate::taxonomy::normalize_capability_tier(tier) else {
+            return Err(format!(
+                "unknown capability tier `{tier}`; expected one of {}",
+                crate::taxonomy::capability_tiers().join(", ")
+            ));
+        };
+        let level = match level {
+            Some(raw) => crate::taxonomy::normalize_thinking_level(raw).ok_or_else(|| {
+                format!(
+                    "unknown thinking level `{raw}`; expected one of {}",
+                    crate::taxonomy::thinking_levels().join(", ")
+                )
+            })?,
+            None => crate::taxonomy::default_thinking_level(&tier).to_string(),
+        };
+        let constrained = crate::taxonomy::thinking_level_allowed(&tier, &level);
+        if let Err(reason) = &constrained {
+            if !forced {
+                return Err(reason.clone());
+            }
+        }
+        document.set("capability_tier", &tier);
+        document.set("thinking_level", &level);
+        Ok(constrained.err().map(|_| "constrained effort combination".to_string()))
+    })
+}
+
+/// Appends a specialist's observation of the effort the work actually required.
+/// It is evidence for a later Lead revision and never rewrites the estimate.
+pub fn record_effort_observation(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    observed_tier: &str,
+    actor: &str,
+    note: &str,
+    options: MutationOptions,
+) -> Result<MutationResult, TransitionError> {
+    let observed = crate::taxonomy::normalize_capability_tier(observed_tier).ok_or_else(|| {
+        TransitionError::Invariant(format!(
+            "unknown capability tier `{observed_tier}`; expected one of {}",
+            crate::taxonomy::capability_tiers().join(", ")
+        ))
+    })?;
+    let actor = actor.trim();
+    let note = note.trim();
+    if actor.is_empty() {
+        return Err(TransitionError::Missing("actor".into()));
+    }
+    if note.is_empty() {
+        return Err(TransitionError::Missing("note".into()));
+    }
+
+    set_governed_spec_metadata(
+        root,
+        artifact,
+        options,
+        "record effort observation",
+        |document, _| {
+            let recommended = document.value("capability_tier").unwrap_or_default();
+            document
+                .append_object(
+                    "effort_observations",
+                    &[
+                        (
+                            "timestamp".into(),
+                            serde_json::Value::String(today()),
+                        ),
+                        ("actor".into(), serde_json::Value::String(actor.into())),
+                        (
+                            "observed_tier".into(),
+                            serde_json::Value::String(observed.clone()),
+                        ),
+                        (
+                            "recommended_tier".into(),
+                            serde_json::Value::String(recommended),
+                        ),
+                        ("note".into(), serde_json::Value::String(note.into())),
+                    ],
+                )
+                .map_err(|error| error.to_string())?;
+            Ok(None)
+        },
+    )
+}
+
+fn render_inline_array(values: &[String]) -> String {
+    format!("[{}]", values.join(", "))
+}
+
+/// Shared body for the governed spec-metadata mutations: the same locking,
+/// identity, concurrency, and audit guarantees as `set_field`, with a
+/// caller-supplied edit that reports whether it violated an invariant.
+fn set_governed_spec_metadata(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    options: MutationOptions,
+    activity: &str,
+    edit: impl Fn(&mut Document, bool) -> Result<Option<String>, String>,
+) -> Result<MutationResult, TransitionError> {
+    require_force_reason(&options)?;
+
+    let guard = PathGuard::new(root)?;
+    let artifact = artifact.as_ref();
+    let path = guard.resolve_existing(artifact)?;
+    let initial = Document::parse(&fs::read_to_string(&path)?)?;
+    let initial_id = initial
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
+    let path = guard.resolve_existing(artifact)?;
+    let current_source = fs::read_to_string(&path)?;
+    let mut document = Document::parse(&current_source)?;
+    let id = document
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    if id != initial_id {
+        return Err(TransitionError::Invariant(format!(
+            "artifact changed identity while waiting for its mutation lock: expected {initial_id}, found {id}"
+        )));
+    }
+    if kind_for_id(&id) != Some(ArtifactKind::Spec) {
+        return Err(TransitionError::Invariant("expected a spec artifact".into()));
+    }
+
+    let violated = edit(&mut document, options.force).map_err(TransitionError::Invariant)?;
+
+    document.set("updated", &today());
+    document.append_activity(activity);
+    if options.force {
+        if let Some(reason) = options.reason.as_deref() {
+            let status = document.value("status").unwrap_or_default();
+            let invariant = violated.unwrap_or_else(|| format!("forced mutation: {activity}"));
+            append_mutation_override(
+                &mut document,
+                &id,
+                &status,
+                &status,
+                "project-lead",
+                reason,
+                &invariant,
+            )?;
+        }
+    }
+
+    if fs::read_to_string(&path)? != current_source {
+        return Err(TransitionError::Invariant(
+            "artifact changed while the metadata mutation was being prepared".into(),
+        ));
+    }
+    atomic_write(&path, &document.render())?;
+    Ok(MutationResult {
+        id,
+        status: document.value("status").unwrap_or_default(),
+        path,
+        forced: options.force,
+    })
 }

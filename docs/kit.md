@@ -39,6 +39,8 @@ The kit includes directories for:
 
 Status-directory artifacts must keep filesystem location and frontmatter `status` aligned. LMBrain surfaces diagnostics for mismatches and related consistency problems.
 
+Specs carry two kinds of Project Lead-owned metadata. `tags` is descriptive planning vocabulary: normalized, validated, and rejected when it restates `milestone`, `area`, or `priority`, since a duplicated field is a second source of truth that diverges. `capability_tier` (`luna`/`terra`/`sol`) and `thinking_level` are the implementation estimate: the tier states the expected change footprint, the level the expected deliberation. The estimate is mandatory at the `ready` transition, appears in handoff context with the reason it applies, and never names a provider or model. Implementation specialists append `effort_observations` when the estimate proved wrong; that evidence never rewrites the Lead's recommendation and no tier selects or starts an agent.
+
 `FINDING-*` is the durable cross-spec obligation domain. Most review findings stay local; promotion is explicit, evidence-backed, and identified by the source pair plus a globally allocated ID. Planning never means resolution, a done target never auto-closes the finding, and operator-only risk/reopen decisions remain semantic MCP actions rather than app buttons.
 
 `design/` is intentionally not a managed artifact directory. It stores self-contained HTML/CSS/JS mockups and optional README/manifest metadata that the Project Lead may reference from specs.
