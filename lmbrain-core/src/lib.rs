@@ -1,5 +1,6 @@
 //! Tauri-free, filesystem-backed controlled mutations for LMBrain artifacts.
 pub mod attestation;
+pub mod branching_strategy;
 pub mod context;
 pub mod diagnostics;
 pub mod finding;
@@ -23,6 +24,12 @@ pub use attestation::{
     verification_blockers_for_workspace, verification_requirements, AttestationError,
     AttestationResult, VerificationAttestation, VerificationBlocker, VerificationMigrationItem,
     VerificationMigrationPreview, VERIFICATION_ATTESTATION_SCHEMA_VERSION,
+};
+pub use branching_strategy::{
+    load_branching_strategy, parse_branching_strategy, set_branching_strategy,
+    validate_branching_strategy, BranchAuthorityConfig, BranchNamingConfig, BranchingStrategy,
+    BranchingStrategyError, BranchingTopology, CommitTriggersConfig, BRANCHING_STRATEGY_PATH,
+    BRANCHING_STRATEGY_SCHEMA_VERSION,
 };
 pub use context::{
     build_project_digest, build_review_context, build_spec_context, AgentProfileSummary,

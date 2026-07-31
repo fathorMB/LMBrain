@@ -174,6 +174,14 @@ successor recorded anywhere.
 Existing artifacts are never rewritten: one-sided relationships written before
 this verb existed surface as diagnostics until the verb is run.
 
+## Declared branching strategy
+
+`.lmbrain/BRANCHING.json` is the optional, versioned source of project Git branching intent. Schema version 1 defines top-level properties: `topology` (`main-only`, `github-flow`, `git-flow`, `custom`), `default_branch`, `protected_branches`, `development_branch`, `branch_naming`, `authority`, and `commit_triggers`.
+
+The strategy is declarative guidance for the Project Lead and implementing agents; LMBrain never executes automated `git` checkout, branch creation, merge, or push commands.
+
+Controlled MCP access uses `branching_strategy_get` and `branching_strategy_set`. Mutating the strategy requires operator authority (`actor: operator`) and is written atomically with audit logging in `.lmbrain/BRANCHING.audit.jsonl`. An unconfigured repository reports status `absent`. Kit scaffolding initializes the `main-only` default strategy upon explicit initialization.
+
 ## Allowed statuses
 
 | Artifact | Values |

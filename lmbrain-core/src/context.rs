@@ -38,6 +38,7 @@ pub struct ProjectDigest {
     pub diagnostics: BoundedDiagnosticList,
     pub findings: FindingDigest,
     pub spec_dependencies: SpecDependencyDigest,
+    pub branching_strategy: BranchingStrategyDigest,
     pub markdown: String,
 }
 
@@ -177,6 +178,45 @@ const DIGEST_SPEC_LIMIT: usize = 20;
 const DIGEST_DIAGNOSTIC_LIMIT: usize = 50;
 const DIGEST_FINDING_LIMIT: usize = 30;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BranchingStrategyDigest {
+    pub status: String,
+    pub topology: Option<String>,
+    pub default_branch: Option<String>,
+    pub lead_only_push_branches: Vec<String>,
+    pub allow_specialist_push: bool,
+    pub allowed_prefixes: Vec<String>,
+}
+
+pub fn build_branching_strategy_digest(root: &Path) -> BranchingStrategyDigest {
+    match crate::load_branching_strategy(root) {
+        Ok(Some(strategy)) => BranchingStrategyDigest {
+            status: "declared".to_string(),
+            topology: Some(format!("{:?}", strategy.topology).to_lowercase()),
+            default_branch: Some(strategy.default_branch),
+            lead_only_push_branches: strategy.authority.lead_only_push_branches,
+            allow_specialist_push: strategy.authority.allow_specialist_push,
+            allowed_prefixes: strategy.branch_naming.allowed_prefixes,
+        },
+        Ok(None) => BranchingStrategyDigest {
+            status: "absent".to_string(),
+            topology: None,
+            default_branch: None,
+            lead_only_push_branches: Vec::new(),
+            allow_specialist_push: false,
+            allowed_prefixes: Vec::new(),
+        },
+        Err(_) => BranchingStrategyDigest {
+            status: "invalid".to_string(),
+            topology: None,
+            default_branch: None,
+            lead_only_push_branches: Vec::new(),
+            allow_specialist_push: false,
+            allowed_prefixes: Vec::new(),
+        },
+    }
+}
+
 /// Spec handoff context for specialist orientation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpecContext {
@@ -205,6 +245,7 @@ pub struct SpecContext {
     pub diagnostics: Vec<String>,
     pub findings: Vec<CompactFinding>,
     pub dependencies: crate::SpecDependencyContext,
+    pub branching_strategy: BranchingStrategyDigest,
     pub warnings: Vec<String>,
     pub markdown: String,
 }
@@ -453,6 +494,7 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
         diagnostics,
         findings,
         spec_dependencies,
+        branching_strategy: build_branching_strategy_digest(root),
         markdown,
     }
 }
@@ -596,6 +638,7 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         diagnostics,
         findings,
         dependencies,
+        branching_strategy: build_branching_strategy_digest(root),
         warnings,
         markdown,
     })

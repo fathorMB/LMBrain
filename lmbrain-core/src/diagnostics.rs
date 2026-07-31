@@ -166,6 +166,33 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
         }
     }
 
+    let branching_path = lmbrain.join("BRANCHING.json");
+    if !branching_path.exists() {
+        diagnostics.push(diagnostic(
+            "branching-strategy-absent",
+            DiagnosticSeverity::Info,
+            None,
+            Some("BRANCHING.json".into()),
+            "No declared branching strategy file (.lmbrain/BRANCHING.json) was found.".into(),
+            "Initialize a branching strategy using the operator-governed verb 'branching_strategy_set'.".into(),
+            DiagnosticFixability::GovernedMutation,
+            "branching-strategy-absent",
+        ));
+    } else {
+        if let Err(error) = crate::load_branching_strategy(root) {
+            diagnostics.push(diagnostic(
+                "branching-strategy-invalid",
+                DiagnosticSeverity::Warning,
+                None,
+                Some("BRANCHING.json".into()),
+                format!("Invalid branching strategy declaration: {error}"),
+                "Correct .lmbrain/BRANCHING.json according to the kit branching strategy schema.".into(),
+                DiagnosticFixability::Manual,
+                "branching-strategy-invalid",
+            ));
+        }
+    }
+
     diagnostics.sort_by(|left, right| {
         severity_rank(right.severity)
             .cmp(&severity_rank(left.severity))

@@ -66,6 +66,15 @@ The current board tracks specs, not tasks. Spec status values are:
 
 Acceptance criteria inside a spec provide sub-spec granularity.
 
+## Declared Branching Strategy
+
+The project can declare an explicit, machine-readable Git branching strategy in `.lmbrain/BRANCHING.json`.
+
+- **Topology & Authority:** Supports `main-only`, `github-flow`, `git-flow`, and `custom` topologies, specifying default branch, protected branches, allowed branch prefixes, and Lead commit/push authority.
+- **Lead & Agent Context:** Surfaced in `lmbrain_project_digest` and `lmbrain_spec_context` so the Project Lead and implementing agents understand branch naming and commit authority without guessing.
+- **Governed Mutations:** Read via `branching_strategy_get` and mutated atomically with operator approval (`actor: operator`) via `branching_strategy_set`.
+- **Drift Diagnostics:** Non-destructive diagnostics (`branching-strategy-absent`, `invalid-branch-name`, `unprotected-branch-divergence`) report discrepancies without executing automated Git commands or mutating files silently.
+
 ## V3 context economy
 
 The kit includes context-pack MCP tools for token-efficient agent workflow:

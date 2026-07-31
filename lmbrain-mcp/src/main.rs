@@ -3,7 +3,9 @@ use std::{
     path::PathBuf,
 };
 
-use lmbrain_core::context::{build_project_digest, build_review_context, build_spec_context};
+use lmbrain_core::context::{
+    build_branching_strategy_digest, build_project_digest, build_review_context, build_spec_context,
+};
 use lmbrain_core::transitions::{
     create, record_effort_observation, record_review_event, review_verdict,
     set_agent_mnemonic_name, set_recommended_agent, set_spec_effort, set_spec_tags, supersede_adr,
@@ -15,13 +17,14 @@ use lmbrain_core::{
     canonical_manifest_digest, canonical_verification_manifest_digest, create_finding,
     create_improvement_proposal, default_verification_approval_path, defer_finding,
     discover_verification_manifest, execute_spec_verification, finding_candidates, finding_context,
-    load_harness_manifest, load_verification_manifest, park_spec, parse_harness_manifest,
-    plan_finding, read_kit_feedback, record_kit_feedback, reopen_finding, resolve_finding,
-    rollback_verification_manifest, set_harness_manifest, set_spec_dependencies,
-    set_verification_manifest, spec_dependency_candidates, spec_dependency_context,
-    supersede_finding, validate_verification_manifest_source, verification_manifest_status,
-    FindingCreateInput, HarnessManifestError, ImprovementProposalRequest, KitFeedbackInput,
-    ReviewEventInput, SpecParkingInput, VerificationManifest, VerificationManifestState,
+    load_branching_strategy, load_harness_manifest, load_verification_manifest, park_spec,
+    parse_harness_manifest, plan_finding, read_kit_feedback, record_kit_feedback, reopen_finding,
+    resolve_finding, rollback_verification_manifest, set_branching_strategy, set_harness_manifest,
+    set_spec_dependencies, set_verification_manifest, spec_dependency_candidates,
+    spec_dependency_context, supersede_finding, validate_verification_manifest_source,
+    verification_manifest_status, BranchingStrategy, FindingCreateInput, HarnessManifestError,
+    ImprovementProposalRequest, KitFeedbackInput, ReviewEventInput, SpecParkingInput,
+    VerificationManifest, VerificationManifestState,
 };
 use serde_json::{json, Value};
 
@@ -363,6 +366,8 @@ fn kit_feedback_tools() -> Vec<Value> {
             "description":"Read-only parsed LMBrain kit feedback report with typed notes and category/severity counts. Reading an absent report never creates it.",
             "inputSchema":{"type":"object","properties":{},"additionalProperties":false}
         }),
+        branching_strategy_get_tool(),
+        branching_strategy_set_tool(),
     ]
 }
 
@@ -604,6 +609,31 @@ fn harness_get_tool() -> Value {
         "name": "harness_config_get",
         "description": "Read and validate project harness intent. A missing optional manifest is reported as unconfigured.",
         "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
+    })
+}
+
+fn branching_strategy_get_tool() -> Value {
+    json!({
+        "name": "branching_strategy_get",
+        "description": "Read declared project branching strategy (.lmbrain/BRANCHING.json) and summary digest. An absent manifest is reported as unconfigured.",
+        "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
+    })
+}
+
+fn branching_strategy_set_tool() -> Value {
+    json!({
+        "name": "branching_strategy_set",
+        "description": "Operator-only: set and atomically write declared branching strategy to .lmbrain/BRANCHING.json with audit trail.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["strategy", "actor", "reason"],
+            "properties": {
+                "strategy": {"type": "object"},
+                "actor": {"type": "string"},
+                "reason": {"type": "string"}
+            },
+            "additionalProperties": false
+        }
     })
 }
 
@@ -1245,6 +1275,25 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             let manifest = candidate_manifest(args)?;
             set_harness_manifest(root, &manifest)
                 .map(|result| text(json!(result)))
+                .map_err(|error| error.to_string())
+        }
+        "branching_strategy_get" => match load_branching_strategy(root) {
+            Ok(strategy) => Ok(text(json!({
+                "digest": build_branching_strategy_digest(root),
+                "strategy": strategy
+            }))),
+            Err(error) => Err(error.to_string()),
+        },
+        "branching_strategy_set" => {
+            let strategy_val = args
+                .get("strategy")
+                .ok_or_else(|| "Missing required parameter 'strategy'".to_string())?;
+            let strategy: BranchingStrategy = serde_json::from_value(strategy_val.clone())
+                .map_err(|e| format!("Invalid strategy format: {e}"))?;
+            let actor = required_string(args, "actor")?;
+            let reason = required_string(args, "reason")?;
+            set_branching_strategy(root, &strategy, actor, reason)
+                .map(|_| text(json!({"success": true, "strategy": strategy})))
                 .map_err(|error| error.to_string())
         }
         "verification_manifest_get" => {
@@ -2310,5 +2359,76 @@ mod tests {
                 .and_then(Value::as_str)
                 .is_some_and(|action| !action.is_empty())
         }));
+    }
+
+    #[test]
+    fn branching_strategy_get_and_set_verbs_work_and_enforce_operator_authority() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+
+        let get_resp = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "branching_strategy_get",
+                "arguments": {}
+            }),
+        )
+        .unwrap();
+        let get_val: Value = serde_json::from_str(
+            get_resp.pointer("/content/0/text").unwrap().as_str().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(get_val["digest"]["status"], "absent");
+
+        let default_strat = lmbrain_core::BranchingStrategy::default_scaffolded();
+        let set_lead_resp = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "branching_strategy_set",
+                "arguments": {
+                    "strategy": default_strat,
+                    "actor": "project-lead",
+                    "reason": "attempt lead mutation"
+                }
+            }),
+        );
+        assert!(set_lead_resp.is_err());
+
+        let set_op_resp = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "branching_strategy_set",
+                "arguments": {
+                    "strategy": default_strat,
+                    "actor": "operator",
+                    "reason": "initialize strategy"
+                }
+            }),
+        )
+        .unwrap();
+        assert!(set_op_resp
+            .pointer("/content/0/text")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .contains("\"success\":true"));
+
+        let get_after_resp = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "branching_strategy_get",
+                "arguments": {}
+            }),
+        )
+        .unwrap();
+        let get_after_val: Value = serde_json::from_str(
+            get_after_resp
+                .pointer("/content/0/text")
+                .unwrap()
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(get_after_val["digest"]["status"], "declared");
     }
 }

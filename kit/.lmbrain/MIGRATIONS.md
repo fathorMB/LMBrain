@@ -6,9 +6,9 @@ This document describes how to update an existing LMBrain kit between released v
 
 The current kit is `4.0.0`.
 
-### 4.0.0 (governed spec tags, implementation estimates, and decision supersession)
+### 4.0.0 (governed spec tags, implementation estimates, decision supersession, and declared branching strategy)
 
-Supported source version is `3.1.4`. Existing workspaces keep parsing unchanged: the new fields are optional in the parser.
+Supported source version is `3.1.4`. Existing workspaces keep parsing unchanged: the new fields and configurations are optional in the parser.
 
 1. Update the desktop application, `lmbrain-core`, `lmbrain-mcp`, and the bundled kit together.
 2. **No automatic rewrite happens.** Existing `tags` values are preserved exactly as written.
@@ -17,9 +17,10 @@ Supported source version is `3.1.4`. Existing workspaces keep parsing unchanged:
 5. Specs already in `ready`, `working`, or `review` without an estimate are not blocked; they report `missing-effort-estimate` until a Lead sets one.
 6. `supersedes` and `superseded_by` on decisions are now read, validated, and displayed. They were previously declared by the template and used by nothing, so one-sided relationships are expected in existing workspaces.
 7. Review the new `dangling-supersession` and `supersession-not-mutual` diagnostics. Each names a decision that a successor claims to have retired but which is still presented as authoritative. Running `adr_supersede` on the pair repairs both sides; the verb is idempotent, so it is safe to re-run.
-8. Update `.lmbrain/VERSION` to `4.0.0` after validating the release.
+8. **Declared Branching Strategy.** Repositories without `.lmbrain/BRANCHING.json` report state `absent` (`unconfigured`). Use operator-governed `branching_strategy_set` to define or initialize your project's strategy.
+9. Update `.lmbrain/VERSION` to `4.0.0` after validating the release.
 
-Rollback to 3.1.4 is data-safe: the new frontmatter fields are ignored by the older parser, and no existing field changed shape. A decision retired by `adr_supersede` keeps its `superseded` status after rollback, which is the correct historical record.
+Rollback to 3.1.4 is data-safe: the new frontmatter fields and `.lmbrain/BRANCHING.json` are ignored by the older parser, and no existing field changed shape.
 
 ### 3.1.4 (responsive workspace snapshot loading)
 
