@@ -1,11 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FeedbackView } from "../components/Feedback/FeedbackView";
-import { getKitFeedback } from "../lib/commands";
+import { getKitFeedback, saveTextFile } from "../lib/commands";
+import { save } from "@tauri-apps/plugin-dialog";
 import type { KitFeedbackReport } from "../types";
 
 vi.mock("../lib/commands", () => ({
   getKitFeedback: vi.fn(),
+  saveTextFile: vi.fn(),
+}));
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  save: vi.fn(),
 }));
 
 const report: KitFeedbackReport = {
@@ -35,7 +40,10 @@ const report: KitFeedbackReport = {
 };
 
 describe("FeedbackView", () => {
-  afterEach(() => vi.clearAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it("lists distinct versions in deterministic order and filters notes by version", async () => {
     vi.mocked(getKitFeedback).mockResolvedValue(report);
@@ -63,5 +71,28 @@ describe("FeedbackView", () => {
     expect(screen.getByText("Second current note")).toBeDefined();
     expect(screen.queryByText("Current note")).toBeNull();
     expect(screen.queryByText("Older note")).toBeNull();
+  });
+
+  it("offers all-items and version-specific read-only JSON exports", async () => {
+    vi.mocked(getKitFeedback).mockResolvedValue(report);
+    vi.mocked(save).mockResolvedValue("C:/Exports/lmbrain-kit-feedback-v3.1.4.json");
+    vi.mocked(saveTextFile).mockResolvedValue(undefined);
+    render(<FeedbackView />);
+
+    await waitFor(() => expect(screen.getByText("Current note")).toBeDefined());
+    fireEvent.click(screen.getByRole("button", { name: "Export feedback" }));
+    expect(screen.getByRole("button", { name: "Download all items" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Download v3.1.4" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Download v3.1.3" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Download v3.1.4" }));
+    await waitFor(() => expect(saveTextFile).toHaveBeenCalledTimes(1));
+    expect(save).toHaveBeenCalledWith({
+      defaultPath: "lmbrain-kit-feedback-v3.1.4.json",
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    expect(saveTextFile.mock.calls[0][0]).toBe("C:/Exports/lmbrain-kit-feedback-v3.1.4.json");
+    expect(saveTextFile.mock.calls[0][1]).toContain('"lmbrain_version": "3.1.4"');
+    expect(screen.queryByRole("button", { name: "Download all items" })).toBeNull();
   });
 });

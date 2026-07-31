@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { getKitFeedback } from "../../lib/commands";
+import { getKitFeedback, saveTextFile } from "../../lib/commands";
 import type { KitFeedbackReport, KitFeedbackNote } from "../../types";
 import { RefreshButton } from "../RefreshButton";
 
@@ -7,11 +7,41 @@ const severityRank: Record<string, number> = {
   blocking: 5, critical: 4, high: 3, medium: 2, low: 1, info: 0,
 };
 
+function exportFilename(version: string | null): string {
+  const scope = version ? `v${version.replace(/[^a-zA-Z0-9._-]+/g, "_")}` : "all";
+  return `lmbrain-kit-feedback-${scope}.json`;
+}
+
+function feedbackExportContent(report: KitFeedbackReport, version: string | null): string {
+  const notes = version === null
+    ? report.notes
+    : report.notes.filter((note) => note.lmbrain_version === version);
+  return JSON.stringify({
+    schema_version: "1",
+    source_report: report.path,
+    scope: version === null ? "all" : "version",
+    lmbrain_version: version,
+    notes,
+  }, null, 2);
+}
+
+async function saveFeedbackExport(report: KitFeedbackReport, version: string | null): Promise<boolean> {
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const path = await save({
+    defaultPath: exportFilename(version),
+    filters: [{ name: "JSON", extensions: ["json"] }],
+  });
+  if (!path) return false;
+  await saveTextFile(path, feedbackExportContent(report, version));
+  return true;
+}
+
 export function FeedbackView() {
   const [report, setReport] = useState<KitFeedbackReport | null>(null);
   const [severity, setSeverity] = useState("all");
   const [category, setCategory] = useState("all");
   const [version, setVersion] = useState("all");
+  const [exportOpen, setExportOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +103,17 @@ export function FeedbackView() {
   const versions = [...new Set((report?.notes ?? []).map((note) => note.lmbrain_version).filter(Boolean))]
     .sort((left, right) => right.localeCompare(left, undefined, { numeric: true, sensitivity: "base" }));
 
+  const handleExport = async (selectedVersion: string | null) => {
+    if (!report) return;
+    setError(null);
+    try {
+      await saveFeedbackExport(report, selectedVersion);
+      setExportOpen(false);
+    } catch (reason) {
+      setError(`Unable to export feedback: ${reason instanceof Error ? reason.message : String(reason)}`);
+    }
+  };
+
   return (
     <div style={{ height: "100%", overflow: "auto", padding: "22px 28px 70px" }}>
       <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
@@ -92,6 +133,32 @@ export function FeedbackView() {
 
       {report && report.total > 0 && (
         <>
+          <div style={{ display: "flex", justifyContent: "flex-end", margin: "18px 0 0" }}>
+            <button
+              type="button"
+              aria-expanded={exportOpen}
+              aria-controls="feedback-export-options"
+              onClick={() => setExportOpen((open) => !open)}
+              style={exportButton}
+            >
+              <i className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 17 }}>download</i>
+              Export feedback
+            </button>
+          </div>
+          {exportOpen && (
+            <section id="feedback-export-options" aria-label="Feedback export options" style={exportOptions}>
+              <span style={muted}>Exports use all loaded notes and ignore the current view filters.</span>
+              <button type="button" onClick={() => void handleExport(null)} style={exportOptionButton}>
+                Download all items
+              </button>
+              {versions.map((item) => (
+                <button key={item} type="button" onClick={() => void handleExport(item)} style={exportOptionButton}>
+                  Download v{item}
+                </button>
+              ))}
+            </section>
+          )}
+
           <section aria-label="Feedback summary" style={summaryGrid}>
             <div style={card}>
               <div style={summaryValue}>{report.total}</div>
@@ -287,3 +354,6 @@ const findingCard: React.CSSProperties = { ...card, width: "100%", color: "var(-
 const meta: React.CSSProperties = { ...muted, display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: 6 };
 const errorStyle: React.CSSProperties = { padding: 10, margin: "10px 0", borderRadius: 7, background: "rgba(224,88,74,.10)", color: "#e9857b", fontSize: 12 };
 const empty: React.CSSProperties = { ...muted, padding: 24, textAlign: "center", border: "1px dashed var(--border-secondary)", borderRadius: 9 };
+const exportButton: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 7, border: "1px solid var(--border-primary)", borderRadius: 7, padding: "8px 11px", background: "var(--bg-secondary)", color: "var(--text-primary)", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 650 };
+const exportOptions: React.CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, padding: 12, margin: "10px 0 0", border: "1px solid var(--border-secondary)", borderRadius: 9, background: "var(--bg-secondary)" };
+const exportOptionButton: React.CSSProperties = { border: "1px solid var(--border-primary)", borderRadius: 7, padding: "7px 9px", background: "var(--bg-tertiary)", color: "var(--text-primary)", cursor: "pointer", fontFamily: "inherit", fontSize: 11.5 };
