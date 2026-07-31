@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getFindingContext, getFindings } from "../../lib/commands";
 import type { Finding, FindingContext, FindingRelation } from "../../types";
 import { useWorkspace } from "../../hooks/useWorkspace";
@@ -22,6 +22,7 @@ export function FindingsView() {
   const [selected, setSelected] = useState<FindingContext | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const closeSelected = useCallback(() => setSelected(null), []);
 
   const findings = useMemo(() => {
     const filtered = state.findings.filter((finding) => {
@@ -172,7 +173,7 @@ export function FindingsView() {
 
     {selected && <FindingDetail
       context={selected}
-      onClose={() => setSelected(null)}
+      onClose={closeSelected}
       onOpenRelation={(relation) => openDetailArtifact({ title: `${relation.id}: ${relation.title}`, path: relation.path })}
       onOpenMarkdown={() => openDetailArtifact({ title: `${selected.finding.id}: ${selected.finding.title}`, path: selected.finding.path })}
     />}
@@ -211,13 +212,39 @@ function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
 
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+        ),
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const activeElement = document.activeElement;
+      if (!dialogRef.current.contains(activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    window.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("keydown", handleKeyDown);
     dialogRef.current?.focus();
     return () => {
-      window.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("keydown", handleKeyDown);
       previousFocus?.focus();
     };
   }, [onClose]);
