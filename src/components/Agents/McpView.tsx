@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { getMcpRecords, getMcpProposals } from "../../lib/commands";
 import type { McpRecord, McpProposal } from "../../types";
@@ -55,18 +55,35 @@ const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }
 
 export function McpView() {
   const { state, dispatch } = useWorkspace();
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadRevision, setReloadRevision] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
+
     Promise.all([
       getMcpRecords(),
       getMcpProposals(),
     ])
       .then(([records, proposals]) => {
+        if (cancelled) return;
         dispatch({ type: "SET_MCP_RECORDS", records });
         dispatch({ type: "SET_MCP_PROPOSALS", proposals });
       })
-      .catch(console.error);
-  }, [dispatch]);
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Failed to load MCP project data:", error);
+        setLoadError("Unable to load project MCP specifications.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, reloadRevision]);
 
   return (
     <div style={{ overflowY: "auto", height: "100%" }}>
@@ -102,8 +119,12 @@ export function McpView() {
             marginBottom: 11,
           }}
         >
-          MCP Specifications
+          Project MCP specifications
         </div>
+        <p style={{ fontSize: 12.5, color: "var(--text-tertiary)", margin: "-2px 0 11px" }}>
+          Project-scoped MCP records from <span style={{ fontFamily: "var(--font-mono)" }}>.lmbrain/mcp/specs</span>.
+          These describe integrations; the built-in section below lists the tools exposed by LMBrain itself.
+        </p>
         <div
           style={{
             display: "flex",
@@ -112,7 +133,36 @@ export function McpView() {
             marginBottom: 32,
           }}
         >
-          {state.mcpRecords.length === 0 && (
+          {isLoading && (
+            <div role="status" style={{ textAlign: "center", padding: 30, color: "var(--text-tertiary)" }}>
+              Loading project MCP specifications…
+            </div>
+          )}
+          {!isLoading && loadError && (
+            <div style={{ textAlign: "center", padding: 30, color: "var(--text-tertiary)" }}>
+              <div role="alert">{loadError}</div>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoadError(null);
+                  setIsLoading(true);
+                  setReloadRevision((revision) => revision + 1);
+                }}
+                style={{
+                  marginTop: 12,
+                  border: "1px solid var(--border-secondary)",
+                  borderRadius: 7,
+                  background: "var(--bg-tertiary)",
+                  color: "var(--text-secondary)",
+                  padding: "6px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {!isLoading && !loadError && state.mcpRecords.length === 0 && (
             <div
               style={{
                 textAlign: "center",
@@ -120,10 +170,13 @@ export function McpView() {
                 color: "var(--text-tertiary)",
               }}
             >
-              No MCP specifications found.
+              <div>No project MCP specifications found.</div>
+              <div style={{ fontSize: 12, marginTop: 6 }}>
+                This is valid when the workspace does not declare project-specific MCP integrations.
+              </div>
             </div>
           )}
-          {state.mcpRecords.map((mcp) => (
+          {!isLoading && !loadError && state.mcpRecords.map((mcp) => (
             <MCPCard key={mcp.id} mcp={mcp} />
           ))}
         </div>
