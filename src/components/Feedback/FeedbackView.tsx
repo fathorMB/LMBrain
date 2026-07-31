@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { getKitFeedback, saveTextFile } from "../../lib/commands";
 import type { KitFeedbackReport, KitFeedbackNote } from "../../types";
 import { RefreshButton } from "../RefreshButton";
+import { CardGrid, PageHeader, PageShell } from "../Shared/PageLayout";
 
 const severityRank: Record<string, number> = {
   blocking: 5, critical: 4, high: 3, medium: 2, low: 1, info: 0,
@@ -115,15 +116,13 @@ export function FeedbackView() {
   };
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "22px 28px 70px" }}>
-      <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 24 }}>Kit Feedback</h1>
-          <p style={muted}>Evidence-backed observations about LMBrain itself. This view is read-only.</p>
-        </div>
-        <RefreshButton loading={loading} onClick={fetchFeedback} />
-      </header>
-      
+    <PageShell archetype="dense">
+      <PageHeader
+        title="Kit Feedback"
+        description="Evidence-backed observations about LMBrain itself. This view is read-only."
+        actions={<RefreshButton loading={loading} onClick={fetchFeedback} />}
+      />
+
       {error && <div role="alert" style={errorStyle}>{error}</div>}
       {loading && !report && <p role="status" style={muted}>Loading kit feedback…</p>}
 
@@ -210,14 +209,16 @@ export function FeedbackView() {
 
           {filteredNotes.length === 0 && <div style={empty}>No feedback matches these filters.</div>}
           
-          <div style={{ display: "grid", gap: 10 }}>
+          {/* Notes expand into multi-paragraph prose, so they get a wider
+              column minimum than the 360px default. */}
+          <CardGrid minColumnWidth={420}>
             {filteredNotes.map((note) => (
               <FeedbackNoteCard key={note.id} note={note} />
             ))}
-          </div>
+          </CardGrid>
         </>
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -242,7 +243,7 @@ function FeedbackNoteCard({ note }: { note: KitFeedbackNote }) {
       </div>
       
       {expanded && (
-        <div style={{ marginTop: 12, borderTop: "1px solid var(--border-secondary)", paddingTop: 12, fontSize: 13 }}>
+        <div style={{ marginTop: 12, borderTop: "1px solid var(--border-secondary)", paddingTop: 12, fontSize: "var(--text-md)" }}>
           <div style={{ marginBottom: 8 }}>
             <strong style={{ color: "var(--text-secondary)", display: "block", marginBottom: 2 }}>Observed Behavior</strong>
             <div style={{ whiteSpace: "pre-wrap" }}>{note.observed_behavior}</div>
@@ -260,7 +261,7 @@ function FeedbackNoteCard({ note }: { note: KitFeedbackNote }) {
           
           <div style={{ marginBottom: 8 }}>
             <strong style={{ color: "var(--text-secondary)", display: "block", marginBottom: 2 }}>Evidence</strong>
-            <div style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-mono)", fontSize: 12 }}>{note.evidence}</div>
+            <div style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-mono)", fontSize: "var(--text-sm)" }}>{note.evidence}</div>
           </div>
           
           {note.workaround && (
@@ -300,7 +301,7 @@ function getSeverityBadgeStyle(severity: string): React.CSSProperties {
     color: color,
     borderRadius: 999,
     padding: "2px 7px",
-    fontSize: 10.5
+    fontSize: "var(--text-xs)"
   };
 }
 
@@ -309,10 +310,10 @@ const tagBadgeStyle: React.CSSProperties = {
   color: "var(--text-tertiary)",
   borderRadius: 999,
   padding: "2px 7px",
-  fontSize: 10.5
+  fontSize: "var(--text-xs)"
 };
 
-const muted: React.CSSProperties = { color: "var(--text-tertiary)", fontSize: 12.5, lineHeight: 1.55 };
+const muted: React.CSSProperties = { color: "var(--text-tertiary)", fontSize: "var(--text-sm)", lineHeight: 1.55 };
 const card: React.CSSProperties = { padding: 13, border: "1px solid #2a2631", borderRadius: 9, background: "#121016" };
 const summaryGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 9, margin: "18px 0" };
 const summaryValue: React.CSSProperties = { fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700 };
@@ -333,7 +334,7 @@ const filterLabel: React.CSSProperties = {
   flex: "1 1 118px",
   minWidth: 0,
   color: "var(--text-tertiary)",
-  fontSize: 11.5,
+  fontSize: "var(--text-xs)",
   fontWeight: 650,
 };
 const filterControl: React.CSSProperties = {
@@ -348,12 +349,12 @@ const filterControl: React.CSSProperties = {
   colorScheme: "dark",
   padding: "0 9px",
   fontFamily: "inherit",
-  fontSize: 12,
+  fontSize: "var(--text-sm)",
 };
 const findingCard: React.CSSProperties = { ...card, width: "100%", color: "var(--text-primary)", textAlign: "left" };
 const meta: React.CSSProperties = { ...muted, display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: 6 };
-const errorStyle: React.CSSProperties = { padding: 10, margin: "10px 0", borderRadius: 7, background: "rgba(224,88,74,.10)", color: "#e9857b", fontSize: 12 };
+const errorStyle: React.CSSProperties = { padding: 10, margin: "10px 0", borderRadius: 7, background: "rgba(224,88,74,.10)", color: "#e9857b", fontSize: "var(--text-sm)" };
 const empty: React.CSSProperties = { ...muted, padding: 24, textAlign: "center", border: "1px dashed var(--border-secondary)", borderRadius: 9 };
-const exportButton: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 7, border: "1px solid var(--border-primary)", borderRadius: 7, padding: "8px 11px", background: "var(--bg-secondary)", color: "var(--text-primary)", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 650 };
+const exportButton: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 7, border: "1px solid var(--border-primary)", borderRadius: 7, padding: "8px 11px", background: "var(--bg-secondary)", color: "var(--text-primary)", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--text-sm)", fontWeight: 650 };
 const exportOptions: React.CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, padding: 12, margin: "10px 0 0", border: "1px solid var(--border-secondary)", borderRadius: 9, background: "var(--bg-secondary)" };
-const exportOptionButton: React.CSSProperties = { border: "1px solid var(--border-primary)", borderRadius: 7, padding: "7px 9px", background: "var(--bg-tertiary)", color: "var(--text-primary)", cursor: "pointer", fontFamily: "inherit", fontSize: 11.5 };
+const exportOptionButton: React.CSSProperties = { border: "1px solid var(--border-primary)", borderRadius: 7, padding: "7px 9px", background: "var(--bg-tertiary)", color: "var(--text-primary)", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--text-xs)" };

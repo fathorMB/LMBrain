@@ -1,0 +1,115 @@
+/* ─── Shared page layout primitives (issue #50) ────────────────────
+   Geometry lives here, not in per-page inline styles. See
+   ISSUE-50-PLAN.md §3 for the archetypes and the responsive matrix. */
+
+.lm-page {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.lm-page__inner {
+  margin: 0 auto;
+  padding: var(--page-top) var(--page-gutter) var(--page-bottom);
+}
+
+/* Archetype A — reading column: line length is the constraint. */
+.lm-page--reading .lm-page__inner {
+  max-width: var(--page-reading);
+}
+
+/* Archetype B — dense workspace: fluid up to the cap. */
+.lm-page--dense .lm-page__inner {
+  max-width: var(--page-wide);
+}
+
+/* Archetype C — full-bleed: panes own their scrolling, so the shell must not
+   scroll or pad on their behalf. */
+.lm-page--full {
+  overflow: hidden;
+}
+
+@media (min-width: 1280px) {
+  .lm-page__inner {
+    padding-left: var(--page-gutter-wide);
+    padding-right: var(--page-gutter-wide);
+  }
+}
+
+/* Above 2200px a single 1600px cap would leave ~360px of void per side, which
+   is the problem this system exists to remove. */
+@media (min-width: 2200px) {
+  .lm-page--dense .lm-page__inner {
+    max-width: var(--page-wide-xl);
+  }
+}
+
+.lm-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.lm-page-header__title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.lm-page-header__description {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+.lm-page-header__actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.lm-page-section {
+  margin-bottom: var(--space-5);
+}
+
+.lm-page-section__title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.lm-page-section__description {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
+  color: var(--text-tertiary);
+}
+
+.lm-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+/* Cards flow into as many columns as the width allows instead of centring a
+   narrow single column. min() keeps a single card from overflowing a viewport
+   narrower than the card minimum. */
+.lm-card-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--lm-card-min, 360px), 100%), 1fr));
+}
+
+.lm-empty-state {
+  padding: var(--space-7) var(--space-4);
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: var(--text-md);
+}

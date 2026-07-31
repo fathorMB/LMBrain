@@ -69,14 +69,14 @@ export function GitDiffModal({ file, onClose }: GitDiffModalProps) {
         <div className="repository-diff-header">
           <div className="repository-diff-header-copy">
             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-              <h2 id="repository-diff-title" className="repository-ellipsis" title={file.path} style={{ margin: 0, fontSize: 15, color: "var(--text-primary)" }}>
+              <h2 id="repository-diff-title" className="repository-ellipsis" title={file.path} style={{ margin: 0, fontSize: "var(--text-lg)", color: "var(--text-primary)" }}>
                 {file.path}
               </h2>
-              <span style={{ flexShrink: 0, padding: "2px 6px", borderRadius: 5, background: "rgba(124,108,246,.14)", color: "#b9adff", fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>
+              <span style={{ flexShrink: 0, padding: "2px 6px", borderRadius: 5, background: "rgba(124,108,246,.14)", color: "#b9adff", fontSize: "var(--text-2xs)", fontWeight: 700, textTransform: "uppercase" }}>
                 {file.status}
               </span>
             </div>
-            <div style={{ marginTop: 3, color: "var(--text-tertiary)", fontSize: 11.5 }}>
+            <div style={{ marginTop: 3, color: "var(--text-tertiary)", fontSize: "var(--text-xs)" }}>
               {file.diff_target === "staged" ? "Index changes" : file.diff_target === "untracked" ? "Untracked file" : "Working tree changes"}
             </div>
           </div>
@@ -84,7 +84,7 @@ export function GitDiffModal({ file, onClose }: GitDiffModalProps) {
         </div>
 
         {(result?.truncated || linesTruncated) && (
-          <div role="status" style={{ padding: "8px 18px", borderBottom: "1px solid rgba(245,158,11,.22)", background: "rgba(245,158,11,.08)", color: "#f6c86b", fontSize: 11.5 }}>
+          <div role="status" style={{ padding: "8px 18px", borderBottom: "1px solid rgba(245,158,11,.22)", background: "rgba(245,158,11,.08)", color: "#f6c86b", fontSize: "var(--text-xs)" }}>
             {result?.truncated
               ? "Diff truncated at 512 KiB. Use a dedicated source-control tool for the complete patch."
               : `Preview limited to the first ${PREVIEW_LINE_LIMIT.toLocaleString()} lines. Use a dedicated source-control tool for the complete patch.`}

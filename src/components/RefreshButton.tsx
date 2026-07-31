@@ -37,7 +37,7 @@ const buttonStyle: CSSProperties = {
   background: "#19151f",
   color: "var(--text-secondary)",
   padding: "7px 12px",
-  fontSize: 12,
+  fontSize: "var(--text-sm)",
   fontWeight: 600,
   whiteSpace: "nowrap",
   cursor: "pointer",

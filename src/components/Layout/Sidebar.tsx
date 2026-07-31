@@ -45,7 +45,7 @@ export function Sidebar() {
 
       <div
         style={{
-          fontSize: 10,
+          fontSize: "var(--text-2xs)",
           letterSpacing: ".1em",
           textTransform: "uppercase",
           color: "var(--text-muted)",
@@ -81,7 +81,7 @@ export function Sidebar() {
                 gap: 11,
                 padding: "7px 10px",
                 borderRadius: 8,
-                fontSize: 13,
+                fontSize: "var(--text-md)",
                 fontWeight: active ? 600 : 500,
                 cursor: "pointer",
                 color: active ? "var(--text-primary)" : "var(--text-secondary)",
@@ -112,7 +112,7 @@ export function Sidebar() {
                   title={unread > 0 ? `${unread} unread` : undefined}
                   style={{
                     fontFamily: "var(--font-mono)",
-                    fontSize: 10,
+                    fontSize: "var(--text-2xs)",
                     color: "var(--text-tertiary)",
                     background: "#1a1722",
                     border: "1px solid #2b2833",
@@ -141,7 +141,7 @@ export function Sidebar() {
           borderRadius: 9,
           cursor: "pointer",
           color: "var(--text-secondary)",
-          fontSize: 13,
+          fontSize: "var(--text-md)",
           fontWeight: 500,
         }}
         onMouseEnter={(e) => {
@@ -165,7 +165,7 @@ export function Sidebar() {
         <span
           style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 10,
+            fontSize: "var(--text-2xs)",
             color: "var(--text-tertiary)",
             border: "1px solid #2b2833",
             borderRadius: 5,
@@ -187,7 +187,7 @@ export function Sidebar() {
           borderRadius: 9,
           cursor: "pointer",
           color: "var(--text-secondary)",
-          fontSize: 13,
+          fontSize: "var(--text-md)",
           fontWeight: 500,
         }}
         onMouseEnter={(e) => {
@@ -221,7 +221,7 @@ export function Sidebar() {
           borderRadius: 9,
           cursor: "pointer",
           color: "#f87171",
-          fontSize: 13,
+          fontSize: "var(--text-md)",
           fontWeight: 500,
           marginTop: 4,
         }}

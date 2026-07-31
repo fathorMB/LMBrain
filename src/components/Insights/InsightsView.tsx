@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { InsightReliability } from "../Shared/InsightReliability";
+import { PageHeader, PageShell } from "../Shared/PageLayout";
 import type {
   ArtifactFamilyStats,
   ReviewDimensionStat,
@@ -20,10 +21,10 @@ const STATUS_COLORS: Record<string, string> = {
   blocked: "#e0584a",
   error: "#e0584a",
   warning: "#e0a23a",
-  retired: "#6c6671",
-  discarded: "#6c6671",
-  superseded: "#6c6671",
-  deprecated: "#6c6671",
+  retired: "var(--text-tertiary)",
+  discarded: "var(--text-tertiary)",
+  superseded: "var(--text-tertiary)",
+  deprecated: "var(--text-tertiary)",
 };
 
 export function InsightsView() {
@@ -46,16 +47,10 @@ export function InsightsView() {
   const review = stats.review_quality;
 
   return (
-    <div style={{ overflowY: "auto", height: "100%" }}>
-      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 36px 70px" }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-.025em", margin: "0 0 5px" }}>
-          Insights
-        </h1>
-        <p style={{ fontSize: 13.5, color: "var(--text-tertiary)", margin: "0 0 22px" }}>
-          Derived project statistics from LMBrain artifacts.
-        </p>
+    <PageShell archetype="dense">
+      <PageHeader title="Insights" description="Derived project statistics from LMBrain artifacts." />
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 10, marginBottom: 22 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "var(--space-3)", marginBottom: "var(--space-5)" }}>
           <Kpi label="Artifacts" value={totalArtifacts.toString()} detail={`${stats.spec_flow.total_specs} specs`} accent="#7c6cf6" />
           <Kpi label="Done ratio" value={formatPercent(stats.spec_flow.done_ratio)} detail={`${stats.spec_flow.done_specs}/${stats.spec_flow.total_specs} specs`} accent="#46b07d" />
           <Kpi label="Change-request rate" value={formatPercent(review.change_request_rate)} detail={`${review.specs_with_changes_requested}/${review.reviewed_specs} reviewed specs`} accent="#e0584a" />
@@ -63,10 +58,10 @@ export function InsightsView() {
           <Kpi label="Diagnostics" value={stats.diagnostics.total.toString()} detail={`${stats.diagnostics.errors} errors, ${stats.diagnostics.warnings} warnings`} accent={stats.diagnostics.errors > 0 ? "#e0584a" : "#e0a23a"} />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.35fr) minmax(320px, .65fr)", gap: 16, marginBottom: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: 16, marginBottom: 18 }}>
           <section style={panelStyle}>
             <SectionTitle icon="rate_review" title="Review Quality" />
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 9, marginBottom: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 9, marginBottom: 16 }}>
               <MiniStat label="Review files" value={review.total_reviews} />
               <MiniStat label="Review passes" value={review.total_review_passes} />
               <MiniStat label="Reviewed specs" value={review.reviewed_specs} />
@@ -86,7 +81,7 @@ export function InsightsView() {
               total={review.first_pass_eligible_specs}
               color="#46b07d"
             />
-            <div style={{ marginTop: 14, fontSize: 12, color: "var(--text-tertiary)", lineHeight: 1.5 }}>
+            <div style={{ marginTop: 14, fontSize: "var(--text-sm)", color: "var(--text-tertiary)", lineHeight: 1.5 }}>
               Average review iterations:{" "}
               <span style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
                 {review.average_reviews_per_reviewed_spec.toFixed(2)}
@@ -107,7 +102,7 @@ export function InsightsView() {
           </section>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, marginBottom: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 16, marginBottom: 18 }}>
           <section style={panelStyle}>
             <SectionTitle icon="hub" title="Changes Requested By Area" />
             <DimensionTable rows={review.by_area} emptyLabel="No reviewed specs with area metadata." />
@@ -128,8 +123,7 @@ export function InsightsView() {
             diagnostics={workspaceState.diagnostics}
           />
         </section>
-      </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -143,13 +137,13 @@ const panelStyle = {
 function Kpi({ label, value, detail, accent }: { label: string; value: string; detail: string; accent: string }) {
   return (
     <div style={{ ...panelStyle, borderTop: `2px solid ${accent}`, minHeight: 96 }}>
-      <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: ".08em", fontWeight: 700 }}>
+      <div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: ".08em", fontWeight: 700 }}>
         {label}
       </div>
       <div style={{ fontSize: 27, fontWeight: 800, fontFamily: "var(--font-mono)", marginTop: 8 }}>
         {value}
       </div>
-      <div style={{ fontSize: 11.5, color: "var(--text-tertiary)", marginTop: 3 }}>
+      <div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", marginTop: 3 }}>
         {detail}
       </div>
     </div>
@@ -162,7 +156,7 @@ function SectionTitle({ icon, title }: { icon: string; title: string }) {
       <i className="material-symbols-outlined" style={{ fontSize: 17, color: "var(--accent-light)" }}>
         {icon}
       </i>
-      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: ".08em" }}>
+      <div style={{ fontSize: "var(--text-sm)", fontWeight: 800, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: ".08em" }}>
         {title}
       </div>
     </div>
@@ -173,7 +167,7 @@ function MiniStat({ label, value }: { label: string; value: number }) {
   return (
     <div style={{ background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.06)", borderRadius: 7, padding: "10px 11px" }}>
       <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 800 }}>{value}</div>
-      <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>{label}</div>
+      <div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", marginTop: 2 }}>{label}</div>
     </div>
   );
 }
@@ -182,7 +176,7 @@ function MetricBar({ label, value, total, color }: { label: string; value: numbe
   const pct = total === 0 ? 0 : value / total;
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)", marginBottom: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", color: "var(--text-secondary)", marginBottom: 6 }}>
         <span>{label}</span>
         <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>
           {value}/{total} · {formatPercent(pct)}
@@ -199,8 +193,8 @@ function FamilyRow({ family }: { family: ArtifactFamilyStats }) {
   return (
     <div style={{ borderBottom: "1px solid rgba(255,255,255,.06)", paddingBottom: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 5 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)" }}>{family.label}</span>
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#bcaef6" }}>{family.total}</span>
+        <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--text-primary)" }}>{family.label}</span>
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-sm)", color: "#bcaef6" }}>{family.total}</span>
       </div>
       <StatusList statuses={family.statuses} compact />
     </div>
@@ -211,7 +205,7 @@ function StatusList({ statuses, compact }: { statuses: StatusCount[]; compact?: 
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
       {statuses.map((item) => (
-        <span key={item.status} style={{ fontSize: compact ? 10.5 : 11.5, color: STATUS_COLORS[item.status] ?? "#9a949f", background: "rgba(255,255,255,.045)", borderRadius: 5, padding: "2px 6px" }}>
+        <span key={item.status} style={{ fontSize: compact ? 10.5 : 11.5, color: STATUS_COLORS[item.status] ?? "var(--text-secondary)", background: "rgba(255,255,255,.045)", borderRadius: 5, padding: "2px 6px" }}>
           {item.status}: {item.count}
         </span>
       ))}
@@ -225,7 +219,7 @@ function DimensionTable({ rows, emptyLabel }: { rows: ReviewDimensionStat[]; emp
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {rows.slice(0, 8).map((row) => (
         <div key={row.value}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5, marginBottom: 5 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: "var(--text-sm)", marginBottom: 5 }}>
             <span style={{ color: "var(--text-primary)", fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.value}</span>
             <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-tertiary)" }}>
               {row.specs_with_changes_requested}/{row.reviewed_specs} · {formatPercent(row.change_request_rate)}
@@ -243,7 +237,7 @@ function DimensionTable({ rows, emptyLabel }: { rows: ReviewDimensionStat[]; emp
 
 
 function EmptyText({ label }: { label: string }) {
-  return <div style={{ fontSize: 12.5, color: "var(--text-tertiary)" }}>{label}</div>;
+  return <div style={{ fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>{label}</div>;
 }
 
 function formatPercent(value: number) {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { getAgentImprovementInsights, getAgentProposals, getAgents } from "../../lib/commands";
+import { CardGrid, EmptyState, PageHeader, PageShell } from "../Shared/PageLayout";
 import type { AgentImprovementInsights, AgentProfile, AgentProposal } from "../../types";
 
 export function AgentsView() {
@@ -28,89 +29,60 @@ export function AgentsView() {
   }, [dispatch]);
 
   return (
-    <div style={{ overflowY: "auto", height: "100%" }}>
-      <div style={{ maxWidth: 920, margin: "0 auto", padding: "24px 36px 70px" }}>
-        <h1
-          style={{
-            fontSize: 24,
-            fontWeight: 800,
-            letterSpacing: "-.025em",
-            margin: "0 0 5px",
-          }}
-        >
-          Agents
-        </h1>
-        <p
-          style={{
-            fontSize: 13.5,
-            color: "var(--text-tertiary)",
-            margin: "0 0 22px",
-          }}
-        >
-          Agent profiles and behavior guidelines. All agents are started
-          manually — LMBrain never auto-launches.
-        </p>
+    <PageShell archetype="dense">
+      <PageHeader
+        title="Agents"
+        description="Agent profiles and behavior guidelines. All agents are started manually — LMBrain never auto-launches."
+      />
 
         {/* Agent Profiles */}
         <div
           style={{
-            fontSize: 11,
+            fontSize: "var(--text-xs)",
             letterSpacing: ".09em",
             textTransform: "uppercase",
-            color: "#6c6671",
+            color: "var(--text-tertiary)",
             fontWeight: 600,
             marginBottom: 11,
           }}
         >
           Agent Profiles
         </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 9,
-            marginBottom: 32,
-          }}
-        >
-          {state.agents.length === 0 && (
-            <div
-              style={{
-                textAlign: "center",
-                padding: 30,
-                color: "var(--text-tertiary)",
-              }}
-            >
-              No agent profiles found.
-            </div>
+        <div style={{ marginBottom: "var(--space-6)" }}>
+          {state.agents.length === 0 ? (
+            <EmptyState>No agent profiles found.</EmptyState>
+          ) : (
+            <CardGrid>
+              {state.agents.map((agent) => (
+                <AgentCard key={agent.id} agent={agent} />
+              ))}
+            </CardGrid>
           )}
-          {state.agents.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} />
-          ))}
         </div>
 
         {(insights.metrics.length > 0 || insights.signals.length > 0) && (
           <>
-            <div style={{ fontSize: 11, letterSpacing: ".09em", textTransform: "uppercase", color: "#6c6671", fontWeight: 600, marginBottom: 11 }}>
+            <div style={{ fontSize: "var(--text-xs)", letterSpacing: ".09em", textTransform: "uppercase", color: "var(--text-tertiary)", fontWeight: 600, marginBottom: 11 }}>
               Governed improvement signals
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 32 }}>
               {insights.metrics.map((metric) => (
                 <div key={metric.profile} style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-secondary)", borderRadius: 11, padding: "12px 15px" }}>
-                  <div style={{ fontFamily: "var(--font-mono)", color: "#bcaef6", fontSize: 12, marginBottom: 5 }}>{metric.profile}</div>
-                  <div style={{ color: "var(--text-tertiary)", fontSize: 12 }}>
+                  <div style={{ fontFamily: "var(--font-mono)", color: "#bcaef6", fontSize: "var(--text-sm)", marginBottom: 5 }}>{metric.profile}</div>
+                  <div style={{ color: "var(--text-tertiary)", fontSize: "var(--text-sm)" }}>
                     {metric.reviewed_specs} specs · {metric.review_cycles} cycles · {metric.specs_with_changes_requested} changed · {metric.transcript_fast_fail_reviews} transcript fast-fails
                   </div>
-                  <div style={{ color: "var(--text-tertiary)", fontSize: 11.5, marginTop: 4 }}>
+                  <div style={{ color: "var(--text-tertiary)", fontSize: "var(--text-xs)", marginTop: 4 }}>
                     {metric.remediation_cycles} remediations · {metric.escalation_count} escalations · {metric.takeover_count} takeovers
                   </div>
-                  <div style={{ color: metric.confidence === "low" ? "#e0a23a" : "var(--text-tertiary)", fontSize: 11.5, marginTop: 4 }}>
+                  <div style={{ color: metric.confidence === "low" ? "#e0a23a" : "var(--text-tertiary)", fontSize: "var(--text-xs)", marginTop: 4 }}>
                     Lifecycle {Math.round(metric.lifecycle_coverage * 100)}% · taxonomy {Math.round(metric.category_coverage * 100)}% · {metric.confidence} confidence
                   </div>
-                  <div style={{ color: "var(--text-tertiary)", fontSize: 11.5, marginTop: 4 }}>
+                  <div style={{ color: "var(--text-tertiary)", fontSize: "var(--text-xs)", marginTop: 4 }}>
                     Attribution: {metric.attribution_basis.replaceAll("-", " ")}
                   </div>
                   {metric.unknown_categories.length > 0 && (
-                    <div role="status" style={{ color: "#e0a23a", fontSize: 11.5, marginTop: 4 }}>
+                    <div role="status" style={{ color: "#e0a23a", fontSize: "var(--text-xs)", marginTop: 4 }}>
                       Unknown categories: {metric.unknown_categories.join(", ")}
                     </div>
                   )}
@@ -118,8 +90,8 @@ export function AgentsView() {
               ))}
               {insights.signals.filter((signal) => signal.threshold_met).map((signal) => (
                 <div key={`${signal.target_profile}:${signal.category}`} style={{ background: "rgba(224,162,58,.07)", border: "1px solid rgba(224,162,58,.25)", borderRadius: 11, padding: "12px 15px" }}>
-                  <div style={{ color: "#e0a23a", fontSize: 12.5, fontWeight: 650 }}>{signal.category} → {signal.target_profile}</div>
-                  <div style={{ color: "var(--text-tertiary)", fontSize: 12, marginTop: 4 }}>{signal.distinct_specs.length} distinct specs · proposal remains operator-governed</div>
+                  <div style={{ color: "#e0a23a", fontSize: "var(--text-sm)", fontWeight: 650 }}>{signal.category} → {signal.target_profile}</div>
+                  <div style={{ color: "var(--text-tertiary)", fontSize: "var(--text-sm)", marginTop: 4 }}>{signal.distinct_specs.length} distinct specs · proposal remains operator-governed</div>
                 </div>
               ))}
             </div>
@@ -131,32 +103,26 @@ export function AgentsView() {
           <>
             <div
               style={{
-                fontSize: 11,
+                fontSize: "var(--text-xs)",
                 letterSpacing: ".09em",
                 textTransform: "uppercase",
-                color: "#6c6671",
+                color: "var(--text-tertiary)",
                 fontWeight: 600,
                 marginBottom: 11,
               }}
             >
               Agent Proposals
             </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 9,
-                marginBottom: 32,
-              }}
-            >
-              {visibleAgentProposals.map((proposal) => (
-                <AgentProposalCard key={proposal.id} proposal={proposal} />
-              ))}
+            <div style={{ marginBottom: "var(--space-6)" }}>
+              <CardGrid>
+                {visibleAgentProposals.map((proposal) => (
+                  <AgentProposalCard key={proposal.id} proposal={proposal} />
+                ))}
+              </CardGrid>
             </div>
           </>
         )}
-      </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -182,7 +148,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
     active: { color: "#46b07d", bg: "rgba(70,176,125,.12)" },
     inactive: { color: "#8a8d99", bg: "rgba(139,141,152,.12)" },
     proposed: { color: "#e0a23a", bg: "rgba(224,162,58,.12)" },
-    retired: { color: "#6c6671", bg: "rgba(108,102,113,.12)" },
+    retired: { color: "var(--text-tertiary)", bg: "rgba(108,102,113,.12)" },
   };
   const sc = statusColors[agent.status] || statusColors.proposed;
   const hasDomains = agent.domains && agent.domains.length > 0;
@@ -236,7 +202,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 12,
+              fontSize: "var(--text-sm)",
               color: "#bcaef6",
             }}
           >
@@ -244,7 +210,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
           </span>
           <span
             style={{
-              fontSize: 14,
+              fontSize: "var(--text-md)",
               fontWeight: 600,
               color: "var(--text-primary)",
             }}
@@ -254,7 +220,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
           {agent.mnemonic_name && (
             <span
               style={{
-                fontSize: 11.5,
+                fontSize: "var(--text-xs)",
                 color: "var(--text-tertiary)",
               }}
             >
@@ -264,7 +230,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
         </div>
         <div
           style={{
-            fontSize: 12,
+            fontSize: "var(--text-sm)",
             color: "var(--text-tertiary)",
             marginBottom: hasDomains || hasReviewFocus ? 6 : 0,
           }}
@@ -278,7 +244,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
               <span
                 key={d}
                 style={{
-                  fontSize: 10,
+                  fontSize: "var(--text-2xs)",
                   fontWeight: 600,
                   color: "#7fa8f5",
                   background: "rgba(91,141,239,.1)",
@@ -297,8 +263,8 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
               <span
                 key={f}
                 style={{
-                  fontSize: 10,
-                  color: "#9a949f",
+                  fontSize: "var(--text-2xs)",
+                  color: "var(--text-secondary)",
                   background: "rgba(255,255,255,.04)",
                   borderRadius: 4,
                   padding: "1px 6px",
@@ -312,7 +278,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
       </div>
       <span
         style={{
-          fontSize: 10.5,
+          fontSize: "var(--text-xs)",
           fontWeight: 700,
           color: sc.color,
           background: sc.bg,
@@ -373,26 +339,26 @@ function AgentProposalCard({ proposal }: { proposal: AgentProposal }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 2, flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#bcaef6" }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-sm)", color: "#bcaef6" }}>
             {proposal.id}
           </span>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>
+          <span style={{ fontSize: "var(--text-md)", fontWeight: 600, color: "var(--text-primary)" }}>
             {proposal.title}
           </span>
           {proposal.proposed_mnemonic_name && (
-            <span style={{ fontSize: 11.5, color: "var(--text-tertiary)" }}>
+            <span style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>
               proposes {proposal.proposed_mnemonic_name}
             </span>
           )}
         </div>
-        <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+        <div style={{ fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>
           {isImprovement ? "Improvement proposal" : "New-profile proposal"}
           {proposal.target_profile ? ` → ${proposal.target_profile}` : ""}
         </div>
       </div>
       <span
         style={{
-          fontSize: 10.5,
+          fontSize: "var(--text-xs)",
           fontWeight: 700,
           color: sc.color,
           background: sc.bg,

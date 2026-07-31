@@ -101,7 +101,7 @@ export function AppShell() {
               borderBottom: "1px solid rgba(224,162,58,.35)",
               background: "rgba(224,162,58,.10)",
               color: "#d9b86d",
-              fontSize: 12,
+              fontSize: "var(--text-sm)",
               flexShrink: 0,
             }}
           >
@@ -224,7 +224,7 @@ function PlaceholderView() {
         </h2>
         <p
           style={{
-            fontSize: 13,
+            fontSize: "var(--text-md)",
             color: "var(--text-tertiary)",
             lineHeight: 1.55,
             margin: 0,

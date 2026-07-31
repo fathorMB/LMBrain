@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { getMcpRecords, getMcpProposals } from "../../lib/commands";
+import { CardGrid, PageHeader, PageShell } from "../Shared/PageLayout";
 import type { McpRecord, McpProposal } from "../../types";
 
 const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }[] = [
@@ -86,53 +87,30 @@ export function McpView() {
   }, [dispatch, reloadRevision]);
 
   return (
-    <div style={{ overflowY: "auto", height: "100%" }}>
-      <div style={{ maxWidth: 920, margin: "0 auto", padding: "24px 36px 70px" }}>
-        <h1
-          style={{
-            fontSize: 24,
-            fontWeight: 800,
-            letterSpacing: "-.025em",
-            margin: "0 0 5px",
-          }}
-        >
-          Model Context Protocol (MCP)
-        </h1>
-        <p
-          style={{
-            fontSize: 13.5,
-            color: "var(--text-tertiary)",
-            margin: "0 0 22px",
-          }}
-        >
-          MCP server capability records and available client integration tools.
-        </p>
+    <PageShell archetype="dense">
+      <PageHeader
+        title="Model Context Protocol (MCP)"
+        description="MCP server capability records and available client integration tools."
+      />
 
         {/* MCP Records */}
         <div
           style={{
-            fontSize: 11,
+            fontSize: "var(--text-xs)",
             letterSpacing: ".09em",
             textTransform: "uppercase",
-            color: "#6c6671",
+            color: "var(--text-tertiary)",
             fontWeight: 600,
             marginBottom: 11,
           }}
         >
           Project MCP specifications
         </div>
-        <p style={{ fontSize: 12.5, color: "var(--text-tertiary)", margin: "-2px 0 11px" }}>
+        <p style={{ fontSize: "var(--text-sm)", color: "var(--text-tertiary)", margin: "-2px 0 11px" }}>
           Project-scoped MCP records from <span style={{ fontFamily: "var(--font-mono)" }}>.lmbrain/mcp/specs</span>.
           These describe integrations; the built-in section below lists the tools exposed by LMBrain itself.
         </p>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 9,
-            marginBottom: 32,
-          }}
-        >
+        <div style={{ marginBottom: "var(--space-6)" }}>
           {isLoading && (
             <div role="status" style={{ textAlign: "center", padding: 30, color: "var(--text-tertiary)" }}>
               Loading project MCP specifications…
@@ -171,23 +149,27 @@ export function McpView() {
               }}
             >
               <div>No project MCP specifications found.</div>
-              <div style={{ fontSize: 12, marginTop: 6 }}>
+              <div style={{ fontSize: "var(--text-sm)", marginTop: 6 }}>
                 This is valid when the workspace does not declare project-specific MCP integrations.
               </div>
             </div>
           )}
-          {!isLoading && !loadError && state.mcpRecords.map((mcp) => (
-            <MCPCard key={mcp.id} mcp={mcp} />
-          ))}
+          {!isLoading && !loadError && state.mcpRecords.length > 0 && (
+            <CardGrid>
+              {state.mcpRecords.map((mcp) => (
+                <MCPCard key={mcp.id} mcp={mcp} />
+              ))}
+            </CardGrid>
+          )}
         </div>
 
         {/* Built-in lmbrain-mcp tools */}
         <div
           style={{
-            fontSize: 11,
+            fontSize: "var(--text-xs)",
             letterSpacing: ".09em",
             textTransform: "uppercase",
-            color: "#6c6671",
+            color: "var(--text-tertiary)",
             fontWeight: 600,
             marginBottom: 11,
           }}
@@ -205,18 +187,18 @@ export function McpView() {
         >
           <div
             style={{
-              fontSize: 12.5,
+              fontSize: "var(--text-sm)",
               color: "var(--text-tertiary)",
               lineHeight: 1.5,
               marginBottom: 12,
             }}
           >
             Repository-scoped controlled-mutation server, registered automatically for Claude via{" "}
-            <span style={{ fontFamily: "var(--font-mono)", color: "#9a949f" }}>.mcp.json</span>{" "}
+            <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>.mcp.json</span>{" "}
             and for Codex via{" "}
-            <span style={{ fontFamily: "var(--font-mono)", color: "#9a949f" }}>.codex/config.toml</span>,
+            <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>.codex/config.toml</span>,
             Pi via its pinned MCP extension, and OpenCode via{" "}
-            <span style={{ fontFamily: "var(--font-mono)", color: "#9a949f" }}>opencode.json</span>.
+            <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>opencode.json</span>.
             Agents call these per-verb tools instead of editing Markdown by hand.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
@@ -228,7 +210,7 @@ export function McpView() {
                 <span
                   style={{
                     fontFamily: "var(--font-mono)",
-                    fontSize: 11.5,
+                    fontSize: "var(--text-xs)",
                     color: "#bcaef6",
                     minWidth: 220,
                   }}
@@ -237,7 +219,7 @@ export function McpView() {
                 </span>
                 <span
                   style={{
-                    fontSize: 10,
+                    fontSize: "var(--text-2xs)",
                     fontWeight: 700,
                     color: "#7fa8f5",
                     background: "rgba(91,141,239,.12)",
@@ -248,7 +230,7 @@ export function McpView() {
                 >
                   {tool.category}
                 </span>
-                <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+                <span style={{ fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>
                   {tool.description}
                 </span>
               </div>
@@ -261,31 +243,24 @@ export function McpView() {
           <>
             <div
               style={{
-                fontSize: 11,
+                fontSize: "var(--text-xs)",
                 letterSpacing: ".09em",
                 textTransform: "uppercase",
-                color: "#6c6671",
+                color: "var(--text-tertiary)",
                 fontWeight: 600,
                 marginBottom: 11,
               }}
             >
               MCP Proposals
             </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 9,
-              }}
-            >
+            <CardGrid>
               {state.mcpProposals.map((prop) => (
                 <MCPCard key={prop.id} mcp={prop} proposal />
               ))}
-            </div>
+            </CardGrid>
           </>
         )}
-      </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -305,7 +280,7 @@ function MCPCard({
     rejected: { color: "#e0584a", bg: "rgba(224,88,74,.12)" },
     implemented: { color: "#7c6cf6", bg: "rgba(124,108,246,.12)" },
     blocked: { color: "#e0584a", bg: "rgba(224,88,74,.12)" },
-    deprecated: { color: "#6c6671", bg: "rgba(108,102,113,.12)" },
+    deprecated: { color: "var(--text-tertiary)", bg: "rgba(108,102,113,.12)" },
   };
   const sc = statusColors[mcp.status] || statusColors.proposed;
 
@@ -352,7 +327,7 @@ function MCPCard({
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 12,
+              fontSize: "var(--text-sm)",
               color: "#bcaef6",
             }}
           >
@@ -360,7 +335,7 @@ function MCPCard({
           </span>
           <span
             style={{
-              fontSize: 14,
+              fontSize: "var(--text-md)",
               fontWeight: 600,
               color: "var(--text-primary)",
             }}
@@ -370,7 +345,7 @@ function MCPCard({
         </div>
         <div
           style={{
-            fontSize: 12,
+            fontSize: "var(--text-sm)",
             color: "var(--text-tertiary)",
           }}
         >
@@ -379,7 +354,7 @@ function MCPCard({
       </div>
       <span
         style={{
-          fontSize: 10.5,
+          fontSize: "var(--text-xs)",
           fontWeight: 700,
           color: sc.color,
           background: sc.bg,

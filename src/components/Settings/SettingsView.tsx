@@ -33,8 +33,8 @@ export function SettingsView({ initialTab }: { initialTab?: SettingsTab }) {
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#settings/${next}`);
   };
   return <div style={{ height: "100%", overflow: "auto" }}>
-    <header style={{ padding: "22px 30px 0", borderBottom: "1px solid var(--border-primary)" }}>
-      <h1 style={{ margin: "0 0 16px", fontSize: 24 }}>Settings</h1>
+    <header style={{ padding: "var(--page-top) var(--page-gutter) 0", borderBottom: "1px solid var(--border-primary)" }}>
+      <h1 style={{ margin: "0 0 16px", fontSize: "var(--text-2xl)" }}>Settings</h1>
       <div role="tablist" aria-label="Settings sections" style={{ display: "flex", gap: 4, overflowX: "auto" }}>
         {tabs.map((item) => <button key={item.id} id={`settings-tab-${item.id}`} role="tab" aria-selected={tab === item.id} aria-controls={`settings-panel-${item.id}`} tabIndex={tab === item.id ? 0 : -1} onClick={() => select(item.id)} style={tabStyle(tab === item.id)}>{item.label}</button>)}
       </div>
@@ -113,20 +113,20 @@ function ProjectEnvironmentPanel() {
       </div></div></Card>
       {plan?.has_conflicts && <div role="alert" style={errorStyle}>Resolve native configuration conflicts before approval or application.</div>}
       {drift.length > 0 && <div role="alert" style={warningStyle}>Drift detected in {drift.map((entry) => entry.path).join(", ")}. Review and retry explicitly.</div>}
-      <div style={{ display: "grid", gap: 10 }}>{plan?.hosts.map((host) => <Card key={host.host}><div style={{ display: "flex", justifyContent: "space-between" }}><strong>{host.host}</strong><span style={{ color: host.ready ? "#70c99a" : "#e0a23a" }}>{host.ready ? "Ready" : "Needs attention"}</span></div><div style={{ marginTop: 8, fontSize: 12, color: "var(--text-secondary)" }}>Capabilities: {host.supported_capabilities.join(", ")}</div>{host.lsp && <div style={{ fontSize: 11.5 }}>LSP: {host.lsp.state} · prerequisite {host.lsp.prerequisite_ready ? "ready" : "missing"}</div>}{host.tools.map((tool) => <div key={tool.tool} style={{ fontSize: 11.5, color: tool.available ? "#70c99a" : "#e0a23a" }}>{tool.tool}: {tool.available ? "available" : "missing"}</div>)}{host.native_files.map((file) => <div key={file.path} style={{ marginTop: 8, padding: 8, borderRadius: 7, background: "rgba(255,255,255,.03)", fontSize: 11.5 }}><strong>{file.action}</strong> <span style={mono}>{file.path}</span><div style={muted}>{file.detail}</div><div style={mono}>Owned: {file.owned_paths.join(", ")}</div></div>)}</Card>)}</div>
+      <div style={{ display: "grid", gap: 10 }}>{plan?.hosts.map((host) => <Card key={host.host}><div style={{ display: "flex", justifyContent: "space-between" }}><strong>{host.host}</strong><span style={{ color: host.ready ? "#70c99a" : "#e0a23a" }}>{host.ready ? "Ready" : "Needs attention"}</span></div><div style={{ marginTop: 8, fontSize: "var(--text-sm)", color: "var(--text-secondary)" }}>Capabilities: {host.supported_capabilities.join(", ")}</div>{host.lsp && <div style={{ fontSize: "var(--text-xs)" }}>LSP: {host.lsp.state} · prerequisite {host.lsp.prerequisite_ready ? "ready" : "missing"}</div>}{host.tools.map((tool) => <div key={tool.tool} style={{ fontSize: "var(--text-xs)", color: tool.available ? "#70c99a" : "#e0a23a" }}>{tool.tool}: {tool.available ? "available" : "missing"}</div>)}{host.native_files.map((file) => <div key={file.path} style={{ marginTop: 8, padding: 8, borderRadius: 7, background: "rgba(255,255,255,.03)", fontSize: "var(--text-xs)" }}><strong>{file.action}</strong> <span style={mono}>{file.path}</span><div style={muted}>{file.detail}</div><div style={mono}>Owned: {file.owned_paths.join(", ")}</div></div>)}</Card>)}</div>
     </>}
   </Panel>;
 }
 
 function Panel({ children, wide }: { children: React.ReactNode; wide?: boolean }) { return <div style={{ maxWidth: wide ? 980 : 720, margin: "0 auto", padding: "24px 30px 70px" }}>{children}</div>; }
 function Card({ children }: { children: React.ReactNode }) { return <div style={{ marginBottom: 12, padding: 15, border: "1px solid var(--border-secondary)", borderRadius: 10, background: "var(--bg-tertiary)" }}>{children}</div>; }
-function Info({ label, value }: { label: string; value: string }) { return <Card><div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{label}</div><div style={{ marginTop: 4, fontFamily: "var(--font-mono)" }}>{value}</div></Card>; }
+function Info({ label, value }: { label: string; value: string }) { return <Card><div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>{label}</div><div style={{ marginTop: 4, fontFamily: "var(--font-mono)" }}>{value}</div></Card>; }
 function tabFromHash(): SettingsTab { const candidate = window.location.hash.replace(/^#settings\//, "") as SettingsTab; return tabs.some((tab) => tab.id === candidate) ? candidate : "general"; }
 function message(value: unknown) { return value instanceof Error ? value.message : String(value); }
 function tabStyle(active: boolean): React.CSSProperties { return { border: 0, borderBottom: `2px solid ${active ? "var(--accent-primary)" : "transparent"}`, background: "transparent", color: active ? "var(--text-primary)" : "var(--text-tertiary)", padding: "9px 12px", cursor: "pointer", fontWeight: active ? 700 : 500 }; }
-const muted: React.CSSProperties = { color: "var(--text-tertiary)", fontSize: 12.5, lineHeight: 1.55 };
-const mono: React.CSSProperties = { color: "var(--text-tertiary)", fontFamily: "var(--font-mono)", fontSize: 10.5, overflowWrap: "anywhere" };
+const muted: React.CSSProperties = { color: "var(--text-tertiary)", fontSize: "var(--text-sm)", lineHeight: 1.55 };
+const mono: React.CSSProperties = { color: "var(--text-tertiary)", fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", overflowWrap: "anywhere" };
 const secondary: React.CSSProperties = { border: "1px solid var(--border-secondary)", borderRadius: 7, background: "var(--bg-secondary)", color: "var(--text-secondary)", padding: "7px 11px", cursor: "pointer" };
 const primary: React.CSSProperties = { ...secondary, background: "var(--accent-primary)", color: "white" };
-const errorStyle: React.CSSProperties = { padding: 10, marginBottom: 12, borderRadius: 7, background: "rgba(224,88,74,.10)", color: "#e9857b", fontSize: 12 };
+const errorStyle: React.CSSProperties = { padding: 10, marginBottom: 12, borderRadius: 7, background: "rgba(224,88,74,.10)", color: "#e9857b", fontSize: "var(--text-sm)" };
 const warningStyle: React.CSSProperties = { ...errorStyle, background: "rgba(224,162,58,.10)", color: "#d9b86d" };

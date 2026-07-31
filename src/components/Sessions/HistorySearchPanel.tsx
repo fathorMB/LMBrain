@@ -173,7 +173,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
           alignItems: "center",
         }}
       >
-        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
+        <span style={{ fontSize: "var(--text-md)", fontWeight: 700, color: "var(--text-primary)" }}>
           Session Transcript Search
         </span>
         <button
@@ -206,7 +206,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
             border: "1px solid var(--border-primary)",
             borderRadius: 7,
             padding: "6px 10px",
-            fontSize: 12.5,
+            fontSize: "var(--text-sm)",
             color: "var(--text-primary)",
             outline: "none",
             boxSizing: "border-box",
@@ -214,7 +214,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
         />
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--text-secondary)", cursor: "pointer" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--text-xs)", color: "var(--text-secondary)", cursor: "pointer" }}>
             <input
               type="checkbox"
               checked={matchCase}
@@ -224,7 +224,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
             Match case
           </label>
 
-          <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+          <span style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>
             {filteredLines.length} / {lines.length} lines
           </span>
         </div>
@@ -243,7 +243,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
               marginTop: 4,
             }}
           >
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#bcaef6" }}>
+            <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "#bcaef6" }}>
               {selectedCount} lines selected
             </span>
             <div style={{ display: "flex", gap: 6 }}>
@@ -254,7 +254,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
                   borderRadius: 4,
                   background: "linear-gradient(135deg, #886ff7, #4d80f6)",
                   color: "#fff",
-                  fontSize: 10,
+                  fontSize: "var(--text-2xs)",
                   fontWeight: 700,
                   padding: "4px 8px",
                   cursor: "pointer",
@@ -269,7 +269,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
                   borderRadius: 4,
                   background: "transparent",
                   color: "var(--text-secondary)",
-                  fontSize: 10,
+                  fontSize: "var(--text-2xs)",
                   fontWeight: 600,
                   padding: "4px 8px",
                   cursor: "pointer",
@@ -291,7 +291,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
           overflowY: "auto",
           padding: "8px 16px 24px",
           fontFamily: "var(--font-mono)",
-          fontSize: 11.5,
+          fontSize: "var(--text-xs)",
           lineHeight: 1.5,
           color: "var(--text-secondary)",
           boxSizing: "border-box",
@@ -335,7 +335,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
                     style={{
                       width: 32,
                       color: "var(--text-muted)",
-                      fontSize: 10,
+                      fontSize: "var(--text-2xs)",
                       userSelect: "none",
                       marginRight: 8,
                       textAlign: "right",
@@ -364,7 +364,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
                 style={{
                   textAlign: "center",
                   padding: "12px 0",
-                  fontSize: 11,
+                  fontSize: "var(--text-xs)",
                   color: "var(--text-tertiary)",
                   borderTop: "1px solid rgba(255,255,255,0.05)",
                   marginTop: 10,
@@ -395,7 +395,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
             color: "#fff",
             padding: "6px 12px",
             borderRadius: 20,
-            fontSize: 11,
+            fontSize: "var(--text-xs)",
             fontWeight: 700,
             cursor: "pointer",
             boxShadow: "0 4px 12px rgba(0,0,0,0.3)",

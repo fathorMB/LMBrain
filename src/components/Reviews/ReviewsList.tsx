@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { getReviews } from "../../lib/commands";
+import { CardGrid, EmptyState, PageHeader, PageShell } from "../Shared/PageLayout";
 import type { Review } from "../../types";
 
 const ACTIONABLE_STATUSES = ["changes-requested", "pending", "blocked"] as const;
@@ -13,7 +14,7 @@ const statusConfig: Record<string, { color: string; label: string; border: strin
   "changes-requested": { color: "#e0584a", label: "CHANGES REQUESTED", border: "#e0584a" },
   accepted: { color: "#46b07d", label: "ACCEPTED", border: "#46b07d" },
   blocked: { color: "#e0584a", label: "BLOCKED", border: "#e0584a" },
-  superseded: { color: "#6c6671", label: "SUPERSEDED", border: "#6c6671" },
+  superseded: { color: "var(--text-tertiary)", label: "SUPERSEDED", border: "var(--text-tertiary)" },
 };
 
 function reviewDate(review: Review): number | null {
@@ -82,15 +83,14 @@ export function ReviewsList() {
   };
 
   return (
-    <div style={{ overflowY: "auto", height: "100%" }}>
-      <div style={{ maxWidth: 920, margin: "0 auto", padding: "24px 36px 70px" }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-.025em", margin: "0 0 5px" }}>Reviews</h1>
-        <p style={{ fontSize: 13.5, color: "var(--text-tertiary)", margin: "0 0 22px" }}>
-          Work returned by the Project Lead. Accept to close, or send findings back to a specialist.
-        </p>
+    <PageShell archetype="dense">
+      <PageHeader
+        title="Reviews"
+        description="Work returned by the Project Lead. Accept to close, or send findings back to a specialist."
+      />
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {groups.length === 0 && <div style={{ textAlign: "center", padding: 40, color: "var(--text-tertiary)" }}>No reviews yet.</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+          {groups.length === 0 && <EmptyState>No reviews yet.</EmptyState>}
           {groups.map((group) => {
             const expanded = !collapsedGroups.has(group.key);
             const panelId = `reviews-group-${group.key}`;
@@ -106,12 +106,13 @@ export function ReviewsList() {
                   style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid #2a2731", borderRadius: expanded ? "10px 10px 0 0" : 10, background: "var(--bg-secondary)", color: "var(--text-primary)", cursor: "pointer", textAlign: "left" }}
                 >
                   <i className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 18, color: groupConfig.color }}>{expanded ? "expand_more" : "chevron_right"}</i>
-                  <span id={`${panelId}-label`} style={{ flex: 1, fontSize: 12, fontWeight: 800, letterSpacing: ".04em" }}>{group.label}</span>
-                  <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{group.reviews.length} {group.reviews.length === 1 ? "review" : "reviews"}</span>
+                  <span id={`${panelId}-label`} style={{ flex: 1, fontSize: "var(--text-sm)", fontWeight: 800, letterSpacing: ".04em" }}>{group.label}</span>
+                  <span style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>{group.reviews.length} {group.reviews.length === 1 ? "review" : "reviews"}</span>
                 </button>
 
                 {expanded && (
-                  <div id={panelId} role="region" aria-labelledby={`${panelId}-label`} style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 10 }}>
+                  <div id={panelId} role="region" aria-labelledby={`${panelId}-label`} style={{ paddingTop: "var(--space-3)" }}>
+                    <CardGrid>
                     {group.reviews.map((review) => {
                       const reviewConfig = statusConfig[review.status] ?? groupConfig;
                       const isMalformed = !!review.malformed;
@@ -138,28 +139,28 @@ export function ReviewsList() {
                           >
                             <div style={{ flex: 1 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 4, flexWrap: "wrap" }}>
-                                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#bcaef6" }}>{review.id}</span>
-                                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{review.title}</span>
+                                <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-sm)", color: "#bcaef6" }}>{review.id}</span>
+                                <span style={{ fontSize: "var(--text-md)", fontWeight: 700, color: "var(--text-primary)" }}>{review.title}</span>
                                 {isMalformed && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: "#e0584a", background: "rgba(224,88,74,0.13)", borderRadius: 5, padding: "2px 6px" }}><i className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 11 }}>warning</i>MALFORMED</span>}
                               </div>
-                              <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>{review.reviewer ? `Reviewed by ${review.reviewer}` : "No reviewer assigned"}</div>
-                              {(latestEvent || review.lifecycle.source !== "status-only") && <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 4 }}>{review.lifecycle.review_passes} review {review.lifecycle.review_passes === 1 ? "pass" : "passes"}{" · "}{review.lifecycle.remediation_cycles} remediation cycles{latestEvent && <>{" · "}latest {latestEvent.from_status} → {latestEvent.to_status} by {latestEvent.actor_role}</>}</div>}
+                              <div style={{ fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>{review.reviewer ? `Reviewed by ${review.reviewer}` : "No reviewer assigned"}</div>
+                              {(latestEvent || review.lifecycle.source !== "status-only") && <div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>{review.lifecycle.review_passes} review {review.lifecycle.review_passes === 1 ? "pass" : "passes"}{" · "}{review.lifecycle.remediation_cycles} remediation cycles{latestEvent && <>{" · "}latest {latestEvent.from_status} → {latestEvent.to_status} by {latestEvent.actor_role}</>}</div>}
                               {review.lifecycle_warnings.length > 0 && <div role="status" style={{ fontSize: 11, color: "#e0a23a", marginTop: 4 }}><i className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 12, verticalAlign: -2 }}>history</i>{" "}{review.lifecycle_warnings[0]}</div>}
                             </div>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600, color: reviewConfig.color, background: `${reviewConfig.color}1a`, border: `1px solid ${reviewConfig.color}40`, borderRadius: 6, padding: "4px 9px" }}>{reviewConfig.label}</span>
-                            <i className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 18, color: "#6c6671" }}>chevron_right</i>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "var(--text-xs)", fontWeight: 600, color: reviewConfig.color, background: `${reviewConfig.color}1a`, border: `1px solid ${reviewConfig.color}40`, borderRadius: 6, padding: "4px 9px" }}>{reviewConfig.label}</span>
+                            <i className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>chevron_right</i>
                           </button>
-                          {promoted.length > 0 && <button type="button" onClick={() => navigateTo("findings")} style={{ marginTop: 6, border: 0, padding: 0, background: "transparent", color: "#bcaef6", cursor: "pointer", fontSize: 11.5 }}>{promoted.length} promoted {promoted.length === 1 ? "finding" : "findings"} · view current disposition</button>}
+                          {promoted.length > 0 && <button type="button" onClick={() => navigateTo("findings")} style={{ marginTop: 6, border: 0, padding: 0, background: "transparent", color: "#bcaef6", cursor: "pointer", fontSize: "var(--text-xs)" }}>{promoted.length} promoted {promoted.length === 1 ? "finding" : "findings"} · view current disposition</button>}
                         </div>
                       );
                     })}
+                    </CardGrid>
                   </div>
                 )}
               </section>
             );
           })}
-        </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

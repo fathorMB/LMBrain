@@ -98,7 +98,8 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
       allowTransparency: true,
       convertEol: false,
       fontFamily: "var(--font-mono)",
-      fontSize: 12.5,
+      // xterm needs a real number here, not a CSS token.
+      fontSize: 12,
       lineHeight: 1.25,
       scrollback: 5000,
       theme: {
@@ -303,7 +304,7 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
           borderBottom: "1px solid rgba(57, 49, 70, 0.55)",
           background: "rgba(17, 14, 23, 0.96)",
           color: "var(--text-muted)",
-          fontSize: 10.5,
+          fontSize: "var(--text-xs)",
           flexShrink: 0,
         }}
       >
@@ -350,7 +351,7 @@ const toolbarButtonStyle = {
   borderRadius: 7,
   background: "#191520",
   color: "var(--text-secondary)",
-  fontSize: 10.5,
+  fontSize: "var(--text-xs)",
   fontWeight: 600,
   padding: "4px 8px",
   cursor: "pointer",

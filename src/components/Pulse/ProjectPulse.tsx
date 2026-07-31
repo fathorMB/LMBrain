@@ -4,6 +4,7 @@ import { buildHandoffPrompt, buildMigrationPrompt } from "../../lib/handoffPromp
 import { InlineRichText } from "../../lib/inlineRichText";
 import { useWikiNavigation } from "../../hooks/useWikiNavigation";
 import { InsightReliability } from "../Shared/InsightReliability";
+import { PageShell } from "../Shared/PageLayout";
 import type { PulseData, Handoff, Adr } from "../../types";
 
 const getMigrationStatusLabelAndColor = (status: string | undefined): { label: string; color: string } => {
@@ -53,14 +54,14 @@ export function ProjectPulse() {
   }
 
   return (
-    <div style={{ padding: "26px 30px 60px" }}>
+    <PageShell archetype="dense">
+      {/* Main column plus a fixed rail: the rail width is content-driven, so
+          this page keeps its own grid instead of using CardGrid. */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0,1fr) 304px",
-          gap: 24,
-          maxWidth: 1320,
-          margin: "0 auto",
+          gap: "var(--space-5)",
         }}
       >
         {/* Main column */}
@@ -77,10 +78,10 @@ export function ProjectPulse() {
               {pulse.milestone && (
                 <div
                   style={{
-                    fontSize: 11,
+                    fontSize: "var(--text-xs)",
                     letterSpacing: ".1em",
                     textTransform: "uppercase",
-                    color: "#6c6671",
+                    color: "var(--text-tertiary)",
                     fontWeight: 600,
                     marginBottom: 5,
                   }}
@@ -116,10 +117,10 @@ export function ProjectPulse() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(5,1fr)",
-              gap: 11,
-              marginTop: 22,
-              marginBottom: 22,
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))",
+              gap: "var(--space-3)",
+              marginTop: "var(--space-5)",
+              marginBottom: "var(--space-5)",
             }}
           >
             {pulse.metrics.map((m, i) => (
@@ -164,7 +165,7 @@ export function ProjectPulse() {
                   >
                     target
                   </i>
-                  <span style={{ fontWeight: 700, fontSize: 14.5 }}>
+                  <span style={{ fontWeight: 700, fontSize: "var(--text-md)" }}>
                     <InlineRichText text={pulse.milestone} onWikilinkClick={navigateToWiki} />
                   </span>
                 </div>
@@ -172,7 +173,7 @@ export function ProjectPulse() {
                   <span
                     style={{
                       fontFamily: "var(--font-mono)",
-                      fontSize: 11.5,
+                      fontSize: "var(--text-xs)",
                       color: "var(--text-tertiary)",
                     }}
                   >
@@ -211,7 +212,7 @@ export function ProjectPulse() {
                   <span
                     style={{
                       fontFamily: "var(--font-mono)",
-                      fontSize: 12,
+                      fontSize: "var(--text-sm)",
                       fontWeight: 600,
                       color: "#cfc9d6",
                     }}
@@ -241,10 +242,10 @@ export function ProjectPulse() {
             <>
               <div
                 style={{
-                  fontSize: 11,
+                  fontSize: "var(--text-xs)",
                   letterSpacing: ".09em",
                   textTransform: "uppercase",
-                  color: "#6c6671",
+                  color: "var(--text-tertiary)",
                   fontWeight: 600,
                   marginBottom: 11,
                 }}
@@ -271,10 +272,10 @@ export function ProjectPulse() {
             <>
               <div
                 style={{
-                  fontSize: 11,
+                  fontSize: "var(--text-xs)",
                   letterSpacing: ".09em",
                   textTransform: "uppercase",
-                  color: "#6c6671",
+                  color: "var(--text-tertiary)",
                   fontWeight: 600,
                   marginBottom: 11,
                 }}
@@ -315,7 +316,7 @@ export function ProjectPulse() {
                       </i>
                       <span
                         style={{
-                          fontSize: 13,
+                          fontSize: "var(--text-md)",
                           fontWeight: 600,
                           color: "var(--text-primary)",
                         }}
@@ -325,8 +326,8 @@ export function ProjectPulse() {
                     </div>
                     <div
                       style={{
-                        fontSize: 12,
-                        color: "#9a949f",
+                        fontSize: "var(--text-sm)",
+                        color: "var(--text-secondary)",
                         lineHeight: 1.45,
                       }}
                     >
@@ -351,10 +352,10 @@ export function ProjectPulse() {
               >
                 <div
                   style={{
-                    fontSize: 11,
+                    fontSize: "var(--text-xs)",
                     letterSpacing: ".09em",
                     textTransform: "uppercase",
-                    color: "#6c6671",
+                    color: "var(--text-tertiary)",
                     fontWeight: 600,
                   }}
                 >
@@ -363,8 +364,8 @@ export function ProjectPulse() {
                 <span
                   style={{
                     fontFamily: "var(--font-mono)",
-                    fontSize: 11,
-                    color: "#56525b",
+                    fontSize: "var(--text-xs)",
+                    color: "var(--text-muted)",
                   }}
                 >
                   {pulse.ready_handoffs.length} handoffs
@@ -397,10 +398,10 @@ export function ProjectPulse() {
             <div>
               <div
                 style={{
-                  fontSize: 11,
+                  fontSize: "var(--text-xs)",
                   letterSpacing: ".09em",
                   textTransform: "uppercase",
-                  color: "#6c6671",
+                  color: "var(--text-tertiary)",
                   fontWeight: 600,
                   marginBottom: 11,
                 }}
@@ -436,10 +437,10 @@ export function ProjectPulse() {
           >
             <div
               style={{
-                fontSize: 11,
+                fontSize: "var(--text-xs)",
                 letterSpacing: ".09em",
                 textTransform: "uppercase",
-                color: "#6c6671",
+                color: "var(--text-tertiary)",
                 fontWeight: 600,
                 marginBottom: 13,
               }}
@@ -524,7 +525,7 @@ export function ProjectPulse() {
                         border: "1px solid var(--accent)",
                         borderRadius: 8,
                         padding: "8px 12px",
-                        fontSize: 11.5,
+                        fontSize: "var(--text-xs)",
                         color: "var(--accent-light)",
                         fontWeight: 600,
                         cursor: "pointer",
@@ -555,10 +556,10 @@ export function ProjectPulse() {
           >
             <div
               style={{
-                fontSize: 11,
+                fontSize: "var(--text-xs)",
                 letterSpacing: ".09em",
                 textTransform: "uppercase",
-                color: "#6c6671",
+                color: "var(--text-tertiary)",
                 fontWeight: 600,
                 marginBottom: 12,
               }}
@@ -592,10 +593,10 @@ export function ProjectPulse() {
           >
             <div
               style={{
-                fontSize: 11,
+                fontSize: "var(--text-xs)",
                 letterSpacing: ".09em",
                 textTransform: "uppercase",
-                color: "#6c6671",
+                color: "var(--text-tertiary)",
                 fontWeight: 600,
                 marginBottom: 12,
               }}
@@ -633,7 +634,7 @@ export function ProjectPulse() {
                   <div style={{ flex: 1 }}>
                     <div
                       style={{
-                        fontSize: 12.5,
+                        fontSize: "var(--text-sm)",
                         fontWeight: 600,
                         color: "var(--text-primary)",
                       }}
@@ -642,7 +643,7 @@ export function ProjectPulse() {
                     </div>
                     <div
                       style={{
-                        fontSize: 11,
+                        fontSize: "var(--text-xs)",
                         color: "var(--text-tertiary)",
                       }}
                     >
@@ -655,8 +656,8 @@ export function ProjectPulse() {
             <div
               style={{
                 marginTop: 12,
-                fontSize: 11,
-                color: "#6c6671",
+                fontSize: "var(--text-xs)",
+                color: "var(--text-tertiary)",
                 display: "flex",
                 alignItems: "center",
                 gap: 6,
@@ -665,7 +666,7 @@ export function ProjectPulse() {
             >
               <i
                 className="material-symbols-outlined"
-                style={{ fontSize: 14, color: "#6c6671" }}
+                style={{ fontSize: 14, color: "var(--text-tertiary)" }}
               >
                 info
               </i>
@@ -674,7 +675,7 @@ export function ProjectPulse() {
           </div>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -722,7 +723,7 @@ function MetricCard({
       </div>
       <div
         style={{
-          fontSize: 12,
+          fontSize: "var(--text-sm)",
           color: "var(--text-tertiary)",
           marginTop: 2,
         }}
@@ -793,7 +794,7 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
       <div style={{ flex: 1 }}>
         <div
           style={{
-            fontSize: 13.5,
+            fontSize: "var(--text-md)",
             fontWeight: 600,
             color: "var(--text-primary)",
           }}
@@ -802,7 +803,7 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
         </div>
         <div
           style={{
-            fontSize: 12,
+            fontSize: "var(--text-sm)",
             color: "var(--text-tertiary)",
           }}
         >
@@ -812,7 +813,7 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
           <div style={{ marginTop: 10 }}>
             <div
               style={{
-                fontSize: 11,
+                fontSize: "var(--text-xs)",
                 color: "#7fa8f5",
                 marginBottom: 6,
                 lineHeight: 1.4,
@@ -825,7 +826,7 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
                 lightbulb
               </i>
               The prompt includes v3 context-economy guidance. The agent will use{" "}
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5 }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)" }}>
                 lmbrain_spec_context
               </span>{" "}
               for a compact handoff context before expanding to full artifacts.
@@ -845,7 +846,7 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
                 padding: 8,
                 color: "var(--text-secondary)",
                 fontFamily: "var(--font-mono)",
-                fontSize: 11.5,
+                fontSize: "var(--text-xs)",
               }}
             />
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
@@ -858,7 +859,7 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
                   border: "none",
                   borderRadius: 6,
                   padding: "6px 12px",
-                  fontSize: 11.5,
+                  fontSize: "var(--text-xs)",
                   fontWeight: 600,
                   cursor: "pointer",
                   display: "inline-flex",
@@ -872,12 +873,12 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
                 Copy prompt
               </button>
               {copyState === "copied" && (
-                <span role="status" style={{ fontSize: 11, color: "var(--green)" }}>
+                <span role="status" style={{ fontSize: "var(--text-xs)", color: "var(--green)" }}>
                   Copied to clipboard.
                 </span>
               )}
               {copyState === "error" && (
-                <span role="alert" style={{ fontSize: 11, color: "#e0584a" }}>
+                <span role="alert" style={{ fontSize: "var(--text-xs)", color: "#e0584a" }}>
                   Could not copy the prompt. Select and copy it manually.
                 </span>
               )}
@@ -895,7 +896,7 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
             border: "1px solid rgba(255,255,255,0.1)",
             borderRadius: 6,
             padding: "5px 10px",
-            fontSize: 11,
+            fontSize: "var(--text-xs)",
             color: "#fff",
             cursor: "pointer",
             display: "inline-flex",
@@ -938,7 +939,7 @@ function HandoffCard({ handoff }: { handoff: Handoff }) {
         <span
           style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 12,
+            fontSize: "var(--text-sm)",
             color: "#bcaef6",
             fontWeight: 500,
           }}
@@ -948,7 +949,7 @@ function HandoffCard({ handoff }: { handoff: Handoff }) {
       </div>
       <div
         style={{
-          fontSize: 14,
+          fontSize: "var(--text-md)",
           fontWeight: 700,
           marginBottom: 10,
           color: "var(--text-primary)",
@@ -969,7 +970,7 @@ function HandoffCard({ handoff }: { handoff: Handoff }) {
           color: "#fff",
           borderRadius: 8,
           padding: 8,
-          fontSize: 12.5,
+          fontSize: "var(--text-sm)",
           fontWeight: 600,
           cursor: "pointer",
         }}
@@ -1014,7 +1015,7 @@ function AdrRow({ adr }: { adr: Adr }) {
       <span
         style={{
           fontFamily: "var(--font-mono)",
-          fontSize: 11.5,
+          fontSize: "var(--text-xs)",
           color: "#bcaef6",
         }}
       >
@@ -1023,7 +1024,7 @@ function AdrRow({ adr }: { adr: Adr }) {
       <span
         style={{
           flex: 1,
-          fontSize: 12.5,
+          fontSize: "var(--text-sm)",
           color: "var(--text-primary)",
         }}
       >
@@ -1031,7 +1032,7 @@ function AdrRow({ adr }: { adr: Adr }) {
       </span>
       <span
         style={{
-          fontSize: 10,
+          fontSize: "var(--text-2xs)",
           fontWeight: 600,
           color: sc.color,
           background: sc.bg,
@@ -1064,7 +1065,7 @@ function MetaRow({
         alignItems: "center",
       }}
     >
-      <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+      <span style={{ fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>
         {label}
       </span>
       <span
@@ -1150,7 +1151,7 @@ function QuickLink({
       <span
         style={{
           fontFamily: "var(--font-mono)",
-          fontSize: 12,
+          fontSize: "var(--text-sm)",
           flex: 1,
           color: "var(--text-primary)",
         }}
@@ -1159,7 +1160,7 @@ function QuickLink({
       </span>
       <i
         className="material-symbols-outlined"
-        style={{ fontSize: 15, color: "#6c6671" }}
+        style={{ fontSize: 15, color: "var(--text-tertiary)" }}
       >
         north_east
       </i>

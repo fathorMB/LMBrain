@@ -3,6 +3,7 @@ import { useWorkspace } from "../../hooks/useWorkspace";
 import { getMilestoneOverview } from "../../lib/commands";
 import { InlineRichText } from "../../lib/inlineRichText";
 import { useWikiNavigation } from "../../hooks/useWikiNavigation";
+import { PageHeader, PageShell } from "../Shared/PageLayout";
 import type { MilestoneOverview, MilestoneDetail } from "../../types";
 
 export function RoadmapView() {
@@ -54,35 +55,23 @@ export function RoadmapView() {
     working: { color: "#5b8def", bg: "rgba(91,141,239,0.12)" },
     review: { color: "#e0a23a", bg: "rgba(224,162,58,0.12)" },
     done: { color: "#46b07d", bg: "rgba(70,176,125,0.12)" },
-    discarded: { color: "#6c6671", bg: "rgba(108,102,113,0.12)" },
+    discarded: { color: "var(--text-tertiary)", bg: "rgba(108,102,113,0.12)" },
   };
 
   return (
-    <div style={{ overflowY: "auto", height: "100%" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 36px 70px" }}>
-        <h1
-          style={{
-            fontSize: 24,
-            fontWeight: 800,
-            letterSpacing: "-.025em",
-            margin: "0 0 5px",
-          }}
-        >
-          {overview?.title || "Roadmap"}
-        </h1>
-        <p
-          style={{
-            fontSize: 13.5,
-            color: "var(--text-tertiary)",
-            margin: "0 0 22px",
-          }}
-        >
-          Milestone intelligence — derived from{" "}
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#9a949f" }}>
-            .lmbrain/ROADMAP.md
-          </span>
-          , specs, reviews, and decisions.
-        </p>
+    <PageShell archetype="dense">
+      <PageHeader
+        title={overview?.title || "Roadmap"}
+        description={
+          <>
+            Milestone intelligence — derived from{" "}
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-sm)", color: "var(--text-secondary)" }}>
+              .lmbrain/ROADMAP.md
+            </span>
+            , specs, reviews, and decisions.
+          </>
+        }
+      />
         {selected && milestoneFindings.length > 0 && <button
           type="button"
           onClick={() => navigateTo("findings")}
@@ -142,7 +131,7 @@ export function RoadmapView() {
                       <div
                         style={{
                           fontFamily: "var(--font-mono)",
-                          fontSize: 11.5,
+                          fontSize: "var(--text-xs)",
                           color: isSelected ? "var(--accent-light)" : "#bcaef6",
                           fontWeight: isSelected ? 700 : 500,
                         }}
@@ -151,7 +140,7 @@ export function RoadmapView() {
                       </div>
                       <div
                         style={{
-                          fontSize: 12.5,
+                          fontSize: "var(--text-sm)",
                           fontWeight: 600,
                           color: "var(--text-primary)",
                           whiteSpace: "nowrap",
@@ -164,7 +153,7 @@ export function RoadmapView() {
                     </div>
                     <div
                       style={{
-                        fontSize: 10,
+                        fontSize: "var(--text-2xs)",
                         fontWeight: 700,
                         color: sc.color,
                         background: sc.bg,
@@ -201,7 +190,7 @@ export function RoadmapView() {
               <i className="material-symbols-outlined" style={{ fontSize: 18, color: "#8a8d99" }}>
                 link_off
               </i>
-              <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-secondary)" }}>
+              <span style={{ fontWeight: 700, fontSize: "var(--text-lg)", color: "var(--text-secondary)" }}>
                 Unmapped Specs ({overview.unmapped_specs.length})
               </span>
             </div>
@@ -211,7 +200,7 @@ export function RoadmapView() {
                   key={spec.id}
                   style={{
                     fontFamily: "var(--font-mono)",
-                    fontSize: 11,
+                    fontSize: "var(--text-xs)",
                     color: "#8a8d99",
                     background: "rgba(138,141,153,0.1)",
                     border: "1px solid rgba(138,141,153,0.2)",
@@ -226,8 +215,7 @@ export function RoadmapView() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -260,14 +248,14 @@ function MilestoneDetailCard({
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 15, color: "var(--accent-light)" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: "var(--text-lg)", color: "var(--accent-light)" }}>
               {milestone.id}
             </span>
-            <span style={{ fontWeight: 700, fontSize: 16, color: "var(--text-primary)" }}>
+            <span style={{ fontWeight: 700, fontSize: "var(--text-lg)", color: "var(--text-primary)" }}>
               <InlineRichText text={milestone.title} onWikilinkClick={navigateToWiki} />
             </span>
           </div>
-          <span style={{ fontSize: 11, fontWeight: 700, color: sc.color, background: sc.bg, borderRadius: 5, padding: "3px 8px", letterSpacing: "0.03em" }}>
+          <span style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: sc.color, background: sc.bg, borderRadius: 5, padding: "3px 8px", letterSpacing: "0.03em" }}>
             {milestone.status.toUpperCase()}
           </span>
         </div>
@@ -275,7 +263,7 @@ function MilestoneDetailCard({
 
       {/* Outcome */}
       {milestone.outcome && (
-        <div style={{ fontSize: 13.5, color: "var(--text-secondary)", lineHeight: 1.45, borderLeft: "2px solid #3c3547", paddingLeft: 10 }}>
+        <div style={{ fontSize: "var(--text-md)", color: "var(--text-secondary)", lineHeight: 1.45, borderLeft: "2px solid #3c3547", paddingLeft: 10 }}>
           <InlineRichText text={milestone.outcome} onWikilinkClick={navigateToWiki} />
         </div>
       )}
@@ -283,7 +271,7 @@ function MilestoneDetailCard({
       {/* Progress */}
       {milestone.spec_count > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--text-tertiary)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>
             <span>Progress</span>
             <span>{milestone.specs.filter((s) => s.status === "done").length}/{milestone.spec_count} specs ({Math.round(milestone.progress_pct)}%)</span>
           </div>
@@ -299,7 +287,7 @@ function MilestoneDetailCard({
           {Object.entries(milestone.spec_counts_by_status).map(([status, count]) => {
             const sc2 = specStatusColors[status] || { color: "var(--text-tertiary)", bg: "var(--bg-secondary)" };
             return (
-              <span key={status} style={{ fontSize: 11, fontWeight: 700, color: sc2.color, background: sc2.bg, borderRadius: 5, padding: "3px 8px" }}>
+              <span key={status} style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: sc2.color, background: sc2.bg, borderRadius: 5, padding: "3px 8px" }}>
                 {status}: {count}
               </span>
             );
@@ -309,7 +297,7 @@ function MilestoneDetailCard({
 
       {/* Next action */}
       {milestone.next_action && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--accent-light)", background: "rgba(124,108,246,0.08)", borderRadius: 8, padding: "8px 12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--text-sm)", color: "var(--accent-light)", background: "rgba(124,108,246,0.08)", borderRadius: 8, padding: "8px 12px" }}>
           <i className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_forward</i>
           <span>{milestone.next_action}</span>
         </div>
@@ -318,7 +306,7 @@ function MilestoneDetailCard({
       {/* Specs list */}
       {milestone.specs.length > 0 && (
         <div>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-tertiary)", marginBottom: 8 }}>
+          <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--text-tertiary)", marginBottom: 8 }}>
             Specifications ({milestone.specs.length})
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -342,22 +330,22 @@ function MilestoneDetailCard({
                     cursor: "pointer",
                   }}
                 >
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#bcaef6", flex: "none" }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "#bcaef6", flex: "none" }}>
                     {spec.id}
                   </span>
-                  <span style={{ fontSize: 12.5, color: "var(--text-primary)", flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <span style={{ fontSize: "var(--text-sm)", color: "var(--text-primary)", flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {spec.title}
                   </span>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: sc2.color, background: sc2.bg, borderRadius: 4, padding: "1px 6px", flex: "none" }}>
+                  <span style={{ fontSize: "var(--text-2xs)", fontWeight: 700, color: sc2.color, background: sc2.bg, borderRadius: 4, padding: "1px 6px", flex: "none" }}>
                     {spec.status}
                   </span>
                   {spec.priority && (
-                    <span style={{ fontSize: 10, color: "var(--text-muted)", flex: "none" }}>
+                    <span style={{ fontSize: "var(--text-2xs)", color: "var(--text-muted)", flex: "none" }}>
                       {spec.priority}
                     </span>
                   )}
                   {spec.recommended_agent && (
-                    <span style={{ fontSize: 10, color: "var(--text-muted)", flex: "none", fontFamily: "var(--font-mono)" }}>
+                    <span style={{ fontSize: "var(--text-2xs)", color: "var(--text-muted)", flex: "none", fontFamily: "var(--font-mono)" }}>
                       {spec.recommended_agent}
                     </span>
                   )}
@@ -371,7 +359,7 @@ function MilestoneDetailCard({
       {/* Reviews */}
       {milestone.reviews.length > 0 && (
         <div>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-tertiary)", marginBottom: 8 }}>
+          <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--text-tertiary)", marginBottom: 8 }}>
             Reviews ({milestone.reviews.length})
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -383,7 +371,7 @@ function MilestoneDetailCard({
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
-                  fontSize: 12,
+                  fontSize: "var(--text-sm)",
                   color: "var(--text-secondary)",
                   cursor: r.path ? "pointer" : "default",
                   padding: "3px 6px",
@@ -392,9 +380,9 @@ function MilestoneDetailCard({
                 onMouseEnter={(e) => { if (r.path) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; } }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#bcaef6" }}>{r.id}</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "#bcaef6" }}>{r.id}</span>
                 <span>{r.title}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: r.status === "accepted" ? "#46b07d" : "#e0a23a", background: r.status === "accepted" ? "rgba(70,176,125,0.1)" : "rgba(224,162,58,0.1)", borderRadius: 4, padding: "1px 6px" }}>
+                <span style={{ fontSize: "var(--text-2xs)", fontWeight: 700, color: r.status === "accepted" ? "#46b07d" : "#e0a23a", background: r.status === "accepted" ? "rgba(70,176,125,0.1)" : "rgba(224,162,58,0.1)", borderRadius: 4, padding: "1px 6px" }}>
                   {r.status}
                 </span>
               </div>
@@ -406,7 +394,7 @@ function MilestoneDetailCard({
       {/* Decisions */}
       {milestone.decisions.length > 0 && (
         <div>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-tertiary)", marginBottom: 8 }}>
+          <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--text-tertiary)", marginBottom: 8 }}>
             Decisions ({milestone.decisions.length})
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -418,7 +406,7 @@ function MilestoneDetailCard({
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
-                  fontSize: 12,
+                  fontSize: "var(--text-sm)",
                   color: "var(--text-secondary)",
                   cursor: d.path ? "pointer" : "default",
                   padding: "3px 6px",
@@ -427,9 +415,9 @@ function MilestoneDetailCard({
                 onMouseEnter={(e) => { if (d.path) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; } }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#bcaef6" }}>{d.id}</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "#bcaef6" }}>{d.id}</span>
                 <span>{d.title}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: d.status === "accepted" ? "#46b07d" : "#8a8d99", background: d.status === "accepted" ? "rgba(70,176,125,0.1)" : "rgba(138,141,153,0.1)", borderRadius: 4, padding: "1px 6px" }}>
+                <span style={{ fontSize: "var(--text-2xs)", fontWeight: 700, color: d.status === "accepted" ? "#46b07d" : "#8a8d99", background: d.status === "accepted" ? "rgba(70,176,125,0.1)" : "rgba(138,141,153,0.1)", borderRadius: 4, padding: "1px 6px" }}>
                   {d.status}
                 </span>
               </div>
@@ -441,10 +429,10 @@ function MilestoneDetailCard({
       {/* Risks */}
       {milestone.risks.length > 0 && (
         <div>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-tertiary)", marginBottom: 6 }}>
+          <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--text-tertiary)", marginBottom: 6 }}>
             Risks
           </div>
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "#f0a89f", display: "flex", flexDirection: "column", gap: 3 }}>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: "var(--text-sm)", color: "#f0a89f", display: "flex", flexDirection: "column", gap: 3 }}>
             {milestone.risks.map((risk, i) => (
               <li key={i}>{risk}</li>
             ))}
@@ -454,7 +442,7 @@ function MilestoneDetailCard({
 
       {/* Dependencies */}
       {milestone.depends_on && (
-        <div style={{ fontSize: 12.5, color: "var(--text-tertiary)" }}>
+        <div style={{ fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>
           <span style={{ fontWeight: 600 }}>Depends on:</span> {milestone.depends_on}
         </div>
       )}
@@ -462,12 +450,12 @@ function MilestoneDetailCard({
       {/* Unresolved references */}
       {milestone.unresolved_refs.length > 0 && (
         <div>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: "#e0a23a", marginBottom: 6 }}>
+          <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "#e0a23a", marginBottom: 6 }}>
             Unresolved References
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {milestone.unresolved_refs.map((ref, i) => (
-              <div key={i} style={{ fontSize: 12, color: "#f0a89f", display: "flex", alignItems: "center", gap: 6 }}>
+              <div key={i} style={{ fontSize: "var(--text-sm)", color: "#f0a89f", display: "flex", alignItems: "center", gap: 6 }}>
                 <i className="material-symbols-outlined" style={{ fontSize: 14 }}>warning</i>
                 {ref}
               </div>

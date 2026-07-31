@@ -4,7 +4,7 @@ import { getSpecs } from "../../lib/commands";
 import type { Spec, SpecStatus } from "../../types";
 
 const COLUMNS: { status: SpecStatus; label: string; color: string }[] = [
-  { status: "backlog", label: "Backlog", color: "#6c6671" },
+  { status: "backlog", label: "Backlog", color: "var(--text-tertiary)" },
   { status: "ready", label: "Ready", color: "#8a8d99" },
   { status: "working", label: "Working", color: "#5b8def" },
   { status: "review", label: "Review", color: "#e0a23a" },
@@ -55,7 +55,7 @@ export function TaskboardView() {
       <div
         style={{
           flex: "none",
-          padding: "20px 24px 14px",
+          padding: "var(--space-5) var(--page-gutter) var(--space-4)",
           borderBottom: "1px solid var(--border-primary)",
         }}
       >
@@ -67,12 +67,12 @@ export function TaskboardView() {
             marginBottom: 14,
           }}
         >
-          <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-.025em", margin: 0 }}>
+          <h1 style={{ fontSize: "var(--text-2xl)", fontWeight: 800, letterSpacing: "-.025em", margin: 0 }}>
             Board
           </h1>
           <div
             style={{
-              fontSize: 12,
+              fontSize: "var(--text-sm)",
               color: "var(--text-tertiary)",
               display: "flex",
               alignItems: "center",
@@ -83,15 +83,15 @@ export function TaskboardView() {
               cloud_done
             </i>
             backed by{" "}
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, color: "#9a949f" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "var(--text-secondary)" }}>
               .lmbrain/specs/&lt;status&gt;/*.md
             </span>
           </div>
         </div>
         <div
           style={{
-            fontSize: 11.5,
-            color: "#56525b",
+            fontSize: "var(--text-xs)",
+            color: "var(--text-muted)",
             display: "flex",
             alignItems: "center",
             gap: 10,
@@ -127,7 +127,7 @@ export function TaskboardView() {
       </div>
 
       {/* Columns */}
-      <div style={{ flex: 1, minHeight: 0, overflowX: "auto", overflowY: "hidden", padding: "16px 24px" }}>
+      <div style={{ flex: 1, minHeight: 0, overflowX: "auto", overflowY: "hidden", padding: "var(--space-4) var(--page-gutter)" }}>
         <div style={{ display: "flex", gap: 14, height: "100%", minWidth: "max-content" }}>
           {COLUMNS.map((col) => {
             const specs = specsByStatus(col.status);
@@ -148,11 +148,11 @@ export function TaskboardView() {
                   <span
                     style={{ width: 9, height: 9, borderRadius: "50%", background: col.color }}
                   />
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)" }}>
+                  <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--text-primary)" }}>
                     {col.label}
                   </span>
                   <span
-                    style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#56525b" }}
+                    style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "var(--text-muted)" }}
                   >
                     {specs.length}
                   </span>
@@ -232,14 +232,14 @@ function SpecCard({
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span
-          style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-tertiary)" }}
+          style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}
         >
           {spec.id}
         </span>
         {isMalformed && (
           <span
             style={{
-              fontSize: 10,
+              fontSize: "var(--text-2xs)",
               fontWeight: 700,
               color: "#e0584a",
               background: "rgba(224,88,74,0.13)",
@@ -252,13 +252,13 @@ function SpecCard({
           </span>
         )}
       </div>
-      <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.35, color: "var(--text-primary)" }}>
+      <div style={{ fontSize: "var(--text-md)", fontWeight: 600, lineHeight: 1.35, color: "var(--text-primary)" }}>
         {spec.title}
       </div>
       {spec.status === "backlog" && (spec.parking_events?.length ?? 0) > 0 && (
         <div
           title={spec.parking_events?.at(-1)?.reason}
-          style={{ fontSize: 10.5, color: "#bcaef6" }}
+          style={{ fontSize: "var(--text-xs)", color: "#bcaef6" }}
         >
           Parked · readiness expired
         </div>
@@ -266,7 +266,7 @@ function SpecCard({
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 1 }}>
         {spec.recommended_agent && (
           <span
-            style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "#bcaef6" }}
+            style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "#bcaef6" }}
           >
             {spec.recommended_agent}
           </span>
@@ -275,8 +275,8 @@ function SpecCard({
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 10.5,
-              color: done === total ? "var(--green)" : "#9a949f",
+              fontSize: "var(--text-xs)",
+              color: done === total ? "var(--green)" : "var(--text-secondary)",
               background: "#1a1722",
               borderRadius: 5,
               padding: "2px 6px",
@@ -287,7 +287,7 @@ function SpecCard({
         )}
         {activeFindingCount > 0 && <span
           aria-label={`${activeFindingCount} active findings`}
-          style={{ fontSize: 10.5, color: "#d9b86d" }}
+          style={{ fontSize: "var(--text-xs)", color: "#d9b86d" }}
         >
           ⚠ {activeFindingCount}
         </span>}
@@ -295,13 +295,13 @@ function SpecCard({
           <span
             aria-label={`Blocked by hard dependencies: ${dependencyBlockers.join(", ")}`}
             title={`Ready after ${dependencyBlockers.join(", ")}`}
-            style={{ fontSize: 10.5, color: "#e0a23a" }}
+            style={{ fontSize: "var(--text-xs)", color: "#e0a23a" }}
           >
             ⛓ {dependencyBlockers.length}
           </span>
         )}
         <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 10.5, color: "#56525b", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
           {spec.updated}
         </span>
       </div>

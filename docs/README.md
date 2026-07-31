@@ -10,6 +10,7 @@ This directory documents the current LMBrain solution. It intentionally does not
 - [Agent Hosts](agent-hosts.md) - Claude Code, Codex, Pi, and OpenCode registration.
 - [Sessions](sessions.md) - interactive Claude, Codex, Pi, and OpenCode terminals.
 - [Repository](repository.md) - read-only Git status, GitHub delivery data, and safe file diff inspection.
+- [Design System](design-system.md) - layout tokens, page archetypes, and density rules.
 - [Development](development.md) - local setup, repository map, and checks.
 - [Release](release.md) - version alignment, CI, installers, and releases.
 

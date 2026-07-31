@@ -120,7 +120,7 @@ export function SessionsView({ active }: SessionsViewProps) {
           justifyContent: "space-between",
           gap: 16,
           minHeight: 48,
-          padding: "0 18px",
+          padding: "0 var(--space-4)",
           borderBottom: "1px solid rgba(57, 49, 70, 0.8)",
           background: "rgba(10, 9, 13, 0.7)",
           backdropFilter: "blur(8px)",
@@ -129,7 +129,7 @@ export function SessionsView({ active }: SessionsViewProps) {
       >
         <div
           style={{
-            fontSize: 15,
+            fontSize: "var(--text-lg)",
             fontWeight: 700,
             color: "var(--text-primary)",
             letterSpacing: "-.02em",
@@ -152,7 +152,7 @@ export function SessionsView({ active }: SessionsViewProps) {
             display: "flex",
             alignItems: "center",
             gap: 0,
-            padding: "0 12px",
+            padding: "0 var(--space-3)",
             minHeight: 40,
             background: "rgba(10, 9, 13, 0.5)",
             borderBottom: "1px solid rgba(57, 49, 70, 0.6)",
@@ -232,7 +232,7 @@ export function SessionsView({ active }: SessionsViewProps) {
             <div
               id="start-session-title"
               style={{
-                fontSize: 18,
+                fontSize: "var(--text-xl)",
                 fontWeight: 700,
                 color: "var(--text-primary)",
                 marginBottom: 16,
@@ -290,7 +290,7 @@ export function SessionsView({ active }: SessionsViewProps) {
                     style={{
                       marginTop: -4,
                       marginBottom: 14,
-                      fontSize: 11.5,
+                      fontSize: "var(--text-xs)",
                       color: "var(--text-tertiary)",
                     }}
                   >
@@ -368,7 +368,7 @@ function SessionTab({
         alignItems: "center",
         gap: 8,
         height: 40,
-        padding: "0 12px",
+        padding: "0 var(--space-3)",
         borderRight: "1px solid rgba(57, 49, 70, 0.5)",
         borderBottom: active ? "2px solid #7c6cf6" : "2px solid transparent",
         background: active ? "rgba(124,108,246,0.06)" : "transparent",
@@ -390,7 +390,7 @@ function SessionTab({
       />
       <div
         style={{
-          fontSize: 12.5,
+          fontSize: "var(--text-sm)",
           fontWeight: active ? 700 : 500,
           color: active ? "var(--text-primary)" : "var(--text-tertiary)",
           whiteSpace: "nowrap",
@@ -404,7 +404,7 @@ function SessionTab({
       </div>
       <div
         style={{
-          fontSize: 10,
+          fontSize: "var(--text-2xs)",
           color: "var(--text-muted)",
           whiteSpace: "nowrap",
           flex: "none",
@@ -510,7 +510,7 @@ function EmptySessionsState({
         <div
           style={{
             marginTop: 10,
-            fontSize: 13,
+            fontSize: "var(--text-md)",
             lineHeight: 1.6,
             color: "var(--text-tertiary)",
           }}
@@ -547,7 +547,7 @@ function ModeButton({
         background: selected ? "rgba(111, 93, 240, 0.16)" : "#16131d",
         color: selected ? "var(--text-primary)" : "var(--text-secondary)",
         padding: "11px 12px",
-        fontSize: 13,
+        fontSize: "var(--text-md)",
         fontWeight: 600,
         cursor: "pointer",
       }}
@@ -566,7 +566,7 @@ const primaryButtonStyle: CSSProperties = {
   borderRadius: 12,
   background: "linear-gradient(135deg, #886ff7, #4d80f6)",
   color: "#fff",
-  fontSize: 13,
+  fontSize: "var(--text-md)",
   fontWeight: 700,
   padding: "8px 12px",
   cursor: "pointer",
@@ -586,14 +586,14 @@ const secondaryButtonWideStyle: CSSProperties = {
   border: "1px solid #2c2538",
   background: "#16131d",
   color: "var(--text-secondary)",
-  fontSize: 13,
+  fontSize: "var(--text-md)",
   fontWeight: 600,
   padding: "10px 14px",
   cursor: "pointer",
 };
 
 const fieldLabelStyle: CSSProperties = {
-  fontSize: 11,
+  fontSize: "var(--text-xs)",
   letterSpacing: ".08em",
   textTransform: "uppercase",
   color: "var(--text-muted)",
@@ -608,7 +608,7 @@ const inputStyle: CSSProperties = {
   background: "#0f0d14",
   color: "var(--text-primary)",
   padding: "11px 12px",
-  fontSize: 13,
+  fontSize: "var(--text-md)",
   outline: "none",
   boxSizing: "border-box",
 };
@@ -620,12 +620,12 @@ const selectStyle: CSSProperties = {
   background: "#0f0d14",
   color: "var(--text-primary)",
   padding: "11px 12px",
-  fontSize: 13,
+  fontSize: "var(--text-md)",
   outline: "none",
 };
 
 const errorTextStyle: CSSProperties = {
-  fontSize: 12,
+  fontSize: "var(--text-sm)",
   color: "#f28a8a",
   marginTop: 6,
 };

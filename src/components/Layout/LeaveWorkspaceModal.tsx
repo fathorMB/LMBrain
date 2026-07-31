@@ -130,7 +130,7 @@ export function LeaveWorkspaceModal() {
           id="leave-workspace-title"
           style={{
             margin: "0 0 10px",
-            fontSize: 17,
+            fontSize: "var(--text-xl)",
             fontWeight: 700,
             color: "var(--text-primary)",
           }}
@@ -142,7 +142,7 @@ export function LeaveWorkspaceModal() {
           style={{
             margin: "0 0 16px",
             color: "var(--text-secondary)",
-            fontSize: 13,
+            fontSize: "var(--text-md)",
             lineHeight: 1.5,
           }}
         >
@@ -156,7 +156,7 @@ export function LeaveWorkspaceModal() {
               borderRadius: 7,
               background: "rgba(106,79,240,.08)",
               color: "#bcaef6",
-              fontSize: 12,
+              fontSize: "var(--text-sm)",
               marginBottom: 16,
               display: "flex",
               alignItems: "center",
@@ -191,7 +191,7 @@ export function LeaveWorkspaceModal() {
               background: "rgba(224,88,74,.08)",
               border: "1px solid rgba(224,88,74,.25)",
               color: "#f87171",
-              fontSize: 12,
+              fontSize: "var(--text-sm)",
               marginBottom: 16,
             }}
           >
@@ -218,7 +218,7 @@ export function LeaveWorkspaceModal() {
                   background: "#19151f",
                   color: "var(--text-secondary)",
                   padding: "7px 11px",
-                  fontSize: 11.5,
+                  fontSize: "var(--text-xs)",
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
@@ -234,7 +234,7 @@ export function LeaveWorkspaceModal() {
                   background: "linear-gradient(135deg,#e0584a,#c0392b)",
                   color: "#fff",
                   padding: "7px 11px",
-                  fontSize: 11.5,
+                  fontSize: "var(--text-xs)",
                   fontWeight: 700,
                   cursor: "pointer",
                 }}
@@ -250,7 +250,7 @@ export function LeaveWorkspaceModal() {
                   background: "#19151f",
                   color: "var(--text-secondary)",
                   padding: "7px 11px",
-                  fontSize: 11.5,
+                  fontSize: "var(--text-xs)",
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
@@ -271,7 +271,7 @@ export function LeaveWorkspaceModal() {
                   background: "#19151f",
                   color: "var(--text-secondary)",
                   padding: "7px 11px",
-                  fontSize: 11.5,
+                  fontSize: "var(--text-xs)",
                   fontWeight: 600,
                   cursor: status === "leaving" ? "not-allowed" : "pointer",
                   opacity: status === "leaving" ? 0.6 : 1,
@@ -289,7 +289,7 @@ export function LeaveWorkspaceModal() {
                   background: "linear-gradient(135deg,#e0584a,#c0392b)",
                   color: "#fff",
                   padding: "7px 11px",
-                  fontSize: 11.5,
+                  fontSize: "var(--text-xs)",
                   fontWeight: 700,
                   cursor: status === "leaving" ? "not-allowed" : "pointer",
                   opacity: status === "leaving" ? 0.6 : 1,

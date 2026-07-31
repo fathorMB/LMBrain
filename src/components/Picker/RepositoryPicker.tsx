@@ -39,7 +39,7 @@ export function RepositoryPicker() {
       case "warn":
         return "#e0a23a";
       default:
-        return "#6c6671";
+        return "var(--text-tertiary)";
     }
   };
 
@@ -80,7 +80,7 @@ export function RepositoryPicker() {
           <div>
             <div
               style={{
-                fontSize: 16,
+                fontSize: "var(--text-lg)",
                 fontWeight: 700,
                 letterSpacing: "-.01em",
               }}
@@ -89,8 +89,8 @@ export function RepositoryPicker() {
             </div>
             <div
               style={{
-                fontSize: 11.5,
-                color: "#6c6671",
+                fontSize: "var(--text-xs)",
+                color: "var(--text-tertiary)",
                 fontFamily: "var(--font-mono)",
               }}
             >
@@ -131,9 +131,9 @@ export function RepositoryPicker() {
             </h1>
             <p
               style={{
-                fontSize: 13.5,
+                fontSize: "var(--text-md)",
                 lineHeight: 1.55,
-                color: "#9a949f",
+                color: "var(--text-secondary)",
                 margin: "0 0 21px",
               }}
             >
@@ -142,7 +142,7 @@ export function RepositoryPicker() {
                 style={{
                   fontFamily: "var(--font-mono)",
                   color: "#bcaef6",
-                  fontSize: 12.5,
+                  fontSize: "var(--text-sm)",
                 }}
               >
                 .lmbrain
@@ -164,7 +164,7 @@ export function RepositoryPicker() {
                 border: "none",
                 borderRadius: 10,
                 padding: 12,
-                fontSize: 13.5,
+                fontSize: "var(--text-md)",
                 fontWeight: 600,
                 cursor: "pointer",
                 boxShadow: "0 8px 20px -7px rgba(110,91,242,.75)",
@@ -192,10 +192,10 @@ export function RepositoryPicker() {
             >
               <span
                 style={{
-                  fontSize: 10.5,
+                  fontSize: "var(--text-xs)",
                   letterSpacing: ".09em",
                   textTransform: "uppercase",
-                  color: "#6c6671",
+                  color: "var(--text-tertiary)",
                   fontWeight: 600,
                 }}
               >
@@ -204,8 +204,8 @@ export function RepositoryPicker() {
               <span
                 style={{
                   fontFamily: "var(--font-mono)",
-                  fontSize: 11,
-                  color: "#56525b",
+                  fontSize: "var(--text-xs)",
+                  color: "var(--text-muted)",
                 }}
               >
                 {recentItems.length} workspaces
@@ -248,7 +248,7 @@ export function RepositoryPicker() {
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div
                       style={{
-                        fontSize: 13,
+                        fontSize: "var(--text-md)",
                         fontWeight: 600,
                         color: "var(--text-primary)",
                       }}
@@ -258,8 +258,8 @@ export function RepositoryPicker() {
                     <div
                       style={{
                         fontFamily: "var(--font-mono)",
-                        fontSize: 11,
-                        color: "#6c6671",
+                        fontSize: "var(--text-xs)",
+                        color: "var(--text-tertiary)",
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -270,8 +270,8 @@ export function RepositoryPicker() {
                   </div>
                   <div
                     style={{
-                      fontSize: 11,
-                      color: "#6c6671",
+                      fontSize: "var(--text-xs)",
+                      color: "var(--text-tertiary)",
                       whiteSpace: "nowrap",
                     }}
                   >
@@ -326,7 +326,7 @@ export function RepositoryPicker() {
                 </div>
                 <h2
                   style={{
-                    fontSize: 17,
+                    fontSize: "var(--text-xl)",
                     fontWeight: 700,
                     margin: "0 0 7px",
                     color: "var(--text-primary)",
@@ -336,9 +336,9 @@ export function RepositoryPicker() {
                 </h2>
                 <p
                   style={{
-                    fontSize: 13,
+                    fontSize: "var(--text-md)",
                     lineHeight: 1.55,
-                    color: "#9a949f",
+                    color: "var(--text-secondary)",
                     margin: 0,
                     maxWidth: 300,
                   }}
@@ -355,8 +355,8 @@ export function RepositoryPicker() {
           style={{
             textAlign: "center",
             marginTop: 16,
-            fontSize: 11.5,
-            color: "#56525b",
+            fontSize: "var(--text-xs)",
+            color: "var(--text-muted)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -404,10 +404,10 @@ export function RepositoryPicker() {
             >
               progress_activity
             </i>
-            <div style={{ marginTop: 14, fontSize: 17, fontWeight: 700 }}>
+            <div style={{ marginTop: 14, fontSize: "var(--text-xl)", fontWeight: 700 }}>
               Preparing project brain
             </div>
-            <div style={{ marginTop: 8, color: "#aaa3b2", fontSize: 13 }}>
+            <div style={{ marginTop: 8, color: "#aaa3b2", fontSize: "var(--text-md)" }}>
               {state.loadingMessage}
             </div>
             {state.loadingPath && (
@@ -416,7 +416,7 @@ export function RepositoryPicker() {
                   marginTop: 12,
                   color: "#706a76",
                   fontFamily: "var(--font-mono)",
-                  fontSize: 10.5,
+                  fontSize: "var(--text-xs)",
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -456,10 +456,10 @@ function WorkspacePreview() {
         >
           <i className="material-symbols-outlined" style={{ fontSize: 24, color: "#e0a23a" }}>neurology</i>
         </div>
-        <h2 style={{ fontSize: 17, fontWeight: 700, margin: "0 0 7px", color: "var(--text-primary)" }}>
+        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, margin: "0 0 7px", color: "var(--text-primary)" }}>
           Initialize this project brain?
         </h2>
-        <p style={{ fontSize: 13, lineHeight: 1.55, color: "#9a949f", margin: "0 0 18px", maxWidth: 350 }}>
+        <p style={{ fontSize: "var(--text-md)", lineHeight: 1.55, color: "var(--text-secondary)", margin: "0 0 18px", maxWidth: 350 }}>
           <span style={{ fontFamily: "var(--font-mono)", color: "#bcaef6" }}>{ws.path}</span> does not contain an LMBrain kit. Initializing creates a new <span style={{ fontFamily: "var(--font-mono)", color: "#bcaef6" }}>.lmbrain/</span> directory in this repository; existing files are not changed.
         </p>
         <button
@@ -475,7 +475,7 @@ function WorkspacePreview() {
             border: "none",
             borderRadius: 10,
             padding: "11px 14px",
-            fontSize: 13,
+            fontSize: "var(--text-md)",
             fontWeight: 600,
             cursor: "pointer",
           }}
@@ -491,10 +491,10 @@ function WorkspacePreview() {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <span
         style={{
-          fontSize: 10.5,
+          fontSize: "var(--text-xs)",
           letterSpacing: ".09em",
           textTransform: "uppercase",
-          color: "#6c6671",
+          color: "var(--text-tertiary)",
           fontWeight: 600,
         }}
       >
@@ -521,7 +521,7 @@ function WorkspacePreview() {
             fontFamily: "var(--font-mono)",
             fontWeight: 600,
             color: "#a596f5",
-            fontSize: 17,
+            fontSize: "var(--text-xl)",
           }}
         >
           {ws.name.charAt(0).toUpperCase()}
@@ -529,7 +529,7 @@ function WorkspacePreview() {
         <div style={{ minWidth: 0 }}>
           <div
             style={{
-              fontSize: 16,
+              fontSize: "var(--text-lg)",
               fontWeight: 700,
               letterSpacing: "-.01em",
               color: "var(--text-primary)",
@@ -540,8 +540,8 @@ function WorkspacePreview() {
           <div
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 11.5,
-              color: "#6c6671",
+              fontSize: "var(--text-xs)",
+              color: "var(--text-tertiary)",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -570,7 +570,7 @@ function WorkspacePreview() {
           display: "flex",
           flexDirection: "column",
           gap: 8,
-          fontSize: 12.5,
+          fontSize: "var(--text-sm)",
           color: "#b6b1bb",
         }}
       >
@@ -585,7 +585,7 @@ function WorkspacePreview() {
             style={{
               fontFamily: "var(--font-mono)",
               color: "#bcaef6",
-              fontSize: 12,
+              fontSize: "var(--text-sm)",
             }}
           >
             .lmbrain/
@@ -620,7 +620,7 @@ function WorkspacePreview() {
             >
               {d.severity === "error" ? "error" : "warning"}
             </i>
-            <span style={{ fontSize: 12 }}>{d.message}</span>
+            <span style={{ fontSize: "var(--text-sm)" }}>{d.message}</span>
           </div>
         ))}
       </div>
@@ -647,7 +647,7 @@ function StatBox({ value, label }: { value: number; label: string }) {
       >
         {value}
       </div>
-      <div style={{ fontSize: 11, color: "#6c6671" }}>{label}</div>
+      <div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>{label}</div>
     </div>
   );
 }

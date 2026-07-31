@@ -48,7 +48,7 @@ export function TopBar({ onViewReload }: { onViewReload: () => void }) {
     >
       {/* Workspace name */}
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-        <span style={{ fontSize: 13.5, fontWeight: 600 }}>
+        <span style={{ fontSize: "var(--text-md)", fontWeight: 600 }}>
           {state.currentWorkspace?.name || "LMBrain"}
         </span>
         {gitInfo?.branch && (
@@ -58,7 +58,7 @@ export function TopBar({ onViewReload }: { onViewReload: () => void }) {
               alignItems: "center",
               gap: 5,
               fontFamily: "var(--font-mono)",
-              fontSize: 11.5,
+              fontSize: "var(--text-xs)",
               color: "var(--accent-light)",
               background: "rgba(124,108,246,.1)",
               border: "1px solid rgba(124,108,246,.22)",
@@ -91,7 +91,7 @@ export function TopBar({ onViewReload }: { onViewReload: () => void }) {
           display: "flex",
           alignItems: "center",
           gap: 7,
-          fontSize: 12,
+          fontSize: "var(--text-sm)",
           color: "var(--text-tertiary)",
         }}
       >
@@ -115,14 +115,14 @@ export function TopBar({ onViewReload }: { onViewReload: () => void }) {
       <div style={{ flex: 1 }} />
 
       {refreshStatus === "success" && (
-        <span role="status" style={{ fontSize: 11, color: "var(--green)" }}>
+        <span role="status" style={{ fontSize: "var(--text-xs)", color: "var(--green)" }}>
           Updated
         </span>
       )}
       {dataRefreshing && refreshStatus !== "refreshing" && (
         <span
           role="status"
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-tertiary)" }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}
         >
           <i
             className="material-symbols-outlined lmbrain-loading-spinner"
@@ -135,7 +135,7 @@ export function TopBar({ onViewReload }: { onViewReload: () => void }) {
         </span>
       )}
       {refreshStatus === "error" && (
-        <span role="alert" style={{ fontSize: 11, color: "var(--red)" }}>
+        <span role="alert" style={{ fontSize: "var(--text-xs)", color: "var(--red)" }}>
           Refresh failed
         </span>
       )}
@@ -194,13 +194,13 @@ export function TopBar({ onViewReload }: { onViewReload: () => void }) {
         <i className="material-symbols-outlined" style={{ fontSize: 17 }}>
           search
         </i>
-        <span style={{ flex: 1, fontSize: 12.5 }}>
+        <span style={{ flex: 1, fontSize: "var(--text-sm)" }}>
           Search specs, files…
         </span>
         <span
           style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 10,
+            fontSize: "var(--text-2xs)",
             border: "1px solid #2b2833",
             borderRadius: 5,
             padding: "1px 5px",

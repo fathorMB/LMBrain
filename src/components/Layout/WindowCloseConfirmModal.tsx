@@ -131,10 +131,10 @@ export function WindowCloseConfirmModal() {
             <i className="material-symbols-outlined" style={{ fontSize: 21 }}>warning</i>
           </div>
           <div>
-            <h2 id="window-close-title" style={{ margin: 0, fontSize: 18, fontWeight: 750 }}>
+            <h2 id="window-close-title" style={{ margin: 0, fontSize: "var(--text-xl)", fontWeight: 750 }}>
               Close LMBrain?
             </h2>
-            <div style={{ marginTop: 3, fontSize: 11.5, color: "var(--text-tertiary)" }}>
+            <div style={{ marginTop: 3, fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>
               {activeSessions.length > 0
                 ? "Active agent work will be stopped"
                 : "Open session tabs will be closed"}
@@ -144,7 +144,7 @@ export function WindowCloseConfirmModal() {
 
         <p
           id="window-close-description"
-          style={{ margin: "0 0 17px", fontSize: 13, lineHeight: 1.55, color: "var(--text-secondary)" }}
+          style={{ margin: "0 0 17px", fontSize: "var(--text-md)", lineHeight: 1.55, color: "var(--text-secondary)" }}
         >
           {openSessions.length === 1
             ? `The session “${openSessions[0].label}” is still open.`
@@ -155,7 +155,7 @@ export function WindowCloseConfirmModal() {
         </p>
 
         {status === "closing" && (
-          <div role="status" style={{ marginBottom: 16, color: "#bcaef6", fontSize: 12 }}>
+          <div role="status" style={{ marginBottom: 16, color: "#bcaef6", fontSize: "var(--text-sm)" }}>
             Stopping active sessions…
           </div>
         )}
@@ -170,7 +170,7 @@ export function WindowCloseConfirmModal() {
               background: "rgba(224,88,74,.08)",
               border: "1px solid rgba(224,88,74,.24)",
               color: "#f08075",
-              fontSize: 11.5,
+              fontSize: "var(--text-xs)",
             }}
           >
             Some processes could not be stopped: {failures.join("; ")}
@@ -189,7 +189,7 @@ export function WindowCloseConfirmModal() {
               background: "#1b1721",
               color: "var(--text-secondary)",
               padding: "8px 13px",
-              fontSize: 12,
+              fontSize: "var(--text-sm)",
               fontWeight: 650,
               cursor: status === "closing" ? "wait" : "pointer",
             }}
@@ -208,7 +208,7 @@ export function WindowCloseConfirmModal() {
                 : "linear-gradient(135deg,#7c6cf6,#6553df)",
               color: "#fff",
               padding: "8px 13px",
-              fontSize: 12,
+              fontSize: "var(--text-sm)",
               fontWeight: 750,
               cursor: status === "closing" ? "wait" : "pointer",
               opacity: status === "closing" ? 0.65 : 1,

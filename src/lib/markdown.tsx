@@ -69,7 +69,7 @@ function WikilinkHandler({
     return (
       <span
         style={{
-          color: "#6c6671",
+          color: "var(--text-tertiary)",
           fontFamily: "var(--font-mono)",
           fontSize: "0.95em",
           cursor: "default",
@@ -127,7 +127,7 @@ const defaultComponents: Components = {
           padding: "14px 16px",
           overflowX: "auto",
           fontFamily: "var(--font-mono)",
-          fontSize: 12.5,
+          fontSize: "var(--text-sm)",
           lineHeight: 1.85,
           color: "#b6b1bb",
         }}
@@ -142,7 +142,7 @@ const defaultComponents: Components = {
         style={{
           borderCollapse: "collapse",
           width: "100%",
-          fontSize: 13,
+          fontSize: "var(--text-md)",
           color: "#c2bdc8",
         }}
       >
@@ -185,7 +185,7 @@ const defaultComponents: Components = {
         padding: "13px 15px",
         marginBottom: 22,
         color: "#c2bdc8",
-        fontSize: 13.5,
+        fontSize: "var(--text-md)",
         lineHeight: 1.6,
       }}
     >
@@ -229,7 +229,7 @@ const defaultComponents: Components = {
   h3: ({ children }) => (
     <h3
       style={{
-        fontSize: 16,
+        fontSize: "var(--text-lg)",
         fontWeight: 600,
         margin: "20px 0 8px",
       }}
@@ -240,7 +240,7 @@ const defaultComponents: Components = {
   p: ({ children }) => (
     <p
       style={{
-        fontSize: 14.5,
+        fontSize: "var(--text-md)",
         lineHeight: 1.72,
         color: "#c2bdc8",
         margin: "0 0 16px",
