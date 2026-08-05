@@ -477,6 +477,11 @@ pub fn apply_improvement_proposal(
         "primary_files",
         proposal.string_array("add_primary_files"),
     );
+    if let Some(replaces) = proposal.value("replaces_text").or_else(|| proposal.value("supersedes_text")) {
+        if !replaces.trim().is_empty() {
+            target.body = target.body.replace(&replaces, &format!("~~{replaces}~~"));
+        }
+    }
     if let Some(guidance) = extract_section(&proposal.body, "Proposed guidance") {
         if !guidance.starts_with("No prose guidance") && !guidance.trim().is_empty() {
             target.body.push_str(&format!(

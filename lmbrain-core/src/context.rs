@@ -1674,14 +1674,20 @@ pub fn parse_verification_requirements(
                 .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'));
         if structured {
             let mut fields = BTreeMap::new();
-            let mut text = String::new();
+            let mut text_parts = Vec::new();
             for part in parts.iter().skip(1) {
                 if let Some((key, value)) = part.split_once('=') {
-                    fields.insert(key.trim(), value.trim());
-                } else if !part.is_empty() {
-                    text = (*part).to_string();
+                    let k = key.trim();
+                    if matches!(k, "kind" | "owner" | "phase" | "evidence") {
+                        fields.insert(k, value.trim());
+                        continue;
+                    }
+                }
+                if !part.is_empty() {
+                    text_parts.push(*part);
                 }
             }
+            let text = text_parts.join(" | ");
             requirements.push(VerificationRequirement {
                 id: parts[0].to_string(),
                 text: if text.is_empty() {

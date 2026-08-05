@@ -253,8 +253,13 @@ pub fn attest_spec_requirement(
             ))
         })?;
     if requirement.owner != actor_role || requirement.phase != "before-done" {
+        let clarification = if requirement.owner == "operator" {
+            "; operator gates are attested by the operator in the LMBrain UI"
+        } else {
+            ""
+        };
         return Err(AttestationError::Invalid(format!(
-            "{} is owner={} phase={}; {actor_role} cannot attest it",
+            "{} is owner={} phase={}; {actor_role} cannot attest it{clarification}",
             requirement.id, requirement.owner, requirement.phase
         )));
     }

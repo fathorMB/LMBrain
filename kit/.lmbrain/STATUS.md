@@ -1,5 +1,7 @@
 ---
 title: Project pulse
+# status: active
+# milestone: M-01
 updated: 2026-06-22
 ---
 

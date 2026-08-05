@@ -4,7 +4,19 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `4.0.0`.
+The current kit is `4.0.1`.
+
+### 4.0.1 (maintenance release — kit feedback fixes KIT-NOTE-001 through KIT-NOTE-015)
+
+Supported source version is `4.0.0`. Existing workspaces require no manual content migration.
+
+1. Update the application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together.
+2. `activity:` YAML list handling now supports inline `activity: []` arrays and prevents duplicate mapping keys across spec metadata mutations.
+3. Diagnostic `next_action` text for project status and milestone explicitly names frontmatter keys (`status:`, `milestone:`).
+4. Validation rules ignore discarded specs for roadmap membership checks, reserve prose-referenced `FINDING-\d+` IDs during allocation, and validate declared executable gates against approved verification manifests.
+5. Update `.lmbrain/VERSION` to `4.0.1` after validating the release.
+
+Rollback to 4.0.0 is data-safe: 4.0.1 introduces no breaking frontmatter schema changes.
 
 ### 4.0.0 (governed spec tags, implementation estimates, decision supersession, and declared branching strategy)
 

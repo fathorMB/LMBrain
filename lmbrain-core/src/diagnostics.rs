@@ -851,6 +851,10 @@ fn diagnose_roadmap(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<D
         .collect::<Vec<_>>();
     for artifact in &specs {
         let id = artifact.document.value("id").unwrap_or_default();
+        let status = artifact.document.value("status").unwrap_or_default();
+        if status == "discarded" {
+            continue;
+        }
         if let Some(milestone) = artifact.document.value("milestone") {
             if !milestone_ids.contains(&milestone) {
                 diagnostics.push(diagnostic(
@@ -936,7 +940,7 @@ fn diagnose_roadmap(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<D
             None,
             Some("STATUS.md".into()),
             "STATUS.md does not declare an explicit project status".into(),
-            "Add an explicit Status field while preserving the narrative project pulse.",
+            "Add 'status: <STATUS>' frontmatter key (or '**Status:** <STATUS>' line) to STATUS.md while preserving the narrative project pulse.",
             DiagnosticFixability::Manual,
             "status",
         ));
@@ -951,7 +955,7 @@ fn diagnose_roadmap(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<D
                 "STATUS.md does not declare a current milestone; active spec lifecycle derives '{}'",
                 derived.as_deref().unwrap_or_default()
             ),
-            "Declare the intended current milestone or explain why lifecycle-derived work should not drive orientation.",
+            "Add 'milestone: <MILESTONE>' frontmatter key (or '**Current milestone:** <MILESTONE>' line) to STATUS.md.",
             DiagnosticFixability::Manual,
             "milestone",
         ));
