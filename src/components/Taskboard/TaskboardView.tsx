@@ -507,12 +507,24 @@ function SpecCard({
             {done}/{total}
           </span>
         )}
-        {activeFindingCount > 0 && <span
-          aria-label={`${activeFindingCount} active findings`}
-          style={{ fontSize: "var(--text-xs)", color: "#d9b86d" }}
-        >
-          ⚠ {activeFindingCount}
-        </span>}
+        {activeFindingCount > 0 && (
+          <span
+            aria-label={`${activeFindingCount} active findings`}
+            title={`${activeFindingCount} active finding${activeFindingCount > 1 ? "s" : ""} linked to this spec`}
+            style={{
+              fontSize: "var(--text-xs)",
+              color: "#d9b86d",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 3,
+            }}
+          >
+            <i className="material-symbols-outlined" style={{ fontSize: 13 }}>
+              link
+            </i>{" "}
+            {activeFindingCount}
+          </span>
+        )}
         {dependencyBlockers.length > 0 && (
           <span
             aria-label={`Blocked by hard dependencies: ${dependencyBlockers.join(", ")}`}

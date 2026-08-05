@@ -1112,11 +1112,28 @@ fn artifact_index(root: &Path) -> HashMap<String, (PathBuf, Document)> {
 }
 
 fn next_finding_id(root: &Path) -> String {
-    let max = list_findings(root)
+    let mut max = list_findings(root)
         .iter()
         .filter_map(|finding| finding.id.strip_prefix("FINDING-")?.parse::<u32>().ok())
         .max()
         .unwrap_or(0);
+
+    let regex = Regex::new(r"\bFINDING-(\d{3,})\b").unwrap();
+    for path in markdown_files(&root.join(".lmbrain")) {
+        if path.components().any(|c| c.as_os_str() == "templates") {
+            continue;
+        }
+        if let Ok(source) = fs::read_to_string(&path) {
+            for cap in regex.captures_iter(&source) {
+                if let Ok(num) = cap[1].parse::<u32>() {
+                    if num > max {
+                        max = num;
+                    }
+                }
+            }
+        }
+    }
+
     format!("FINDING-{:03}", max + 1)
 }
 

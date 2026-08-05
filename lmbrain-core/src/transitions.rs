@@ -438,6 +438,36 @@ fn transition_internal(
         }
     }
 
+    if kind == ArtifactKind::Spec && target == "ready" {
+        let gates = document.string_array("verification_gates");
+        let (requirements, _, _) = crate::context::parse_verification_requirements(&document.body, &gates);
+        let declared_executables: Vec<String> = requirements
+            .into_iter()
+            .filter(|r| r.kind == "executable")
+            .map(|r| r.id)
+            .collect();
+        if !declared_executables.is_empty() {
+            let manifest = crate::load_verification_manifest(guard.root()).ok();
+            let approval_path = crate::default_verification_approval_path(guard.root());
+            let status = crate::verification_manifest_status(guard.root(), &approval_path).ok();
+            if status.as_ref().map(|s| &s.state) != Some(&crate::VerificationManifestState::Approved) {
+                let msg = format!("spec declares executable verification gates but verification manifest is not approved");
+                if !options.force {
+                    return Err(TransitionError::Invariant(msg));
+                }
+            } else if let Some(manifest) = manifest {
+                let known: std::collections::BTreeSet<_> = manifest.gates.into_iter().map(|g| g.id).collect();
+                let missing: Vec<_> = declared_executables.into_iter().filter(|g| !known.contains(g)).collect();
+                if !missing.is_empty() {
+                    let msg = format!("spec declares executable verification gates missing from approved manifest: {}", missing.join(", "));
+                    if !options.force {
+                        return Err(TransitionError::Invariant(msg));
+                    }
+                }
+            }
+        }
+    }
+
     document.set("status", target);
     document.set("updated", &today());
     document.append_activity(&format!("transitioned {from} -> {target}"));

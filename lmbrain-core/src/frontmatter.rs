@@ -122,8 +122,11 @@ impl Document {
         let today = Local::now().format("%Y-%m-%d");
         if self.fields.contains_key("activity") {
             let lines = self.frontmatter.lines().collect::<Vec<_>>();
-            let start = lines.iter().position(|line| line.trim() == "activity:");
+            let start = lines
+                .iter()
+                .position(|line| line.trim() == "activity:" || line.trim() == "activity: []");
             if let Some(start) = start {
+                let line_trimmed = lines[start].trim();
                 let end = lines
                     .iter()
                     .enumerate()
@@ -131,13 +134,20 @@ impl Document {
                     .find(|(_, line)| !line.trim().is_empty() && indent_width(line) == 0)
                     .map(|(index, _)| index)
                     .unwrap_or(lines.len());
-                let mut output = lines[..end]
-                    .iter()
-                    .map(|line| (*line).to_string())
-                    .collect::<Vec<_>>();
+                let mut output = Vec::new();
+                if line_trimmed == "activity: []" {
+                    output.extend(lines[..start].iter().map(|line| (*line).to_string()));
+                    output.push("activity:".to_string());
+                } else {
+                    output.extend(lines[..end].iter().map(|line| (*line).to_string()));
+                }
                 output.push(format!("  - date: {today}"));
                 output.push(format!("    action: {}", yaml_scalar(action)));
-                output.extend(lines[end..].iter().map(|line| (*line).to_string()));
+                if line_trimmed == "activity: []" {
+                    output.extend(lines[start + 1..].iter().map(|line| (*line).to_string()));
+                } else {
+                    output.extend(lines[end..].iter().map(|line| (*line).to_string()));
+                }
                 self.frontmatter = output.join(self.newline);
             }
         } else {
@@ -149,9 +159,16 @@ impl Document {
                 self.newline,
                 yaml_scalar(action)
             ));
-            self.fields
-                .insert("activity".into(), Value::Array(Vec::new()));
         }
+        let item = serde_json::json!({
+            "date": today.to_string(),
+            "action": action,
+        });
+        self.fields
+            .entry("activity".to_string())
+            .or_insert_with(|| Value::Array(Vec::new()))
+            .as_array_mut()
+            .map(|arr| arr.push(item));
     }
 
     pub fn append_object(
@@ -278,6 +295,13 @@ fn parse_mapping(input: &str) -> Result<Map<String, Value>, FrontmatterError> {
         let (key, rest) = split_key_value(trimmed).ok_or_else(|| {
             FrontmatterError::Invalid(format!("expected key/value at line {}", index + 1))
         })?;
+
+        if map.contains_key(key) {
+            return Err(FrontmatterError::Invalid(format!(
+                "duplicate top-level YAML key '{key}' at line {}",
+                index + 1
+            )));
+        }
 
         let value = if rest.is_empty() {
             match next_content_indent(&lines, index + 1) {

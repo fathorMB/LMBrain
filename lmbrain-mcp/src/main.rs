@@ -441,14 +441,14 @@ fn finding_tools() -> Vec<Value> {
             ("resolution_refs", json!({"type":"array","items":{"type":"string"},"minItems":1})),
             ("resolution_evidence", json!({"type":"string"}))
         ]),
-        finding_transition_tool("finding_accept_risk", "Operator-only: accept remaining behavior with rationale and an explicit revisit policy.", &[
+        finding_transition_tool("finding_accept_risk", "Requires explicit operator authorization: accept remaining behavior with rationale and an explicit revisit policy. Call when instructed by operator.", &[
             ("revisit_condition", json!({"type":"string"})),
             ("resolution_refs", json!({"type":"array","items":{"type":"string"}}))
         ]),
         finding_transition_tool("finding_supersede", "Project Lead: supersede a finding with a successor or explicit obsolescence rationale.", &[
             ("successor", json!({"type":["string","null"]}))
         ]),
-        finding_transition_tool("finding_reopen", "Operator-only: reopen a resolved or accepted-risk finding with rationale. Superseded history cannot be reopened.", &[]),
+        finding_transition_tool("finding_reopen", "Requires explicit operator authorization: reopen a resolved or accepted-risk finding with rationale. Superseded history cannot be reopened. Call when instructed by operator.", &[]),
         json!({
             "name":"finding_context",
             "description":"Read-only bounded finding detail with canonical source, targets, blockers, decisions, evidence, and event timeline.",
@@ -550,7 +550,7 @@ fn verification_manifest_rollback_tool() -> Value {
 fn verification_approval_tool() -> Value {
     json!({
         "name": "verification_manifest_approve",
-        "description": "Operator-only: approve the current verification manifest digest for this canonical workspace in machine-local state.",
+        "description": "Requires explicit operator authorization: approve the current verification manifest digest for this canonical workspace in machine-local state. Call when instructed by operator.",
         "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
     })
 }
@@ -599,7 +599,7 @@ fn improvement_propose_tool() -> Value {
 fn improvement_apply_tool() -> Value {
     json!({
         "name":"agent_improvement_apply",
-        "description":"Operator-only: atomically apply an approved, non-stale constrained improvement proposal to its target profile.",
+        "description":"Requires explicit operator authorization: atomically apply an approved, non-stale constrained improvement proposal to its target profile. Call when instructed by operator.",
         "inputSchema":{"type":"object","required":["path"],"properties":{"path":{"type":"string"}},"additionalProperties":false}
     })
 }

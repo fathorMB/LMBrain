@@ -1,7 +1,7 @@
 ---
 id: AGENT-PROP-IMPROVEMENT-EXAMPLE
 title: "Example: Improve frontend specialist review focus"
-status: proposed
+status: example
 requested_by: AGENT-LEAD
 reason: repeated-review-finding
 proposal_type: improvement
@@ -17,7 +17,7 @@ tags: [proposal, improvement, example]
 
 ## Observed problem
 
-The Frontend UI Specialist's review_focus does not include performance profiling. Two consecutive reviews (REVIEW-001, REVIEW-002) flagged unnecessary re-renders that were not caught during implementation.
+The Frontend UI Specialist's review_focus does not include performance profiling. Two consecutive reviews (REVIEW-XXX, REVIEW-YYY) flagged unnecessary re-renders that were not caught during implementation.
 
 ## Proposed change
 
@@ -25,8 +25,8 @@ Add `performance` to the `review_focus` list in AGENT-FRONTEND-UI.
 
 ## Evidence
 
-- REVIEW-001: "Component re-renders on every keystroke — useMemo missing"
-- REVIEW-002: "Large list has no virtualization — 200ms paint time"
+- REVIEW-XXX: "Component re-renders on every keystroke — useMemo missing"
+- REVIEW-YYY: "Large list has no virtualization — 200ms paint time"
 - SPEC-XXX: "Optimize search results rendering"
 
 ## Decision requested
