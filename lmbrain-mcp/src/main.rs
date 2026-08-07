@@ -7,9 +7,9 @@ use lmbrain_core::context::{
     build_branching_strategy_digest, build_project_digest, build_review_context, build_spec_context,
 };
 use lmbrain_core::transitions::{
-    create, record_effort_observation, record_review_event, review_verdict,
-    set_agent_mnemonic_name, set_recommended_agent, set_spec_effort, set_spec_tags, supersede_adr,
-    transition, ArtifactKind, CreateRequest, MutationOptions,
+    create, record_effort_observation, record_review_event, repair_artifact_frontmatter,
+    review_verdict, set_agent_mnemonic_name, set_recommended_agent, set_spec_effort, set_spec_tags,
+    supersede_adr, transition, ArtifactKind, CreateRequest, MutationOptions,
 };
 use lmbrain_core::{
     accept_finding_risk, apply_improvement_proposal, approve_verification_manifest,
@@ -284,6 +284,19 @@ fn tools() -> Vec<Value> {
                     "superseded_id": {"type":"string","description":"ID of the decision being retired, e.g. ADR-009."},
                     "force": {"type":"boolean","default":false},
                     "reason": {"type":"string","description":"Required only when force is true."}
+                },
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "lmbrain_repair_frontmatter",
+            "description": "Requires explicit operator authorization: repair managed frontmatter corrupted by failed mutations by merging duplicate top-level keys (e.g. duplicate `activity:` blocks). Refuses ambiguous shapes; records the repair and its reason in the activity log. Call when instructed by operator.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["path", "reason"],
+                "properties": {
+                    "path": {"type":"string","description":"Artifact path relative to repository root."},
+                    "reason": {"type":"string","description":"Operator-authorized justification recorded in the activity log."}
                 },
                 "additionalProperties": false
             }
@@ -1158,6 +1171,19 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             "unique_ids": lmbrain_core::invariants::unique_ids(root),
             "diagnostics": lmbrain_core::build_diagnostics(root)
         }))),
+        "lmbrain_repair_frontmatter" => {
+            let path = args
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?;
+            let reason = args
+                .get("reason")
+                .and_then(Value::as_str)
+                .ok_or("reason missing")?;
+            repair_artifact_frontmatter(root, path, reason)
+                .map(|result| text(json!(result)))
+                .map_err(|error| error.to_string())
+        }
         "review_migration_preview" => build_review_migration_preview(root)
             .map(|preview| text(json!(preview)))
             .map_err(|error| error.to_string()),
@@ -2117,6 +2143,7 @@ mod tests {
         assert!(names.contains(&"agent_improvement_apply".to_string()));
         assert!(names.contains(&"agent_proposal_approve".to_string()));
         assert!(names.contains(&"agent_proposal_reject".to_string()));
+        assert!(names.contains(&"lmbrain_repair_frontmatter".to_string()));
     }
 
     #[test]

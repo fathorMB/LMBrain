@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    frontmatter::{atomic_write, Document, FrontmatterError},
+    frontmatter::{
+        atomic_write, repair_duplicate_top_level_keys, Document, FrontmatterError,
+    },
     invariants,
     mutation_lock::ArtifactMutationLock,
     path::{PathError, PathGuard},
@@ -823,6 +825,73 @@ fn set_field(
         status: document.value("status").unwrap_or_default(),
         path,
         forced: options.force,
+    })
+}
+
+/// Result of a governed frontmatter repair: which keys were merged and where.
+#[derive(Debug, Clone, Serialize)]
+pub struct RepairResult {
+    pub id: String,
+    pub path: PathBuf,
+    pub merged_keys: Vec<String>,
+}
+
+/// Governed repair for managed frontmatter corrupted by failed mutations
+/// (duplicate top-level keys, e.g. the pre-4.0.2 duplicate `activity:` blocks).
+/// Operates textually because the corrupted document cannot parse; refuses any
+/// ambiguity (diverging scalars, non-list shapes) and records the repair with
+/// its operator-supplied reason in the activity log.
+pub fn repair_artifact_frontmatter(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    reason: &str,
+) -> Result<RepairResult, TransitionError> {
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(TransitionError::Missing("reason".into()));
+    }
+
+    let guard = PathGuard::new(root)?;
+    let path = guard.resolve_existing(artifact.as_ref())?;
+    let initial = repair_duplicate_top_level_keys(&fs::read_to_string(&path)?)?;
+    let Some(repaired) = initial.repaired_source else {
+        return Err(TransitionError::Invariant(
+            "artifact has no duplicate top-level frontmatter keys; nothing to repair".into(),
+        ));
+    };
+    let id = Document::parse(&repaired)?
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+
+    let _lock = ArtifactMutationLock::acquire(guard.root(), &id)?;
+    // Re-run the repair on the current content now that the lock is held so a
+    // concurrent mutation between the first read and the lock cannot be lost.
+    let current = repair_duplicate_top_level_keys(&fs::read_to_string(&path)?)?;
+    let Some(repaired) = current.repaired_source else {
+        return Err(TransitionError::Invariant(
+            "artifact has no duplicate top-level frontmatter keys; nothing to repair".into(),
+        ));
+    };
+    let mut document = Document::parse(&repaired)?;
+    let current_id = document
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    if current_id != id {
+        return Err(TransitionError::Invariant(format!(
+            "artifact changed identity while waiting for its mutation lock: expected {id}, found {current_id}"
+        )));
+    }
+    document.set("updated", &today());
+    document.append_activity(&format!(
+        "repaired duplicate frontmatter keys [{}]: {}",
+        current.merged_keys.join(", "),
+        reason
+    ));
+    atomic_write(&path, &document.render())?;
+    Ok(RepairResult {
+        id,
+        path,
+        merged_keys: current.merged_keys,
     })
 }
 
