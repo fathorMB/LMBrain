@@ -16,7 +16,8 @@ Supported source version is `4.0.1`. Existing workspaces require no manual conte
 4. Creation normalizes list-valued fields (e.g. `related_decisions`) and validation reports `scalar-in-list-field` diagnostics (#84).
 5. The harness manifest supports the typed `browser_mcp` capability for Claude Code (operator-provisioned Playwright MCP, isolated headed profile) (#86).
 6. Environment authority moves to the Project Lead: approval, materialization, and revocation are MCP verbs (`harness_manifest_approve`, `harness_config_apply`, `harness_approval_revoke`); the desktop app's Environment page is read-only consultation, and the Settings tabs Project environment and Verification are removed (#87). Existing machine-local approvals are preserved.
-7. Update `.lmbrain/VERSION` to `4.0.2` after validating the release.
+7. Verification transcript parsing is fence-aware: Markdown heading lines pasted inside the ```` ``` ```` fence (e.g. generated reports) no longer truncate the section or make `spec_submit` report an empty transcript, and `spec_verify` splices its managed region correctly around them (#90).
+8. Update `.lmbrain/VERSION` to `4.0.2` after validating the release.
 
 Rollback to 4.0.1 is data-safe: 4.0.2 introduces no breaking frontmatter schema changes; the optional `browser_mcp` capability must be removed from `HARNESSES.json` before rolling back, since 4.0.1 rejects unknown fields.
 

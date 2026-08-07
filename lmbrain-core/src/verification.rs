@@ -862,17 +862,37 @@ fn render_transcript(
     text
 }
 
+/// Per-line "inside a fenced block" mask; fence marker lines themselves count
+/// as fenced so they can never be mistaken for headings.
+fn fence_mask(lines: &[&str]) -> Vec<bool> {
+    let mut mask = Vec::with_capacity(lines.len());
+    let mut in_fence = false;
+    for line in lines {
+        if is_fence(line) {
+            mask.push(true);
+            in_fence = !in_fence;
+        } else {
+            mask.push(in_fence);
+        }
+    }
+    mask
+}
+
 fn replace_transcript(body: &str, transcript: &str) -> Result<String, VerificationError> {
     let lines: Vec<&str> = body.lines().collect();
+    // Every structural scan ignores fenced lines (KIT-NOTE-005): pasted
+    // Markdown inside a transcript fence must never move section boundaries.
+    let fenced = fence_mask(&lines);
     let implementation = lines
         .iter()
-        .position(|line| line.trim() == "## Implementation evidence")
+        .enumerate()
+        .position(|(index, line)| !fenced[index] && line.trim() == "## Implementation evidence")
         .ok_or_else(|| VerificationError::Artifact("missing ## Implementation evidence".into()))?;
     let existing = lines
         .iter()
         .enumerate()
         .skip(implementation + 1)
-        .find(|(_, line)| line.trim() == "### Verification transcript")
+        .find(|(index, line)| !fenced[*index] && line.trim() == "### Verification transcript")
         .map(|(index, _)| index);
     let mut output: Vec<String> = Vec::new();
     if let Some(start) = existing {
@@ -880,7 +900,7 @@ fn replace_transcript(body: &str, transcript: &str) -> Result<String, Verificati
             .iter()
             .enumerate()
             .skip(start + 1)
-            .find(|(_, line)| line.trim_start().starts_with("### "))
+            .find(|(index, line)| !fenced[*index] && line.trim_start().starts_with("### "))
             .map(|(index, _)| index)
             .unwrap_or(lines.len());
         let section = lines[start + 1..end].join("\n");
@@ -916,7 +936,7 @@ fn replace_transcript(body: &str, transcript: &str) -> Result<String, Verificati
             .iter()
             .enumerate()
             .skip(implementation + 1)
-            .find(|(_, line)| line.trim_start().starts_with("## "))
+            .find(|(index, line)| !fenced[*index] && line.trim_start().starts_with("## "))
             .map(|(index, _)| index)
             .unwrap_or(lines.len());
         output.extend(lines[..end].iter().map(|line| (*line).to_string()));
@@ -974,21 +994,46 @@ fn transcript_hash_matches(transcript: &str, recorded_hash: &str) -> bool {
     hex_digest(canonical.as_bytes()) == recorded_hash
 }
 
+fn is_fence(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed.starts_with("```") || trimmed.starts_with("~~~")
+}
+
+/// Extract the content of the `heading` section at `level`. Fence-aware
+/// (KIT-NOTE-005): a heading-like line inside a ``` / ~~~ fenced block is
+/// opaque transcript content — it neither starts nor terminates a section, so
+/// pasted report Markdown cannot truncate a verification transcript.
 fn section_at_level<'a>(body: &'a str, heading: &str, level: usize) -> Option<&'a str> {
     let marker = format!("{} {heading}", "#".repeat(level));
-    let start = body.find(&marker)? + marker.len();
-    let tail = &body[start..];
-    let end = tail
-        .match_indices('\n')
-        .filter_map(|(offset, _)| {
-            let line = &tail[offset + 1..];
-            let count = line.bytes().take_while(|byte| *byte == b'#').count();
-            (count > 0 && count <= level && line.as_bytes().get(count) == Some(&b' '))
-                .then_some(offset)
-        })
-        .next()
-        .unwrap_or(tail.len());
-    Some(&tail[..end])
+    let mut in_fence = false;
+    let mut start: Option<usize> = None;
+    let mut offset = 0usize;
+    for raw in body.split_inclusive('\n') {
+        let line_start = offset;
+        offset += raw.len();
+        let line = raw.trim_end_matches(['\n', '\r']);
+        if is_fence(line) {
+            in_fence = !in_fence;
+            continue;
+        }
+        if in_fence {
+            continue;
+        }
+        match start {
+            None => {
+                if line.trim() == marker {
+                    start = Some(offset);
+                }
+            }
+            Some(begin) => {
+                let count = line.bytes().take_while(|byte| *byte == b'#').count();
+                if count > 0 && count <= level && line.as_bytes().get(count) == Some(&b' ') {
+                    return Some(&body[begin..line_start]);
+                }
+            }
+        }
+    }
+    start.map(|begin| &body[begin..])
 }
 
 fn has_nonempty_fence(section: &str) -> bool {
@@ -1152,6 +1197,42 @@ mod tests {
             ),
             TranscriptState::HandAuthored
         );
+    }
+
+    #[test]
+    fn fenced_markdown_headings_are_opaque_transcript_content() {
+        // KIT-NOTE-005: pasted report Markdown with `# `/`## ` lines inside
+        // the transcript fence must not truncate the section or make a valid
+        // transcript look empty.
+        let body = "## Implementation evidence\n\n### Verification transcript\n\n```text\n$ dotnet run --report\n# SPEC-018 talent shape\n## Batting distribution\nall checks passed\n```\n\n## Next section\nUnrelated.\n";
+        assert_eq!(
+            transcript_state(Path::new("."), body),
+            TranscriptState::HandAuthored
+        );
+
+        // The extracted section keeps the whole fence and stops at the real
+        // next heading outside it.
+        let implementation = section_at_level(body, "Implementation evidence", 2).unwrap();
+        let section = section_at_level(implementation, "Verification transcript", 3).unwrap();
+        assert!(section.contains("# SPEC-018 talent shape"));
+        assert!(section.contains("all checks passed"));
+        assert!(!section.contains("Unrelated"));
+    }
+
+    #[test]
+    fn replace_transcript_ignores_headings_inside_fences() {
+        let body = "## Implementation evidence\n\n### Verification transcript\n\n```text\n$ manual-check\n### not a section boundary\n## nor this\nok\n```\n\n### Notes\nKeep me.\n";
+        let updated = replace_transcript(body, "generated line").unwrap();
+        // The managed region lands inside the transcript section, after the
+        // hand-authored fence, and the fenced heading-like lines survive.
+        assert!(updated.contains("### not a section boundary"));
+        assert!(updated.contains("## nor this"));
+        assert!(updated.contains(GENERATED_TRANSCRIPT_START));
+        assert!(updated.contains("Keep me."));
+        let managed_at = updated.find(GENERATED_TRANSCRIPT_START).unwrap();
+        let fenced_heading_at = updated.find("### not a section boundary").unwrap();
+        let notes_at = updated.find("### Notes").unwrap();
+        assert!(fenced_heading_at < managed_at && managed_at < notes_at);
     }
 
     #[test]
