@@ -585,7 +585,9 @@ pub fn plan_harness_configuration(
                 .all(|file| file.action != PreviewAction::Conflicted)
             && browser_mcp
                 .as_ref()
-                .is_none_or(|readiness| readiness.state == CapabilityState::PrerequisiteReady);
+                .map_or(true, |readiness| {
+                    readiness.state == CapabilityState::PrerequisiteReady
+                });
         hosts.push(HostPlan {
             host,
             supported_capabilities: supported_capabilities(host),

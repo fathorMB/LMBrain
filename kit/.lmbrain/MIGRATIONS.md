@@ -4,7 +4,21 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `4.0.1`.
+The current kit is `4.0.2`.
+
+### 4.0.2 (maintenance release — frontmatter integrity, Lead-managed environment, governed browser capability)
+
+Supported source version is `4.0.1`. Existing workspaces require no manual content migration.
+
+1. Update the application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together.
+2. The frontmatter parser no longer nests every key after an empty-valued key (e.g. the template's `area: `), which was the root cause of duplicate `activity:` blocks written by every governed setter (#82). Contended artifact locks now retry correctly on Windows instead of failing instantly (#83).
+3. Artifacts already corrupted by duplicate top-level keys can be repaired with the new operator-authorized `lmbrain_repair_frontmatter` verb; the repair is audited in the activity log (#83). `spec_dependency_context` now reports malformed specs explicitly instead of silently shrinking the graph (#85).
+4. Creation normalizes list-valued fields (e.g. `related_decisions`) and validation reports `scalar-in-list-field` diagnostics (#84).
+5. The harness manifest supports the typed `browser_mcp` capability for Claude Code (operator-provisioned Playwright MCP, isolated headed profile) (#86).
+6. Environment authority moves to the Project Lead: approval, materialization, and revocation are MCP verbs (`harness_manifest_approve`, `harness_config_apply`, `harness_approval_revoke`); the desktop app's Environment page is read-only consultation, and the Settings tabs Project environment and Verification are removed (#87). Existing machine-local approvals are preserved.
+7. Update `.lmbrain/VERSION` to `4.0.2` after validating the release.
+
+Rollback to 4.0.1 is data-safe: 4.0.2 introduces no breaking frontmatter schema changes; the optional `browser_mcp` capability must be removed from `HARNESSES.json` before rolling back, since 4.0.1 rejects unknown fields.
 
 ### 4.0.1 (maintenance release — kit feedback fixes KIT-NOTE-001 through KIT-NOTE-015)
 
