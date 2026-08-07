@@ -25,7 +25,8 @@ Important areas:
 - `src/components/Design/`: design mockup browser and isolated HTML preview.
 - `src/components/Insights/`: read-only project statistics and review-quality metrics.
 - `src/components/Harnesses/`: local-machine harness probe/update status embedded in Settings.
-- `src/components/Settings/`: addressable General, Harnesses, Project environment, and About tabs.
+- `src/components/Settings/`: addressable General, Harnesses, and About tabs.
+- `src/components/Environment/`: read-only consultation of the governed project environment and verification manifest (Lead-managed via MCP).
 - `src/components/Skills/`: dedicated project-scoped skill browser.
 - `src/components/Taskboard/`: spec board.
 - `src/components/Sessions/`: tab-based session workspace with xterm terminal integration.

@@ -4,37 +4,28 @@
 
 use std::path::{Path, PathBuf};
 
-use serde_json::{json, Value};
+use serde_json::Value;
+
+pub use lmbrain_core::harness_environment::{BrowserEntry, BROWSER_MCP_SERVER_KEY};
 
 use crate::errors::AppError;
 
 /// Build the `.mcp.json` content that registers the `lmbrain` server, merging into
 /// any existing configuration and preserving unrelated keys and other servers.
+/// The governed browser entry is left untouched here: it belongs to the
+/// approved harness manifest (#86), not to workspace auto-registration.
 pub fn build_mcp_config(
     existing: Option<&str>,
     command: &str,
     root: &str,
 ) -> Result<String, AppError> {
-    let mut value: Value = match existing {
-        Some(text) if !text.trim().is_empty() => serde_json::from_str(text)?,
-        _ => json!({}),
-    };
-    if !value.is_object() {
-        value = json!({});
-    }
-    let object = value.as_object_mut().expect("value is an object");
-    let servers = object.entry("mcpServers").or_insert_with(|| json!({}));
-    if !servers.is_object() {
-        *servers = json!({});
-    }
-    servers
-        .as_object_mut()
-        .expect("mcpServers is an object")
-        .insert(
-            "lmbrain".to_string(),
-            json!({ "command": command, "args": ["--root", root] }),
-        );
-    Ok(serde_json::to_string_pretty(&value)?)
+    lmbrain_core::harness_environment::build_claude_mcp_config(
+        existing,
+        command,
+        root,
+        BrowserEntry::Untouched,
+    )
+    .map_err(AppError::Serialization)
 }
 
 /// Write/refresh `.mcp.json` at the workspace root. Idempotent: it rewrites only

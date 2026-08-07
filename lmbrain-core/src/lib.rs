@@ -5,6 +5,7 @@ pub mod context;
 pub mod diagnostics;
 pub mod finding;
 pub mod frontmatter;
+pub mod harness_environment;
 pub mod harness_manifest;
 pub mod improvement;
 pub mod invariants;
@@ -50,9 +51,10 @@ pub use finding::{
 };
 pub use harness_manifest::{
     canonical_manifest_digest, content_digest, load_harness_manifest, parse_harness_manifest,
-    set_harness_manifest, validate_harness_manifest, workspace_identity, CapabilityState,
-    HarnessHost, HarnessManifest, HarnessManifestError, HarnessManifestMutation,
-    HarnessValidationIssue, HostConfiguration, LspRequirement, WorkspaceIdentity,
+    set_harness_manifest, validate_harness_manifest, workspace_identity, BrowserMcpCapability,
+    BrowserMcpMode, BrowserMcpProvider, CapabilityState, HarnessHost, HarnessManifest,
+    HarnessManifestError, HarnessManifestMutation, HarnessValidationIssue, HostConfiguration,
+    LspRequirement, WorkspaceIdentity,
 };
 pub use improvement::{
     apply_improvement_proposal, build_agent_improvement_signals, create_improvement_proposal,
@@ -73,7 +75,8 @@ pub use review::{
 };
 pub use spec_dependencies::{
     set_spec_dependencies, spec_dependency_blockers, spec_dependency_candidates,
-    spec_dependency_context, validate_spec_dependency_graph, SpecDependency, SpecDependencyBlocker,
+    spec_dependency_context, validate_spec_dependency_graph, MalformedSpec, SpecDependency,
+    SpecDependencyBlocker,
     SpecDependencyCandidate, SpecDependencyCandidateInventory, SpecDependencyContext,
     SpecDependencyError, SpecDependencyMutation, SPEC_DEPENDENCY_EVENT_SCHEMA_VERSION,
 };
@@ -85,9 +88,9 @@ pub use taxonomy::{
     FINDING_TAXONOMY_VERSION, SPEC_TAG_TAXONOMY_VERSION,
 };
 pub use transitions::{
-    park_spec, record_effort_observation, record_review_event, review_verdict, set_spec_effort,
-    set_spec_tags, supersede_adr, ArtifactKind, CreateRequest, MutationOptions, MutationResult,
-    SpecParkingInput, TransitionError,
+    park_spec, record_effort_observation, record_review_event, repair_artifact_frontmatter,
+    review_verdict, set_spec_effort, set_spec_tags, supersede_adr, ArtifactKind, CreateRequest,
+    MutationOptions, MutationResult, RepairResult, SpecParkingInput, TransitionError,
 };
 pub use verification::parse_manifest as parse_verification_manifest;
 pub use verification::{

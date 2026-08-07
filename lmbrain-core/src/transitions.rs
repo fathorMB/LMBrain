@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    frontmatter::{atomic_write, Document, FrontmatterError},
+    frontmatter::{
+        atomic_write, repair_duplicate_top_level_keys, Document, FrontmatterError,
+    },
     invariants,
     mutation_lock::ArtifactMutationLock,
     path::{PathError, PathGuard},
@@ -118,6 +120,65 @@ const RESERVED_CREATION_FIELDS: &[&str] = &[
     "parking_events",
     "finding_taxonomy_version",
 ];
+
+/// Managed frontmatter fields whose value is a list. Creation input for these
+/// is normalized to inline-array syntax or rejected, and validation reports a
+/// scalar value in any of them as a diagnostic instead of silently dropping
+/// relationships (KIT-NOTE-002).
+pub(crate) const LIST_VALUED_FIELDS: &[&str] = &[
+    "depends_on",
+    "skills",
+    "verification_gates",
+    "related_tasks",
+    "related_decisions",
+    "links",
+    "tags",
+    "effort_observations",
+    "supersedes",
+    "superseded_by",
+    "finding_categories",
+    "evidence_refs",
+];
+
+pub(crate) fn is_list_valued_field(key: &str) -> bool {
+    LIST_VALUED_FIELDS.contains(&key.trim().to_ascii_lowercase().as_str())
+}
+
+/// Normalizes creation input for a list-valued field: inline arrays must parse
+/// as arrays, bare scalars are treated as comma-separated ID lists, and
+/// anything ambiguous is rejected rather than stored as a scalar the resolvers
+/// would silently ignore.
+fn normalize_list_field_value(key: &str, value: &str) -> Result<String, TransitionError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok("[]".into());
+    }
+    if trimmed.starts_with('[') {
+        let parsed = crate::frontmatter::parse_inline_value(trimmed).map_err(|error| {
+            TransitionError::InvalidField(format!(
+                "field '{key}' is list-valued but its value does not parse as an array: {error}"
+            ))
+        })?;
+        if !parsed.is_array() {
+            return Err(TransitionError::InvalidField(format!(
+                "field '{key}' is list-valued but received a non-array value"
+            )));
+        }
+        return Ok(trimmed.to_string());
+    }
+    if trimmed.contains('[') || trimmed.contains(']') {
+        return Err(TransitionError::InvalidField(format!(
+            "field '{key}' is list-valued; use inline array syntax, e.g. [A, B]"
+        )));
+    }
+    let tokens: Vec<&str> = trimmed.split(',').map(str::trim).collect();
+    if tokens.iter().any(|token| token.is_empty()) {
+        return Err(TransitionError::InvalidField(format!(
+            "field '{key}' is list-valued and contains an empty entry; use inline array syntax, e.g. [A, B]"
+        )));
+    }
+    Ok(format!("[{}]", tokens.join(", ")))
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MutationOptions {
@@ -826,6 +887,73 @@ fn set_field(
     })
 }
 
+/// Result of a governed frontmatter repair: which keys were merged and where.
+#[derive(Debug, Clone, Serialize)]
+pub struct RepairResult {
+    pub id: String,
+    pub path: PathBuf,
+    pub merged_keys: Vec<String>,
+}
+
+/// Governed repair for managed frontmatter corrupted by failed mutations
+/// (duplicate top-level keys, e.g. the pre-4.0.2 duplicate `activity:` blocks).
+/// Operates textually because the corrupted document cannot parse; refuses any
+/// ambiguity (diverging scalars, non-list shapes) and records the repair with
+/// its operator-supplied reason in the activity log.
+pub fn repair_artifact_frontmatter(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    reason: &str,
+) -> Result<RepairResult, TransitionError> {
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(TransitionError::Missing("reason".into()));
+    }
+
+    let guard = PathGuard::new(root)?;
+    let path = guard.resolve_existing(artifact.as_ref())?;
+    let initial = repair_duplicate_top_level_keys(&fs::read_to_string(&path)?)?;
+    let Some(repaired) = initial.repaired_source else {
+        return Err(TransitionError::Invariant(
+            "artifact has no duplicate top-level frontmatter keys; nothing to repair".into(),
+        ));
+    };
+    let id = Document::parse(&repaired)?
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+
+    let _lock = ArtifactMutationLock::acquire(guard.root(), &id)?;
+    // Re-run the repair on the current content now that the lock is held so a
+    // concurrent mutation between the first read and the lock cannot be lost.
+    let current = repair_duplicate_top_level_keys(&fs::read_to_string(&path)?)?;
+    let Some(repaired) = current.repaired_source else {
+        return Err(TransitionError::Invariant(
+            "artifact has no duplicate top-level frontmatter keys; nothing to repair".into(),
+        ));
+    };
+    let mut document = Document::parse(&repaired)?;
+    let current_id = document
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    if current_id != id {
+        return Err(TransitionError::Invariant(format!(
+            "artifact changed identity while waiting for its mutation lock: expected {id}, found {current_id}"
+        )));
+    }
+    document.set("updated", &today());
+    document.append_activity(&format!(
+        "repaired duplicate frontmatter keys [{}]: {}",
+        current.merged_keys.join(", "),
+        reason
+    ));
+    atomic_write(&path, &document.render())?;
+    Ok(RepairResult {
+        id,
+        path,
+        merged_keys: current.merged_keys,
+    })
+}
+
 pub fn create(
     root: impl AsRef<Path>,
     request: CreateRequest,
@@ -933,7 +1061,11 @@ fn create_locked(
     document.set("created", &date);
     document.set("updated", &date);
     for (key, value) in request.fields {
-        document.set(&key, &value);
+        if is_list_valued_field(&key) {
+            document.set(&key, &normalize_list_field_value(&key, &value)?);
+        } else {
+            document.set(&key, &value);
+        }
     }
     if request.kind == ArtifactKind::Spec {
         crate::spec_dependencies::validate_candidate_dependencies(

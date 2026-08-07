@@ -123,6 +123,25 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
                 &status,
             ));
         }
+        for (key, value) in document.fields() {
+            if crate::transitions::is_list_valued_field(&key)
+                && !value.is_array()
+                && !value.is_null()
+            {
+                diagnostics.push(diagnostic(
+                    "scalar-in-list-field",
+                    DiagnosticSeverity::Error,
+                    artifact_id.clone(),
+                    Some(relative.clone()),
+                    format!(
+                        "Field '{key}' is list-valued but holds a scalar; linked artifacts will not resolve from it"
+                    ),
+                    "Rewrite the field as an inline array (e.g. [ADR-001, ADR-002]) with a governed setter.",
+                    DiagnosticFixability::GovernedMutation,
+                    &key,
+                ));
+            }
+        }
         artifacts.push(Artifact { relative, document });
     }
 

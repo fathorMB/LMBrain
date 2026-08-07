@@ -184,9 +184,31 @@ is closed, although workspace open will recreate it.
 
 LMBrain 2.8 adds the optional `.lmbrain/HARNESSES.json` source of project intent. Its strict schema permits enabled hosts, portable required-tool identifiers, non-secret environment values, and supported LSP requirements. It rejects unknown fields, secret-like keys, commands, scripts, hooks, absolute paths, traversal, oversized input, and host-incompatible capabilities.
 
-Settings → Project environment shows the effective configuration and deterministic native-file plan before any write. Repository intent remains inert until the operator approves the canonical manifest digest for the current machine/workspace identity. Apply uses a shared mutation lock, staged multi-file replacement, structural ownership, rollback, and machine-local applied-content hashes for drift detection.
+The Environment page in the sidebar shows the effective configuration, deterministic native-file plan, approval state, and drift — strictly read-only. Since 4.0.2 (#87) the Project Lead manages the whole lifecycle through the MCP server: `harness_config_set` proposes the manifest, `harness_plan_preview` shows the exact native-file plan, `harness_manifest_approve` approves the previewed canonical digest for this machine/workspace identity, `harness_config_apply` materializes it, and `harness_approval_revoke` withdraws the approval. Apply uses a shared mutation lock, staged multi-file replacement, structural ownership, rollback, and machine-local applied-content hashes for drift detection (`harness_drift_status`). Approve and apply are digest-bound — a manifest that changed since the preview is refused — and every action is audited with its actor in `.lmbrain/HARNESSES.audit.jsonl`.
 
-The MCP server exposes `harness_config_get`, `harness_config_validate`, and `harness_config_set`. These tools never approve or apply native host configuration.
+## Governed browser capability (phase 1)
+
+`HARNESSES.json` host configurations for Claude Code may declare a typed, allow-listed browser capability:
+
+```json
+{ "browser_mcp": { "provider": "playwright", "mode": "isolated", "headed": true } }
+```
+
+The schema accepts only the `playwright` provider and `isolated` mode; commands, arguments, URLs, environment variables, and browser-profile paths are rejected as unknown fields. Host adapters derive a fixed `.mcp.json` entry (`mcpServers.lmbrain-browser`) from the profile — `node node_modules/@playwright/mcp/cli.js --isolated --browser chromium` (`--headless` appended when `headed` is `false`) — and never serialize agent-supplied strings.
+
+**Operator provisioning is a prerequisite; LMBrain never installs anything.** Before approving a manifest that declares the capability:
+
+```bash
+npm install --save-dev --save-exact @playwright/mcp
+```
+
+```bash
+npx playwright install chromium
+```
+
+The plan preview reports discovery-only readiness (package presence and version under the project-local `node_modules`, and a best-effort Chromium runtime probe honoring `PLAYWRIGHT_BROWSERS_PATH`). A missing prerequisite marks the capability `failed` and the host not ready; absence is never reported as active. The same digest approval, atomic apply, preservation, rollback, and drift rules that govern the rest of the manifest apply to the browser entry, and dropping the capability from an approved manifest removes only the LMBrain-owned `lmbrain-browser` entry.
+
+Privacy boundary: the first profile always runs an isolated browser context. It never attaches to the operator's personal browser or profile, never exposes a remote-debugging endpoint, and never injects secrets. Chrome DevTools MCP and built-in-browser attachment remain out of scope for this phase. Hosts other than Claude Code reject the capability in phase 1.
 
 ## AGENTS.md
 

@@ -9,9 +9,9 @@ use commands::design;
 use commands::filesystem::PathGuard;
 use commands::git;
 use commands::harnesses::HarnessManager;
-use commands::harness_approval::{HarnessApprovalState, HarnessApprovalStatus, HarnessApprovalStore};
+use commands::harness_approval::{HarnessApprovalStatus, HarnessApprovalStore};
 use commands::harness_planner::HarnessConfigurationPlan;
-use commands::harness_materializer::{HarnessApplyResult, HarnessDriftEntry};
+use commands::harness_materializer::HarnessDriftEntry;
 use commands::sessions::SessionManager;
 use commands::watcher::FileWatcherService;
 use commands::workspace::WorkspaceService;
@@ -177,40 +177,10 @@ fn get_harness_approval_status(state: State<'_, AppState>) -> Result<HarnessAppr
 }
 
 #[tauri::command(async)]
-fn approve_harness_manifest(
-    state: State<'_, AppState>,
-    expected_digest: String,
-) -> Result<HarnessApprovalStatus, String> {
-    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
-    state.harness_approvals.approve(&root, &expected_digest)
-}
-
-#[tauri::command(async)]
-fn revoke_harness_manifest_approval(
-    state: State<'_, AppState>,
-) -> Result<HarnessApprovalStatus, String> {
-    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
-    state.harness_approvals.revoke(&root)
-}
-
-#[tauri::command(async)]
 fn plan_harness_configuration(state: State<'_, AppState>) -> Result<HarnessConfigurationPlan, String> {
     let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
     let command = commands::mcp_registration::resolve_mcp_command_for_root(&root);
     commands::harness_planner::plan_harness_configuration(&root, &command)
-}
-
-#[tauri::command(async)]
-fn apply_harness_configuration(state: State<'_, AppState>) -> Result<HarnessApplyResult, String> {
-    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
-    let approval = state.harness_approvals.status(&root)?;
-    if approval.state != HarnessApprovalState::Approved { return Err("current harness manifest requires operator approval".into()); }
-    let command = commands::mcp_registration::resolve_mcp_command_for_root(&root);
-    let approved_digest = approval.manifest_digest.as_deref().ok_or("approved manifest digest missing")?;
-    let result = commands::harness_materializer::apply_harness_configuration(&root, &command, approved_digest)?;
-    let files = result.files.iter().map(|file| (file.path.clone(), file.content_digest.clone())).collect::<Vec<_>>();
-    state.harness_approvals.record_application(&root, &result.manifest_digest, &files)?;
-    Ok(result)
 }
 
 #[tauri::command(async)]
@@ -923,10 +893,7 @@ pub fn run() {
             list_directory,
             parse_markdown,
             get_harness_approval_status,
-            approve_harness_manifest,
-            revoke_harness_manifest_approval,
             plan_harness_configuration,
-            apply_harness_configuration,
             get_harness_drift,
             get_pulse_data,
             get_workspace_snapshot,

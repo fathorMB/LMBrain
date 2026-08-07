@@ -7,9 +7,14 @@ use lmbrain_core::context::{
     build_branching_strategy_digest, build_project_digest, build_review_context, build_spec_context,
 };
 use lmbrain_core::transitions::{
-    create, record_effort_observation, record_review_event, review_verdict,
-    set_agent_mnemonic_name, set_recommended_agent, set_spec_effort, set_spec_tags, supersede_adr,
-    transition, ArtifactKind, CreateRequest, MutationOptions,
+    create, record_effort_observation, record_review_event, repair_artifact_frontmatter,
+    review_verdict, set_agent_mnemonic_name, set_recommended_agent, set_spec_effort, set_spec_tags,
+    supersede_adr, transition, ArtifactKind, CreateRequest, MutationOptions,
+};
+use lmbrain_core::harness_environment::{
+    apply_approved_harness_configuration, approve_harness_manifest,
+    default_harness_approval_store_path, harness_approval_status, plan_harness_configuration,
+    revoke_harness_approval,
 };
 use lmbrain_core::{
     accept_finding_risk, apply_improvement_proposal, approve_verification_manifest,
@@ -288,6 +293,19 @@ fn tools() -> Vec<Value> {
                 "additionalProperties": false
             }
         }),
+        json!({
+            "name": "lmbrain_repair_frontmatter",
+            "description": "Requires explicit operator authorization: repair managed frontmatter corrupted by failed mutations by merging duplicate top-level keys (e.g. duplicate `activity:` blocks). Refuses ambiguous shapes; records the repair and its reason in the activity log. Call when instructed by operator.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["path", "reason"],
+                "properties": {
+                    "path": {"type":"string","description":"Artifact path relative to repository root."},
+                    "reason": {"type":"string","description":"Operator-authorized justification recorded in the activity log."}
+                },
+                "additionalProperties": false
+            }
+        }),
         read_tool("lmbrain_get_artifact", "Read a repository artifact."),
         read_tool(
             "lmbrain_validate",
@@ -317,7 +335,7 @@ fn tools() -> Vec<Value> {
         ),
         harness_get_tool(),
         harness_candidate_tool("harness_config_validate", "Validate a complete candidate project harness manifest without writing it."),
-        harness_candidate_tool("harness_config_set", "Atomically replace the complete project harness manifest after strict validation and append digest-only audit evidence. This does not approve or materialize native configuration."),
+        harness_candidate_tool("harness_config_set", "Atomically replace the complete project harness manifest after strict validation and append digest-only audit evidence. Approval and materialization are separate digest-bound Lead actions (harness_manifest_approve, harness_config_apply)."),
         verification_manifest_tool(),
         verification_manifest_status_tool(),
         verification_manifest_init_tool(),
@@ -330,6 +348,7 @@ fn tools() -> Vec<Value> {
         improvement_propose_tool(),
         improvement_apply_tool(),
     ]);
+    entries.extend(harness_environment_tools());
     entries.extend(finding_tools());
     entries.extend(spec_dependency_tools());
     entries.extend(kit_feedback_tools());
@@ -550,7 +569,7 @@ fn verification_manifest_rollback_tool() -> Value {
 fn verification_approval_tool() -> Value {
     json!({
         "name": "verification_manifest_approve",
-        "description": "Requires explicit operator authorization: approve the current verification manifest digest for this canonical workspace in machine-local state. Call when instructed by operator.",
+        "description": "Project Lead: approve the current verification manifest digest for this canonical workspace in machine-local state. Digest-bound and audited; spec_verify executes only gates referenced by the approved manifest.",
         "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
     })
 }
@@ -610,6 +629,59 @@ fn harness_get_tool() -> Value {
         "description": "Read and validate project harness intent. A missing optional manifest is reported as unconfigured.",
         "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
     })
+}
+
+/// The command that native host files should launch for the `lmbrain` MCP
+/// server: this very binary.
+fn mcp_server_command() -> Result<String, String> {
+    std::env::current_exe()
+        .map(|path| path.to_string_lossy().into_owned())
+        .map_err(|error| format!("cannot resolve the MCP server executable: {error}"))
+}
+
+fn harness_environment_tools() -> Vec<Value> {
+    vec![
+        json!({
+            "name": "harness_approval_status",
+            "description": "Read the machine-local approval state of the project harness manifest: unconfigured, approval-required, approved, or stale. Read-only.",
+            "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
+        }),
+        json!({
+            "name": "harness_manifest_approve",
+            "description": "Project Lead: approve the exact previewed harness manifest digest for this workspace. A manifest that changed since the preview is refused; every approval is audited with its actor.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["expected_digest"],
+                "properties": {"expected_digest": {"type":"string","description":"The canonical manifest digest from harness_config_get or harness_plan_preview."}},
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "harness_approval_revoke",
+            "description": "Project Lead: revoke this workspace's harness manifest approval. Idempotent and audited.",
+            "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
+        }),
+        json!({
+            "name": "harness_plan_preview",
+            "description": "Deterministic preview of the native host files the approved manifest would materialize: per-host readiness, capability prerequisites, exact file actions, and conflicts. Discovery never executes commands. Read-only.",
+            "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
+        }),
+        json!({
+            "name": "harness_config_apply",
+            "description": "Project Lead: materialize the approved harness manifest into native host files. Requires the approved digest, refuses conflicts and non-ready hosts, applies atomically with rollback, records applied-content hashes for drift detection, and audits the action.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["expected_digest"],
+                "properties": {"expected_digest": {"type":"string","description":"The approved canonical manifest digest."}},
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "harness_drift_status",
+            "description": "Compare applied native-file content hashes against the files on disk and report drift. Read-only.",
+            "inputSchema": {"type":"object","properties":{},"additionalProperties":false}
+        }),
+    ]
 }
 
 fn branching_strategy_get_tool() -> Value {
@@ -1158,6 +1230,19 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             "unique_ids": lmbrain_core::invariants::unique_ids(root),
             "diagnostics": lmbrain_core::build_diagnostics(root)
         }))),
+        "lmbrain_repair_frontmatter" => {
+            let path = args
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?;
+            let reason = args
+                .get("reason")
+                .and_then(Value::as_str)
+                .ok_or("reason missing")?;
+            repair_artifact_frontmatter(root, path, reason)
+                .map(|result| text(json!(result)))
+                .map_err(|error| error.to_string())
+        }
         "review_migration_preview" => build_review_migration_preview(root)
             .map(|preview| text(json!(preview)))
             .map_err(|error| error.to_string()),
@@ -1276,6 +1361,45 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             set_harness_manifest(root, &manifest)
                 .map(|result| text(json!(result)))
                 .map_err(|error| error.to_string())
+        }
+        "harness_approval_status" => {
+            let store = default_harness_approval_store_path()?;
+            harness_approval_status(root, &store).map(|status| text(json!(status)))
+        }
+        "harness_manifest_approve" => {
+            let expected = required_string(args, "expected_digest")?;
+            let store = default_harness_approval_store_path()?;
+            approve_harness_manifest(root, &store, expected, "project-lead")
+                .map(|status| text(json!(status)))
+        }
+        "harness_approval_revoke" => {
+            let store = default_harness_approval_store_path()?;
+            revoke_harness_approval(root, &store, "project-lead")
+                .map(|status| text(json!(status)))
+        }
+        "harness_plan_preview" => {
+            let command = mcp_server_command()?;
+            plan_harness_configuration(root, &command).map(|plan| text(json!(plan)))
+        }
+        "harness_config_apply" => {
+            let expected = required_string(args, "expected_digest")?;
+            let store = default_harness_approval_store_path()?;
+            let command = mcp_server_command()?;
+            apply_approved_harness_configuration(
+                root,
+                &store,
+                &command,
+                expected,
+                "project-lead",
+            )
+            .map(|result| text(json!(result)))
+        }
+        "harness_drift_status" => {
+            let store = default_harness_approval_store_path()?;
+            let applied =
+                lmbrain_core::harness_environment::applied_files(root, &store)?;
+            let drift = lmbrain_core::harness_environment::detect_drift(root, &applied);
+            Ok(text(json!({"applied_files": applied, "drift": drift})))
         }
         "branching_strategy_get" => match load_branching_strategy(root) {
             Ok(strategy) => Ok(text(json!({
@@ -2117,6 +2241,62 @@ mod tests {
         assert!(names.contains(&"agent_improvement_apply".to_string()));
         assert!(names.contains(&"agent_proposal_approve".to_string()));
         assert!(names.contains(&"agent_proposal_reject".to_string()));
+        assert!(names.contains(&"lmbrain_repair_frontmatter".to_string()));
+        assert!(names.contains(&"harness_approval_status".to_string()));
+        assert!(names.contains(&"harness_manifest_approve".to_string()));
+        assert!(names.contains(&"harness_approval_revoke".to_string()));
+        assert!(names.contains(&"harness_plan_preview".to_string()));
+        assert!(names.contains(&"harness_config_apply".to_string()));
+        assert!(names.contains(&"harness_drift_status".to_string()));
+    }
+
+    #[test]
+    fn mcp_page_static_tool_list_matches_the_server_catalog() {
+        // Guard for #88: the MCP page renders a static list of built-in tools;
+        // this test fails whenever that list and the server catalog diverge,
+        // so a new verb cannot silently stay invisible in the app.
+        let catalog: std::collections::BTreeSet<String> = super::tools()
+            .iter()
+            .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect();
+        let frontend = include_str!("../../src/components/Agents/McpView.tsx");
+        let array = frontend
+            .split("const LMBRAIN_MCP_TOOLS")
+            .nth(1)
+            .and_then(|rest| rest.split("];").next())
+            .expect("LMBRAIN_MCP_TOOLS array not found in McpView.tsx");
+        let listed: std::collections::BTreeSet<String> = array
+            .split("name: \"")
+            .skip(1)
+            .filter_map(|chunk| chunk.split('"').next())
+            .map(str::to_string)
+            .collect();
+        let missing: Vec<_> = catalog.difference(&listed).collect();
+        let stale: Vec<_> = listed.difference(&catalog).collect();
+        assert!(
+            missing.is_empty() && stale.is_empty(),
+            "MCP page tool list drifted from the server catalog.\nMissing from page: {missing:?}\nListed but not served: {stale:?}"
+        );
+    }
+
+    #[test]
+    fn harness_mutating_verbs_are_digest_bound_and_schema_tight() {
+        let tools = super::tools();
+        for name in ["harness_manifest_approve", "harness_config_apply"] {
+            let tool = tools
+                .iter()
+                .find(|tool| tool.get("name").and_then(Value::as_str) == Some(name))
+                .unwrap_or_else(|| panic!("{name} tool not found"));
+            assert!(tool
+                .pointer("/inputSchema/properties/expected_digest")
+                .is_some());
+            assert!(tool.pointer("/inputSchema/properties/command").is_none());
+            assert_eq!(
+                tool.pointer("/inputSchema/additionalProperties"),
+                Some(&Value::Bool(false))
+            );
+        }
     }
 
     #[test]

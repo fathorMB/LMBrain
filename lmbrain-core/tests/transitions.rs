@@ -1888,3 +1888,212 @@ fn diagnostics_report_an_unresolvable_successor() {
         "{diagnostics:?}"
     );
 }
+
+#[test]
+fn governed_repair_merges_duplicate_activity_and_audits_the_reason() {
+    let dir = tempdir().unwrap();
+    let relative = ".lmbrain/specs/backlog/SPEC-005.md";
+    // Field corruption written by 4.0.1: duplicate top-level activity blocks.
+    write(
+        dir.path(),
+        relative,
+        "---\nid: SPEC-005\ntitle: Corrupted\nstatus: backlog\ntags: []\nactivity:\n  - date: 2026-08-06\n    action: \"created\"\nactivity:\n  - date: 2026-08-06\n    action: \"set effort\"\n---\n# Corrupted\n",
+    );
+
+    // Empty reason is refused before any read or write.
+    assert!(lmbrain_core::repair_artifact_frontmatter(dir.path(), relative, "  ").is_err());
+
+    let result =
+        lmbrain_core::repair_artifact_frontmatter(dir.path(), relative, "operator-authorized")
+            .unwrap();
+    assert_eq!(result.id, "SPEC-005");
+    assert_eq!(result.merged_keys, vec!["activity".to_string()]);
+
+    let source = fs::read_to_string(dir.path().join(relative)).unwrap();
+    assert_eq!(source.matches("\nactivity:").count(), 1);
+    let document = Document::parse(&source).unwrap();
+    let activity = document.object_array("activity");
+    assert_eq!(activity.len(), 3);
+    let last = activity.last().unwrap();
+    let action = last.get("action").and_then(|value| value.as_str()).unwrap();
+    assert!(action.contains("repaired duplicate frontmatter keys"));
+    assert!(action.contains("operator-authorized"));
+
+    // A healthy artifact reports nothing to repair.
+    assert!(
+        lmbrain_core::repair_artifact_frontmatter(dir.path(), relative, "second pass").is_err()
+    );
+}
+
+#[test]
+fn concurrent_governed_setters_serialize_and_keep_one_activity_key() {
+    let dir = tempdir().unwrap();
+    write(
+        dir.path(),
+        ".lmbrain/agents/profiles/AGENT-IMPL.md",
+        "---\nid: AGENT-IMPL\nstatus: active\n---\n",
+    );
+    let created = create(
+        dir.path(),
+        CreateRequest {
+            kind: ArtifactKind::Spec,
+            title: "Concurrency fixture".into(),
+            status: None,
+            fields: Vec::new(),
+        },
+    )
+    .unwrap();
+    let relative = created
+        .path
+        .strip_prefix(dir.path())
+        .unwrap()
+        .to_string_lossy()
+        .replace('\\', "/");
+
+    // The 4.0.1 field failure mode: concurrent governed setters against one
+    // artifact. Each mutation must serialize under the artifact lock and the
+    // artifact must stay parseable with a single top-level activity key.
+    let root = dir.path().to_path_buf();
+    let handles: Vec<std::thread::JoinHandle<()>> = vec![
+        {
+            let root = root.clone();
+            let relative = relative.clone();
+            std::thread::spawn(move || {
+                lmbrain_core::set_spec_effort(
+                    &root,
+                    &relative,
+                    "terra",
+                    Some("standard"),
+                    MutationOptions::default(),
+                )
+                .unwrap();
+            })
+        },
+        {
+            let root = root.clone();
+            let relative = relative.clone();
+            std::thread::spawn(move || {
+                lmbrain_core::transitions::set_recommended_agent(
+                    &root,
+                    &relative,
+                    "AGENT-IMPL",
+                    MutationOptions::default(),
+                )
+                .unwrap();
+            })
+        },
+        {
+            let root = root.clone();
+            let relative = relative.clone();
+            std::thread::spawn(move || {
+                lmbrain_core::record_effort_observation(
+                    &root,
+                    &relative,
+                    "terra",
+                    "AGENT-IMPL",
+                    "matched the estimate",
+                    MutationOptions::default(),
+                )
+                .unwrap();
+            })
+        },
+    ];
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let source = fs::read_to_string(created.path).unwrap();
+    assert_eq!(source.matches("\nactivity:").count(), 1, "{source}");
+    let document = Document::parse(&source).unwrap();
+    // created + three governed mutations, all present in one list.
+    assert_eq!(document.object_array("activity").len(), 4);
+    assert_eq!(document.value("capability_tier").as_deref(), Some("terra"));
+    assert_eq!(
+        document.value("recommended_agent").as_deref(),
+        Some("AGENT-IMPL")
+    );
+    assert_eq!(document.object_array("effort_observations").len(), 1);
+}
+
+#[test]
+fn creation_normalizes_list_valued_fields_and_rejects_ambiguity() {
+    let dir = tempdir().unwrap();
+
+    // KIT-NOTE-002: a comma-separated scalar for a list field must become a
+    // real array so relationship resolvers see the links.
+    let created = create(
+        dir.path(),
+        CreateRequest {
+            kind: ArtifactKind::Spec,
+            title: "List normalization".into(),
+            status: None,
+            fields: vec![(
+                "related_decisions".into(),
+                "ADR-001,ADR-002".into(),
+            )],
+        },
+    )
+    .unwrap();
+    let document = Document::parse(&fs::read_to_string(&created.path).unwrap()).unwrap();
+    assert_eq!(
+        document.string_array("related_decisions"),
+        vec!["ADR-001".to_string(), "ADR-002".to_string()]
+    );
+
+    // Proper inline arrays pass through unchanged.
+    let inline = create(
+        dir.path(),
+        CreateRequest {
+            kind: ArtifactKind::Spec,
+            title: "Inline array".into(),
+            status: None,
+            fields: vec![("related_decisions".into(), "[ADR-003]".into())],
+        },
+    )
+    .unwrap();
+    let document = Document::parse(&fs::read_to_string(&inline.path).unwrap()).unwrap();
+    assert_eq!(
+        document.string_array("related_decisions"),
+        vec!["ADR-003".to_string()]
+    );
+
+    // Ambiguous input is rejected instead of silently stored as a scalar.
+    assert!(create(
+        dir.path(),
+        CreateRequest {
+            kind: ArtifactKind::Spec,
+            title: "Broken array".into(),
+            status: None,
+            fields: vec![("related_decisions".into(), "[unclosed".into())],
+        },
+    )
+    .is_err());
+    assert!(create(
+        dir.path(),
+        CreateRequest {
+            kind: ArtifactKind::Spec,
+            title: "Empty entry".into(),
+            status: None,
+            fields: vec![("related_decisions".into(), "ADR-001,,ADR-002".into())],
+        },
+    )
+    .is_err());
+}
+
+#[test]
+fn diagnostics_report_scalar_values_in_list_valued_fields() {
+    let dir = tempdir().unwrap();
+    write(
+        dir.path(),
+        ".lmbrain/specs/backlog/SPEC-120.md",
+        "---\nid: SPEC-120\ntitle: Scalar links\nstatus: backlog\nrelated_decisions: ADR-001\ntags: []\n---\n# Scalar links\n",
+    );
+
+    let diagnostics = build_diagnostics(dir.path());
+    let finding = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "scalar-in-list-field")
+        .unwrap_or_else(|| panic!("missing scalar-in-list-field diagnostic: {diagnostics:?}"));
+    assert_eq!(finding.artifact_id.as_deref(), Some("SPEC-120"));
+    assert!(finding.message.contains("related_decisions"));
+}

@@ -20,7 +20,6 @@ import type {
   HarnessStatus,
   HarnessApprovalStatus,
   HarnessConfigurationPlan,
-  HarnessApplyResult,
   HarnessDriftEntry,
   HarnessUpdateRequest,
   HarnessUpdateResult,
@@ -41,10 +40,7 @@ import type {
   Spec,
   SpecVerificationState,
   AttestationResult,
-  VerificationManifest,
-  VerificationManifestPreview,
   VerificationManifestStatus,
-  VerificationManifestWriteResult,
   WikiPage,
   WikiTree,
   OllamaModel,
@@ -271,20 +267,8 @@ export async function getHarnessApprovalStatus(): Promise<HarnessApprovalStatus>
   return invoke("get_harness_approval_status");
 }
 
-export async function approveHarnessManifest(expectedDigest: string): Promise<HarnessApprovalStatus> {
-  return invoke("approve_harness_manifest", { expectedDigest });
-}
-
-export async function revokeHarnessManifestApproval(): Promise<HarnessApprovalStatus> {
-  return invoke("revoke_harness_manifest_approval");
-}
-
 export async function planHarnessConfiguration(): Promise<HarnessConfigurationPlan> {
   return invoke("plan_harness_configuration");
-}
-
-export async function applyHarnessConfiguration(): Promise<HarnessApplyResult> {
-  return invoke("apply_harness_configuration");
 }
 
 export async function getHarnessDrift(): Promise<HarnessDriftEntry[]> {
@@ -317,22 +301,6 @@ export async function getVerificationManifestStatus(): Promise<VerificationManif
   return invoke("get_verification_manifest_status");
 }
 
-export async function previewVerificationManifest(): Promise<VerificationManifestPreview> {
-  return invoke("preview_verification_manifest");
-}
-
-export async function setVerificationManifest(
-  manifest: VerificationManifest,
-  expectedCurrentDigest: string | null,
-): Promise<VerificationManifestWriteResult> {
-  return invoke("set_verification_manifest", { manifest, expectedCurrentDigest });
-}
-
-export async function rollbackVerificationManifest(
-  expectedCurrentDigest: string,
-): Promise<VerificationManifestWriteResult> {
-  return invoke("rollback_verification_manifest", { expectedCurrentDigest });
-}
 
 export async function getGitDetails(): Promise<GitDetails> {
   return invoke("get_git_details");

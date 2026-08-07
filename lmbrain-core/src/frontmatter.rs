@@ -243,6 +243,170 @@ impl Document {
     }
 }
 
+/// Outcome of a textual duplicate-key repair: the merged keys and, when a
+/// merge happened, the full repaired source ready to be re-parsed.
+#[derive(Debug, Clone)]
+pub struct DuplicateKeyRepair {
+    pub merged_keys: Vec<String>,
+    pub repaired_source: Option<String>,
+}
+
+/// Merges duplicate top-level frontmatter keys produced by failed mutations
+/// (e.g. the pre-4.0.2 duplicate `activity:` blocks) without requiring the
+/// document to parse first. List-shaped duplicates are concatenated in file
+/// order under the first occurrence; identical scalar duplicates keep the
+/// first copy. Diverging scalar duplicates or mixed shapes are refused so a
+/// repair can never guess at meaning.
+pub fn repair_duplicate_top_level_keys(
+    source: &str,
+) -> Result<DuplicateKeyRepair, FrontmatterError> {
+    let newline = detect_newline(source);
+    let (frontmatter, body) = split_frontmatter(source, newline)?;
+    let lines: Vec<&str> = frontmatter.lines().collect();
+
+    // Segment the frontmatter into top-level blocks: a key line plus every
+    // following line that is blank, a comment, or indented deeper.
+    struct Block {
+        key: Option<String>,
+        scalar: Option<String>,
+        lines: Vec<String>,
+    }
+    let mut blocks: Vec<Block> = Vec::new();
+    for line in &lines {
+        let trimmed = line.trim();
+        let is_content = !trimmed.is_empty() && !trimmed.starts_with('#');
+        if is_content && indent_width(line) == 0 {
+            let (key, rest) = split_key_value(trimmed).ok_or_else(|| {
+                FrontmatterError::Invalid(format!("expected key/value in line '{trimmed}'"))
+            })?;
+            blocks.push(Block {
+                key: Some(key.to_string()),
+                scalar: (!rest.is_empty()).then(|| rest.to_string()),
+                lines: vec![(*line).to_string()],
+            });
+        } else if let Some(block) = blocks.last_mut() {
+            block.lines.push((*line).to_string());
+        } else {
+            blocks.push(Block {
+                key: None,
+                scalar: None,
+                lines: vec![(*line).to_string()],
+            });
+        }
+    }
+
+    let mut merged_keys: Vec<String> = Vec::new();
+    let mut removed: Vec<usize> = Vec::new();
+    for index in 0..blocks.len() {
+        if removed.contains(&index) {
+            continue;
+        }
+        let Some(key) = blocks[index].key.clone() else {
+            continue;
+        };
+        let duplicates: Vec<usize> = (index + 1..blocks.len())
+            .filter(|later| blocks[*later].key.as_deref() == Some(key.as_str()))
+            .collect();
+        if duplicates.is_empty() {
+            continue;
+        }
+
+        // Child content lines of a list-shaped block (`- ` items only).
+        let list_items = |block: &Block| -> Option<Vec<String>> {
+            let scalar_is_list = match block.scalar.as_deref() {
+                None => true,
+                Some("[]") => true,
+                Some(_) => false,
+            };
+            if !scalar_is_list {
+                return None;
+            }
+            let mut items = Vec::new();
+            let mut item_indent: Option<usize> = None;
+            for child in &block.lines[1..] {
+                let trimmed = child.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
+                }
+                let indent = indent_width(child);
+                if trimmed.starts_with('-') {
+                    item_indent = Some(indent);
+                    items.push(child.clone());
+                } else if item_indent.is_some_and(|marker| indent > marker) {
+                    // Continuation line of the current `- key: value` item.
+                    items.push(child.clone());
+                } else {
+                    return None;
+                }
+            }
+            Some(items)
+        };
+
+        let all_scalar = std::iter::once(index)
+            .chain(duplicates.iter().copied())
+            .all(|position| blocks[position].scalar.is_some() && blocks[position].lines.len() == 1);
+        if all_scalar {
+            let first = blocks[index].scalar.clone();
+            if duplicates
+                .iter()
+                .any(|position| blocks[*position].scalar != first)
+            {
+                return Err(FrontmatterError::Invalid(format!(
+                    "duplicate key '{key}' has diverging scalar values; repair refused"
+                )));
+            }
+            removed.extend(duplicates.iter().copied());
+            merged_keys.push(key);
+            continue;
+        }
+
+        let mut all_items = list_items(&blocks[index]).ok_or_else(|| {
+            FrontmatterError::Invalid(format!(
+                "duplicate key '{key}' is not list-shaped; repair refused"
+            ))
+        })?;
+        for position in &duplicates {
+            let items = list_items(&blocks[*position]).ok_or_else(|| {
+                FrontmatterError::Invalid(format!(
+                    "duplicate key '{key}' is not list-shaped; repair refused"
+                ))
+            })?;
+            all_items.extend(items);
+        }
+        blocks[index].lines = if all_items.is_empty() {
+            vec![format!("{key}: []")]
+        } else {
+            let mut rebuilt = vec![format!("{key}:")];
+            rebuilt.extend(all_items);
+            rebuilt
+        };
+        removed.extend(duplicates.iter().copied());
+        merged_keys.push(key);
+    }
+
+    if merged_keys.is_empty() {
+        return Ok(DuplicateKeyRepair {
+            merged_keys,
+            repaired_source: None,
+        });
+    }
+
+    let repaired_frontmatter = blocks
+        .iter()
+        .enumerate()
+        .filter(|(position, _)| !removed.contains(position))
+        .flat_map(|(_, block)| block.lines.iter().cloned())
+        .collect::<Vec<_>>()
+        .join(newline);
+    let repaired = format!("---{newline}{repaired_frontmatter}{newline}---{newline}{body}");
+    // The repaired document must parse cleanly; otherwise refuse to write it.
+    Document::parse(&repaired)?;
+    Ok(DuplicateKeyRepair {
+        merged_keys,
+        repaired_source: Some(repaired),
+    })
+}
+
 fn detect_newline(source: &str) -> &'static str {
     if source.contains("\r\n") {
         "\r\n"
@@ -304,9 +468,15 @@ fn parse_mapping(input: &str) -> Result<Map<String, Value>, FrontmatterError> {
         }
 
         let value = if rest.is_empty() {
+            // Only content indented deeper than the key is its nested block. A
+            // following line at indent 0 is the next top-level key: without this
+            // guard an empty-valued key (e.g. the template's `area: `) swallowed
+            // every remaining top-level field as its own nested object.
             match next_content_indent(&lines, index + 1) {
-                Some(child_indent) => parse_nested_block(&lines, &mut index, child_indent)?,
-                None => Value::Null,
+                Some(child_indent) if child_indent > 0 => {
+                    parse_nested_block(&lines, &mut index, child_indent)?
+                }
+                _ => Value::Null,
             }
         } else if rest == "|" || rest == ">" {
             parse_block_scalar(&lines, &mut index, 1, rest == ">")?
@@ -511,7 +681,7 @@ fn parse_block_scalar(
     }
 }
 
-fn parse_inline_value(input: &str) -> Result<Value, FrontmatterError> {
+pub(crate) fn parse_inline_value(input: &str) -> Result<Value, FrontmatterError> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
         return Ok(Value::Null);
@@ -817,6 +987,108 @@ mod tests {
                 .map(|items| items.len()),
             Some(1)
         );
+    }
+
+    #[test]
+    fn empty_valued_key_does_not_swallow_following_top_level_keys() {
+        // Regression for #82: `area: ` (empty value) made next_content_indent
+        // return 0 and parse_nested_block consumed every remaining top-level
+        // key as a nested object under `area`, hiding `activity` and everything
+        // after it from the fields map.
+        let source = "---\nid: SPEC-002\narea: \nmilestone: \nrecommended_agent: AGENT-XXX\ntags: []\nactivity:\n  - date: 2026-08-06\n    action: \"created\"\n---\nBody";
+        let document = parse(source);
+        let fields = document.fields();
+        for key in [
+            "id",
+            "area",
+            "milestone",
+            "recommended_agent",
+            "tags",
+            "activity",
+        ] {
+            assert!(fields.contains_key(key), "missing top-level key '{key}'");
+        }
+        assert_eq!(fields.get("area"), Some(&Value::Null));
+        assert_eq!(
+            fields
+                .get("activity")
+                .and_then(Value::as_array)
+                .map(|items| items.len()),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn create_then_sequential_setters_keep_a_single_activity_key() {
+        // Regression for #82/KIT-NOTE-003: with the template's empty-valued
+        // keys, every governed setter after create appended a fresh top-level
+        // `activity:` block because the parsed fields map never surfaced the
+        // existing one.
+        let template = "---\nid: SPEC-XXX\ntitle: \"Feature or work item title\"\nstatus: backlog\narea: \nmilestone: \ncapability_tier: \nthinking_level: \nrelated_decisions: []\ncreated: YYYY-MM-DD\nupdated: YYYY-MM-DD\ntags: []\n---\nBody";
+        let mut document = parse(template);
+        document.set("id", "SPEC-002");
+        document.set("created", "2026-08-06");
+        document.set("updated", "2026-08-06");
+        document.append_activity("created");
+        let after_create = document.render();
+        assert_eq!(after_create.matches("\nactivity:").count(), 1);
+
+        let mut second = parse(&after_create);
+        second.set("capability_tier", "terra");
+        second.set("thinking_level", "standard");
+        second.set("updated", "2026-08-06");
+        second.append_activity("set effort");
+        let after_effort = second.render();
+        assert_eq!(after_effort.matches("\nactivity:").count(), 1);
+
+        let mut third = parse(&after_effort);
+        third.set("tags", "[governance]");
+        third.set("updated", "2026-08-06");
+        third.append_activity("set tags");
+        let after_tags = third.render();
+        assert_eq!(after_tags.matches("\nactivity:").count(), 1);
+        let reparsed = parse(&after_tags);
+        assert_eq!(
+            reparsed
+                .fields()
+                .get("activity")
+                .and_then(Value::as_array)
+                .map(|items| items.len()),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn repairs_duplicate_activity_blocks_and_refuses_ambiguity() {
+        // The exact corruption 4.0.1 wrote in the field: three top-level
+        // activity blocks after create + two setters.
+        let corrupted = "---\nid: SPEC-005\nstatus: backlog\ntags: []\nactivity:\n  - date: 2026-08-06\n    action: \"created\"\nactivity:\n  - date: 2026-08-06\n    action: \"set effort\"\nactivity:\n  - date: 2026-08-06\n    action: \"set recommended_agent\"\n---\nBody";
+        let repair = super::repair_duplicate_top_level_keys(corrupted).unwrap();
+        assert_eq!(repair.merged_keys, vec!["activity".to_string()]);
+        let repaired = repair.repaired_source.unwrap();
+        assert_eq!(repaired.matches("\nactivity:").count(), 1);
+        let document = parse(&repaired);
+        assert_eq!(
+            document
+                .fields()
+                .get("activity")
+                .and_then(Value::as_array)
+                .map(|items| items.len()),
+            Some(3)
+        );
+        assert_eq!(document.value("status").as_deref(), Some("backlog"));
+
+        // A clean document reports nothing to repair.
+        let clean = super::repair_duplicate_top_level_keys(&repaired).unwrap();
+        assert!(clean.merged_keys.is_empty());
+        assert!(clean.repaired_source.is_none());
+
+        // Identical scalar duplicates collapse; diverging ones are refused.
+        let scalar = "---\nid: SPEC-006\nstatus: backlog\nstatus: backlog\n---\nBody";
+        let collapsed = super::repair_duplicate_top_level_keys(scalar).unwrap();
+        assert_eq!(collapsed.merged_keys, vec!["status".to_string()]);
+        let diverging = "---\nid: SPEC-006\nstatus: backlog\nstatus: ready\n---\nBody";
+        assert!(super::repair_duplicate_top_level_keys(diverging).is_err());
     }
 
     #[test]

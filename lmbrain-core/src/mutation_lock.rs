@@ -54,7 +54,7 @@ impl ArtifactMutationLock {
         loop {
             match file.try_lock_exclusive() {
                 Ok(()) => return Ok(Self { file }),
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                Err(error) if is_contention(&error) => {
                     if started.elapsed() >= LOCK_TIMEOUT {
                         return Err(io::Error::new(
                             io::ErrorKind::TimedOut,
@@ -67,6 +67,16 @@ impl ArtifactMutationLock {
             }
         }
     }
+}
+
+/// A held lock does not surface uniformly across platforms: Unix reports
+/// `WouldBlock`, while Windows returns `ERROR_LOCK_VIOLATION` (os error 33)
+/// with an `Uncategorized` kind. Before 4.0.2 the retry loop only recognized
+/// `WouldBlock`, so on Windows a contended governed mutation failed instantly
+/// instead of waiting its turn (KIT-NOTE-001's failed concurrent setter).
+fn is_contention(error: &io::Error) -> bool {
+    error.kind() == io::ErrorKind::WouldBlock
+        || error.raw_os_error() == fs2::lock_contended_error().raw_os_error()
 }
 
 impl Drop for ArtifactMutationLock {

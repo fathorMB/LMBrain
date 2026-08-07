@@ -24,6 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "agents", icon: "smart_toy", label: "Agents", badge: null },
   { key: "mcp", icon: "integration_instructions", label: "MCP", badge: null },
   { key: "repository", icon: "schema", label: "Repository", badge: null },
+  { key: "environment", icon: "verified_user", label: "Environment", badge: null },
   { key: "skills", icon: "psychology_alt", label: "Skills", badge: null },
 ];
 

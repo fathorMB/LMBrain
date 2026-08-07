@@ -24,6 +24,7 @@ import { ArtifactDetailModal } from "./ArtifactDetailModal";
 import { LeaveWorkspaceModal } from "./LeaveWorkspaceModal";
 import { WindowCloseConfirmModal } from "./WindowCloseConfirmModal";
 import { RepositoryView } from "../Repository/RepositoryView";
+import { EnvironmentView } from "../Environment/EnvironmentView";
 
 export function AppShell() {
   const { state, dispatch } = useWorkspace();
@@ -61,6 +62,8 @@ export function AppShell() {
         return <McpView />;
       case "repository":
         return <RepositoryView />;
+      case "environment":
+        return <EnvironmentView />;
       case "skills":
         return <SkillsView />;
       case "design":
