@@ -8,7 +8,8 @@ use lmbrain_core::context::{
 };
 use lmbrain_core::transitions::{
     create, record_effort_observation, record_review_event, repair_artifact_frontmatter,
-    review_verdict, set_agent_mnemonic_name, set_recommended_agent, set_spec_effort, set_spec_tags,
+    review_verdict, set_agent_mnemonic_name, set_recommended_agent, set_review_implementation_agent,
+    set_spec_effort, set_spec_tags,
     supersede_adr, transition, ArtifactKind, CreateRequest, MutationOptions,
 };
 use lmbrain_core::harness_environment::{
@@ -218,6 +219,21 @@ fn tools() -> Vec<Value> {
             "Project Lead: record an operator-authorized bounded corrective takeover without changing review status.",
             false,
         ),
+        json!({
+            "name": "review_set_implementation_agent",
+            "description": "Project Lead: correct a provably wrong implementation_agent attribution on a review. The value must resolve to an existing AGENT-* profile; the append-only history gains an attribution-correction event recording the previous value. Not applicable to superseded reviews.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["path", "agent", "reason"],
+                "properties": {
+                    "path": {"type":"string"},
+                    "agent": {"type":"string","description":"The AGENT-* profile that actually implemented the spec."},
+                    "actor": {"type":"string","default":"project-lead"},
+                    "reason": {"type":"string","description":"Why the recorded attribution is wrong and how the correct agent was established."}
+                },
+                "additionalProperties": false
+            }
+        }),
         create_tool(),
         lead_attestation_tool(),
         spec_park_tool(),
@@ -1011,6 +1027,22 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         .map_err(|error| error.to_string());
     }
 
+    if name == "review_set_implementation_agent" {
+        return set_review_implementation_agent(
+            root,
+            args.get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?,
+            required_string(args, "agent")?,
+            args.get("actor")
+                .and_then(Value::as_str)
+                .unwrap_or("project-lead"),
+            required_string(args, "reason")?,
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string());
+    }
+
     if let Some(status) = specific_status(name) {
         return transition(
             root,
@@ -1736,6 +1768,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let pending_dir = dir.path().join(".lmbrain/reviews/pending");
         std::fs::create_dir_all(&pending_dir).unwrap();
+        let profiles = dir.path().join(".lmbrain/agents/profiles");
+        std::fs::create_dir_all(&profiles).unwrap();
+        std::fs::write(
+            profiles.join("AGENT-002.md"),
+            "---\nid: AGENT-002\nstatus: active\n---\n",
+        )
+        .unwrap();
         let pending = pending_dir.join("REVIEW-001.md");
         let source = "---\nid: REVIEW-001\nstatus: pending\n---\nReview\n";
         std::fs::write(&pending, source).unwrap();

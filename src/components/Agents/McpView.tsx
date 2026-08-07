@@ -21,6 +21,7 @@ const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }
   { name: "review_remediation", category: "Review", description: "Record an attributable remediation attempt without changing review status." },
   { name: "review_escalate", category: "Review", description: "Record an operator-authorized escalation without changing review status." },
   { name: "review_takeover", category: "Review", description: "Record an operator-authorized bounded corrective takeover." },
+  { name: "review_set_implementation_agent", category: "Review", description: "Project Lead: correct a provably wrong implementation_agent attribution; appends an attribution-correction event, never edits history." },
   { name: "review_remediation_verified", category: "Review", description: "Project Lead: record verification of a remediation cycle without changing review status." },
   { name: "review_migration_preview", category: "Review", description: "Preview lifecycle and taxonomy migration coverage without rewriting reviews." },
   { name: "finding_create", category: "Finding", description: "Create a governed finding with taxonomy category, severity, and evidence." },

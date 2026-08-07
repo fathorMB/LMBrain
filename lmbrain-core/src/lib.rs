@@ -90,8 +90,9 @@ pub use taxonomy::{
 };
 pub use transitions::{
     park_spec, record_effort_observation, record_review_event, repair_artifact_frontmatter,
-    review_verdict, set_spec_effort, set_spec_tags, supersede_adr, ArtifactKind, CreateRequest,
-    MutationOptions, MutationResult, RepairResult, SpecParkingInput, TransitionError,
+    review_verdict, set_review_implementation_agent, set_spec_effort, set_spec_tags, supersede_adr,
+    ArtifactKind, CreateRequest, MutationOptions, MutationResult, RepairResult, SpecParkingInput,
+    TransitionError,
 };
 pub use verification::parse_manifest as parse_verification_manifest;
 pub use verification::{

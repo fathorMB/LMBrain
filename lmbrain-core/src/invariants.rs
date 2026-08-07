@@ -197,6 +197,37 @@ pub fn recommended_agent_resolves(root: &Path, agent: Option<&str>) -> bool {
             .any(|path| read(path, "id").as_deref() == Some(agent))
 }
 
+/// Review attribution must never persist a template placeholder (AGENT-XXX
+/// and friends) or a profile ID that does not exist: both poison per-agent
+/// effectiveness metrics with full confidence (#93 / KIT-NOTE-010).
+pub fn implementation_agent_resolves(root: &Path, agent: Option<&str>) -> Result<(), String> {
+    agent_reference_resolves(root, "implementation_agent", agent)
+}
+
+pub fn agent_reference_resolves(
+    root: &Path,
+    field: &str,
+    agent: Option<&str>,
+) -> Result<(), String> {
+    let Some(agent) = agent.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+    if agent.ends_with("-XXX") {
+        return Err(format!(
+            "{field} '{agent}' is an unreplaced template placeholder; name the AGENT-* profile that did the work"
+        ));
+    }
+    if !scan(root.join(".lmbrain/agents/profiles"))
+        .iter()
+        .any(|path| read(path, "id").as_deref() == Some(agent))
+    {
+        return Err(format!(
+            "{field} '{agent}' does not resolve to an existing AGENT-* profile"
+        ));
+    }
+    Ok(())
+}
+
 pub fn unique_ids(root: &Path) -> bool {
     let mut seen = HashSet::new();
     scan(root.join(".lmbrain"))
