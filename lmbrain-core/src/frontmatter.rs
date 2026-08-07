@@ -304,9 +304,15 @@ fn parse_mapping(input: &str) -> Result<Map<String, Value>, FrontmatterError> {
         }
 
         let value = if rest.is_empty() {
+            // Only content indented deeper than the key is its nested block. A
+            // following line at indent 0 is the next top-level key: without this
+            // guard an empty-valued key (e.g. the template's `area: `) swallowed
+            // every remaining top-level field as its own nested object.
             match next_content_indent(&lines, index + 1) {
-                Some(child_indent) => parse_nested_block(&lines, &mut index, child_indent)?,
-                None => Value::Null,
+                Some(child_indent) if child_indent > 0 => {
+                    parse_nested_block(&lines, &mut index, child_indent)?
+                }
+                _ => Value::Null,
             }
         } else if rest == "|" || rest == ">" {
             parse_block_scalar(&lines, &mut index, 1, rest == ">")?
@@ -816,6 +822,75 @@ mod tests {
                 .and_then(Value::as_array)
                 .map(|items| items.len()),
             Some(1)
+        );
+    }
+
+    #[test]
+    fn empty_valued_key_does_not_swallow_following_top_level_keys() {
+        // Regression for #82: `area: ` (empty value) made next_content_indent
+        // return 0 and parse_nested_block consumed every remaining top-level
+        // key as a nested object under `area`, hiding `activity` and everything
+        // after it from the fields map.
+        let source = "---\nid: SPEC-002\narea: \nmilestone: \nrecommended_agent: AGENT-XXX\ntags: []\nactivity:\n  - date: 2026-08-06\n    action: \"created\"\n---\nBody";
+        let document = parse(source);
+        let fields = document.fields();
+        for key in [
+            "id",
+            "area",
+            "milestone",
+            "recommended_agent",
+            "tags",
+            "activity",
+        ] {
+            assert!(fields.contains_key(key), "missing top-level key '{key}'");
+        }
+        assert_eq!(fields.get("area"), Some(&Value::Null));
+        assert_eq!(
+            fields
+                .get("activity")
+                .and_then(Value::as_array)
+                .map(|items| items.len()),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn create_then_sequential_setters_keep_a_single_activity_key() {
+        // Regression for #82/KIT-NOTE-003: with the template's empty-valued
+        // keys, every governed setter after create appended a fresh top-level
+        // `activity:` block because the parsed fields map never surfaced the
+        // existing one.
+        let template = "---\nid: SPEC-XXX\ntitle: \"Feature or work item title\"\nstatus: backlog\narea: \nmilestone: \ncapability_tier: \nthinking_level: \nrelated_decisions: []\ncreated: YYYY-MM-DD\nupdated: YYYY-MM-DD\ntags: []\n---\nBody";
+        let mut document = parse(template);
+        document.set("id", "SPEC-002");
+        document.set("created", "2026-08-06");
+        document.set("updated", "2026-08-06");
+        document.append_activity("created");
+        let after_create = document.render();
+        assert_eq!(after_create.matches("\nactivity:").count(), 1);
+
+        let mut second = parse(&after_create);
+        second.set("capability_tier", "terra");
+        second.set("thinking_level", "standard");
+        second.set("updated", "2026-08-06");
+        second.append_activity("set effort");
+        let after_effort = second.render();
+        assert_eq!(after_effort.matches("\nactivity:").count(), 1);
+
+        let mut third = parse(&after_effort);
+        third.set("tags", "[governance]");
+        third.set("updated", "2026-08-06");
+        third.append_activity("set tags");
+        let after_tags = third.render();
+        assert_eq!(after_tags.matches("\nactivity:").count(), 1);
+        let reparsed = parse(&after_tags);
+        assert_eq!(
+            reparsed
+                .fields()
+                .get("activity")
+                .and_then(Value::as_array)
+                .map(|items| items.len()),
+            Some(3)
         );
     }
 
