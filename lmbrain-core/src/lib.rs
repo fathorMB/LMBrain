@@ -62,9 +62,10 @@ pub use improvement::{
     ImprovementProposalRequest,
 };
 pub use kit_feedback::{
-    read_kit_feedback, record_kit_feedback, KitFeedbackError, KitFeedbackInput,
-    KitFeedbackMutation, KitFeedbackNote, KitFeedbackReport, KIT_FEEDBACK_REPORT_PATH,
-    KIT_FEEDBACK_SCHEMA_VERSION,
+    read_kit_feedback, record_kit_feedback, record_kit_feedback_resolution, KitFeedbackError,
+    KitFeedbackInput, KitFeedbackMutation, KitFeedbackNote, KitFeedbackNoteStatus,
+    KitFeedbackReport, KitFeedbackResolution, KitFeedbackResolutionInput,
+    KitFeedbackResolutionMutation, KIT_FEEDBACK_REPORT_PATH, KIT_FEEDBACK_SCHEMA_VERSION,
 };
 pub use path::{read_artifact, ArtifactReadError};
 pub use review::{

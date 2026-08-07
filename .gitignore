@@ -6,6 +6,7 @@ dist/
 
 # Rust build
 /target/
+/target-tests/
 src-tauri/target/
 src-tauri/binaries/lmbrain-mcp-*
 

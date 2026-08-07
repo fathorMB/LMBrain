@@ -23,6 +23,7 @@ const CATEGORIES: &[&str] = &[
     "improvement",
 ];
 const SEVERITIES: &[&str] = &["blocking", "high", "medium", "low", "info"];
+const RESOLUTION_KINDS: &[&str] = &["resolved", "reconfirmed"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KitFeedbackInput {
@@ -57,15 +58,51 @@ pub struct KitFeedbackNote {
     pub actor: String,
 }
 
+/// An append-only lifecycle event for one note: `resolved` retires the note
+/// against a named LMBrain release; `reconfirmed` records that a still-open
+/// note reproduced on a later version, without minting a new note ID.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KitFeedbackResolution {
+    pub note_id: String,
+    pub kind: String,
+    pub version: String,
+    pub reference: Option<String>,
+    pub timestamp: String,
+    pub actor: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KitFeedbackResolutionInput {
+    pub note_id: String,
+    pub kind: String,
+    pub version: String,
+    pub reference: Option<String>,
+    pub actor: String,
+}
+
+/// Derived, never persisted: the current standing of one note given its
+/// resolution events.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KitFeedbackNoteStatus {
+    pub note_id: String,
+    pub status: String,
+    pub resolved_in: Option<String>,
+    pub reconfirmed_in: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KitFeedbackReport {
     pub schema_version: String,
     pub path: String,
     pub updated: String,
     pub total: usize,
+    pub open: usize,
+    pub resolved: usize,
     pub counts_by_category: std::collections::BTreeMap<String, usize>,
     pub counts_by_severity: std::collections::BTreeMap<String, usize>,
     pub notes: Vec<KitFeedbackNote>,
+    pub resolutions: Vec<KitFeedbackResolution>,
+    pub note_statuses: Vec<KitFeedbackNoteStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -177,10 +214,204 @@ pub fn record_kit_feedback(
     })
 }
 
+/// Append one resolution event to the report. The note itself is never
+/// edited: `resolved` and `reconfirmed` are separate append-only records,
+/// and the note's status is derived at read time (issue #95).
+pub fn record_kit_feedback_resolution(
+    root: &Path,
+    input: KitFeedbackResolutionInput,
+) -> Result<KitFeedbackResolutionMutation, KitFeedbackError> {
+    validate_resolution_input(&input)?;
+    let guard = PathGuard::new(root)?;
+    let _lock = ArtifactMutationLock::acquire(guard.root(), "lmbrain-kit-feedback")?;
+    let path = guard.root().join(KIT_FEEDBACK_REPORT_PATH);
+    if !path.exists() {
+        return Err(KitFeedbackError::Invalid(
+            "the kit feedback report does not exist; there is no note to resolve".into(),
+        ));
+    }
+    let source = fs::read_to_string(&path)?;
+    let mut document = Document::parse(&source)?;
+    validate_report_document(&document)?;
+    let notes = parse_notes(&document)?;
+    let note_id = input.note_id.trim();
+    if !notes.iter().any(|note| note.id == note_id) {
+        return Err(KitFeedbackError::Invalid(format!(
+            "note '{note_id}' does not exist in the report"
+        )));
+    }
+    let resolutions = parse_resolutions(&document, &notes)?;
+    if resolutions
+        .iter()
+        .any(|event| event.note_id == note_id && event.kind == "resolved")
+    {
+        return Err(KitFeedbackError::Invalid(format!(
+            "note '{note_id}' is already resolved; a resolved note accepts no further lifecycle events"
+        )));
+    }
+
+    let event = KitFeedbackResolution {
+        note_id: note_id.to_string(),
+        kind: input.kind.trim().to_string(),
+        version: input.version.trim().to_string(),
+        reference: clean_optional(input.reference),
+        timestamp: Local::now().to_rfc3339(),
+        actor: input.actor.trim().to_string(),
+    };
+    document.append_object(
+        "resolutions",
+        &[
+            ("schema_version".into(), json!(KIT_FEEDBACK_SCHEMA_VERSION)),
+            ("note_id".into(), json!(event.note_id)),
+            ("kind".into(), json!(event.kind)),
+            ("version".into(), json!(event.version)),
+            ("reference".into(), json!(event.reference)),
+            ("timestamp".into(), json!(event.timestamp)),
+            ("actor".into(), json!(event.actor)),
+        ],
+    )?;
+    document.set("updated", &Local::now().format("%Y-%m-%d").to_string());
+    let rendered = document.render();
+    validate_serialized_report(&rendered)?;
+    atomic_write(&path, &rendered)?;
+    let read_back = fs::read_to_string(&path)?;
+    if let Err(error) = validate_serialized_report(&read_back) {
+        atomic_write(&path, &source)?;
+        return Err(error);
+    }
+    Ok(KitFeedbackResolutionMutation {
+        path: KIT_FEEDBACK_REPORT_PATH.into(),
+        resolution: event,
+        mutated: true,
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KitFeedbackResolutionMutation {
+    pub path: String,
+    pub resolution: KitFeedbackResolution,
+    pub mutated: bool,
+}
+
+fn validate_resolution_input(input: &KitFeedbackResolutionInput) -> Result<(), KitFeedbackError> {
+    for (label, value, limit) in [
+        ("note_id", input.note_id.as_str(), 40usize),
+        ("kind", input.kind.as_str(), 24),
+        ("version", input.version.as_str(), 64),
+        ("actor", input.actor.as_str(), 120),
+    ] {
+        if value.trim().is_empty() {
+            return Err(KitFeedbackError::Invalid(format!(
+                "{label} cannot be empty"
+            )));
+        }
+        if value.chars().count() > limit {
+            return Err(KitFeedbackError::Invalid(format!(
+                "{label} exceeds the {limit}-character bound"
+            )));
+        }
+    }
+    if !RESOLUTION_KINDS.contains(&input.kind.trim()) {
+        return Err(KitFeedbackError::Invalid(format!(
+            "kind must be one of {}",
+            RESOLUTION_KINDS.join(", ")
+        )));
+    }
+    if let Some(reference) = input.reference.as_deref() {
+        if reference.trim().is_empty() {
+            return Err(KitFeedbackError::Invalid(
+                "reference cannot be blank when provided".into(),
+            ));
+        }
+        if reference.chars().count() > 240 {
+            return Err(KitFeedbackError::Invalid(
+                "reference exceeds the 240-character bound".into(),
+            ));
+        }
+        if contains_secret_like_value(reference) {
+            return Err(KitFeedbackError::Invalid(
+                "reference appears to contain a credential or secret assignment".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn parse_resolutions(
+    document: &Document,
+    notes: &[KitFeedbackNote],
+) -> Result<Vec<KitFeedbackResolution>, KitFeedbackError> {
+    let events = document
+        .object_array("resolutions")
+        .into_iter()
+        .map(|event| {
+            if event
+                .get("schema_version")
+                .and_then(serde_json::Value::as_str)
+                != Some(KIT_FEEDBACK_SCHEMA_VERSION)
+            {
+                return Err(KitFeedbackError::Invalid(
+                    "feedback resolution has an unsupported schema_version".into(),
+                ));
+            }
+            serde_json::from_value::<KitFeedbackResolution>(serde_json::Value::Object(event))
+                .map_err(|error| {
+                    KitFeedbackError::Invalid(format!("malformed feedback resolution: {error}"))
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    for event in &events {
+        if !notes.iter().any(|note| note.id == event.note_id) {
+            return Err(KitFeedbackError::Invalid(format!(
+                "feedback resolution references missing note '{}'",
+                event.note_id
+            )));
+        }
+        if !RESOLUTION_KINDS.contains(&event.kind.as_str()) {
+            return Err(KitFeedbackError::Invalid(format!(
+                "feedback resolution for '{}' has invalid kind '{}'",
+                event.note_id, event.kind
+            )));
+        }
+    }
+    Ok(events)
+}
+
+fn derive_note_statuses(
+    notes: &[KitFeedbackNote],
+    resolutions: &[KitFeedbackResolution],
+) -> Vec<KitFeedbackNoteStatus> {
+    notes
+        .iter()
+        .map(|note| {
+            let resolved_in = resolutions
+                .iter()
+                .find(|event| event.note_id == note.id && event.kind == "resolved")
+                .map(|event| event.version.clone());
+            let reconfirmed_in = resolutions
+                .iter()
+                .filter(|event| event.note_id == note.id && event.kind == "reconfirmed")
+                .map(|event| event.version.clone())
+                .collect();
+            KitFeedbackNoteStatus {
+                note_id: note.id.clone(),
+                status: if resolved_in.is_some() {
+                    "resolved".into()
+                } else {
+                    "open".into()
+                },
+                resolved_in,
+                reconfirmed_in,
+            }
+        })
+        .collect()
+}
+
 fn validate_serialized_report(source: &str) -> Result<(), KitFeedbackError> {
     let document = Document::parse(source)?;
     validate_report_document(&document)?;
-    parse_notes(&document)?;
+    let notes = parse_notes(&document)?;
+    parse_resolutions(&document, &notes)?;
     Ok(())
 }
 
@@ -195,6 +426,12 @@ pub fn read_kit_feedback(root: &Path) -> Result<KitFeedbackReport, KitFeedbackEr
     let document = Document::parse(&source)?;
     validate_report_document(&document)?;
     let notes = parse_notes(&document)?;
+    let resolutions = parse_resolutions(&document, &notes)?;
+    let note_statuses = derive_note_statuses(&notes, &resolutions);
+    let resolved = note_statuses
+        .iter()
+        .filter(|status| status.status == "resolved")
+        .count();
     let mut counts_by_category = std::collections::BTreeMap::new();
     let mut counts_by_severity = std::collections::BTreeMap::new();
     for note in &notes {
@@ -206,9 +443,13 @@ pub fn read_kit_feedback(root: &Path) -> Result<KitFeedbackReport, KitFeedbackEr
         path: KIT_FEEDBACK_REPORT_PATH.into(),
         updated: document.value("updated").unwrap_or_default(),
         total: notes.len(),
+        open: notes.len() - resolved,
+        resolved,
         counts_by_category,
         counts_by_severity,
         notes,
+        resolutions,
+        note_statuses,
     })
 }
 
@@ -521,6 +762,89 @@ mod tests {
         oversized.evidence = "x".repeat(2401);
         assert!(record_kit_feedback(dir.path(), oversized).is_err());
         assert!(!dir.path().join(KIT_FEEDBACK_REPORT_PATH).exists());
+    }
+
+    fn resolution(note_id: &str, kind: &str, version: &str) -> KitFeedbackResolutionInput {
+        KitFeedbackResolutionInput {
+            note_id: note_id.into(),
+            kind: kind.into(),
+            version: version.into(),
+            reference: Some("https://github.com/fathorMB/LMBrain/issues/95".into()),
+            actor: "AGENT-LEAD".into(),
+        }
+    }
+
+    #[test]
+    fn notes_resolve_and_reconfirm_append_only_with_derived_status() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".lmbrain")).unwrap();
+        fs::write(dir.path().join(".lmbrain/VERSION"), "4.0.2\n").unwrap();
+        record_kit_feedback(dir.path(), input("First note")).unwrap();
+        record_kit_feedback(dir.path(), input("Second note")).unwrap();
+
+        // A still-reproducing note is reconfirmed without a new note ID.
+        record_kit_feedback_resolution(dir.path(), resolution("KIT-NOTE-001", "reconfirmed", "4.0.2"))
+            .unwrap();
+        // A release retires the other note.
+        record_kit_feedback_resolution(dir.path(), resolution("KIT-NOTE-002", "resolved", "4.0.3"))
+            .unwrap();
+
+        let report = read_kit_feedback(dir.path()).unwrap();
+        assert_eq!(report.total, 2);
+        assert_eq!(report.open, 1);
+        assert_eq!(report.resolved, 1);
+        assert_eq!(report.resolutions.len(), 2);
+        let first = &report.note_statuses[0];
+        assert_eq!(first.status, "open");
+        assert_eq!(first.reconfirmed_in, vec!["4.0.2".to_string()]);
+        let second = &report.note_statuses[1];
+        assert_eq!(second.status, "resolved");
+        assert_eq!(second.resolved_in.as_deref(), Some("4.0.3"));
+
+        // The note content itself was never edited.
+        let raw = fs::read_to_string(dir.path().join(KIT_FEEDBACK_REPORT_PATH)).unwrap();
+        assert!(raw.contains("summary: \"First note\"") || raw.contains("First note"));
+
+        // A resolved note accepts no further lifecycle events.
+        let error =
+            record_kit_feedback_resolution(dir.path(), resolution("KIT-NOTE-002", "resolved", "4.0.4"))
+                .unwrap_err();
+        assert!(error.to_string().contains("already resolved"));
+        let error = record_kit_feedback_resolution(
+            dir.path(),
+            resolution("KIT-NOTE-002", "reconfirmed", "4.0.4"),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("already resolved"));
+    }
+
+    #[test]
+    fn resolution_requires_an_existing_note_and_valid_kind() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".lmbrain")).unwrap();
+        fs::write(dir.path().join(".lmbrain/VERSION"), "4.0.2\n").unwrap();
+        assert!(
+            record_kit_feedback_resolution(dir.path(), resolution("KIT-NOTE-001", "resolved", "4.0.3"))
+                .unwrap_err()
+                .to_string()
+                .contains("does not exist")
+        );
+        record_kit_feedback(dir.path(), input("Only note")).unwrap();
+        assert!(
+            record_kit_feedback_resolution(dir.path(), resolution("KIT-NOTE-009", "resolved", "4.0.3"))
+                .unwrap_err()
+                .to_string()
+                .contains("does not exist")
+        );
+        assert!(
+            record_kit_feedback_resolution(dir.path(), resolution("KIT-NOTE-001", "retagged", "4.0.3"))
+                .unwrap_err()
+                .to_string()
+                .contains("kind must be one of")
+        );
+        let report = read_kit_feedback(dir.path()).unwrap();
+        assert_eq!(report.resolutions.len(), 0);
+        assert_eq!(report.note_statuses[0].status, "open");
     }
 
     #[test]

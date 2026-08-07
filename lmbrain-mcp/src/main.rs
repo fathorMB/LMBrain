@@ -23,7 +23,8 @@ use lmbrain_core::{
     create_improvement_proposal, default_verification_approval_path, defer_finding,
     discover_verification_manifest, execute_spec_verification, finding_candidates, finding_context,
     load_branching_strategy, load_harness_manifest, load_verification_manifest, park_spec,
-    parse_harness_manifest, plan_finding, read_kit_feedback, record_kit_feedback, reopen_finding,
+    parse_harness_manifest, plan_finding, read_kit_feedback, record_kit_feedback,
+    record_kit_feedback_resolution, reopen_finding,
     resolve_finding, rollback_verification_manifest, set_branching_strategy, set_harness_manifest,
     set_spec_dependencies, set_verification_manifest, spec_dependency_candidates,
     spec_dependency_context, supersede_finding, validate_verification_manifest_source,
@@ -382,8 +383,24 @@ fn kit_feedback_tools() -> Vec<Value> {
         }),
         json!({
             "name":"lmbrain_feedback_report",
-            "description":"Read-only parsed LMBrain kit feedback report with typed notes and category/severity counts. Reading an absent report never creates it.",
+            "description":"Read-only parsed LMBrain kit feedback report with typed notes, append-only resolution events, derived per-note status, and category/severity counts. Reading an absent report never creates it.",
             "inputSchema":{"type":"object","properties":{},"additionalProperties":false}
+        }),
+        json!({
+            "name":"lmbrain_feedback_resolve",
+            "description":"Project Lead: append one lifecycle event to an existing kit feedback note. kind=resolved retires the note against the named LMBrain release; kind=reconfirmed records that a still-open note reproduces on a later version without minting a new note ID. The note content is never edited and a resolved note accepts no further events.",
+            "inputSchema":{
+                "type":"object",
+                "required":["note_id","kind","version","actor"],
+                "properties":{
+                    "note_id":{"type":"string","description":"Existing KIT-NOTE-* ID."},
+                    "kind":{"enum":["resolved","reconfirmed"]},
+                    "version":{"type":"string","description":"The LMBrain release that resolves the note, or the version it was reconfirmed against."},
+                    "reference":{"type":["string","null"],"description":"Optional upstream issue/PR/URL."},
+                    "actor":{"type":"string","description":"Project Lead profile ID, normally AGENT-LEAD."}
+                },
+                "additionalProperties":false
+            }
         }),
         branching_strategy_get_tool(),
         branching_strategy_set_tool(),
@@ -1044,6 +1061,13 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             let input: KitFeedbackInput =
                 serde_json::from_value(args.clone()).map_err(|error| error.to_string())?;
             record_kit_feedback(root, input)
+                .map(|result| text(json!(result)))
+                .map_err(|error| error.to_string())
+        }
+        "lmbrain_feedback_resolve" => {
+            let input: lmbrain_core::KitFeedbackResolutionInput =
+                serde_json::from_value(args.clone()).map_err(|error| error.to_string())?;
+            record_kit_feedback_resolution(root, input)
                 .map(|result| text(json!(result)))
                 .map_err(|error| error.to_string())
         }
@@ -2203,6 +2227,42 @@ mod tests {
             Some("KIT-NOTE-001")
         );
         assert_eq!(std::fs::read_to_string(spec).unwrap(), spec_source);
+
+        // A note resolves through the governed verb and the report derives
+        // its status without the note being edited (#95).
+        super::call(
+            &root,
+            &serde_json::json!({
+                "name":"lmbrain_feedback_resolve",
+                "arguments":{"note_id":"KIT-NOTE-001","kind":"resolved","version":"4.0.3","reference":null,"actor":"AGENT-LEAD"}
+            }),
+        )
+        .unwrap();
+        let report = super::call(
+            &root,
+            &serde_json::json!({"name":"lmbrain_feedback_report","arguments":{}}),
+        )
+        .unwrap();
+        let report: Value = serde_json::from_str(
+            report
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(report.get("resolved").and_then(Value::as_u64), Some(1));
+        assert_eq!(
+            report
+                .pointer("/note_statuses/0/status")
+                .and_then(Value::as_str),
+            Some("resolved")
+        );
+        assert_eq!(
+            report
+                .pointer("/note_statuses/0/resolved_in")
+                .and_then(Value::as_str),
+            Some("4.0.3")
+        );
     }
 
     #[test]

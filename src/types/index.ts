@@ -17,14 +17,34 @@ export interface KitFeedbackNote {
   actor: string;
 }
 
+export interface KitFeedbackResolution {
+  note_id: string;
+  kind: "resolved" | "reconfirmed";
+  version: string;
+  reference: string | null;
+  timestamp: string;
+  actor: string;
+}
+
+export interface KitFeedbackNoteStatus {
+  note_id: string;
+  status: "open" | "resolved";
+  resolved_in: string | null;
+  reconfirmed_in: string[];
+}
+
 export interface KitFeedbackReport {
   schema_version: string;
   path: string;
   updated: string;
   total: number;
+  open: number;
+  resolved: number;
   counts_by_category: Record<string, number>;
   counts_by_severity: Record<string, number>;
   notes: KitFeedbackNote[];
+  resolutions: KitFeedbackResolution[];
+  note_statuses: KitFeedbackNoteStatus[];
 }
 
 export type KitHealth = "ok" | "warn" | "none";
