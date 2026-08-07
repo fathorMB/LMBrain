@@ -179,19 +179,19 @@ export function FeedbackView() {
 
           <section aria-label="Feedback filters" style={filters}>
             <label style={filterLabel}>Version
-              <select style={filterControl} aria-label="Feedback version" value={version} onChange={(event) => setVersion(event.target.value)}>
+              <select className="app-select" style={filterControl} aria-label="Feedback version" value={version} onChange={(event) => setVersion(event.target.value)}>
                 <option value="all">All versions</option>
                 {versions.map((item) => <option value={item} key={item}>v{item}</option>)}
               </select>
             </label>
             <label style={filterLabel}>Severity
-              <select style={filterControl} aria-label="Feedback severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
+              <select className="app-select" style={filterControl} aria-label="Feedback severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
                 <option value="all">All</option>
                 {severities.map((s) => <option value={s} key={s}>{s}</option>)}
               </select>
             </label>
             <label style={filterLabel}>Category
-              <select style={filterControl} aria-label="Feedback category" value={category} onChange={(event) => setCategory(event.target.value)}>
+              <select className="app-select" style={filterControl} aria-label="Feedback category" value={category} onChange={(event) => setCategory(event.target.value)}>
                 <option value="all">All</option>
                 {categories.map((c) => <option value={c} key={c}>{c}</option>)}
               </select>

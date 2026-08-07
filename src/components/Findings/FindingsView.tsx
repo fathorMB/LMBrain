@@ -95,32 +95,32 @@ export function FindingsView() {
 
     <section aria-label="Finding filters" style={filters}>
       <label style={filterLabel}>Scope
-        <select style={filterControl} aria-label="Finding scope" value={scope} onChange={(event) => setScope(event.target.value as typeof scope)}>
+        <select className="app-select" style={filterControl} aria-label="Finding scope" value={scope} onChange={(event) => setScope(event.target.value as typeof scope)}>
           <option value="active">Active</option>
           <option value="history">History</option>
           <option value="all">All</option>
         </select>
       </label>
       <label style={filterLabel}>Status
-        <select style={filterControl} aria-label="Finding status" value={status} onChange={(event) => setStatus(event.target.value)}>
+        <select className="app-select" style={filterControl} aria-label="Finding status" value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="all">All</option>
           {["open", "planned", "deferred", "resolved", "accepted-risk", "superseded"].map(option)}
         </select>
       </label>
       <label style={filterLabel}>Severity
-        <select style={filterControl} aria-label="Finding severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
+        <select className="app-select" style={filterControl} aria-label="Finding severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
           <option value="all">All</option>
           {["critical", "high", "medium", "low", "info"].map(option)}
         </select>
       </label>
       <label style={filterLabel}>Category
-        <select style={filterControl} aria-label="Finding category" value={category} onChange={(event) => setCategory(event.target.value)}>
+        <select className="app-select" style={filterControl} aria-label="Finding category" value={category} onChange={(event) => setCategory(event.target.value)}>
           <option value="all">All</option>
           {categories.map(option)}
         </select>
       </label>
       <label style={filterLabel}>Sort
-        <select style={filterControl} aria-label="Finding sort" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
+        <select className="app-select" style={filterControl} aria-label="Finding sort" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
           {["severity", "age", "updated", "milestone"].map(option)}
         </select>
       </label>
