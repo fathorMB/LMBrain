@@ -4,7 +4,23 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `4.0.2`.
+The current kit is `4.0.3`.
+
+### 4.0.3 (maintenance release — accessibility taxonomy, attribution integrity, delegated operator attestation, feedback lifecycle, Linux fixes, worktree visibility)
+
+Supported source version is `4.0.2`. Existing workspaces require no manual content migration.
+
+1. Update the application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together.
+2. Review finding taxonomy v1 gains the canonical `accessibility` category with aliases `a11y`, `wcag`, and `accessibility-fix`; previously recorded raw `accessibility` values normalize at read time and now count toward recurrence signals and category coverage (#92).
+3. Governed review writes validate agent attribution: an `implementation_agent` or `remediation_agent` that is an unreplaced template placeholder (`AGENT-XXX`) or does not resolve to an existing `AGENT-*` profile is rejected; existing artifacts surface `review-attribution-unresolved` diagnostics; the new `review_set_implementation_agent` verb corrects a wrong attribution by fixing the field and appending an `attribution-correction` event (#93).
+4. An operator gate approved out of band can be closed without forcing: `spec_attest_operator_delegated` records the operator attestation with the operator's name, the channel, and the quoted authorization, auditable as delegated via new optional attestation fields (#94).
+5. Kit feedback notes gain an append-only lifecycle: `lmbrain_feedback_resolve` appends `resolved`/`reconfirmed` events, the report derives per-note status, and the desktop Feedback view and JSON export surface it (#95).
+6. `harness_plan_preview` browser readiness probes the Playwright-managed Chromium executable the provider actually launches (honoring the revision pinned by `playwright-core`) instead of any `chromium-*` directory name, and the not-ready detail names the install command (#96).
+7. Desktop fixes for Linux (WebKitGTK): design mockup previews use the platform-correct custom-protocol URL instead of rendering silently blank, and native `<select>` controls are normalized so filter dropdowns keep the app styling (#97, #98).
+8. The Repository view lists linked git worktrees (agent workspaces) with per-worktree changed files and diffs, resolved exclusively from git's own worktree registry (#99).
+9. Update `.lmbrain/VERSION` to `4.0.3` after validating the release.
+
+Rollback to 4.0.2 is data-safe: 4.0.3 introduces no breaking frontmatter schema changes. Attestations carrying the new delegation fields and feedback reports carrying `resolutions` remain parseable by 4.0.2, which ignores the extra fields.
 
 ### 4.0.2 (maintenance release — frontmatter integrity, Lead-managed environment, governed browser capability)
 
