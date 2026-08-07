@@ -1943,9 +1943,14 @@ fn concurrent_governed_setters_serialize_and_keep_one_activity_key() {
         },
     )
     .unwrap();
+    // The created path is rooted at the PathGuard-normalized workspace
+    // (canonicalized, verbatim prefix stripped), which on Windows CI runners
+    // differs from the raw tempdir path (short 8.3 names). Strip against the
+    // same normalized root.
+    let root = lmbrain_core::path::clean_path(&dir.path().canonicalize().unwrap());
     let relative = created
         .path
-        .strip_prefix(dir.path())
+        .strip_prefix(&root)
         .unwrap()
         .to_string_lossy()
         .replace('\\', "/");
@@ -1953,7 +1958,6 @@ fn concurrent_governed_setters_serialize_and_keep_one_activity_key() {
     // The 4.0.1 field failure mode: concurrent governed setters against one
     // artifact. Each mutation must serialize under the artifact lock and the
     // artifact must stay parseable with a single top-level activity key.
-    let root = dir.path().to_path_buf();
     let handles: Vec<std::thread::JoinHandle<()>> = vec![
         {
             let root = root.clone();
