@@ -45,6 +45,39 @@ pub struct HostConfiguration {
     pub environment: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lsp: Option<LspRequirement>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser_mcp: Option<BrowserMcpCapability>,
+}
+
+/// Typed, allow-listed browser-tool capability (#86). The provider and mode
+/// enums plus `deny_unknown_fields` are the schema boundary: no arbitrary
+/// provider IDs, commands, arguments, URLs, environment variables, or
+/// browser-profile paths can enter through this capability. Host adapters
+/// derive the fixed command from the profile; they never serialize
+/// agent-supplied strings.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BrowserMcpCapability {
+    pub provider: BrowserMcpProvider,
+    pub mode: BrowserMcpMode,
+    #[serde(default = "default_headed")]
+    pub headed: bool,
+}
+
+fn default_headed() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BrowserMcpProvider {
+    Playwright,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BrowserMcpMode {
+    Isolated,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -197,6 +230,13 @@ pub fn validate_harness_manifest(manifest: &HarnessManifest) -> Vec<HarnessValid
                 &mut issues,
                 format!("{base}.lsp"),
                 "LSP policy is not supported by this host",
+            );
+        }
+        if config.browser_mcp.is_some() && !matches!(host, HarnessHost::ClaudeCode) {
+            issue(
+                &mut issues,
+                format!("{base}.browser_mcp"),
+                "browser-mcp capability phase 1 supports only claude-code",
             );
         }
         for tool in &config.required_tools {
@@ -398,6 +438,7 @@ mod tests {
                     required_tools: BTreeSet::from(["rust-analyzer".into()]),
                     environment: BTreeMap::from([("RUST_LOG".into(), "info".into())]),
                     lsp: Some(LspRequirement { required: true }),
+                    browser_mcp: None,
                 },
             )]),
         }
@@ -472,6 +513,43 @@ mod tests {
         assert!(audit.contains("harness_config_set"));
         assert!(!audit.contains("RUST_LOG"));
         assert!(!dir.path().join(HARNESS_LOCK_PATH).exists());
+    }
+
+    #[test]
+    fn browser_mcp_capability_is_typed_allow_listed_and_claude_code_only() {
+        // The typed capability parses with allow-listed values only.
+        let valid = parse_harness_manifest(
+            r#"{"schema_version":1,"hosts":{"claude-code":{"enabled":true,"browser_mcp":{"provider":"playwright","mode":"isolated"}}}}"#,
+        )
+        .unwrap();
+        let capability = valid.hosts[&HarnessHost::ClaudeCode]
+            .browser_mcp
+            .as_ref()
+            .unwrap();
+        assert_eq!(capability.provider, BrowserMcpProvider::Playwright);
+        assert_eq!(capability.mode, BrowserMcpMode::Isolated);
+        assert!(capability.headed, "headed defaults to true");
+
+        // Arbitrary providers, commands, and unknown fields are schema errors.
+        for rejected in [
+            r#"{"schema_version":1,"hosts":{"claude-code":{"browser_mcp":{"provider":"chrome-devtools","mode":"isolated"}}}}"#,
+            r#"{"schema_version":1,"hosts":{"claude-code":{"browser_mcp":{"provider":"playwright","mode":"attached"}}}}"#,
+            r#"{"schema_version":1,"hosts":{"claude-code":{"browser_mcp":{"provider":"playwright","mode":"isolated","command":"evil"}}}}"#,
+            r#"{"schema_version":1,"hosts":{"claude-code":{"browser_mcp":{"provider":"playwright","mode":"isolated","args":["--x"]}}}}"#,
+            r#"{"schema_version":1,"hosts":{"claude-code":{"browser_mcp":{"provider":"playwright","mode":"isolated","url":"http://x"}}}}"#,
+        ] {
+            assert!(parse_harness_manifest(rejected).is_err(), "{rejected}");
+        }
+
+        // Phase 1 restricts the capability to the Claude Code host.
+        let misplaced = parse_harness_manifest(
+            r#"{"schema_version":1,"hosts":{"codex":{"enabled":true,"browser_mcp":{"provider":"playwright","mode":"isolated"}}}}"#,
+        );
+        assert!(matches!(
+            misplaced,
+            Err(HarnessManifestError::Validation(issues))
+                if issues.iter().any(|issue| issue.message.contains("claude-code"))
+        ));
     }
 
     #[test]

@@ -188,6 +188,30 @@ Settings → Project environment shows the effective configuration and determini
 
 The MCP server exposes `harness_config_get`, `harness_config_validate`, and `harness_config_set`. These tools never approve or apply native host configuration.
 
+## Governed browser capability (phase 1)
+
+`HARNESSES.json` host configurations for Claude Code may declare a typed, allow-listed browser capability:
+
+```json
+{ "browser_mcp": { "provider": "playwright", "mode": "isolated", "headed": true } }
+```
+
+The schema accepts only the `playwright` provider and `isolated` mode; commands, arguments, URLs, environment variables, and browser-profile paths are rejected as unknown fields. Host adapters derive a fixed `.mcp.json` entry (`mcpServers.lmbrain-browser`) from the profile — `node node_modules/@playwright/mcp/cli.js --isolated --browser chromium` (`--headless` appended when `headed` is `false`) — and never serialize agent-supplied strings.
+
+**Operator provisioning is a prerequisite; LMBrain never installs anything.** Before approving a manifest that declares the capability:
+
+```bash
+npm install --save-dev --save-exact @playwright/mcp
+```
+
+```bash
+npx playwright install chromium
+```
+
+The plan preview reports discovery-only readiness (package presence and version under the project-local `node_modules`, and a best-effort Chromium runtime probe honoring `PLAYWRIGHT_BROWSERS_PATH`). A missing prerequisite marks the capability `failed` and the host not ready; absence is never reported as active. The same digest approval, atomic apply, preservation, rollback, and drift rules that govern the rest of the manifest apply to the browser entry, and dropping the capability from an approved manifest removes only the LMBrain-owned `lmbrain-browser` entry.
+
+Privacy boundary: the first profile always runs an isolated browser context. It never attaches to the operator's personal browser or profile, never exposes a remote-debugging endpoint, and never injects secrets. Chrome DevTools MCP and built-in-browser attachment remain out of scope for this phase. Hosts other than Claude Code reject the capability in phase 1.
+
 ## AGENTS.md
 
 LMBrain scaffolds a concise managed block in root `AGENTS.md` so Codex can discover the project-brain instructions. The block points to `.lmbrain/AGENT.md`, `.lmbrain/CONTRACT.md`, and `.lmbrain/QUALITY.md`.

@@ -6,7 +6,37 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
 
+use lmbrain_core::BrowserMcpCapability;
+
 use crate::errors::AppError;
+
+/// Key of the LMBrain-owned browser MCP entry in `.mcp.json` (#86).
+pub const BROWSER_MCP_SERVER_KEY: &str = "lmbrain-browser";
+
+/// How a `.mcp.json` build treats the LMBrain-owned browser entry: workspace
+/// auto-registration must not touch it (it is governed by the approved harness
+/// manifest), while the harness planner/materializer manage it explicitly.
+pub enum BrowserEntry<'a> {
+    Untouched,
+    Managed(Option<&'a BrowserMcpCapability>),
+}
+
+/// Derives the fixed, allow-listed Playwright MCP server definition from the
+/// typed capability. The command and arguments are constants of the profile:
+/// the operator pre-provisions `@playwright/mcp` project-locally and no
+/// agent-supplied string is ever serialized here.
+fn browser_server_definition(capability: &BrowserMcpCapability) -> Value {
+    let mut args = vec![
+        "node_modules/@playwright/mcp/cli.js".to_string(),
+        "--isolated".to_string(),
+        "--browser".to_string(),
+        "chromium".to_string(),
+    ];
+    if !capability.headed {
+        args.push("--headless".to_string());
+    }
+    json!({ "command": "node", "args": args })
+}
 
 /// Build the `.mcp.json` content that registers the `lmbrain` server, merging into
 /// any existing configuration and preserving unrelated keys and other servers.
@@ -14,6 +44,15 @@ pub fn build_mcp_config(
     existing: Option<&str>,
     command: &str,
     root: &str,
+) -> Result<String, AppError> {
+    build_mcp_config_with_browser(existing, command, root, BrowserEntry::Untouched)
+}
+
+pub fn build_mcp_config_with_browser(
+    existing: Option<&str>,
+    command: &str,
+    root: &str,
+    browser: BrowserEntry<'_>,
 ) -> Result<String, AppError> {
     let mut value: Value = match existing {
         Some(text) if !text.trim().is_empty() => serde_json::from_str(text)?,
@@ -27,13 +66,23 @@ pub fn build_mcp_config(
     if !servers.is_object() {
         *servers = json!({});
     }
-    servers
-        .as_object_mut()
-        .expect("mcpServers is an object")
-        .insert(
-            "lmbrain".to_string(),
-            json!({ "command": command, "args": ["--root", root] }),
-        );
+    let servers = servers.as_object_mut().expect("mcpServers is an object");
+    servers.insert(
+        "lmbrain".to_string(),
+        json!({ "command": command, "args": ["--root", root] }),
+    );
+    match browser {
+        BrowserEntry::Untouched => {}
+        BrowserEntry::Managed(Some(capability)) => {
+            servers.insert(
+                BROWSER_MCP_SERVER_KEY.to_string(),
+                browser_server_definition(capability),
+            );
+        }
+        BrowserEntry::Managed(None) => {
+            servers.remove(BROWSER_MCP_SERVER_KEY);
+        }
+    }
     Ok(serde_json::to_string_pretty(&value)?)
 }
 

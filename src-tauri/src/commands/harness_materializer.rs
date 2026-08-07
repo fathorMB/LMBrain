@@ -104,7 +104,7 @@ fn apply_with_failure(
         if !config.enabled {
             continue;
         }
-        let (relative, content) = render(&root, host, command)?;
+        let (relative, content) = render(&root, host, &config, command)?;
         if actions.get(&relative) == Some(&PreviewAction::Preserved) {
             continue;
         }
@@ -173,15 +173,21 @@ fn apply_with_failure(
     })
 }
 
-fn render(root: &Path, host: HarnessHost, command: &str) -> Result<(String, String), String> {
+fn render(
+    root: &Path,
+    host: HarnessHost,
+    config: &lmbrain_core::HostConfiguration,
+    command: &str,
+) -> Result<(String, String), String> {
     let root_text = root.to_string_lossy();
     let (relative, result) = match host {
         HarnessHost::ClaudeCode => (
             ".mcp.json",
-            mcp_registration::build_mcp_config(
+            mcp_registration::build_mcp_config_with_browser(
                 read(root.join(".mcp.json")).as_deref(),
                 command,
                 &root_text,
+                mcp_registration::BrowserEntry::Managed(config.browser_mcp.as_ref()),
             ),
         ),
         HarnessHost::Codex => (
@@ -314,6 +320,47 @@ mod tests {
         let value: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(dir.path().join(".mcp.json")).unwrap())
                 .unwrap();
+        assert_eq!(value["keep"], true);
+    }
+
+    #[test]
+    fn browser_capability_applies_and_is_removed_when_dropped_from_the_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join(".lmbrain")).unwrap();
+        fs::write(
+            dir.path().join(".mcp.json"),
+            r#"{"keep":true,"mcpServers":{"other":{"command":"x"}}}"#,
+        )
+        .unwrap();
+        let with_browser: HarnessManifest = serde_json::from_value(serde_json::json!({
+            "schema_version": 1,
+            "hosts": {"claude-code": {"enabled": true, "browser_mcp": {"provider": "playwright", "mode": "isolated"}}}
+        }))
+        .unwrap();
+        set_harness_manifest(dir.path(), &with_browser).unwrap();
+        let digest = lmbrain_core::canonical_manifest_digest(&with_browser).unwrap();
+        apply_harness_configuration(dir.path(), "lmbrain-mcp", &digest).unwrap();
+        let value: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(dir.path().join(".mcp.json")).unwrap())
+                .unwrap();
+        assert_eq!(value["mcpServers"]["lmbrain-browser"]["command"], "node");
+        assert_eq!(value["keep"], true);
+        assert_eq!(value["mcpServers"]["other"]["command"], "x");
+
+        // Dropping the capability removes only the LMBrain-owned browser entry.
+        let without_browser: HarnessManifest = serde_json::from_value(serde_json::json!({
+            "schema_version": 1,
+            "hosts": {"claude-code": {"enabled": true}}
+        }))
+        .unwrap();
+        set_harness_manifest(dir.path(), &without_browser).unwrap();
+        let digest = lmbrain_core::canonical_manifest_digest(&without_browser).unwrap();
+        apply_harness_configuration(dir.path(), "lmbrain-mcp", &digest).unwrap();
+        let value: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(dir.path().join(".mcp.json")).unwrap())
+                .unwrap();
+        assert!(value["mcpServers"]["lmbrain-browser"].is_null());
+        assert_eq!(value["mcpServers"]["other"]["command"], "x");
         assert_eq!(value["keep"], true);
     }
 

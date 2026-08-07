@@ -50,9 +50,10 @@ pub use finding::{
 };
 pub use harness_manifest::{
     canonical_manifest_digest, content_digest, load_harness_manifest, parse_harness_manifest,
-    set_harness_manifest, validate_harness_manifest, workspace_identity, CapabilityState,
-    HarnessHost, HarnessManifest, HarnessManifestError, HarnessManifestMutation,
-    HarnessValidationIssue, HostConfiguration, LspRequirement, WorkspaceIdentity,
+    set_harness_manifest, validate_harness_manifest, workspace_identity, BrowserMcpCapability,
+    BrowserMcpMode, BrowserMcpProvider, CapabilityState, HarnessHost, HarnessManifest,
+    HarnessManifestError, HarnessManifestMutation, HarnessValidationIssue, HostConfiguration,
+    LspRequirement, WorkspaceIdentity,
 };
 pub use improvement::{
     apply_improvement_proposal, build_agent_improvement_signals, create_improvement_proposal,

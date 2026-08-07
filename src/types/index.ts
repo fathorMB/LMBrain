@@ -833,6 +833,21 @@ export interface HarnessToolReadiness {
   resolved_path: string | null;
 }
 
+export interface HarnessBrowserMcpCapability {
+  provider: "playwright";
+  mode: "isolated";
+  headed?: boolean;
+}
+
+export interface HarnessBrowserMcpReadiness {
+  provider: string;
+  package_available: boolean;
+  package_version: string | null;
+  browser_runtime_found: boolean;
+  state: "configured" | "prerequisite-ready" | "active" | "inactive-lazy" | "failed" | "unknown";
+  detail: string;
+}
+
 export interface HarnessHostPlan {
   host: "claude-code" | "codex" | "pi" | "open-code";
   effective: {
@@ -840,10 +855,12 @@ export interface HarnessHostPlan {
     required_tools: string[];
     environment: Record<string, string>;
     lsp?: { required: boolean };
+    browser_mcp?: HarnessBrowserMcpCapability;
   };
   supported_capabilities: string[];
   tools: HarnessToolReadiness[];
   lsp: { configured: boolean; prerequisite_ready: boolean; state: "configured" | "prerequisite-ready" | "active" | "inactive-lazy" | "failed" | "unknown" } | null;
+  browser_mcp: HarnessBrowserMcpReadiness | null;
   native_files: HarnessNativeFilePreview[];
   ready: boolean;
 }
