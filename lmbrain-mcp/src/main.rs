@@ -2251,6 +2251,36 @@ mod tests {
     }
 
     #[test]
+    fn mcp_page_static_tool_list_matches_the_server_catalog() {
+        // Guard for #88: the MCP page renders a static list of built-in tools;
+        // this test fails whenever that list and the server catalog diverge,
+        // so a new verb cannot silently stay invisible in the app.
+        let catalog: std::collections::BTreeSet<String> = super::tools()
+            .iter()
+            .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect();
+        let frontend = include_str!("../../src/components/Agents/McpView.tsx");
+        let array = frontend
+            .split("const LMBRAIN_MCP_TOOLS")
+            .nth(1)
+            .and_then(|rest| rest.split("];").next())
+            .expect("LMBRAIN_MCP_TOOLS array not found in McpView.tsx");
+        let listed: std::collections::BTreeSet<String> = array
+            .split("name: \"")
+            .skip(1)
+            .filter_map(|chunk| chunk.split('"').next())
+            .map(str::to_string)
+            .collect();
+        let missing: Vec<_> = catalog.difference(&listed).collect();
+        let stale: Vec<_> = listed.difference(&catalog).collect();
+        assert!(
+            missing.is_empty() && stale.is_empty(),
+            "MCP page tool list drifted from the server catalog.\nMissing from page: {missing:?}\nListed but not served: {stale:?}"
+        );
+    }
+
+    #[test]
     fn harness_mutating_verbs_are_digest_bound_and_schema_tight() {
         let tools = super::tools();
         for name in ["harness_manifest_approve", "harness_config_apply"] {
