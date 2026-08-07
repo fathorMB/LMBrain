@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { DesignView, designPreviewUrl } from "../components/Design/DesignView";
+import { DesignView } from "../components/Design/DesignView";
+import { designPreviewUrl } from "../lib/designPreview";
 import * as commands from "../lib/commands";
 import type { DesignMockup } from "../types";
 
