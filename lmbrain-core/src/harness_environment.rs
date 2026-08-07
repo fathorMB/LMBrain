@@ -798,7 +798,7 @@ fn browser_mcp_readiness(root: &Path, capability: &BrowserMcpCapability) -> Brow
     } else if !browser_runtime_found {
         (
             CapabilityState::Failed,
-            "no Playwright Chromium runtime found; the operator must provision it (npx playwright install chromium) before approval".to_string(),
+            "the Playwright-managed Chromium executable the provider launches is missing; the operator must provision it (npx @playwright/mcp install-browser, or npx playwright install chromium) before approval".to_string(),
         )
     } else {
         (
@@ -844,18 +844,77 @@ fn playwright_chromium_found(root: &Path) -> bool {
             paths
         }
     };
+    let required_revision = playwright_required_chromium_revision(root);
     candidates.iter().any(|directory| {
-        fs::read_dir(directory)
-            .map(|entries| {
-                entries.flatten().any(|entry| {
-                    entry
-                        .file_name()
-                        .to_string_lossy()
-                        .to_ascii_lowercase()
-                        .starts_with("chromium")
-                })
-            })
-            .unwrap_or(false)
+        chromium_executable_present(directory, required_revision.as_deref())
+    })
+}
+
+/// The Chromium revision pinned by the provisioned `playwright-core`, read from
+/// its `browsers.json`. `None` when the manifest is absent or unreadable, in
+/// which case the probe accepts any installed `chromium-*` revision.
+fn playwright_required_chromium_revision(root: &Path) -> Option<String> {
+    let manifest = root
+        .join("node_modules")
+        .join("playwright-core")
+        .join("browsers.json");
+    let value: Value = serde_json::from_str(&fs::read_to_string(manifest).ok()?).ok()?;
+    value.get("browsers")?.as_array()?.iter().find_map(|browser| {
+        if browser.get("name").and_then(Value::as_str) == Some("chromium") {
+            browser
+                .get("revision")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        } else {
+            None
+        }
+    })
+}
+
+/// True only when a `chromium-*` revision directory actually contains the
+/// platform executable the provider launches. A bare revision directory left
+/// behind by another Playwright install must not count as a runtime
+/// (issue #96 / KIT-NOTE-013).
+fn chromium_executable_present(directory: &Path, required_revision: Option<&str>) -> bool {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+        let matches = match required_revision {
+            Some(revision) => name == format!("chromium-{revision}"),
+            None => name.starts_with("chromium-"),
+        };
+        matches && chromium_executable_in(&entry.path())
+    })
+}
+
+fn chromium_executable_in(revision_dir: &Path) -> bool {
+    let candidates: &[&[&str]] = if cfg!(windows) {
+        &[
+            &["chrome-win64", "chrome.exe"],
+            &["chrome-win", "chrome.exe"],
+        ]
+    } else if cfg!(target_os = "macos") {
+        &[
+            &["chrome-mac", "Chromium.app", "Contents", "MacOS", "Chromium"],
+            &[
+                "chrome-mac-arm64",
+                "Chromium.app",
+                "Contents",
+                "MacOS",
+                "Chromium",
+            ],
+        ]
+    } else {
+        &[&["chrome-linux", "chrome"], &["chrome-linux64", "chrome"]]
+    };
+    candidates.iter().any(|segments| {
+        let mut path = revision_dir.to_path_buf();
+        for segment in *segments {
+            path.push(segment);
+        }
+        path.is_file()
     })
 }
 
@@ -1384,12 +1443,30 @@ mod tests {
         )
         .unwrap();
         fs::write(package.join("cli.js"), "// pinned cli").unwrap();
-        fs::create_dir_all(
-            dir.path()
-                .join("node_modules/playwright-core/.local-browsers/chromium-1181"),
-        )
-        .unwrap();
+        let revision_dir = dir
+            .path()
+            .join("node_modules/playwright-core/.local-browsers/chromium-1181");
+        fs::create_dir_all(&revision_dir).unwrap();
+
+        // A bare revision directory without the launchable executable is the
+        // KIT-NOTE-013 false positive: it must NOT count as a runtime.
         env::set_var("PLAYWRIGHT_BROWSERS_PATH", "0");
+        let plan = plan_harness_configuration(dir.path(), "lmbrain-mcp").unwrap();
+        let readiness = plan.hosts[0].browser_mcp.as_ref().unwrap();
+        assert!(readiness.package_available);
+        assert!(!readiness.browser_runtime_found);
+        assert_eq!(readiness.state, CapabilityState::Failed);
+        assert!(readiness.detail.contains("install-browser"));
+
+        let executable = revision_dir.join(if cfg!(windows) {
+            "chrome-win64/chrome.exe"
+        } else if cfg!(target_os = "macos") {
+            "chrome-mac/Chromium.app/Contents/MacOS/Chromium"
+        } else {
+            "chrome-linux/chrome"
+        });
+        fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        fs::write(&executable, "").unwrap();
         let plan = plan_harness_configuration(dir.path(), "lmbrain-mcp").unwrap();
         env::remove_var("PLAYWRIGHT_BROWSERS_PATH");
         let host = &plan.hosts[0];
@@ -1399,6 +1476,42 @@ mod tests {
         assert!(readiness.browser_runtime_found);
         assert_eq!(readiness.state, CapabilityState::PrerequisiteReady);
         assert!(host.ready);
+    }
+
+    #[test]
+    fn browser_runtime_probe_requires_the_pinned_revision_when_known() {
+        let dir = workspace();
+        let browsers = dir.path().join("node_modules/playwright-core");
+        fs::create_dir_all(&browsers).unwrap();
+        fs::write(
+            browsers.join("browsers.json"),
+            r#"{"browsers":[{"name":"chromium","revision":"1237"}]}"#,
+        )
+        .unwrap();
+        let local = browsers.join(".local-browsers");
+        let stale = local.join("chromium-1181");
+        let executable_tail = if cfg!(windows) {
+            "chrome-win64/chrome.exe"
+        } else if cfg!(target_os = "macos") {
+            "chrome-mac/Chromium.app/Contents/MacOS/Chromium"
+        } else {
+            "chrome-linux/chrome"
+        };
+        let stale_executable = stale.join(executable_tail);
+        fs::create_dir_all(stale_executable.parent().unwrap()).unwrap();
+        fs::write(&stale_executable, "").unwrap();
+
+        env::set_var("PLAYWRIGHT_BROWSERS_PATH", "0");
+        // A different revision, even fully installed, is not the runtime the
+        // provisioned provider launches.
+        assert!(!playwright_chromium_found(dir.path()));
+
+        let pinned_executable = local.join("chromium-1237").join(executable_tail);
+        fs::create_dir_all(pinned_executable.parent().unwrap()).unwrap();
+        fs::write(&pinned_executable, "").unwrap();
+        let found = playwright_chromium_found(dir.path());
+        env::remove_var("PLAYWRIGHT_BROWSERS_PATH");
+        assert!(found);
     }
 
     #[test]
