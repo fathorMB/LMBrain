@@ -36,6 +36,15 @@ pub struct SpecDependencyBlocker {
     pub cause: String,
 }
 
+/// A spec file the graph scan could not parse: excluded from the graph but
+/// reported explicitly so one corrupted artifact degrades the context read
+/// instead of silently shrinking the dependency graph (#85).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MalformedSpec {
+    pub path: String,
+    pub error: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SpecDependencyContext {
     pub source_digest: String,
@@ -44,6 +53,8 @@ pub struct SpecDependencyContext {
     pub transitive_prerequisites: Vec<SpecDependency>,
     pub blockers: Vec<SpecDependencyBlocker>,
     pub truncated: bool,
+    #[serde(default)]
+    pub malformed_specs: Vec<MalformedSpec>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -97,11 +108,25 @@ pub fn spec_dependency_context(
     root: &Path,
     spec_id_or_path: &str,
 ) -> Result<SpecDependencyContext, SpecDependencyError> {
-    let nodes = scan_specs(root)?;
+    let (nodes, malformed_specs) = scan_specs_with_malformed(root)?;
     let id = resolve_spec_id(root, spec_id_or_path)?;
-    let node = nodes
-        .get(&id)
-        .ok_or_else(|| SpecDependencyError::Invalid(format!("spec '{id}' does not resolve")))?;
+    let node = nodes.get(&id).ok_or_else(|| {
+        // If the requested spec exists but cannot parse, name it and the exact
+        // parse failure instead of a generic "does not resolve".
+        let stem = format!("{id}-");
+        match malformed_specs.iter().find(|spec| {
+            Path::new(&spec.path)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with(&stem) || name == format!("{id}.md"))
+        }) {
+            Some(broken) => SpecDependencyError::Invalid(format!(
+                "spec '{id}' exists at {} but its frontmatter cannot be parsed ({}); repair it with lmbrain_repair_frontmatter before reading dependency context",
+                broken.path, broken.error
+            )),
+            None => SpecDependencyError::Invalid(format!("spec '{id}' does not resolve")),
+        }
+    })?;
     let source_digest = crate::content_digest(&fs::read(&node.path)?);
 
     let direct_prerequisites = node
@@ -126,6 +151,7 @@ pub fn spec_dependency_context(
         transitive_prerequisites,
         blockers,
         truncated,
+        malformed_specs,
     })
 }
 
@@ -551,10 +577,17 @@ fn canonical_cycle(mut cycle: Vec<String>) -> Vec<String> {
 }
 
 fn scan_specs(root: &Path) -> Result<BTreeMap<String, SpecNode>, SpecDependencyError> {
+    scan_specs_with_malformed(root).map(|(nodes, _)| nodes)
+}
+
+fn scan_specs_with_malformed(
+    root: &Path,
+) -> Result<(BTreeMap<String, SpecNode>, Vec<MalformedSpec>), SpecDependencyError> {
     let base = root.join(".lmbrain/specs");
     let mut nodes = BTreeMap::new();
+    let mut malformed = Vec::new();
     if !base.exists() {
-        return Ok(nodes);
+        return Ok((nodes, malformed));
     }
     let mut paths = Vec::new();
     for status in fs::read_dir(&base)? {
@@ -572,8 +605,15 @@ fn scan_specs(root: &Path) -> Result<BTreeMap<String, SpecNode>, SpecDependencyE
     paths.sort();
     for path in paths {
         let source = fs::read_to_string(&path)?;
-        let Ok(document) = Document::parse(&source) else {
-            continue;
+        let document = match Document::parse(&source) {
+            Ok(document) => document,
+            Err(error) => {
+                malformed.push(MalformedSpec {
+                    path: relative_path(root, &path),
+                    error: error.to_string(),
+                });
+                continue;
+            }
         };
         let Some(id) = document.value("id") else {
             continue;
@@ -601,7 +641,7 @@ fn scan_specs(root: &Path) -> Result<BTreeMap<String, SpecNode>, SpecDependencyE
             },
         );
     }
-    Ok(nodes)
+    Ok((nodes, malformed))
 }
 
 fn resolve_spec_id(root: &Path, value: &str) -> Result<String, SpecDependencyError> {
@@ -670,6 +710,34 @@ mod tests {
         )
         .unwrap();
         path
+    }
+
+    #[test]
+    fn one_malformed_spec_degrades_gracefully_and_is_named_when_requested() {
+        let dir = workspace();
+        spec(dir.path(), "SPEC-001", "backlog", &[]);
+        spec(dir.path(), "SPEC-002", "backlog", &["SPEC-001"]);
+        // The 4.0.1 field corruption: duplicate top-level activity keys.
+        fs::write(
+            dir.path()
+                .join(".lmbrain/specs/backlog/SPEC-003-spec-003.md"),
+            "---\nid: SPEC-003\ntitle: Corrupted\nstatus: backlog\ndepends_on: []\nactivity:\n  - date: 2026-08-06\n    action: \"created\"\nactivity:\n  - date: 2026-08-06\n    action: \"set effort\"\n---\n# Corrupted\n",
+        )
+        .unwrap();
+
+        // Reading a healthy spec keeps working and reports the corrupted file.
+        let context = spec_dependency_context(dir.path(), "SPEC-002").unwrap();
+        assert_eq!(context.direct_prerequisites[0].id, "SPEC-001");
+        assert_eq!(context.malformed_specs.len(), 1);
+        assert!(context.malformed_specs[0].path.contains("SPEC-003"));
+        assert!(context.malformed_specs[0].error.contains("duplicate"));
+
+        // Requesting the corrupted spec names the file, the parse failure,
+        // and the repair verb instead of a generic resolution error.
+        let error = spec_dependency_context(dir.path(), "SPEC-003").unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("SPEC-003"), "{message}");
+        assert!(message.contains("lmbrain_repair_frontmatter"), "{message}");
     }
 
     #[test]

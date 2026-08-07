@@ -73,7 +73,8 @@ pub use review::{
 };
 pub use spec_dependencies::{
     set_spec_dependencies, spec_dependency_blockers, spec_dependency_candidates,
-    spec_dependency_context, validate_spec_dependency_graph, SpecDependency, SpecDependencyBlocker,
+    spec_dependency_context, validate_spec_dependency_graph, MalformedSpec, SpecDependency,
+    SpecDependencyBlocker,
     SpecDependencyCandidate, SpecDependencyCandidateInventory, SpecDependencyContext,
     SpecDependencyError, SpecDependencyMutation, SPEC_DEPENDENCY_EVENT_SCHEMA_VERSION,
 };
