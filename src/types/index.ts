@@ -218,6 +218,10 @@ export interface VerificationAttestation {
   result: string;
   evidence_ref: string;
   evidence_digest?: string;
+  /** Present only on operator attestations recorded by the Lead on explicit out-of-band authorization. */
+  delegated_by?: string;
+  delegation_channel?: string;
+  delegation_authorization?: string;
 }
 
 export interface VerificationBlocker {

@@ -19,7 +19,8 @@ use lmbrain_core::harness_environment::{
 };
 use lmbrain_core::{
     accept_finding_risk, apply_improvement_proposal, approve_verification_manifest,
-    attest_spec_requirement, build_agent_improvement_signals, build_review_migration_preview,
+    attest_spec_requirement, attest_spec_requirement_delegated, build_agent_improvement_signals,
+    build_review_migration_preview, AttestationDelegation,
     canonical_manifest_digest, canonical_verification_manifest_digest, create_finding,
     create_improvement_proposal, default_verification_approval_path, defer_finding,
     discover_verification_manifest, execute_spec_verification, finding_candidates, finding_context,
@@ -236,6 +237,7 @@ fn tools() -> Vec<Value> {
         }),
         create_tool(),
         lead_attestation_tool(),
+        delegated_operator_attestation_tool(),
         spec_park_tool(),
         setter_tool(
             "lmbrain_set_recommended_agent",
@@ -843,6 +845,27 @@ fn lead_attestation_tool() -> Value {
     })
 }
 
+fn delegated_operator_attestation_tool() -> Value {
+    json!({
+        "name": "spec_attest_operator_delegated",
+        "description": "Project Lead: record an operator attestation for one owner=operator, phase=before-done requirement when the operator granted approval out of band (e.g. in conversation) instead of through the desktop verification panel. Requires the operator's name, the channel, and the quoted authorization; the gate is satisfied without force and the attestation is auditable as delegated. Never a substitute for the operator's judgement — only for its recording channel.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["path", "requirement_id", "operator", "channel", "authorization", "evidence_ref"],
+            "properties": {
+                "path": {"type": "string"},
+                "requirement_id": {"type": "string"},
+                "operator": {"type": "string", "description": "The human operator who granted the approval."},
+                "recorded_by": {"type": "string", "default": "AGENT-LEAD", "description": "Lead profile recording the attestation."},
+                "channel": {"type": "string", "description": "Where consent was given, e.g. 'conversation'."},
+                "authorization": {"type": "string", "description": "The operator's approval, quoted or closely paraphrased (min 20 chars)."},
+                "evidence_ref": {"type": "string"}
+            },
+            "additionalProperties": false
+        }
+    })
+}
+
 fn spec_park_tool() -> Value {
     json!({
         "name":"spec_park",
@@ -1072,6 +1095,32 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             args.get("evidence_ref")
                 .and_then(Value::as_str)
                 .ok_or("evidence_ref missing")?,
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
+        "spec_attest_operator_delegated" => attest_spec_requirement_delegated(
+            root,
+            args.get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?,
+            args.get("requirement_id")
+                .and_then(Value::as_str)
+                .ok_or("requirement_id missing")?,
+            args.get("operator")
+                .and_then(Value::as_str)
+                .ok_or("operator missing")?,
+            args.get("evidence_ref")
+                .and_then(Value::as_str)
+                .ok_or("evidence_ref missing")?,
+            AttestationDelegation {
+                recorded_by: args
+                    .get("recorded_by")
+                    .and_then(Value::as_str)
+                    .unwrap_or("AGENT-LEAD")
+                    .to_string(),
+                channel: required_string(args, "channel")?.to_string(),
+                authorization: required_string(args, "authorization")?.to_string(),
+            },
         )
         .map(|result| text(json!(result)))
         .map_err(|error| error.to_string()),

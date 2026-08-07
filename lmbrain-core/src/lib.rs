@@ -20,11 +20,13 @@ pub mod verification;
 pub mod verification_onboarding;
 
 pub use attestation::{
-    attest_spec_requirement, build_verification_migration_preview, requirement_digest,
+    attest_spec_requirement, attest_spec_requirement_delegated,
+    build_verification_migration_preview, requirement_digest,
     unsupported_verification_requirements, verification_attestations, verification_blockers,
-    verification_blockers_for_workspace, verification_requirements, AttestationError,
-    AttestationResult, VerificationAttestation, VerificationBlocker, VerificationMigrationItem,
-    VerificationMigrationPreview, VERIFICATION_ATTESTATION_SCHEMA_VERSION,
+    verification_blockers_for_workspace, verification_requirements, AttestationDelegation,
+    AttestationError, AttestationResult, VerificationAttestation, VerificationBlocker,
+    VerificationMigrationItem, VerificationMigrationPreview,
+    VERIFICATION_ATTESTATION_SCHEMA_VERSION,
 };
 pub use branching_strategy::{
     load_branching_strategy, parse_branching_strategy, set_branching_strategy,
