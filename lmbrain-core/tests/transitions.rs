@@ -2014,3 +2014,86 @@ fn concurrent_governed_setters_serialize_and_keep_one_activity_key() {
     );
     assert_eq!(document.object_array("effort_observations").len(), 1);
 }
+
+#[test]
+fn creation_normalizes_list_valued_fields_and_rejects_ambiguity() {
+    let dir = tempdir().unwrap();
+
+    // KIT-NOTE-002: a comma-separated scalar for a list field must become a
+    // real array so relationship resolvers see the links.
+    let created = create(
+        dir.path(),
+        CreateRequest {
+            kind: ArtifactKind::Spec,
+            title: "List normalization".into(),
+            status: None,
+            fields: vec![(
+                "related_decisions".into(),
+                "ADR-001,ADR-002".into(),
+            )],
+        },
+    )
+    .unwrap();
+    let document = Document::parse(&fs::read_to_string(&created.path).unwrap()).unwrap();
+    assert_eq!(
+        document.string_array("related_decisions"),
+        vec!["ADR-001".to_string(), "ADR-002".to_string()]
+    );
+
+    // Proper inline arrays pass through unchanged.
+    let inline = create(
+        dir.path(),
+        CreateRequest {
+            kind: ArtifactKind::Spec,
+            title: "Inline array".into(),
+            status: None,
+            fields: vec![("related_decisions".into(), "[ADR-003]".into())],
+        },
+    )
+    .unwrap();
+    let document = Document::parse(&fs::read_to_string(&inline.path).unwrap()).unwrap();
+    assert_eq!(
+        document.string_array("related_decisions"),
+        vec!["ADR-003".to_string()]
+    );
+
+    // Ambiguous input is rejected instead of silently stored as a scalar.
+    assert!(create(
+        dir.path(),
+        CreateRequest {
+            kind: ArtifactKind::Spec,
+            title: "Broken array".into(),
+            status: None,
+            fields: vec![("related_decisions".into(), "[unclosed".into())],
+        },
+    )
+    .is_err());
+    assert!(create(
+        dir.path(),
+        CreateRequest {
+            kind: ArtifactKind::Spec,
+            title: "Empty entry".into(),
+            status: None,
+            fields: vec![("related_decisions".into(), "ADR-001,,ADR-002".into())],
+        },
+    )
+    .is_err());
+}
+
+#[test]
+fn diagnostics_report_scalar_values_in_list_valued_fields() {
+    let dir = tempdir().unwrap();
+    write(
+        dir.path(),
+        ".lmbrain/specs/backlog/SPEC-120.md",
+        "---\nid: SPEC-120\ntitle: Scalar links\nstatus: backlog\nrelated_decisions: ADR-001\ntags: []\n---\n# Scalar links\n",
+    );
+
+    let diagnostics = build_diagnostics(dir.path());
+    let finding = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "scalar-in-list-field")
+        .unwrap_or_else(|| panic!("missing scalar-in-list-field diagnostic: {diagnostics:?}"));
+    assert_eq!(finding.artifact_id.as_deref(), Some("SPEC-120"));
+    assert!(finding.message.contains("related_decisions"));
+}

@@ -681,7 +681,7 @@ fn parse_block_scalar(
     }
 }
 
-fn parse_inline_value(input: &str) -> Result<Value, FrontmatterError> {
+pub(crate) fn parse_inline_value(input: &str) -> Result<Value, FrontmatterError> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
         return Ok(Value::Null);

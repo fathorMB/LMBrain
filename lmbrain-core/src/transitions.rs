@@ -121,6 +121,65 @@ const RESERVED_CREATION_FIELDS: &[&str] = &[
     "finding_taxonomy_version",
 ];
 
+/// Managed frontmatter fields whose value is a list. Creation input for these
+/// is normalized to inline-array syntax or rejected, and validation reports a
+/// scalar value in any of them as a diagnostic instead of silently dropping
+/// relationships (KIT-NOTE-002).
+pub(crate) const LIST_VALUED_FIELDS: &[&str] = &[
+    "depends_on",
+    "skills",
+    "verification_gates",
+    "related_tasks",
+    "related_decisions",
+    "links",
+    "tags",
+    "effort_observations",
+    "supersedes",
+    "superseded_by",
+    "finding_categories",
+    "evidence_refs",
+];
+
+pub(crate) fn is_list_valued_field(key: &str) -> bool {
+    LIST_VALUED_FIELDS.contains(&key.trim().to_ascii_lowercase().as_str())
+}
+
+/// Normalizes creation input for a list-valued field: inline arrays must parse
+/// as arrays, bare scalars are treated as comma-separated ID lists, and
+/// anything ambiguous is rejected rather than stored as a scalar the resolvers
+/// would silently ignore.
+fn normalize_list_field_value(key: &str, value: &str) -> Result<String, TransitionError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok("[]".into());
+    }
+    if trimmed.starts_with('[') {
+        let parsed = crate::frontmatter::parse_inline_value(trimmed).map_err(|error| {
+            TransitionError::InvalidField(format!(
+                "field '{key}' is list-valued but its value does not parse as an array: {error}"
+            ))
+        })?;
+        if !parsed.is_array() {
+            return Err(TransitionError::InvalidField(format!(
+                "field '{key}' is list-valued but received a non-array value"
+            )));
+        }
+        return Ok(trimmed.to_string());
+    }
+    if trimmed.contains('[') || trimmed.contains(']') {
+        return Err(TransitionError::InvalidField(format!(
+            "field '{key}' is list-valued; use inline array syntax, e.g. [A, B]"
+        )));
+    }
+    let tokens: Vec<&str> = trimmed.split(',').map(str::trim).collect();
+    if tokens.iter().any(|token| token.is_empty()) {
+        return Err(TransitionError::InvalidField(format!(
+            "field '{key}' is list-valued and contains an empty entry; use inline array syntax, e.g. [A, B]"
+        )));
+    }
+    Ok(format!("[{}]", tokens.join(", ")))
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MutationOptions {
     #[serde(default)]
@@ -1002,7 +1061,11 @@ fn create_locked(
     document.set("created", &date);
     document.set("updated", &date);
     for (key, value) in request.fields {
-        document.set(&key, &value);
+        if is_list_valued_field(&key) {
+            document.set(&key, &normalize_list_field_value(&key, &value)?);
+        } else {
+            document.set(&key, &value);
+        }
     }
     if request.kind == ArtifactKind::Spec {
         crate::spec_dependencies::validate_candidate_dependencies(
