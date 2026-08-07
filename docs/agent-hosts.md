@@ -184,9 +184,7 @@ is closed, although workspace open will recreate it.
 
 LMBrain 2.8 adds the optional `.lmbrain/HARNESSES.json` source of project intent. Its strict schema permits enabled hosts, portable required-tool identifiers, non-secret environment values, and supported LSP requirements. It rejects unknown fields, secret-like keys, commands, scripts, hooks, absolute paths, traversal, oversized input, and host-incompatible capabilities.
 
-Settings → Project environment shows the effective configuration and deterministic native-file plan before any write. Repository intent remains inert until the operator approves the canonical manifest digest for the current machine/workspace identity. Apply uses a shared mutation lock, staged multi-file replacement, structural ownership, rollback, and machine-local applied-content hashes for drift detection.
-
-The MCP server exposes `harness_config_get`, `harness_config_validate`, and `harness_config_set`. These tools never approve or apply native host configuration.
+The Environment page in the sidebar shows the effective configuration, deterministic native-file plan, approval state, and drift — strictly read-only. Since 4.0.2 (#87) the Project Lead manages the whole lifecycle through the MCP server: `harness_config_set` proposes the manifest, `harness_plan_preview` shows the exact native-file plan, `harness_manifest_approve` approves the previewed canonical digest for this machine/workspace identity, `harness_config_apply` materializes it, and `harness_approval_revoke` withdraws the approval. Apply uses a shared mutation lock, staged multi-file replacement, structural ownership, rollback, and machine-local applied-content hashes for drift detection (`harness_drift_status`). Approve and apply are digest-bound — a manifest that changed since the preview is refused — and every action is audited with its actor in `.lmbrain/HARNESSES.audit.jsonl`.
 
 ## Governed browser capability (phase 1)
 

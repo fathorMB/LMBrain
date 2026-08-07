@@ -5,6 +5,7 @@ pub mod context;
 pub mod diagnostics;
 pub mod finding;
 pub mod frontmatter;
+pub mod harness_environment;
 pub mod harness_manifest;
 pub mod improvement;
 pub mod invariants;

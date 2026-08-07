@@ -815,6 +815,7 @@ export interface HarnessApprovalStatus {
   manifest_digest: string | null;
   approved_digest: string | null;
   approved_at: string | null;
+  approved_by: string | null;
   workspace_fingerprint: string;
 }
 
@@ -962,6 +963,7 @@ export type AppView =
   | "pulse"
   | "sessions"
   | "harnesses"
+  | "environment"
   | "wiki"
   | "taskboard"
   | "spec"
