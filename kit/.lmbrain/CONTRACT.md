@@ -210,7 +210,7 @@ Agents must read mandatory policy files (`QUALITY.md`, `CONTRACT.md`, `AGENT.md`
 
 ## Review finding taxonomy v1
 
-New review writes use one of these canonical `finding_categories`: `compatibility`, `correctness`, `documentation`, `localization`, `maintainability`, `metrics-integrity`, `performance`, `provenance`, `requirements-completeness`, `robustness`, `schema-conformance`, `security-boundary`, `test-quality`, `usability`, `verification-integrity`.
+New review writes use one of these canonical `finding_categories`: `accessibility`, `compatibility`, `correctness`, `documentation`, `localization`, `maintainability`, `metrics-integrity`, `performance`, `provenance`, `requirements-completeness`, `robustness`, `schema-conformance`, `security-boundary`, `test-quality`, `usability`, `verification-integrity`.
 
 Legacy aliases are normalized at read time while their raw value remains visible. Unknown values are not merged into recurrence signals: context packs and dashboards report them as data-quality warnings. Review lifecycle metrics prefer valid structured events, fall back to explicit legacy cycle/count fields, and treat status-only history as uncertain rather than first-pass success.
 
