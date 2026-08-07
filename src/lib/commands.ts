@@ -12,6 +12,7 @@ import type {
   GitDetails,
   GitFileDiff,
   GitDiffTarget,
+  GitWorktree,
   GitHubDashboard,
   Handoff,
   Finding,
@@ -306,8 +307,16 @@ export async function getGitDetails(): Promise<GitDetails> {
   return invoke("get_git_details");
 }
 
-export async function getGitFileDiff(path: string, diffTarget: GitDiffTarget): Promise<GitFileDiff> {
-  return invoke("get_git_file_diff", { path, diffTarget });
+export async function getGitFileDiff(
+  path: string,
+  diffTarget: GitDiffTarget,
+  worktree?: string
+): Promise<GitFileDiff> {
+  return invoke("get_git_file_diff", { path, diffTarget, worktree: worktree ?? null });
+}
+
+export async function getGitWorktrees(): Promise<GitWorktree[]> {
+  return invoke("get_git_worktrees");
 }
 
 export async function getGitHubPatConfigured(): Promise<boolean> {

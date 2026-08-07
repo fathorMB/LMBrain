@@ -159,6 +159,97 @@ pub fn get_git_details(repo_path: &str) -> Result<GitDetails, String> {
     })
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitWorktree {
+    /// Directory basename, the stable handle the frontend refers to.
+    pub name: String,
+    pub path: String,
+    pub branch: Option<String>,
+    pub head: Option<String>,
+    pub prunable: bool,
+    pub locked: bool,
+    /// Absent for prunable worktrees whose directory no longer exists.
+    pub details: Option<GitDetails>,
+}
+
+/// Linked worktrees registered with this repository (agent workspaces live
+/// here even when their directories sit outside the workspace root). The
+/// main worktree is excluded — the existing panels already cover it.
+pub fn get_git_worktrees(repo_path: &str) -> Result<Vec<GitWorktree>, String> {
+    let output = run_git_raw(repo_path, &["worktree", "list", "--porcelain"])?;
+    let main_path = run_git(repo_path, &["rev-parse", "--show-toplevel"]).ok();
+
+    let mut worktrees = Vec::new();
+    for block in output.split("\n\n").filter(|block| !block.trim().is_empty()) {
+        let mut path = None;
+        let mut head = None;
+        let mut branch = None;
+        let mut prunable = false;
+        let mut locked = false;
+        let mut bare = false;
+        for line in block.lines() {
+            if let Some(value) = line.strip_prefix("worktree ") {
+                path = Some(value.trim().to_string());
+            } else if let Some(value) = line.strip_prefix("HEAD ") {
+                head = Some(value.trim().chars().take(7).collect::<String>());
+            } else if let Some(value) = line.strip_prefix("branch ") {
+                branch = Some(
+                    value
+                        .trim()
+                        .strip_prefix("refs/heads/")
+                        .unwrap_or(value.trim())
+                        .to_string(),
+                );
+            } else if line.starts_with("prunable") {
+                prunable = true;
+            } else if line.starts_with("locked") {
+                locked = true;
+            } else if line.starts_with("bare") {
+                bare = true;
+            }
+        }
+        let Some(path) = path else { continue };
+        if bare {
+            continue;
+        }
+        let is_main = main_path
+            .as_deref()
+            .is_some_and(|main| clean_path(Path::new(main)) == clean_path(Path::new(&path)));
+        if is_main {
+            continue;
+        }
+        let details = if prunable {
+            None
+        } else {
+            get_git_details(&path).ok()
+        };
+        let name = Path::new(&path)
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.clone());
+        worktrees.push(GitWorktree {
+            name,
+            path,
+            branch,
+            head,
+            prunable,
+            locked,
+            details,
+        });
+    }
+    Ok(worktrees)
+}
+
+/// Resolves a frontend-supplied worktree name against the worktrees git
+/// itself reports, so the client can never reach an arbitrary path.
+pub fn resolve_worktree_path(repo_path: &str, worktree_name: &str) -> Result<String, String> {
+    get_git_worktrees(repo_path)?
+        .into_iter()
+        .find(|worktree| worktree.name == worktree_name && !worktree.prunable)
+        .map(|worktree| worktree.path)
+        .ok_or_else(|| "Unknown git worktree".to_string())
+}
+
 const MAX_DIFF_BYTES: usize = 512 * 1024;
 
 pub fn get_git_file_diff(
@@ -363,6 +454,56 @@ mod tests {
         git(dir.path(), &["add", "tracked.txt"]);
         git(dir.path(), &["commit", "-m", "baseline"]);
         dir
+    }
+
+    #[test]
+    fn linked_worktrees_are_enumerated_with_changes_and_prunable_state() {
+        let dir = repository();
+        let repo = dir.path().to_string_lossy().into_owned();
+        assert!(get_git_worktrees(&repo).unwrap().is_empty());
+
+        let holder = tempdir().unwrap();
+        let wt_path = holder.path().join("agent-fix-97");
+        git(
+            dir.path(),
+            &[
+                "worktree",
+                "add",
+                "-b",
+                "agent/fix-97",
+                &wt_path.to_string_lossy(),
+            ],
+        );
+        fs::write(wt_path.join("tracked.txt"), "worktree change\n").unwrap();
+
+        let worktrees = get_git_worktrees(&repo).unwrap();
+        assert_eq!(worktrees.len(), 1);
+        let worktree = &worktrees[0];
+        assert_eq!(worktree.name, "agent-fix-97");
+        assert_eq!(worktree.branch.as_deref(), Some("agent/fix-97"));
+        assert!(!worktree.prunable);
+        let details = worktree.details.as_ref().unwrap();
+        assert_eq!(details.branch, "agent/fix-97");
+        assert_eq!(details.files.len(), 1);
+        assert_eq!(details.files[0].path, "tracked.txt");
+
+        // Names resolve only through git's own registry.
+        assert!(resolve_worktree_path(&repo, "agent-fix-97").is_ok());
+        assert!(resolve_worktree_path(&repo, "..").is_err());
+        assert!(resolve_worktree_path(&repo, "nonexistent").is_err());
+
+        // Diffs work against the resolved worktree path.
+        let resolved = resolve_worktree_path(&repo, "agent-fix-97").unwrap();
+        let diff = get_git_file_diff(Path::new(&resolved), "tracked.txt", "unstaged").unwrap();
+        assert!(diff.diff.contains("+worktree change"));
+
+        // A deleted-but-unpruned worktree is reported prunable, not an error.
+        fs::remove_dir_all(&wt_path).unwrap();
+        let worktrees = get_git_worktrees(&repo).unwrap();
+        assert_eq!(worktrees.len(), 1);
+        assert!(worktrees[0].prunable);
+        assert!(worktrees[0].details.is_none());
+        assert!(resolve_worktree_path(&repo, "agent-fix-97").is_err());
     }
 
     #[test]

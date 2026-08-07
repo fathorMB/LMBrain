@@ -502,12 +502,33 @@ fn get_git_file_diff(
     state: State<'_, AppState>,
     path: String,
     diff_target: String,
+    worktree: Option<String>,
 ) -> Result<commands::git_details::GitFileDiff, String> {
     let root = state
         .path_guard
         .get_root()
         .ok_or_else(|| "No workspace open".to_string())?;
-    commands::git_details::get_git_file_diff(&root, &path, &diff_target)
+    // Worktree paths live outside the PathGuard root, so they are resolved
+    // exclusively from git's own worktree registry — never from the client.
+    let repo = match worktree.as_deref().filter(|name| !name.is_empty()) {
+        Some(name) => std::path::PathBuf::from(commands::git_details::resolve_worktree_path(
+            &root.to_string_lossy(),
+            name,
+        )?),
+        None => root,
+    };
+    commands::git_details::get_git_file_diff(&repo, &path, &diff_target)
+}
+
+#[tauri::command(async)]
+fn get_git_worktrees(
+    state: State<'_, AppState>,
+) -> Result<Vec<commands::git_details::GitWorktree>, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
+    commands::git_details::get_git_worktrees(&root.to_string_lossy())
 }
 
 #[tauri::command(async)]
@@ -925,6 +946,7 @@ pub fn run() {
             get_git_info,
             get_git_details,
             get_git_file_diff,
+            get_git_worktrees,
             get_github_pat_configured,
             save_github_pat,
             delete_github_pat,

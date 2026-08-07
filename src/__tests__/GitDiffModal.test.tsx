@@ -31,7 +31,7 @@ describe("GitDiffModal", () => {
     expect(screen.getByText("Loading diff...")).toBeDefined();
 
     await waitFor(() => expect(screen.getByText("+new")).toBeDefined());
-    expect(commands.getGitFileDiff).toHaveBeenCalledWith(file.path, "unstaged");
+    expect(commands.getGitFileDiff).toHaveBeenCalledWith(file.path, "unstaged", undefined);
     expect(screen.getByText("-old")).toBeDefined();
     expect(screen.getAllByText("1").length).toBeGreaterThan(0);
   });

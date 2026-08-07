@@ -47,6 +47,16 @@ export interface KitFeedbackReport {
   note_statuses: KitFeedbackNoteStatus[];
 }
 
+export interface GitWorktree {
+  name: string;
+  path: string;
+  branch: string | null;
+  head: string | null;
+  prunable: boolean;
+  locked: boolean;
+  details: GitDetails | null;
+}
+
 export type KitHealth = "ok" | "warn" | "none";
 
 export interface KitDiagnostic {
