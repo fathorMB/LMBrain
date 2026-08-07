@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { getKitFeedback, saveTextFile } from "../../lib/commands";
-import type { KitFeedbackReport, KitFeedbackNote } from "../../types";
+import type { KitFeedbackReport, KitFeedbackNote, KitFeedbackNoteStatus } from "../../types";
 import { RefreshButton } from "../RefreshButton";
 import { CardGrid, PageHeader, PageShell } from "../Shared/PageLayout";
 
@@ -17,12 +17,15 @@ function feedbackExportContent(report: KitFeedbackReport, version: string | null
   const notes = version === null
     ? report.notes
     : report.notes.filter((note) => note.lmbrain_version === version);
+  const exportedIds = new Set(notes.map((note) => note.id));
   return JSON.stringify({
     schema_version: "1",
     source_report: report.path,
     scope: version === null ? "all" : "version",
     lmbrain_version: version,
     notes,
+    resolutions: (report.resolutions ?? []).filter((event) => exportedIds.has(event.note_id)),
+    note_statuses: (report.note_statuses ?? []).filter((status) => exportedIds.has(status.note_id)),
   }, null, 2);
 }
 
@@ -179,19 +182,19 @@ export function FeedbackView() {
 
           <section aria-label="Feedback filters" style={filters}>
             <label style={filterLabel}>Version
-              <select style={filterControl} aria-label="Feedback version" value={version} onChange={(event) => setVersion(event.target.value)}>
+              <select className="app-select" style={filterControl} aria-label="Feedback version" value={version} onChange={(event) => setVersion(event.target.value)}>
                 <option value="all">All versions</option>
                 {versions.map((item) => <option value={item} key={item}>v{item}</option>)}
               </select>
             </label>
             <label style={filterLabel}>Severity
-              <select style={filterControl} aria-label="Feedback severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
+              <select className="app-select" style={filterControl} aria-label="Feedback severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
                 <option value="all">All</option>
                 {severities.map((s) => <option value={s} key={s}>{s}</option>)}
               </select>
             </label>
             <label style={filterLabel}>Category
-              <select style={filterControl} aria-label="Feedback category" value={category} onChange={(event) => setCategory(event.target.value)}>
+              <select className="app-select" style={filterControl} aria-label="Feedback category" value={category} onChange={(event) => setCategory(event.target.value)}>
                 <option value="all">All</option>
                 {categories.map((c) => <option value={c} key={c}>{c}</option>)}
               </select>
@@ -213,7 +216,11 @@ export function FeedbackView() {
               column minimum than the 360px default. */}
           <CardGrid minColumnWidth={420}>
             {filteredNotes.map((note) => (
-              <FeedbackNoteCard key={note.id} note={note} />
+              <FeedbackNoteCard
+                key={note.id}
+                note={note}
+                status={report?.note_statuses?.find((status) => status.note_id === note.id) ?? null}
+              />
             ))}
           </CardGrid>
         </>
@@ -222,13 +229,19 @@ export function FeedbackView() {
   );
 }
 
-function FeedbackNoteCard({ note }: { note: KitFeedbackNote }) {
+function FeedbackNoteCard({
+  note,
+  status,
+}: {
+  note: KitFeedbackNote;
+  status: KitFeedbackNoteStatus | null;
+}) {
   const [expanded, setExpanded] = useState(false);
-  
+
   return (
     <div style={findingCard}>
-      <div 
-        onClick={() => setExpanded(!expanded)} 
+      <div
+        onClick={() => setExpanded(!expanded)}
         style={{ cursor: "pointer" }}
         role="button"
         aria-expanded={expanded}
@@ -238,6 +251,16 @@ function FeedbackNoteCard({ note }: { note: KitFeedbackNote }) {
           <span style={getSeverityBadgeStyle(note.severity)}>{note.severity}</span>
           <span style={tagBadgeStyle}>{note.category}</span>
           <span style={tagBadgeStyle}>v{note.lmbrain_version}</span>
+          {status?.status === "resolved" && (
+            <span style={{ ...tagBadgeStyle, color: "#91d5ad" }}>
+              resolved{status.resolved_in ? ` in ${status.resolved_in}` : ""}
+            </span>
+          )}
+          {status?.status === "open" && status.reconfirmed_in.length > 0 && (
+            <span style={{ ...tagBadgeStyle, color: "#d6b277" }}>
+              reconfirmed {status.reconfirmed_in[status.reconfirmed_in.length - 1]}
+            </span>
+          )}
         </div>
         <div style={{ fontWeight: 650, marginTop: 7 }}>{note.summary}</div>
       </div>

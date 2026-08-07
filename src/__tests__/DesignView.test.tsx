@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { DesignView } from "../components/Design/DesignView";
+import { DesignView, designPreviewUrl } from "../components/Design/DesignView";
 import * as commands from "../lib/commands";
 import type { DesignMockup } from "../types";
 
@@ -26,6 +26,7 @@ const mockup: DesignMockup = {
 describe("DesignView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true })));
   });
 
   it("renders an empty state when there are no mockups", async () => {
@@ -45,9 +46,40 @@ describe("DesignView", () => {
     await waitFor(() => expect(screen.getAllByText("Checkout Flow").length).toBeGreaterThan(0));
     expect(screen.getByText("Responsive checkout mockup.")).toBeDefined();
     const frame = await screen.findByTitle("Design mockup preview");
-    expect(frame.getAttribute("src")).toBe(
-      "http://lmbrain-design.localhost/.lmbrain/design/checkout-flow/index.html"
-    );
+    expect(frame.getAttribute("src")).toBe(designPreviewUrl(mockup.entry_path));
     expect(frame.hasAttribute("srcdoc")).toBe(false);
+  });
+
+  it("shows the preview error state when the protocol handler rejects the asset", async () => {
+    vi.mocked(commands.getDesignMockups).mockResolvedValue([mockup]);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false })));
+
+    render(<DesignView />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Preview unavailable for this design mockup.")).toBeDefined()
+    );
+  });
+});
+
+describe("designPreviewUrl", () => {
+  it("uses the http bridge form on Windows", () => {
+    expect(
+      designPreviewUrl(
+        ".lmbrain\\design\\checkout-flow\\index.html",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      )
+    ).toBe("http://lmbrain-design.localhost/.lmbrain/design/checkout-flow/index.html");
+  });
+
+  it("uses the native scheme form on Linux and macOS", () => {
+    for (const ua of [
+      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
+    ]) {
+      expect(designPreviewUrl(".lmbrain/design/checkout-flow/index.html", ua)).toBe(
+        "lmbrain-design://localhost/.lmbrain/design/checkout-flow/index.html"
+      );
+    }
   });
 });

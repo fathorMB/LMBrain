@@ -111,6 +111,7 @@ export function DecisionsList() {
               style={{ ...selectStyle, minWidth: 200 }}
             />
             <select
+              className="app-select"
               aria-label="Status"
               value={filters.status}
               onChange={(event) =>
@@ -127,6 +128,7 @@ export function DecisionsList() {
             </select>
             {tags.length > 0 && (
               <select
+                className="app-select"
                 aria-label="Tag"
                 value={filters.tag}
                 onChange={(event) => setFilters({ ...filters, tag: event.target.value })}
@@ -141,6 +143,7 @@ export function DecisionsList() {
               </select>
             )}
             <select
+              className="app-select"
               aria-label="Sort"
               value={filters.sort}
               onChange={(event) =>

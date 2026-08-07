@@ -567,6 +567,26 @@ fn diagnose_references(root: &Path, artifacts: &[Artifact], diagnostics: &mut Ve
                     }
                 }
             }
+        } else if id.starts_with("REVIEW-") {
+            if let Err(reason) = invariants::implementation_agent_resolves(
+                root,
+                artifact.document.value("implementation_agent").as_deref(),
+            ) {
+                let agent = artifact
+                    .document
+                    .value("implementation_agent")
+                    .unwrap_or_default();
+                diagnostics.push(diagnostic(
+                    "review-attribution-unresolved",
+                    DiagnosticSeverity::Warning,
+                    Some(id.clone()),
+                    Some(artifact.relative.clone()),
+                    format!("Review {id}: {reason}. Effectiveness metrics attribute this review to a profile that does not exist, and the real implementer loses the record."),
+                    "Correct the attribution with review_set_implementation_agent, naming the AGENT-* profile that implemented the spec.",
+                    DiagnosticFixability::GovernedMutation,
+                    &agent,
+                ));
+            }
         } else if id.starts_with("AGENT-") {
             for skill in artifact.document.string_array("skills") {
                 if !skills.contains_key(&skill) {

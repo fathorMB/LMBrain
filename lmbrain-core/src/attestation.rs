@@ -31,6 +31,27 @@ pub struct VerificationAttestation {
     pub evidence_ref: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evidence_digest: Option<String>,
+    /// Present only on operator attestations recorded by the Lead on the
+    /// operator's explicit out-of-band authorization (#94 / KIT-NOTE-011).
+    /// Absence means the authority attested directly (desktop panel or
+    /// spec_attest_lead).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delegated_by: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delegation_channel: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delegation_authorization: Option<String>,
+}
+
+/// The recorded consent behind a delegated operator attestation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttestationDelegation {
+    /// The Lead profile recording the attestation, e.g. AGENT-LEAD.
+    pub recorded_by: String,
+    /// Where the operator granted approval, e.g. "conversation".
+    pub channel: String,
+    /// The operator's approval, quoted or closely paraphrased.
+    pub authorization: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -200,6 +221,57 @@ pub fn attest_spec_requirement(
     actor: &str,
     evidence_ref: &str,
 ) -> Result<AttestationResult, AttestationError> {
+    attest_spec_requirement_inner(root, artifact, requirement_id, actor_role, actor, evidence_ref, None)
+}
+
+/// Record an operator attestation that was granted out of band — for
+/// instance in conversation with the Project Lead — without forcing the
+/// transition (#94 / KIT-NOTE-011). The gate is genuinely satisfied: the
+/// attestation carries the operator as its authority plus the recorded
+/// consent (who recorded it, through which channel, and the quoted
+/// authorization), so the audit trail distinguishes it both from a direct
+/// desktop-panel attestation and from a forced override.
+pub fn attest_spec_requirement_delegated(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    requirement_id: &str,
+    operator: &str,
+    evidence_ref: &str,
+    delegation: AttestationDelegation,
+) -> Result<AttestationResult, AttestationError> {
+    if delegation.recorded_by.trim().is_empty()
+        || delegation.channel.trim().is_empty()
+        || delegation.authorization.trim().is_empty()
+    {
+        return Err(AttestationError::Invalid(
+            "a delegated operator attestation requires recorded_by, channel, and the quoted operator authorization".into(),
+        ));
+    }
+    if delegation.authorization.trim().chars().count() < 20 {
+        return Err(AttestationError::Invalid(
+            "the quoted operator authorization is too short to establish consent; quote what the operator approved".into(),
+        ));
+    }
+    attest_spec_requirement_inner(
+        root,
+        artifact,
+        requirement_id,
+        "operator",
+        operator,
+        evidence_ref,
+        Some(delegation),
+    )
+}
+
+fn attest_spec_requirement_inner(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    requirement_id: &str,
+    actor_role: &str,
+    actor: &str,
+    evidence_ref: &str,
+    delegation: Option<AttestationDelegation>,
+) -> Result<AttestationResult, AttestationError> {
     if !matches!(actor_role, "lead" | "operator") {
         return Err(AttestationError::Invalid(
             "actor_role must be lead or operator".into(),
@@ -340,6 +412,15 @@ pub fn attest_spec_requirement(
         result: "passed".into(),
         evidence_ref: evidence_ref.trim().into(),
         evidence_digest: Some(evidence_digest),
+        delegated_by: delegation
+            .as_ref()
+            .map(|delegation| delegation.recorded_by.trim().to_string()),
+        delegation_channel: delegation
+            .as_ref()
+            .map(|delegation| delegation.channel.trim().to_string()),
+        delegation_authorization: delegation
+            .as_ref()
+            .map(|delegation| delegation.authorization.trim().to_string()),
     };
     let fields = serde_json::to_value(&attestation)
         .ok()
@@ -349,10 +430,15 @@ pub fn attest_spec_requirement(
         .collect::<Vec<_>>();
     document.append_object("verification_attestations", &fields)?;
     document.set("updated", &Local::now().format("%Y-%m-%d").to_string());
-    document.append_activity(&format!(
-        "attested verification {} by {}",
-        requirement_id, actor_role
-    ));
+    document.append_activity(&if let Some(delegation) = delegation.as_ref() {
+        format!(
+            "attested verification {requirement_id} by operator (out-of-band, recorded by {} via {})",
+            delegation.recorded_by.trim(),
+            delegation.channel.trim()
+        )
+    } else {
+        format!("attested verification {requirement_id} by {actor_role}")
+    });
     if fs::read_to_string(&path)? != current_source {
         return Err(AttestationError::Invalid(
             "spec changed while the attestation was being prepared".into(),
@@ -762,6 +848,67 @@ mod tests {
         assert!(lead_result.is_ok(), "lead auto-check should succeed: {lead_result:?}");
         let updated_lead = fs::read_to_string(&lead_path).unwrap();
         assert!(updated_lead.contains("- [x] LEAD-CHECK"), "lead checkbox should be auto-checked");
+    }
+
+    #[test]
+    fn delegated_operator_attestation_satisfies_the_gate_and_stays_auditable() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join(".lmbrain/specs/review/SPEC-010.md");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let source = "---\nid: SPEC-010\nstatus: review\n---\n## Required verification\n- [ ] BALANCE-REVIEW | kind=operator | owner=operator | phase=before-done | evidence=observation | Review the economic models\n";
+        fs::write(&path, source).unwrap();
+
+        // Missing or thin authorization is refused.
+        let error = attest_spec_requirement_delegated(
+            directory.path(),
+            ".lmbrain/specs/review/SPEC-010.md",
+            "BALANCE-REVIEW",
+            "Moreno",
+            "conversation:2026-08-08",
+            AttestationDelegation {
+                recorded_by: "AGENT-LEAD".into(),
+                channel: "conversation".into(),
+                authorization: "ok".into(),
+            },
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("too short"));
+        assert_eq!(fs::read_to_string(&path).unwrap(), source);
+
+        let result = attest_spec_requirement_delegated(
+            directory.path(),
+            ".lmbrain/specs/review/SPEC-010.md",
+            "BALANCE-REVIEW",
+            "Moreno",
+            "conversation:2026-08-08",
+            AttestationDelegation {
+                recorded_by: "AGENT-LEAD".into(),
+                channel: "conversation".into(),
+                authorization: "All four delegated economic models are approved as proposed.".into(),
+            },
+        )
+        .unwrap();
+        assert!(result.created);
+        assert_eq!(result.attestation.actor_role, "operator");
+        assert_eq!(result.attestation.actor, "Moreno");
+        assert_eq!(result.attestation.delegated_by.as_deref(), Some("AGENT-LEAD"));
+
+        // The gate is genuinely satisfied: no blocker, no force needed.
+        let document = Document::parse(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(document.body.contains("- [x] BALANCE-REVIEW"));
+        assert!(verification_blockers(&document, "before-done").is_empty());
+        // And the delegation stays visible in the parsed history.
+        let attestations = verification_attestations(&document);
+        assert_eq!(attestations.len(), 1);
+        assert_eq!(
+            attestations[0].delegation_channel.as_deref(),
+            Some("conversation")
+        );
+        assert!(attestations[0]
+            .delegation_authorization
+            .as_deref()
+            .unwrap()
+            .contains("approved"));
     }
 
     #[test]

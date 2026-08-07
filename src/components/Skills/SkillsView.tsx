@@ -55,6 +55,7 @@ export function SkillsView() {
               onChange={(value) => setStatusFilter(value as "all" | SkillStatus)}
             />
             <select
+              className="app-select"
               value={kindFilter}
               onChange={(event) => setKindFilter(event.target.value)}
               style={{

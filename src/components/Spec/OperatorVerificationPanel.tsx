@@ -227,6 +227,7 @@ export function OperatorVerificationPanel({
           >
             <Field label="Operator gate">
               <select
+                className="app-select"
                 aria-label="Operator gate"
                 value={selectedId}
                 onChange={(event) => setSelectedId(event.target.value)}

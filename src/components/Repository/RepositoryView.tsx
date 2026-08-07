@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CommitGraph } from "commit-graph";
 import * as commands from "../../lib/commands";
-import type { GitDetails, GitHubDashboard, GitFile, GitHubWorkflowRun } from "../../types";
+import type { GitDetails, GitHubDashboard, GitFile, GitHubWorkflowRun, GitWorktree } from "../../types";
 import { GitDiffModal } from "./GitDiffModal";
 import { WorkflowRunModal } from "./WorkflowRunModal";
 import { describeWorkflowRun, getWorkflowRunStatusStyle } from "../../lib/workflowRunStatus";
@@ -10,6 +10,7 @@ import "./RepositoryView.css";
 
 interface RepositoryData {
   gitDetails: GitDetails;
+  worktrees: GitWorktree[];
   githubDashboard: GitHubDashboard | null;
   hasToken: boolean;
 }
@@ -22,6 +23,7 @@ function errorMessage(value: unknown, fallback: string): string {
 
 async function fetchRepositoryData(): Promise<RepositoryData> {
   const gitDetails = await commands.getGitDetails();
+  const worktrees = await commands.getGitWorktrees().catch(() => [] as GitWorktree[]);
   const hasToken = await commands.getGitHubPatConfigured();
   let githubDashboard: GitHubDashboard | null = null;
 
@@ -33,11 +35,13 @@ async function fetchRepositoryData(): Promise<RepositoryData> {
     }
   }
 
-  return { gitDetails, githubDashboard, hasToken };
+  return { gitDetails, worktrees, githubDashboard, hasToken };
 }
 
 export function RepositoryView() {
   const [gitDetails, setGitDetails] = useState<GitDetails | null>(null);
+  const [worktrees, setWorktrees] = useState<GitWorktree[]>([]);
+  const [fileScope, setFileScope] = useState<string>("");
   const [githubDashboard, setGithubDashboard] = useState<GitHubDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +60,7 @@ export function RepositoryView() {
     try {
       const data = await fetchRepositoryData();
       setGitDetails(data.gitDetails);
+      setWorktrees(data.worktrees);
       setGithubDashboard(data.githubDashboard);
       setHasToken(data.hasToken);
     } catch (error) {
@@ -72,6 +77,7 @@ export function RepositoryView() {
       .then((data) => {
         if (!active) return;
         setGitDetails(data.gitDetails);
+        setWorktrees(data.worktrees);
         setGithubDashboard(data.githubDashboard);
         setHasToken(data.hasToken);
       })
@@ -133,6 +139,12 @@ export function RepositoryView() {
         return "#9ca3af";
     }
   };
+
+  const scopedWorktree = worktrees.find((worktree) => worktree.name === fileScope) ?? null;
+  const effectiveScope = scopedWorktree ? fileScope : "";
+  const scopedFiles = scopedWorktree
+    ? scopedWorktree.details?.files ?? []
+    : gitDetails?.files ?? [];
 
   return (
     <div className="repository-scroll">
@@ -226,6 +238,52 @@ export function RepositoryView() {
                       Remote: <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>{gitDetails.remote_url}</span>
                     </div>
                   )}
+
+                  {/* Linked worktrees (agent workspaces) */}
+                  {worktrees.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: "var(--text-2xs)", textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-muted)", margin: "4px 0 8px" }}>
+                        Worktrees · {worktrees.length}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {worktrees.map((worktree) => (
+                          <div
+                            key={worktree.name}
+                            style={{ background: "var(--bg-primary)", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--border-primary)" }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span className="repository-ellipsis" title={worktree.path} style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "#bcaef6", fontFamily: "var(--font-mono)" }}>
+                                {worktree.branch ?? worktree.name}
+                              </span>
+                              {worktree.head && (
+                                <span style={{ fontSize: "var(--text-xs)", color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
+                                  {worktree.head}
+                                </span>
+                              )}
+                              {worktree.prunable && (
+                                <span style={{ fontSize: "var(--text-2xs)", fontWeight: 700, color: "#ef4444", background: "rgba(239,68,68,.1)", padding: "2px 6px", borderRadius: 4 }}>
+                                  PRUNABLE
+                                </span>
+                              )}
+                              {worktree.locked && (
+                                <span style={{ fontSize: "var(--text-2xs)", fontWeight: 700, color: "#f59e0b", background: "rgba(245,158,11,.1)", padding: "2px 6px", borderRadius: 4 }}>
+                                  LOCKED
+                                </span>
+                              )}
+                              {worktree.details && (
+                                <span style={{ marginLeft: "auto", fontSize: "var(--text-xs)", color: "var(--text-tertiary)" }}>
+                                  {worktree.details.files.length} changes
+                                </span>
+                              )}
+                            </div>
+                            <div className="repository-ellipsis" title={worktree.path} style={{ marginTop: 3, fontSize: "var(--text-2xs)", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                              {worktree.path}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{ color: "var(--text-tertiary)", fontSize: "var(--text-md)" }}>Loading git metadata...</div>
@@ -239,25 +297,43 @@ export function RepositoryView() {
                   <i className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>edit_document</i>
                   Changed Files
                 </h2>
-                {gitDetails && (
-                  <span style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", background: "var(--bg-primary)", padding: "2px 6px", borderRadius: 5, border: "1px solid var(--border-primary)" }}>
-                    {gitDetails.files.length} changes
-                  </span>
-                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {worktrees.length > 0 && (
+                    <select
+                      className="app-select"
+                      aria-label="Changed files scope"
+                      value={effectiveScope}
+                      onChange={(event) => setFileScope(event.target.value)}
+                      style={{ height: 26, background: "var(--bg-primary)", color: "var(--text-secondary)", border: "1px solid var(--border-primary)", borderRadius: 5, fontSize: "var(--text-xs)", padding: "0 6px" }}
+                    >
+                      <option value="">main worktree</option>
+                      {worktrees.filter((worktree) => !worktree.prunable).map((worktree) => (
+                        <option key={worktree.name} value={worktree.name}>
+                          {worktree.branch ?? worktree.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {gitDetails && (
+                    <span style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", background: "var(--bg-primary)", padding: "2px 6px", borderRadius: 5, border: "1px solid var(--border-primary)" }}>
+                      {scopedFiles.length} changes
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="repository-file-list">
-                {gitDetails && gitDetails.files.length === 0 && (
+                {gitDetails && scopedFiles.length === 0 && (
                   <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-tertiary)", fontSize: "var(--text-md)" }}>
                     <i className="material-symbols-outlined" style={{ fontSize: 32, color: "#46b07d", marginBottom: 8, display: "block" }}>check_circle</i>
                     Working directory clean.
                   </div>
                 )}
 
-                {gitDetails && gitDetails.files.map((file) => (
+                {gitDetails && scopedFiles.map((file) => (
                   <button
                     type="button"
-                    key={`${file.diff_target}:${file.path}`}
+                    key={`${effectiveScope}:${file.diff_target}:${file.path}`}
                     className="repository-file-row"
                     aria-label={`View diff for ${file.path}, status ${file.status}, ${file.diff_target}`}
                     onClick={() => setSelectedFile(file)}
@@ -603,8 +679,9 @@ export function RepositoryView() {
       </div>
       {selectedFile && (
         <GitDiffModal
-          key={`${selectedFile.diff_target}:${selectedFile.path}`}
+          key={`${effectiveScope}:${selectedFile.diff_target}:${selectedFile.path}`}
           file={selectedFile}
+          worktree={effectiveScope || undefined}
           onClose={() => setSelectedFile(null)}
         />
       )}

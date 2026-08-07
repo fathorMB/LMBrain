@@ -37,6 +37,25 @@ export function DesignView() {
 
   const previewSrc = selected ? designPreviewUrl(selected.entry_path) : null;
 
+  useEffect(() => {
+    if (!previewSrc) return;
+    let alive = true;
+    // Surface handler-level failures (e.g. path rejected by the workspace
+    // guard), which an <iframe> swallows into a blank frame. Transport-level
+    // rejections are ignored: fetch support for custom schemes varies by
+    // platform WebView, and the iframe itself may still load fine.
+    fetch(previewSrc)
+      .then((response) => {
+        if (alive && !response.ok) {
+          setPreviewError("Preview unavailable for this design mockup.");
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [previewSrc]);
+
   const handleSelectMockup = (id: string) => {
     setSelectedId(id);
     setPreviewError(null);
@@ -233,9 +252,22 @@ export function DesignView() {
   );
 }
 
-function designPreviewUrl(entryPath: string) {
+/**
+ * Tauri exposes custom URI scheme protocols as `http://<scheme>.localhost/`
+ * only on Windows (and Android); Linux WebKitGTK and macOS WKWebView load
+ * them as `<scheme>://localhost/`. Using the wrong form silently renders a
+ * blank frame (issue #97).
+ */
+export function designPreviewUrl(
+  entryPath: string,
+  userAgent: string = navigator.userAgent
+) {
   const normalized = entryPath.replace(/\\/g, "/").replace(/^\/+/, "");
-  return `http://lmbrain-design.localhost/${normalized.split("/").map(encodeURIComponent).join("/")}`;
+  const encoded = normalized.split("/").map(encodeURIComponent).join("/");
+  const isWindows = /windows|win32|win64/i.test(userAgent);
+  return isWindows
+    ? `http://lmbrain-design.localhost/${encoded}`
+    : `lmbrain-design://localhost/${encoded}`;
 }
 
 function CenteredState({

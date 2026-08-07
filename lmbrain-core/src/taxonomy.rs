@@ -45,6 +45,7 @@ pub fn normalize_finding_category(raw: &str) -> CategoryNormalization {
         }
         "robustness" | "repair-fragility" | "timeout" | "error-taxonomy" => Some("robustness"),
         "usability" => Some("usability"),
+        "accessibility" | "a11y" | "wcag" | "accessibility-fix" => Some("accessibility"),
         "localization" | "bilingualism" | "bilingual-divergence" => Some("localization"),
         "maintainability" => Some("maintainability"),
         "security-boundary" | "information-leak" => Some("security-boundary"),
@@ -71,6 +72,7 @@ pub fn normalize_finding_category(raw: &str) -> CategoryNormalization {
 
 pub fn canonical_finding_categories() -> &'static [&'static str] {
     &[
+        "accessibility",
         "compatibility",
         "correctness",
         "documentation",
@@ -110,6 +112,19 @@ mod tests {
         let unknown = normalize_finding_category("project-specific-surprise");
         assert_eq!(unknown.canonical, None);
         assert_eq!(unknown.raw, "project-specific-surprise");
+    }
+
+    #[test]
+    fn accessibility_is_canonical_and_its_aliases_converge() {
+        assert!(canonical_finding_categories().contains(&"accessibility"));
+        let canonical = normalize_finding_category("accessibility");
+        assert_eq!(canonical.canonical.as_deref(), Some("accessibility"));
+        assert!(!canonical.is_alias);
+        for alias in ["a11y", "wcag", "accessibility-fix", "A11Y"] {
+            let normalized = normalize_finding_category(alias);
+            assert_eq!(normalized.canonical.as_deref(), Some("accessibility"));
+            assert!(normalized.is_alias);
+        }
     }
 }
 

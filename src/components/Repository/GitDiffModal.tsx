@@ -7,6 +7,8 @@ import "./RepositoryView.css";
 
 interface GitDiffModalProps {
   file: GitFile;
+  /** Worktree name when the file belongs to a linked worktree; main tree otherwise. */
+  worktree?: string;
   onClose: () => void;
 }
 
@@ -18,7 +20,7 @@ function message(value: unknown): string {
   return "Git could not load this diff";
 }
 
-export function GitDiffModal({ file, onClose }: GitDiffModalProps) {
+export function GitDiffModal({ file, worktree, onClose }: GitDiffModalProps) {
   const [result, setResult] = useState<GitFileDiff | null>(null);
   const [error, setError] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement | null>(null);
@@ -26,7 +28,7 @@ export function GitDiffModal({ file, onClose }: GitDiffModalProps) {
   useEffect(() => {
     let active = true;
     commands
-      .getGitFileDiff(file.path, file.diff_target)
+      .getGitFileDiff(file.path, file.diff_target, worktree)
       .then((nextResult) => {
         if (active) setResult(nextResult);
       })
@@ -36,7 +38,7 @@ export function GitDiffModal({ file, onClose }: GitDiffModalProps) {
     return () => {
       active = false;
     };
-  }, [file.diff_target, file.path]);
+  }, [file.diff_target, file.path, worktree]);
 
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;

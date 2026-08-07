@@ -118,6 +118,7 @@ const mockGitHubDashboard: GitHubDashboard = {
 
 vi.mock("../lib/commands", () => ({
   getGitDetails: vi.fn(async () => mockGitDetails),
+  getGitWorktrees: vi.fn(async () => []),
   getGitFileDiff: vi.fn(async () => ({ path: "src/App.tsx", diff: "", binary: false, truncated: false })),
   getGitHubPatConfigured: vi.fn(async () => true),
   getGitHubDashboard: vi.fn(async () => mockGitHubDashboard),
@@ -129,6 +130,7 @@ describe("RepositoryView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(commands.getGitDetails).mockResolvedValue(mockGitDetails);
+    vi.mocked(commands.getGitWorktrees).mockResolvedValue([]);
     vi.mocked(commands.getGitFileDiff).mockResolvedValue({ path: "src/App.tsx", diff: "", binary: false, truncated: false });
     vi.mocked(commands.getGitHubPatConfigured).mockResolvedValue(true);
     vi.mocked(commands.getGitHubDashboard).mockResolvedValue(mockGitHubDashboard);
@@ -174,7 +176,58 @@ describe("RepositoryView", () => {
     fireEvent.click(fileButton);
 
     await waitFor(() => expect(screen.getByRole("dialog", { name: /src\/App\.tsx/ })).toBeDefined());
-    expect(commands.getGitFileDiff).toHaveBeenCalledWith("src/App.tsx", "unstaged");
+    expect(commands.getGitFileDiff).toHaveBeenCalledWith("src/App.tsx", "unstaged", undefined);
+  });
+
+  it("lists linked worktrees and scopes changed files to the selected one", async () => {
+    vi.mocked(commands.getGitWorktrees).mockResolvedValue([
+      {
+        name: "agent-fix-97",
+        path: "C:/temp/worktrees/agent-fix-97",
+        branch: "agent/fix-97",
+        head: "f00ba12",
+        prunable: false,
+        locked: false,
+        details: {
+          ...mockGitDetails,
+          branch: "agent/fix-97",
+          current_commit: "f00ba12",
+          files: [
+            { path: "src/worktree-only.ts", status: "unstaged", diff_target: "unstaged", original_path: null },
+          ],
+        },
+      },
+      {
+        name: "agent-stale",
+        path: "C:/temp/worktrees/agent-stale",
+        branch: "agent/stale",
+        head: "dead123",
+        prunable: true,
+        locked: false,
+        details: null,
+      },
+    ]);
+    render(<RepositoryView />);
+
+    await waitFor(() => expect(screen.getByText("Worktrees · 2")).toBeDefined());
+    expect(screen.getAllByText("agent/fix-97").length).toBeGreaterThan(0);
+    expect(screen.getByText("PRUNABLE")).toBeDefined();
+
+    const scope = screen.getByLabelText("Changed files scope") as HTMLSelectElement;
+    // The prunable worktree is not selectable as a scope.
+    expect([...scope.options].map((option) => option.text)).not.toContain("agent/stale");
+    fireEvent.change(scope, { target: { value: "agent-fix-97" } });
+
+    await waitFor(() => expect(screen.getByText("src/worktree-only.ts")).toBeDefined());
+    expect(screen.queryByText("src/App.tsx")).toBeNull();
+
+    // Diffs for worktree files are requested against the worktree scope.
+    fireEvent.click(
+      screen.getByRole("button", { name: "View diff for src/worktree-only.ts, status unstaged, unstaged" })
+    );
+    await waitFor(() =>
+      expect(commands.getGitFileDiff).toHaveBeenCalledWith("src/worktree-only.ts", "unstaged", "agent-fix-97")
+    );
   });
 
   it("renders open Pull Requests and Action runs", async () => {

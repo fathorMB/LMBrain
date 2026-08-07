@@ -20,11 +20,13 @@ pub mod verification;
 pub mod verification_onboarding;
 
 pub use attestation::{
-    attest_spec_requirement, build_verification_migration_preview, requirement_digest,
+    attest_spec_requirement, attest_spec_requirement_delegated,
+    build_verification_migration_preview, requirement_digest,
     unsupported_verification_requirements, verification_attestations, verification_blockers,
-    verification_blockers_for_workspace, verification_requirements, AttestationError,
-    AttestationResult, VerificationAttestation, VerificationBlocker, VerificationMigrationItem,
-    VerificationMigrationPreview, VERIFICATION_ATTESTATION_SCHEMA_VERSION,
+    verification_blockers_for_workspace, verification_requirements, AttestationDelegation,
+    AttestationError, AttestationResult, VerificationAttestation, VerificationBlocker,
+    VerificationMigrationItem, VerificationMigrationPreview,
+    VERIFICATION_ATTESTATION_SCHEMA_VERSION,
 };
 pub use branching_strategy::{
     load_branching_strategy, parse_branching_strategy, set_branching_strategy,
@@ -62,9 +64,10 @@ pub use improvement::{
     ImprovementProposalRequest,
 };
 pub use kit_feedback::{
-    read_kit_feedback, record_kit_feedback, KitFeedbackError, KitFeedbackInput,
-    KitFeedbackMutation, KitFeedbackNote, KitFeedbackReport, KIT_FEEDBACK_REPORT_PATH,
-    KIT_FEEDBACK_SCHEMA_VERSION,
+    read_kit_feedback, record_kit_feedback, record_kit_feedback_resolution, KitFeedbackError,
+    KitFeedbackInput, KitFeedbackMutation, KitFeedbackNote, KitFeedbackNoteStatus,
+    KitFeedbackReport, KitFeedbackResolution, KitFeedbackResolutionInput,
+    KitFeedbackResolutionMutation, KIT_FEEDBACK_REPORT_PATH, KIT_FEEDBACK_SCHEMA_VERSION,
 };
 pub use path::{read_artifact, ArtifactReadError};
 pub use review::{
@@ -89,8 +92,9 @@ pub use taxonomy::{
 };
 pub use transitions::{
     park_spec, record_effort_observation, record_review_event, repair_artifact_frontmatter,
-    review_verdict, set_spec_effort, set_spec_tags, supersede_adr, ArtifactKind, CreateRequest,
-    MutationOptions, MutationResult, RepairResult, SpecParkingInput, TransitionError,
+    review_verdict, set_review_implementation_agent, set_spec_effort, set_spec_tags, supersede_adr,
+    ArtifactKind, CreateRequest, MutationOptions, MutationResult, RepairResult, SpecParkingInput,
+    TransitionError,
 };
 pub use verification::parse_manifest as parse_verification_manifest;
 pub use verification::{

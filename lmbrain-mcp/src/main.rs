@@ -8,7 +8,8 @@ use lmbrain_core::context::{
 };
 use lmbrain_core::transitions::{
     create, record_effort_observation, record_review_event, repair_artifact_frontmatter,
-    review_verdict, set_agent_mnemonic_name, set_recommended_agent, set_spec_effort, set_spec_tags,
+    review_verdict, set_agent_mnemonic_name, set_recommended_agent, set_review_implementation_agent,
+    set_spec_effort, set_spec_tags,
     supersede_adr, transition, ArtifactKind, CreateRequest, MutationOptions,
 };
 use lmbrain_core::harness_environment::{
@@ -18,12 +19,14 @@ use lmbrain_core::harness_environment::{
 };
 use lmbrain_core::{
     accept_finding_risk, apply_improvement_proposal, approve_verification_manifest,
-    attest_spec_requirement, build_agent_improvement_signals, build_review_migration_preview,
+    attest_spec_requirement, attest_spec_requirement_delegated, build_agent_improvement_signals,
+    build_review_migration_preview, AttestationDelegation,
     canonical_manifest_digest, canonical_verification_manifest_digest, create_finding,
     create_improvement_proposal, default_verification_approval_path, defer_finding,
     discover_verification_manifest, execute_spec_verification, finding_candidates, finding_context,
     load_branching_strategy, load_harness_manifest, load_verification_manifest, park_spec,
-    parse_harness_manifest, plan_finding, read_kit_feedback, record_kit_feedback, reopen_finding,
+    parse_harness_manifest, plan_finding, read_kit_feedback, record_kit_feedback,
+    record_kit_feedback_resolution, reopen_finding,
     resolve_finding, rollback_verification_manifest, set_branching_strategy, set_harness_manifest,
     set_spec_dependencies, set_verification_manifest, spec_dependency_candidates,
     spec_dependency_context, supersede_finding, validate_verification_manifest_source,
@@ -217,8 +220,24 @@ fn tools() -> Vec<Value> {
             "Project Lead: record an operator-authorized bounded corrective takeover without changing review status.",
             false,
         ),
+        json!({
+            "name": "review_set_implementation_agent",
+            "description": "Project Lead: correct a provably wrong implementation_agent attribution on a review. The value must resolve to an existing AGENT-* profile; the append-only history gains an attribution-correction event recording the previous value. Not applicable to superseded reviews.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["path", "agent", "reason"],
+                "properties": {
+                    "path": {"type":"string"},
+                    "agent": {"type":"string","description":"The AGENT-* profile that actually implemented the spec."},
+                    "actor": {"type":"string","default":"project-lead"},
+                    "reason": {"type":"string","description":"Why the recorded attribution is wrong and how the correct agent was established."}
+                },
+                "additionalProperties": false
+            }
+        }),
         create_tool(),
         lead_attestation_tool(),
+        delegated_operator_attestation_tool(),
         spec_park_tool(),
         setter_tool(
             "lmbrain_set_recommended_agent",
@@ -382,8 +401,24 @@ fn kit_feedback_tools() -> Vec<Value> {
         }),
         json!({
             "name":"lmbrain_feedback_report",
-            "description":"Read-only parsed LMBrain kit feedback report with typed notes and category/severity counts. Reading an absent report never creates it.",
+            "description":"Read-only parsed LMBrain kit feedback report with typed notes, append-only resolution events, derived per-note status, and category/severity counts. Reading an absent report never creates it.",
             "inputSchema":{"type":"object","properties":{},"additionalProperties":false}
+        }),
+        json!({
+            "name":"lmbrain_feedback_resolve",
+            "description":"Project Lead: append one lifecycle event to an existing kit feedback note. kind=resolved retires the note against the named LMBrain release; kind=reconfirmed records that a still-open note reproduces on a later version without minting a new note ID. The note content is never edited and a resolved note accepts no further events.",
+            "inputSchema":{
+                "type":"object",
+                "required":["note_id","kind","version","actor"],
+                "properties":{
+                    "note_id":{"type":"string","description":"Existing KIT-NOTE-* ID."},
+                    "kind":{"enum":["resolved","reconfirmed"]},
+                    "version":{"type":"string","description":"The LMBrain release that resolves the note, or the version it was reconfirmed against."},
+                    "reference":{"type":["string","null"],"description":"Optional upstream issue/PR/URL."},
+                    "actor":{"type":"string","description":"Project Lead profile ID, normally AGENT-LEAD."}
+                },
+                "additionalProperties":false
+            }
         }),
         branching_strategy_get_tool(),
         branching_strategy_set_tool(),
@@ -810,6 +845,27 @@ fn lead_attestation_tool() -> Value {
     })
 }
 
+fn delegated_operator_attestation_tool() -> Value {
+    json!({
+        "name": "spec_attest_operator_delegated",
+        "description": "Project Lead: record an operator attestation for one owner=operator, phase=before-done requirement when the operator granted approval out of band (e.g. in conversation) instead of through the desktop verification panel. Requires the operator's name, the channel, and the quoted authorization; the gate is satisfied without force and the attestation is auditable as delegated. Never a substitute for the operator's judgement — only for its recording channel.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["path", "requirement_id", "operator", "channel", "authorization", "evidence_ref"],
+            "properties": {
+                "path": {"type": "string"},
+                "requirement_id": {"type": "string"},
+                "operator": {"type": "string", "description": "The human operator who granted the approval."},
+                "recorded_by": {"type": "string", "default": "AGENT-LEAD", "description": "Lead profile recording the attestation."},
+                "channel": {"type": "string", "description": "Where consent was given, e.g. 'conversation'."},
+                "authorization": {"type": "string", "description": "The operator's approval, quoted or closely paraphrased (min 20 chars)."},
+                "evidence_ref": {"type": "string"}
+            },
+            "additionalProperties": false
+        }
+    })
+}
+
 fn spec_park_tool() -> Value {
     json!({
         "name":"spec_park",
@@ -994,6 +1050,22 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         .map_err(|error| error.to_string());
     }
 
+    if name == "review_set_implementation_agent" {
+        return set_review_implementation_agent(
+            root,
+            args.get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?,
+            required_string(args, "agent")?,
+            args.get("actor")
+                .and_then(Value::as_str)
+                .unwrap_or("project-lead"),
+            required_string(args, "reason")?,
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string());
+    }
+
     if let Some(status) = specific_status(name) {
         return transition(
             root,
@@ -1026,6 +1098,32 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         )
         .map(|result| text(json!(result)))
         .map_err(|error| error.to_string()),
+        "spec_attest_operator_delegated" => attest_spec_requirement_delegated(
+            root,
+            args.get("path")
+                .and_then(Value::as_str)
+                .ok_or("path missing")?,
+            args.get("requirement_id")
+                .and_then(Value::as_str)
+                .ok_or("requirement_id missing")?,
+            args.get("operator")
+                .and_then(Value::as_str)
+                .ok_or("operator missing")?,
+            args.get("evidence_ref")
+                .and_then(Value::as_str)
+                .ok_or("evidence_ref missing")?,
+            AttestationDelegation {
+                recorded_by: args
+                    .get("recorded_by")
+                    .and_then(Value::as_str)
+                    .unwrap_or("AGENT-LEAD")
+                    .to_string(),
+                channel: required_string(args, "channel")?.to_string(),
+                authorization: required_string(args, "authorization")?.to_string(),
+            },
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
         "spec_park" => park_spec(
             root,
             required_string(args, "path")?,
@@ -1044,6 +1142,13 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             let input: KitFeedbackInput =
                 serde_json::from_value(args.clone()).map_err(|error| error.to_string())?;
             record_kit_feedback(root, input)
+                .map(|result| text(json!(result)))
+                .map_err(|error| error.to_string())
+        }
+        "lmbrain_feedback_resolve" => {
+            let input: lmbrain_core::KitFeedbackResolutionInput =
+                serde_json::from_value(args.clone()).map_err(|error| error.to_string())?;
+            record_kit_feedback_resolution(root, input)
                 .map(|result| text(json!(result)))
                 .map_err(|error| error.to_string())
         }
@@ -1712,6 +1817,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let pending_dir = dir.path().join(".lmbrain/reviews/pending");
         std::fs::create_dir_all(&pending_dir).unwrap();
+        let profiles = dir.path().join(".lmbrain/agents/profiles");
+        std::fs::create_dir_all(&profiles).unwrap();
+        std::fs::write(
+            profiles.join("AGENT-002.md"),
+            "---\nid: AGENT-002\nstatus: active\n---\n",
+        )
+        .unwrap();
         let pending = pending_dir.join("REVIEW-001.md");
         let source = "---\nid: REVIEW-001\nstatus: pending\n---\nReview\n";
         std::fs::write(&pending, source).unwrap();
@@ -2203,6 +2315,42 @@ mod tests {
             Some("KIT-NOTE-001")
         );
         assert_eq!(std::fs::read_to_string(spec).unwrap(), spec_source);
+
+        // A note resolves through the governed verb and the report derives
+        // its status without the note being edited (#95).
+        super::call(
+            &root,
+            &serde_json::json!({
+                "name":"lmbrain_feedback_resolve",
+                "arguments":{"note_id":"KIT-NOTE-001","kind":"resolved","version":"4.0.3","reference":null,"actor":"AGENT-LEAD"}
+            }),
+        )
+        .unwrap();
+        let report = super::call(
+            &root,
+            &serde_json::json!({"name":"lmbrain_feedback_report","arguments":{}}),
+        )
+        .unwrap();
+        let report: Value = serde_json::from_str(
+            report
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(report.get("resolved").and_then(Value::as_u64), Some(1));
+        assert_eq!(
+            report
+                .pointer("/note_statuses/0/status")
+                .and_then(Value::as_str),
+            Some("resolved")
+        );
+        assert_eq!(
+            report
+                .pointer("/note_statuses/0/resolved_in")
+                .and_then(Value::as_str),
+            Some("4.0.3")
+        );
     }
 
     #[test]

@@ -17,14 +17,44 @@ export interface KitFeedbackNote {
   actor: string;
 }
 
+export interface KitFeedbackResolution {
+  note_id: string;
+  kind: "resolved" | "reconfirmed";
+  version: string;
+  reference: string | null;
+  timestamp: string;
+  actor: string;
+}
+
+export interface KitFeedbackNoteStatus {
+  note_id: string;
+  status: "open" | "resolved";
+  resolved_in: string | null;
+  reconfirmed_in: string[];
+}
+
 export interface KitFeedbackReport {
   schema_version: string;
   path: string;
   updated: string;
   total: number;
+  open: number;
+  resolved: number;
   counts_by_category: Record<string, number>;
   counts_by_severity: Record<string, number>;
   notes: KitFeedbackNote[];
+  resolutions: KitFeedbackResolution[];
+  note_statuses: KitFeedbackNoteStatus[];
+}
+
+export interface GitWorktree {
+  name: string;
+  path: string;
+  branch: string | null;
+  head: string | null;
+  prunable: boolean;
+  locked: boolean;
+  details: GitDetails | null;
 }
 
 export type KitHealth = "ok" | "warn" | "none";
@@ -198,6 +228,10 @@ export interface VerificationAttestation {
   result: string;
   evidence_ref: string;
   evidence_digest?: string;
+  /** Present only on operator attestations recorded by the Lead on explicit out-of-band authorization. */
+  delegated_by?: string;
+  delegation_channel?: string;
+  delegation_authorization?: string;
 }
 
 export interface VerificationBlocker {

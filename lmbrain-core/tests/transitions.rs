@@ -18,6 +18,14 @@ fn write(root: &std::path::Path, relative: &str, body: &str) {
     fs::write(path, body).unwrap();
 }
 
+fn write_agent_profile(root: &std::path::Path, id: &str) {
+    write(
+        root,
+        &format!(".lmbrain/agents/profiles/{id}.md"),
+        &format!("---\nid: {id}\nstatus: active\n---\n"),
+    );
+}
+
 #[test]
 fn spec_parking_is_semantic_audited_and_requires_normal_reapproval() {
     let dir = tempdir().unwrap();
@@ -163,6 +171,101 @@ fn artifact(kind: ArtifactKind, status: &str) -> (&'static str, String) {
     };
     (id, relative)
 }
+#[test]
+fn review_writes_reject_placeholder_attribution_and_correction_repairs_it() {
+    let d = tempdir().unwrap();
+    write_agent_profile(d.path(), "AGENT-BACKEND");
+    let path = ".lmbrain/reviews/pending/REVIEW-005.md";
+    write(
+        d.path(),
+        path,
+        "---\nid: REVIEW-005\nstatus: pending\nimplementation_agent: AGENT-XXX\n---\n",
+    );
+
+    // The unreplaced template placeholder can never reach an accepted review.
+    let event = || ReviewEventInput {
+        actor_role: "operator".into(),
+        reason: "Accepted".into(),
+        evidence_refs: vec!["tests/review.rs".into()],
+        remediation_agent: None,
+    };
+    let error = review_verdict(
+        d.path(),
+        path,
+        "accepted",
+        event(),
+        MutationOptions::default(),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("template placeholder"));
+
+    // A lifecycle event on the polluted review is refused too.
+    let error = record_review_event(
+        d.path(),
+        path,
+        "takeover",
+        ReviewEventInput {
+            actor_role: "project-lead".into(),
+            reason: "Operator-authorized takeover".into(),
+            evidence_refs: vec![],
+            remediation_agent: None,
+        },
+        MutationOptions::default(),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("template placeholder"));
+
+    // The governed correction rejects another placeholder or unknown profile.
+    assert!(lmbrain_core::set_review_implementation_agent(
+        d.path(),
+        path,
+        "AGENT-XXX",
+        "project-lead",
+        "typo"
+    )
+    .is_err());
+    assert!(lmbrain_core::set_review_implementation_agent(
+        d.path(),
+        path,
+        "AGENT-GHOST",
+        "project-lead",
+        "unknown profile"
+    )
+    .is_err());
+
+    // Correcting to the real implementer repairs the field and appends an
+    // attribution-correction event preserving the previous value.
+    let result = lmbrain_core::set_review_implementation_agent(
+        d.path(),
+        path,
+        "AGENT-BACKEND",
+        "project-lead",
+        "SPEC-005 was implemented by AGENT-BACKEND per its remediation events",
+    )
+    .unwrap();
+    assert_eq!(result.id, "REVIEW-005");
+    let document = Document::parse(&fs::read_to_string(d.path().join(path)).unwrap()).unwrap();
+    assert_eq!(
+        document.value("implementation_agent").as_deref(),
+        Some("AGENT-BACKEND")
+    );
+    let history = lmbrain_core::parse_review_event_history(&document);
+    assert_eq!(history.events.len(), 1);
+    assert_eq!(history.events[0].action, "attribution-correction");
+    assert!(history.events[0].reason.contains("AGENT-XXX"));
+    assert!(history.warnings.is_empty());
+
+    // With the attribution corrected, acceptance proceeds.
+    review_verdict(
+        d.path(),
+        path,
+        "accepted",
+        event(),
+        MutationOptions::default(),
+    )
+    .unwrap();
+}
+
 fn source(id: &str, status: &str) -> String {
     format!("---\nid: {id}\nstatus: {status}\n---\n\n## Acceptance criteria\n- [x] Complete\n\n## Evidence\nproof\n")
 }
@@ -416,6 +519,8 @@ fn review_destination_collision_preserves_both_files() {
 fn review_non_verdict_events_are_append_only_and_attributable() {
     let d = tempdir().unwrap();
     let path = ".lmbrain/reviews/changes-requested/REVIEW-001.md";
+    write_agent_profile(d.path(), "AGENT-001");
+    write_agent_profile(d.path(), "AGENT-002");
     write(
         d.path(),
         path,
@@ -486,6 +591,7 @@ fn review_non_verdict_events_are_append_only_and_attributable() {
 #[test]
 fn review_lifecycle_reasons_stay_typed_and_preserve_final_decision_body() {
     let d = tempdir().unwrap();
+    write_agent_profile(d.path(), "AGENT-002");
     let path = ".lmbrain/reviews/changes-requested/REVIEW-001.md";
     let long_reason = "independent verification ".repeat(80);
     write(
@@ -569,6 +675,7 @@ fn review_non_verdict_events_enforce_authority_and_required_attribution() {
 #[test]
 fn review_remediation_verification_requires_order_and_evidence() {
     let d = tempdir().unwrap();
+    write_agent_profile(d.path(), "AGENT-002");
     let path = ".lmbrain/reviews/changes-requested/REVIEW-001.md";
     write(d.path(), path, &source("REVIEW-001", "changes-requested"));
     let verification = || ReviewEventInput {
@@ -630,6 +737,7 @@ fn review_remediation_verification_requires_order_and_evidence() {
 #[test]
 fn review_remediation_verification_requires_evidence_and_lead_authority() {
     let d = tempdir().unwrap();
+    write_agent_profile(d.path(), "AGENT-002");
     let path = ".lmbrain/reviews/changes-requested/REVIEW-001.md";
     write(d.path(), path, &source("REVIEW-001", "changes-requested"));
     record_review_event(

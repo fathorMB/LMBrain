@@ -134,6 +134,7 @@ export function TaskboardView() {
           <label>
             Dependency view{" "}
             <select
+              className="app-select"
               aria-label="Dependency view"
               value={filters.dependency}
               onChange={(event) =>
@@ -153,6 +154,7 @@ export function TaskboardView() {
           <label>
             Tier{" "}
             <select
+              className="app-select"
               aria-label="Capability tier"
               value={filters.tiers[0] ?? "all"}
               onChange={(event) =>
@@ -177,6 +179,7 @@ export function TaskboardView() {
               <label>
                 Tag{" "}
                 <select
+                  className="app-select"
                   aria-label="Add tag filter"
                   value=""
                   onChange={(event) => {
@@ -200,6 +203,7 @@ export function TaskboardView() {
               </label>
               <label>
                 <select
+                  className="app-select"
                   aria-label="Exclude tag filter"
                   value=""
                   onChange={(event) => {

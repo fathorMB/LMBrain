@@ -260,6 +260,7 @@ export function SessionsView({ active }: SessionsViewProps) {
                 <div style={fieldLabelStyle}>Model</div>
                 <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
                   <select
+                    className="app-select"
                     value={model}
                     onChange={(event) => setModel(event.target.value)}
                     style={selectStyle}

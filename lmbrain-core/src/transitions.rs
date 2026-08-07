@@ -387,6 +387,23 @@ pub fn record_review_event(
             "cannot append lifecycle events to a superseded review".into(),
         ));
     }
+    if let Err(reason) = invariants::implementation_agent_resolves(
+        guard.root(),
+        document.value("implementation_agent").as_deref(),
+    ) {
+        if !options.force {
+            return Err(TransitionError::Invariant(reason));
+        }
+    }
+    if let Err(reason) = invariants::agent_reference_resolves(
+        guard.root(),
+        "remediation_agent",
+        event.remediation_agent.as_deref(),
+    ) {
+        if !options.force {
+            return Err(TransitionError::Invariant(reason));
+        }
+    }
     if action == "remediation-verification" {
         if event.evidence_refs.is_empty()
             || event
@@ -763,6 +780,114 @@ fn append_review_event(
     }
     document.append_object("review_events", &fields)?;
     Ok(())
+}
+
+/// Governed correction for a provably wrong review attribution (#93 /
+/// KIT-NOTE-010). Lighter than review_supersede: the frontmatter field is
+/// corrected in place while the append-only history gains an
+/// `attribution-correction` event recording the previous value, the actor
+/// and the reason. The corrected value must resolve strictly — there is no
+/// force path to write another placeholder.
+pub fn set_review_implementation_agent(
+    root: impl AsRef<Path>,
+    artifact: impl AsRef<Path>,
+    agent: &str,
+    actor: &str,
+    reason: &str,
+) -> Result<MutationResult, TransitionError> {
+    let agent = agent.trim();
+    if actor.trim().is_empty() {
+        return Err(TransitionError::Invariant(
+            "attribution correction requires a non-empty actor".into(),
+        ));
+    }
+    if reason.trim().is_empty() {
+        return Err(TransitionError::Invariant(
+            "attribution correction requires a non-empty reason".into(),
+        ));
+    }
+
+    let guard = PathGuard::new(root)?;
+    invariants::implementation_agent_resolves(guard.root(), Some(agent))
+        .map_err(TransitionError::Invariant)?;
+    let artifact = artifact.as_ref();
+    let path = guard.resolve_existing(artifact)?;
+    let initial = Document::parse(&fs::read_to_string(&path)?)?;
+    let initial_id = initial
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
+    let path = guard.resolve_existing(artifact)?;
+    let current_source = fs::read_to_string(&path)?;
+    let mut document = Document::parse(&current_source)?;
+    let id = document
+        .value("id")
+        .ok_or_else(|| TransitionError::Missing("id".into()))?;
+    if id != initial_id || kind_for_id(&id) != Some(ArtifactKind::Review) {
+        return Err(TransitionError::Invariant(
+            "attribution correction requires a stable REVIEW-* artifact".into(),
+        ));
+    }
+    validate_existing_review_history(&document)?;
+    let status = document
+        .value("status")
+        .ok_or_else(|| TransitionError::Missing("status".into()))?;
+    if status == "superseded" {
+        return Err(TransitionError::Invariant(
+            "cannot correct attribution on a superseded review".into(),
+        ));
+    }
+    let previous = document.value("implementation_agent").unwrap_or_default();
+    if previous.trim() == agent {
+        return Err(TransitionError::Invariant(format!(
+            "implementation_agent is already '{agent}'"
+        )));
+    }
+
+    document.set("implementation_agent", agent);
+    document.set("updated", &today());
+    document.append_activity(&format!(
+        "corrected implementation_agent {} -> {agent}",
+        if previous.trim().is_empty() {
+            "(unset)"
+        } else {
+            previous.trim()
+        }
+    ));
+    let event = ReviewEventInput {
+        actor_role: actor.trim().into(),
+        reason: format!(
+            "attribution corrected from '{}' to '{agent}': {}",
+            if previous.trim().is_empty() {
+                "(unset)"
+            } else {
+                previous.trim()
+            },
+            reason.trim()
+        ),
+        evidence_refs: Vec::new(),
+        remediation_agent: None,
+    };
+    append_review_event(
+        &mut document,
+        &id,
+        "attribution-correction",
+        &status,
+        &status,
+        &event,
+    )?;
+    if fs::read_to_string(&path)? != current_source {
+        return Err(TransitionError::Invariant(
+            "artifact changed while the lifecycle mutation was being prepared".into(),
+        ));
+    }
+    atomic_write(&path, &document.render())?;
+    Ok(MutationResult {
+        id,
+        status,
+        path,
+        forced: false,
+    })
 }
 
 pub fn set_recommended_agent(
@@ -1374,6 +1499,14 @@ fn invariant_failure(
                     .collect::<Vec<_>>()
                     .join("; ")
             ));
+        }
+    }
+    if kind == ArtifactKind::Review {
+        if let Err(reason) = invariants::implementation_agent_resolves(
+            root,
+            document.value("implementation_agent").as_deref(),
+        ) {
+            return Some(reason);
         }
     }
     match (kind, target) {
