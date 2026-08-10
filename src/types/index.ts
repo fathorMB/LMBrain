@@ -183,6 +183,13 @@ export interface Finding {
   malformed: boolean;
 }
 
+export interface Dream {
+  id: string; title: string; status: "captured" | "triaged" | "promoted" | "discarded" | string;
+  classification: "technical-debt" | "design-debt" | string; confidence: "low" | "medium" | "high" | string;
+  area: string | null; related_artifacts: string[]; context_digest: string;
+  created: string; updated: string; body: string; path: string; malformed: boolean;
+}
+
 export interface FindingRelation {
   id: string;
   title: string;
@@ -698,6 +705,19 @@ export interface ReviewTrendPoint {
   specs_with_changes_requested: number;
 }
 
+export interface ReviewCycleRankingEntry {
+  spec_id: string;
+  title: string;
+  path: string;
+  status: string;
+  review_count: number;
+  review_passes: number;
+  remediation_cycles: number;
+  history_source: string;
+  confidence: string;
+  warnings: string[];
+}
+
 export interface ReviewQualityStats {
   total_reviews: number;
   total_review_passes: number;
@@ -720,6 +740,8 @@ export interface ReviewQualityStats {
   first_pass_accepted_specs: number;
   first_pass_acceptance_rate: number;
   average_reviews_per_reviewed_spec: number;
+  review_cycle_ranking: ReviewCycleRankingEntry[];
+  review_cycle_ranking_coverage: number;
   by_area: ReviewDimensionStat[];
   by_agent: ReviewDimensionStat[];
   trend: ReviewTrendPoint[];
@@ -744,6 +766,7 @@ export interface WorkspaceSnapshot {
   specs: Spec[];
   reviews: Review[];
   findings: Finding[];
+  dreams: Dream[];
   adrs: Adr[];
   agents: AgentProfile[];
   agent_proposals: AgentProposal[];
@@ -966,6 +989,7 @@ export type WikiNodeKind =
   | "tasks"
   | "reviews"
   | "findings"
+  | "dreams"
   | "handoffs"
   | "agents"
   | "mcp";
@@ -1003,6 +1027,7 @@ export type AppView =
   | "spec"
   | "reviews"
   | "findings"
+  | "dreams"
   | "feedback"
   | "decisions"
   | "agents"

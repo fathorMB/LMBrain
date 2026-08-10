@@ -243,6 +243,12 @@ fn get_findings(state: State<'_, AppState>) -> Result<Vec<lmbrain_core::Finding>
 }
 
 #[tauri::command(async)]
+fn get_dreams(state: State<'_, AppState>) -> Result<Vec<lmbrain_core::Dream>, String> {
+    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
+    Ok(lmbrain_core::list_dreams(&root))
+}
+
+#[tauri::command(async)]
 fn get_kit_feedback(state: State<'_, AppState>) -> Result<lmbrain_core::KitFeedbackReport, String> {
     let root = state
         .path_guard
@@ -921,6 +927,7 @@ pub fn run() {
             get_specs,
             get_reviews,
             get_findings,
+            get_dreams,
             get_kit_feedback,
             write_export_file,
             get_finding_context,

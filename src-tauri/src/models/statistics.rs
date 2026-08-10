@@ -44,6 +44,20 @@ pub struct ReviewTrendPoint {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewCycleRankingEntry {
+    pub spec_id: String,
+    pub title: String,
+    pub path: String,
+    pub status: String,
+    pub review_count: usize,
+    pub review_passes: usize,
+    pub remediation_cycles: usize,
+    pub history_source: String,
+    pub confidence: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewQualityStats {
     pub total_reviews: usize,
     pub total_review_passes: usize,
@@ -66,6 +80,8 @@ pub struct ReviewQualityStats {
     pub first_pass_accepted_specs: usize,
     pub first_pass_acceptance_rate: f64,
     pub average_reviews_per_reviewed_spec: f64,
+    pub review_cycle_ranking: Vec<ReviewCycleRankingEntry>,
+    pub review_cycle_ranking_coverage: usize,
     pub by_area: Vec<ReviewDimensionStat>,
     pub by_agent: Vec<ReviewDimensionStat>,
     pub trend: Vec<ReviewTrendPoint>,

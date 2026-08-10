@@ -9,6 +9,7 @@ import { TaskboardView } from "../Taskboard/TaskboardView";
 import { SpecDetail } from "../Spec/SpecDetail";
 import { ReviewsList } from "../Reviews/ReviewsList";
 import { FindingsView } from "../Findings/FindingsView";
+import { DreamsView } from "../Dreams/DreamsView";
 import { FeedbackView } from "../Feedback/FeedbackView";
 import { DecisionsList } from "../Decisions/DecisionsList";
 import { AgentsView } from "../Agents/AgentsView";
@@ -52,6 +53,8 @@ export function AppShell() {
         return <ReviewsList />;
       case "findings":
         return <FindingsView />;
+      case "dreams":
+        return <DreamsView />;
       case "feedback":
         return <FeedbackView />;
       case "decisions":

@@ -16,6 +16,7 @@ import type {
   GitHubDashboard,
   Handoff,
   Finding,
+  Dream,
   FindingContext,
   KitFeedbackReport,
   HarnessStatus,
@@ -108,6 +109,8 @@ export async function getReviews(): Promise<Review[]> {
 export async function getFindings(): Promise<Finding[]> {
   return invoke("get_findings");
 }
+
+export async function getDreams(): Promise<Dream[]> { return invoke("get_dreams"); }
 
 export async function getKitFeedback(): Promise<KitFeedbackReport> {
   return invoke("get_kit_feedback");

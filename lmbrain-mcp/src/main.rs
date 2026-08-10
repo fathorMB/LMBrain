@@ -21,7 +21,7 @@ use lmbrain_core::{
     accept_finding_risk, apply_improvement_proposal, approve_verification_manifest,
     attest_spec_requirement, attest_spec_requirement_delegated, build_agent_improvement_signals,
     build_review_migration_preview, AttestationDelegation,
-    canonical_manifest_digest, canonical_verification_manifest_digest, create_finding,
+    canonical_manifest_digest, canonical_verification_manifest_digest, capture_dream, create_finding,
     create_improvement_proposal, default_verification_approval_path, defer_finding,
     discover_verification_manifest, execute_spec_verification, finding_candidates, finding_context,
     load_branching_strategy, load_harness_manifest, load_verification_manifest, park_spec,
@@ -31,7 +31,7 @@ use lmbrain_core::{
     set_spec_dependencies, set_verification_manifest, spec_dependency_candidates,
     spec_dependency_context, supersede_finding, validate_verification_manifest_source,
     verification_manifest_status, BranchingStrategy, FindingCreateInput, HarnessManifestError,
-    ImprovementProposalRequest, KitFeedbackInput, ReviewEventInput, SpecParkingInput,
+    DreamCreateInput, ImprovementProposalRequest, KitFeedbackInput, ReviewEventInput, SpecParkingInput,
     VerificationManifest, VerificationManifestState,
 };
 use serde_json::{json, Value};
@@ -369,6 +369,7 @@ fn tools() -> Vec<Value> {
     ]);
     entries.extend(harness_environment_tools());
     entries.extend(finding_tools());
+    entries.extend(dream_tools());
     entries.extend(spec_dependency_tools());
     entries.extend(kit_feedback_tools());
 
@@ -457,6 +458,16 @@ fn spec_dependency_tools() -> Vec<Value> {
             }
         }),
     ]
+}
+
+fn dream_tools() -> Vec<Value> {
+    vec![json!({
+        "name":"dream_capture",
+        "description":"Project Lead, only after an explicit operator invitation to a bounded dreaming session: capture one grounded, tentative technical- or design-debt observation. It never creates a finding, spec, roadmap item, or decision.",
+        "inputSchema": {"type":"object","required":["title","classification","confidence","related_artifacts","context_digest","rationale","suggested_disposition","actor"],"properties":{
+            "title":{"type":"string"}, "classification":{"enum":["technical-debt","design-debt"]}, "confidence":{"enum":["low","medium","high"]}, "area":{"type":["string","null"]}, "related_artifacts":{"type":"array","items":{"type":"string"},"minItems":1}, "context_digest":{"type":"string","description":"Digest/timestamp of the bounded project context examined."}, "rationale":{"type":"string","description":"Tentative, evidence-grounded observation; do not state unsupported facts."}, "suggested_disposition":{"type":"string"}, "actor":{"type":"string"}
+        },"additionalProperties":false}
+    })]
 }
 
 fn finding_tools() -> Vec<Value> {
@@ -1375,6 +1386,10 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
                 .ok_or("spec parameter missing")?;
             let ctx = build_review_context(root, spec)?;
             Ok(text(json!(ctx)))
+        }
+        "dream_capture" => {
+            let input: DreamCreateInput = serde_json::from_value(args.clone()).map_err(|error| error.to_string())?;
+            capture_dream(root, input).map(|result| text(json!(result))).map_err(|error| error.to_string())
         }
         "finding_create" => {
             let input: FindingCreateInput =

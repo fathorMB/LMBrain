@@ -18,6 +18,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "insights", icon: "query_stats", label: "Insights", badge: null },
   { key: "reviews", icon: "rate_review", label: "Reviews", badge: null },
   { key: "findings", icon: "report_problem", label: "Findings", badge: null },
+  { key: "dreams", icon: "bedtime", label: "Dream Journal", badge: null },
   { key: "feedback", icon: "feedback", label: "Kit Feedback", badge: null },
   { key: "decisions", icon: "account_balance", label: "Decisions", badge: null },
   { key: "design", icon: "design_services", label: "Design", badge: null },

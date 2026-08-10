@@ -3,6 +3,7 @@ pub mod attestation;
 pub mod branching_strategy;
 pub mod context;
 pub mod diagnostics;
+pub mod dream;
 pub mod finding;
 pub mod frontmatter;
 pub mod harness_environment;
@@ -45,6 +46,7 @@ pub use diagnostics::{
     build_diagnostics, Diagnostic, DiagnosticFixability, DiagnosticSeverity,
     DIAGNOSTIC_SCHEMA_VERSION,
 };
+pub use dream::{capture_dream, list_dreams, Dream, DreamCreateInput, DreamError, DREAM_EVENT_SCHEMA_VERSION};
 pub use finding::{
     accept_finding_risk, create_finding, defer_finding, finding_candidates, finding_context,
     list_findings, plan_finding, reopen_finding, resolve_finding, supersede_finding,
