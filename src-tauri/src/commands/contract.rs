@@ -24,7 +24,7 @@ use crate::models::roadmap::{
 use crate::models::skill::{Skill, SkillStatus};
 use crate::models::spec::{Spec, SpecParkingEvent, SpecStatus};
 use crate::models::statistics::{
-    ArtifactFamilyStats, DiagnosticStats, ProjectStatistics, ReviewDimensionStat,
+    ArtifactFamilyStats, DiagnosticStats, ProjectStatistics, ReviewCycleRankingEntry, ReviewDimensionStat,
     ReviewQualityStats, ReviewTrendPoint, SpecFlowStats, StatusCount,
 };
 use crate::models::wiki::{WikiNode, WikiNodeKind, WikiTree};
@@ -812,6 +812,7 @@ pub fn build_workspace_snapshot(root: &Path) -> Result<WorkspaceSnapshot, AppErr
     let specs = build_specs(root)?;
     let reviews = build_reviews(root)?;
     let findings = lmbrain_core::list_findings(root);
+    let dreams = lmbrain_core::list_dreams(root);
     let adrs = build_adrs(root)?;
     let agents = build_agents(root)?;
     let agent_proposals = build_agent_proposals(root)?;
@@ -842,6 +843,7 @@ pub fn build_workspace_snapshot(root: &Path) -> Result<WorkspaceSnapshot, AppErr
         specs,
         reviews,
         findings,
+        dreams,
         adrs,
         agents,
         agent_proposals,
@@ -1139,6 +1141,26 @@ fn build_review_quality_stats(specs: &[Spec], reviews: &[Review]) -> ReviewQuali
         }
     }
 
+    let mut review_cycle_ranking = reviews_by_spec.iter().filter_map(|(spec_id, spec_reviews)| {
+        let spec = spec_by_id.get(spec_id)?;
+        if spec_reviews.iter().any(|review| review.lifecycle.source == lmbrain_core::ReviewHistorySource::StatusOnly) {
+            return None;
+        }
+        let warnings = spec_reviews.iter().flat_map(|review| review.lifecycle.warnings.clone()).collect::<Vec<_>>();
+        let confidence = if warnings.is_empty() && spec_reviews.iter().all(|review| review.lifecycle.confidence == "high") {
+            "high"
+        } else { "medium" };
+        Some(ReviewCycleRankingEntry {
+            spec_id: (*spec_id).to_string(), title: spec.title.clone(), path: spec.path.clone(), status: spec.status.as_str().into(),
+            review_count: spec_reviews.len(), review_passes: spec_reviews.iter().map(|review| review.lifecycle.review_passes).sum(),
+            remediation_cycles: spec_reviews.iter().map(|review| review.lifecycle.remediation_cycles).sum(),
+            history_source: if spec_reviews.iter().all(|review| review.lifecycle.source == lmbrain_core::ReviewHistorySource::StructuredEvents) { "structured".into() } else { "legacy".into() },
+            confidence: confidence.into(), warnings,
+        })
+    }).collect::<Vec<_>>();
+    review_cycle_ranking.sort_by(|left, right| right.remediation_cycles.cmp(&left.remediation_cycles).then_with(|| right.review_passes.cmp(&left.review_passes)).then_with(|| left.spec_id.cmp(&right.spec_id)));
+    let review_cycle_ranking_coverage = review_cycle_ranking.len();
+
     ReviewQualityStats {
         total_reviews: reviews.len(),
         total_review_passes,
@@ -1168,6 +1190,8 @@ fn build_review_quality_stats(specs: &[Spec], reviews: &[Review]) -> ReviewQuali
                 .sum::<usize>(),
             reviewed_specs,
         ),
+        review_cycle_ranking,
+        review_cycle_ranking_coverage,
         by_area: dimension_stats(area_map),
         by_agent: dimension_stats(agent_map),
         trend: trend

@@ -1603,18 +1603,31 @@ fn spec_diagnostics(lmbrain: &Path, spec_id: &str) -> Vec<String> {
 }
 
 fn parse_criteria(body: &str) -> Vec<Criterion> {
-    body.lines()
-        .filter(|line| {
-            let trimmed = line.trim_start();
-            trimmed.starts_with("- [") && trimmed.len() > 5
-        })
-        .map(|line| {
-            let trimmed = line.trim_start();
+    let mut criteria = Vec::new();
+    let mut current: Option<Criterion> = None;
+    for line in body.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("- [") && trimmed.len() > 5 {
+            if let Some(criterion) = current.take() {
+                criteria.push(criterion);
+            }
             let checked = trimmed.starts_with("- [x]") || trimmed.starts_with("- [X]");
-            let text = trimmed[5..].trim().to_string();
-            Criterion { text, checked }
-        })
-        .collect()
+            current = Some(Criterion { text: trimmed[5..].trim().to_string(), checked });
+        } else if let Some(criterion) = current.as_mut() {
+            if trimmed.is_empty() || trimmed.starts_with("#") || trimmed.starts_with("-") {
+                if let Some(criterion) = current.take() {
+                    criteria.push(criterion);
+                }
+            } else {
+                criterion.text.push(' ');
+                criterion.text.push_str(trimmed);
+            }
+        }
+    }
+    if let Some(criterion) = current {
+        criteria.push(criterion);
+    }
+    criteria
 }
 
 fn parse_acceptance_criteria(body: &str) -> Vec<Criterion> {

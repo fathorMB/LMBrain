@@ -387,7 +387,7 @@ pub fn supersede_finding(
                     &[ArtifactKind::Finding],
                     id,
                 )?;
-                document.set("superseded_by", &quoted(successor));
+                document.set("superseded_by", &format!("[{}]", quoted(successor)));
                 Ok(vec![successor.to_string()])
             } else {
                 document.set("superseded_by", "null");

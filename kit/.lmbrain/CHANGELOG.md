@@ -4,6 +4,19 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 4.1.0 - 2026-08-10
+
+### Added
+
+- **Operator-invited dreaming.** The Project Lead now recognizes only explicit operator invitations to a bounded dreaming session. It can capture grounded, tentative `DREAM-*` technical- or design-debt observations through `dream_capture`, retaining a context digest and artifact provenance. Dreams are distinct from findings, specs, ADRs, and roadmap entries; they are never promoted automatically.
+- **Dream Journal.** The desktop sidebar includes a read-only Dream Journal with state, classification, area, and confidence filters, provenance details, refresh, empty/error/malformed states, and copyable governed follow-up prompts.
+- **Review remediation ranking.** Insights replaces change-request dimensions with a confidence-aware ranking of specs by observed remediation cycles. Status-only histories are excluded rather than represented as zero cycles.
+
+### Fixed
+
+- **Finding supersession shape.** `superseded_by` is now written as the contract's list-valued YAML field.
+- **Multiline acceptance criteria.** Compact spec context retains wrapped checklist text instead of silently truncating it.
+
 ## 3.1.4 - 2026-07-31
 
 ### Fixed

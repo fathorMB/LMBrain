@@ -102,6 +102,7 @@ pub struct WorkspaceSnapshot {
     pub specs: Vec<Spec>,
     pub reviews: Vec<Review>,
     pub findings: Vec<lmbrain_core::Finding>,
+    pub dreams: Vec<lmbrain_core::Dream>,
     pub adrs: Vec<Adr>,
     pub agents: Vec<AgentProfile>,
     pub agent_proposals: Vec<AgentProposal>,

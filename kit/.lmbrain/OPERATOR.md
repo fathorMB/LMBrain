@@ -94,6 +94,12 @@ The Lead also maintains `reports/lmbrain-kit-feedback.md` autonomously when it e
 
 The handoff preserves context. It does not replace validation of the actual repository and Markdown state.
 
+## I want the Project Lead to reflect on technical or design debt
+
+Explicitly invite a bounded dreaming session, for example: “Fatti un pisolino sul lavoro appena fatto” or “Vatti a riposare e cerca debito di design”. The Lead confirms the scope, examines current project context, and may capture zero or more tentative `DREAM-*` records through its controlled MCP tool.
+
+Open **Dream Journal** in the sidebar to inspect them. Dreams are deliberately read-only in the app and never become Findings, specs, ADRs, roadmap items, or implementation work automatically. Ask the Lead to triage or promote a specific dream only after you have reviewed its provenance and suggestion.
+
 ## I need a new type of specialist agent
 
 1. Ask the Project Lead whether an existing profile fits first.

@@ -4,7 +4,25 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `4.0.3`.
+The current kit is `4.1.0`.
+
+### 4.1.0 (Dream Journal, grounded dreaming, and review-cycle insights)
+
+Supported source version is `4.0.3`. The migration is additive and no existing artifact is rewritten automatically.
+
+1. Update the desktop application, `lmbrain-core`, `lmbrain-mcp`, and the bundled kit together. Review the diff before copying kit-owned files; preserve project-specific profiles, skills, plans, and historical artifacts.
+2. Replace the kit-owned `AGENT.md` and `templates/project-lead-bootstrap-prompt.md` guidance. The Project Lead must enter dreaming only after an explicit operator invitation (for example, “fatti un pisolino” or “vatti a riposare”), confirm the bounded scope, and never activate dreaming from ordinary exploratory conversation.
+3. Tell the Lead to use `lmbrain_project_digest` and concrete artifact references as its grounding set, then use `dream_capture` only for tentative observations. Every new `DREAM-*` needs `technical-debt` or `design-debt`, confidence, a context digest, related artifact IDs, rationale, and a suggested disposition. Do not import terminal transcripts or infer unverified facts.
+4. Do not convert existing findings, roadmap notes, review bullets, or specs into dreams. Existing project content remains unchanged. The first `dream_capture` creates `.lmbrain/dreams/captured/` as needed; no manual status-directory move or frontmatter edit is allowed.
+5. Dream promotion remains manual and governed. The Lead must explicitly discuss/triage a dream before creating or linking a Finding, Spec, ADR, or backlog entry. The desktop Dream Journal is read-only by design.
+6. In Insights, interpret the remediation ranking only where lifecycle history is available. Status-only legacy reviews are intentionally excluded and must not be treated as first-pass or zero-cycle evidence.
+7. Run `lmbrain_validate`, inspect the migration diff and Dream Journal, then update `.lmbrain/VERSION` to `4.1.0` only after validation succeeds.
+
+Suggested migration prompt for the Project Lead:
+
+> Read `CONTRACT.md`, `QUALITY.md`, `AGENT.md`, `MIGRATIONS.md`, and `VERSION`. We are upgrading LMBrain from 4.0.3 to 4.1.0. Preserve project-specific content and do not rewrite existing artifacts. Explain the new explicitly-invited dreaming boundary, inspect the current project digest, and report whether any migration action is needed. Do not create a dream, finding, spec, or roadmap entry unless I explicitly request that follow-up.
+
+Rollback to 4.0.3 is data-safe for existing artifacts. Keep any `DREAM-*` files: 4.0.3 ignores the new family, but it must not be used to edit or relocate it. Do not run `dream_capture` with an older MCP binary.
 
 ### 4.0.3 (maintenance release — accessibility taxonomy, attribution integrity, delegated operator attestation, feedback lifecycle, Linux fixes, worktree visibility)
 

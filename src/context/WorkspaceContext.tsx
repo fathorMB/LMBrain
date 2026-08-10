@@ -18,6 +18,7 @@ import type {
   GitInfo,
   Handoff,
   Finding,
+  Dream,
   KitDiagnostic,
   KitFeedbackNote,
   McpProposal,
@@ -65,6 +66,7 @@ export interface WorkspaceState {
   specs: Spec[];
   reviews: Review[];
   findings: Finding[];
+  dreams: Dream[];
   adrs: Adr[];
   agents: AgentProfile[];
   agentProposals: AgentProposal[];
@@ -141,6 +143,7 @@ const initialState: WorkspaceState = {
   specs: [],
   reviews: [],
   findings: [],
+  dreams: [],
   adrs: [],
   agents: [],
   agentProposals: [],
@@ -428,6 +431,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           specs: snapshot.specs,
           reviews: snapshot.reviews,
           findings: snapshot.findings,
+          dreams: snapshot.dreams,
           adrs: snapshot.adrs,
           agents: snapshot.agents,
           agentProposals: snapshot.agent_proposals,

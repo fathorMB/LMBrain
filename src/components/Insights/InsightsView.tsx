@@ -4,6 +4,7 @@ import { InsightReliability } from "../Shared/InsightReliability";
 import { PageHeader, PageShell } from "../Shared/PageLayout";
 import type {
   ArtifactFamilyStats,
+  ReviewCycleRankingEntry,
   ReviewDimensionStat,
   StatusCount,
 } from "../../types";
@@ -28,7 +29,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export function InsightsView() {
-  const { state: workspaceState } = useWorkspace();
+  const { state: workspaceState, openSpec } = useWorkspace();
   const stats = workspaceState.projectStatistics;
 
   const totalArtifacts = useMemo(
@@ -102,16 +103,11 @@ export function InsightsView() {
           </section>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 16, marginBottom: 18 }}>
-          <section style={panelStyle}>
-            <SectionTitle icon="hub" title="Changes Requested By Area" />
-            <DimensionTable rows={review.by_area} emptyLabel="No reviewed specs with area metadata." />
-          </section>
-          <section style={panelStyle}>
-            <SectionTitle icon="smart_toy" title="Changes Requested By Agent" />
-            <DimensionTable rows={review.by_agent} emptyLabel="No reviewed specs with recommended agents." />
-          </section>
-        </div>
+        <section style={{ ...panelStyle, marginBottom: 18 }}>
+          <SectionTitle icon="format_list_numbered" title="Most review remediation cycles" />
+          <p style={{ margin: "0 0 12px", fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>Observed lifecycle coverage: {review.review_cycle_ranking_coverage ?? 0}/{review.reviewed_specs} reviewed specs. Status-only histories are excluded rather than treated as zero cycles.</p>
+          <ReviewCycleRanking rows={review.review_cycle_ranking ?? []} onOpen={(id) => { const spec = workspaceState.specs.find((candidate) => candidate.id === id); if (spec) openSpec(spec); }} />
+        </section>
 
         <section style={panelStyle}>
           <SectionTitle icon="verified" title="Insight Reliability" />
@@ -213,7 +209,12 @@ function StatusList({ statuses, compact }: { statuses: StatusCount[]; compact?: 
   );
 }
 
-function DimensionTable({ rows, emptyLabel }: { rows: ReviewDimensionStat[]; emptyLabel: string }) {
+function ReviewCycleRanking({ rows, onOpen }: { rows: ReviewCycleRankingEntry[]; onOpen: (id: string) => void }) {
+  if (rows.length === 0) return <EmptyText label="No reviewed specs have reliable lifecycle history yet." />;
+  return <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{rows.slice(0, 12).map((row, index) => <button key={row.spec_id} type="button" onClick={() => onOpen(row.spec_id)} style={{ display: "grid", gridTemplateColumns: "34px minmax(0, 1fr) auto", alignItems: "center", gap: 10, textAlign: "left", border: "1px solid var(--border-secondary)", borderRadius: 7, background: "rgba(255,255,255,.025)", color: "var(--text-primary)", padding: "9px 10px", cursor: "pointer" }}><strong style={{ fontFamily: "var(--font-mono)", color: "var(--accent-light)" }}>#{index + 1}</strong><span style={{ minWidth: 0 }}><strong>{row.spec_id}</strong><span style={{ color: "var(--text-tertiary)" }}> · {row.title}</span><small style={{ display: "block", color: "var(--text-tertiary)", marginTop: 2 }}>{row.history_source} history · {row.confidence} confidence · {row.review_passes} passes / {row.review_count} review files</small></span><span style={{ fontFamily: "var(--font-mono)", color: "#e9857b", whiteSpace: "nowrap" }}>{row.remediation_cycles} cycles</span></button>)}</div>;
+}
+
+export function DimensionTable({ rows, emptyLabel }: { rows: ReviewDimensionStat[]; emptyLabel: string }) {
   if (rows.length === 0) return <EmptyText label={emptyLabel} />;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

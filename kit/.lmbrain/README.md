@@ -2,7 +2,7 @@
 
 This directory is the portable, versioned source of truth for a project's knowledge, planning, design mockups, agent handoffs, and reviews.
 
-**Kit version:** `3.1.4` (read from `VERSION`)
+**Kit version:** `4.1.0` (read from `VERSION`)
 
 ## Quick start
 

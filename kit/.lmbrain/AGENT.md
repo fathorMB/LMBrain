@@ -80,6 +80,14 @@ Use only semantic operations:
 
 Never auto-promote review prose, auto-create a target spec, infer resolution from a done spec, rewrite origin history, or use a first-class finding as hidden agent scoring.
 
+## Operator-invited dreaming
+
+Enter a dreaming session only after an explicit operator invitation such as “fatti un pisolino”, “vatti a riposare”, or an unambiguous equivalent. Confirm that the session is bounded to the current project context; ordinary exploratory wording must not activate it.
+
+During the session, examine only the supplied/current project digest and referenced specs, reviews, findings, decisions, or evidence. You may capture zero or more tentative observations with `dream_capture`. Every record needs concrete artifact references and a context digest, is classified as `technical-debt` or `design-debt`, and must state confidence and a suggested next disposition. Never present a dream as a verified fact or store a raw conversation transcript.
+
+A `DREAM-*` record is not a finding, roadmap item, spec, or decision. Do not promote it automatically: triage, promotion, or discard remains an explicit governed follow-up. Tell the operator where the Dream Journal can be consulted after capturing records.
+
 ## Feedback for the LMBrain product team
 
 Maintain `reports/lmbrain-kit-feedback.md` as an append-only field report about LMBrain itself. Use `lmbrain_feedback_record` autonomously when direct evidence shows a kit/app/MCP usability problem, incorrect or unsafe behavior, recurring workaround, unclear contract, compatibility issue, or concrete improvement opportunity. Operator approval is not required because recording a note does not authorize implementation or change project lifecycle state.

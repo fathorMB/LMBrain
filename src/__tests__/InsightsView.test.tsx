@@ -58,6 +58,12 @@ const stats: ProjectStatistics = {
     first_pass_accepted_specs: 1,
     first_pass_acceptance_rate: 0.5,
     average_reviews_per_reviewed_spec: 1.5,
+    review_cycle_ranking: [{
+      spec_id: "SPEC-001", title: "Reliable review history", path: ".lmbrain/specs/done/SPEC-001.md",
+      status: "done", review_count: 3, review_passes: 5, remediation_cycles: 2,
+      history_source: "structured", confidence: "high", warnings: [],
+    }],
+    review_cycle_ranking_coverage: 1,
     by_area: [
       {
         value: "backend",
@@ -129,7 +135,9 @@ describe("InsightsView", () => {
     expect(screen.getByText(/lifecycle coverage 67%/)).toBeDefined();
     expect(screen.getByText("Review Quality")).toBeDefined();
     expect(screen.getByText("Artifact Inventory")).toBeDefined();
-    expect(screen.getByText("AGENT-BACKEND")).toBeDefined();
+    expect(screen.getByText("Most review remediation cycles")).toBeDefined();
+    expect(screen.getByText("SPEC-001")).toBeDefined();
+    expect(screen.queryByText("Changes Requested By Agent")).toBeNull();
     expect(screen.getByText("Insight Reliability")).toBeDefined();
     expect(screen.getByText("Review recommended")).toBeDefined();
     expect(screen.getByText("Diagnostic warnings")).toBeDefined();
