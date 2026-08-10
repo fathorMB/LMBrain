@@ -34,6 +34,7 @@ const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }
   { name: "finding_accept_risk", category: "Finding", description: "Accept a finding's risk with an audited rationale (on operator request)." },
   { name: "finding_reopen", category: "Finding", description: "Reopen a resolved, deferred, or risk-accepted finding." },
   { name: "finding_supersede", category: "Finding", description: "Supersede a finding with a newer one, writing both sides." },
+  { name: "dream_capture", category: "Dream", description: "Project Lead: capture a grounded, tentative technical- or design-debt observation after an explicit operator invitation to dream." },
   { name: "spec_set_effort", category: "Spec", description: "Project Lead: set the implementation estimate (capability tier and thinking level)." },
   { name: "spec_set_tags", category: "Spec", description: "Project Lead: replace a spec's tags after taxonomy validation." },
   { name: "spec_record_effort_observation", category: "Spec", description: "Specialist: record the effort the work actually required as evidence; never rewrites the estimate." },
