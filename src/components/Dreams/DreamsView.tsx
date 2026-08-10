@@ -16,12 +16,12 @@ export function DreamsView() {
     <PageHeader title="Dream Journal" description="Tentative, grounded technical and design debt captured during explicitly invited Project Lead dreaming sessions." actions={<RefreshButton onClick={refresh} loading={loading} />} />
     <p style={{ color: "var(--text-tertiary)", fontSize: "var(--text-sm)", margin: "0 0 16px" }}>Read-only. Dreams never enter delivery automatically; promotion must be an explicit governed action.</p>
     {error && <p role="alert" style={{ color: "#f87171" }}>{error}</p>}
-    <div aria-label="Dream filters" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+    <section aria-label="Dream filters" style={filters}>
       <Filter label="State" value={status} onChange={setStatus} options={options(state.dreams.map((d) => d.status))} />
       <Filter label="Kind" value={classification} onChange={setClassification} options={options(state.dreams.map((d) => d.classification))} />
       <Filter label="Area" value={area} onChange={setArea} options={options(state.dreams.map((d) => d.area ?? ""))} />
       <Filter label="Confidence" value={confidence} onChange={setConfidence} options={options(state.dreams.map((d) => d.confidence))} />
-    </div>
+    </section>
     {loading && <p role="status">Loading Dream Journal…</p>}
     {!loading && state.dreams.length === 0 && <div style={empty}>No dreams captured yet. An explicitly invited Project Lead dreaming session may produce zero or more grounded records.</div>}
     {!loading && state.dreams.length > 0 && dreams.length === 0 && <div style={empty}>No dreams match these filters.</div>}
@@ -33,5 +33,15 @@ export function DreamsView() {
     </article>)}</div>
   </PageShell>;
 }
-function Filter({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) { return <label>{label} <select value={value} onChange={(event) => onChange(event.target.value)}><option value="all">All</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>; }
+function Filter({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) {
+  return <label style={filterLabel}>{label}
+    <select className="app-select" style={filterControl} aria-label={`Dream ${label.toLowerCase()}`} value={value} onChange={(event) => onChange(event.target.value)}>
+      <option value="all">All</option>
+      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+    </select>
+  </label>;
+}
+const filters = { display: "flex", alignItems: "flex-end", flexWrap: "wrap", gap: 12, padding: 14, marginBottom: 14, border: "1px solid var(--border-secondary)", borderRadius: 9, background: "var(--bg-secondary)" } as const;
+const filterLabel = { display: "grid", gap: 6, flex: "1 1 118px", minWidth: 0, color: "var(--text-tertiary)", fontSize: "var(--text-xs)", fontWeight: 650 } as const;
+const filterControl = { minWidth: 0, height: 34, boxSizing: "border-box", border: "1px solid var(--border-primary)", borderRadius: 7, outline: "none", background: "var(--bg-tertiary)", color: "var(--text-primary)", colorScheme: "dark", padding: "0 9px", fontFamily: "inherit", fontSize: "var(--text-sm)" } as const;
 const empty = { border: "1px dashed var(--border-primary)", borderRadius: 10, padding: 20, color: "var(--text-tertiary)" } as const;
