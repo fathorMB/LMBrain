@@ -37,10 +37,10 @@ export function RoadmapView() {
   }
 
   const selected = overview?.milestones.find((m) => m.id === selectedId) ?? null;
-  const milestoneFindings = (state.findings ?? []).filter((finding) =>
-    ["open", "planned", "deferred"].includes(finding.status)
-    && (finding.milestone === selectedId
-      || finding.target_specs.some((target) => selected?.specs.some((spec) => spec.id === target)))
+  const milestoneDebts = (state.debts ?? []).filter((debt) =>
+    ["open", "planned", "deferred"].includes(debt.status)
+    && (debt.milestone === selectedId
+      || debt.target_specs.some((target) => selected?.specs.some((spec) => spec.id === target)))
   );
 
   const statusColors: Record<string, { color: string; bg: string }> = {
@@ -72,12 +72,12 @@ export function RoadmapView() {
           </>
         }
       />
-        {selected && milestoneFindings.length > 0 && <button
+        {selected && milestoneDebts.length > 0 && <button
           type="button"
-          onClick={() => navigateTo("findings")}
+          onClick={() => navigateTo("debts")}
           style={{ marginBottom: 16, padding: "9px 12px", border: "1px solid rgba(224,162,58,.35)", borderRadius: 8, background: "rgba(224,162,58,.08)", color: "#d9b86d", cursor: "pointer" }}
         >
-          {milestoneFindings.length} active {milestoneFindings.length === 1 ? "finding" : "findings"} attached to {selected.id}
+          {milestoneDebts.length} active {milestoneDebts.length === 1 ? "debt" : "debts"} attached to {selected.id}
         </button>}
 
         {(!overview || overview.milestones.length === 0) && (

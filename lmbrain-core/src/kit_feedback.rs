@@ -637,7 +637,7 @@ fn read_version(root: &Path) -> String {
 
 fn initial_report(version: &str) -> String {
     format!(
-        "---\nid: LMBRAIN-KIT-FEEDBACK\nschema_version: {KIT_FEEDBACK_SCHEMA_VERSION}\nupdated: {}\nlmbrain_version: {version}\nnotes: []\n---\n# LMBrain kit feedback\n\nThis append-only report records evidence-backed observations about LMBrain itself. It is not project backlog, a FINDING-* registry, or lifecycle authority.\n",
+        "---\nid: LMBRAIN-KIT-FEEDBACK\nschema_version: {KIT_FEEDBACK_SCHEMA_VERSION}\nupdated: {}\nlmbrain_version: {version}\nnotes: []\n---\n# LMBrain kit feedback\n\nThis append-only report records evidence-backed observations about LMBrain itself. It is not project backlog, a DEBT-* registry, or lifecycle authority.\n",
         Local::now().format("%Y-%m-%d")
     )
 }
@@ -783,8 +783,11 @@ mod tests {
         record_kit_feedback(dir.path(), input("Second note")).unwrap();
 
         // A still-reproducing note is reconfirmed without a new note ID.
-        record_kit_feedback_resolution(dir.path(), resolution("KIT-NOTE-001", "reconfirmed", "4.0.2"))
-            .unwrap();
+        record_kit_feedback_resolution(
+            dir.path(),
+            resolution("KIT-NOTE-001", "reconfirmed", "4.0.2"),
+        )
+        .unwrap();
         // A release retires the other note.
         record_kit_feedback_resolution(dir.path(), resolution("KIT-NOTE-002", "resolved", "4.0.3"))
             .unwrap();
@@ -806,9 +809,11 @@ mod tests {
         assert!(raw.contains("summary: \"First note\"") || raw.contains("First note"));
 
         // A resolved note accepts no further lifecycle events.
-        let error =
-            record_kit_feedback_resolution(dir.path(), resolution("KIT-NOTE-002", "resolved", "4.0.4"))
-                .unwrap_err();
+        let error = record_kit_feedback_resolution(
+            dir.path(),
+            resolution("KIT-NOTE-002", "resolved", "4.0.4"),
+        )
+        .unwrap_err();
         assert!(error.to_string().contains("already resolved"));
         let error = record_kit_feedback_resolution(
             dir.path(),
@@ -823,25 +828,28 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         fs::create_dir_all(dir.path().join(".lmbrain")).unwrap();
         fs::write(dir.path().join(".lmbrain/VERSION"), "4.0.2\n").unwrap();
-        assert!(
-            record_kit_feedback_resolution(dir.path(), resolution("KIT-NOTE-001", "resolved", "4.0.3"))
-                .unwrap_err()
-                .to_string()
-                .contains("does not exist")
-        );
+        assert!(record_kit_feedback_resolution(
+            dir.path(),
+            resolution("KIT-NOTE-001", "resolved", "4.0.3")
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("does not exist"));
         record_kit_feedback(dir.path(), input("Only note")).unwrap();
-        assert!(
-            record_kit_feedback_resolution(dir.path(), resolution("KIT-NOTE-009", "resolved", "4.0.3"))
-                .unwrap_err()
-                .to_string()
-                .contains("does not exist")
-        );
-        assert!(
-            record_kit_feedback_resolution(dir.path(), resolution("KIT-NOTE-001", "retagged", "4.0.3"))
-                .unwrap_err()
-                .to_string()
-                .contains("kind must be one of")
-        );
+        assert!(record_kit_feedback_resolution(
+            dir.path(),
+            resolution("KIT-NOTE-009", "resolved", "4.0.3")
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("does not exist"));
+        assert!(record_kit_feedback_resolution(
+            dir.path(),
+            resolution("KIT-NOTE-001", "retagged", "4.0.3")
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("kind must be one of"));
         let report = read_kit_feedback(dir.path()).unwrap();
         assert_eq!(report.resolutions.len(), 0);
         assert_eq!(report.note_statuses[0].status, "open");

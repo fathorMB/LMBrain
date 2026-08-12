@@ -1,4 +1,4 @@
-import type { Adr, AdrStatus, Finding, Spec } from "../types";
+import type { Adr, AdrStatus, Debt, Spec } from "../types";
 
 /**
  * Pure model behind the Decisions view (issue #48). Everything here is derived
@@ -112,17 +112,17 @@ export function groupDecisions(adrs: Adr[], sort: DecisionSort = "recent"): Deci
 export interface InboundReference {
   id: string;
   title: string;
-  kind: "spec" | "finding";
+  kind: "spec" | "debt";
 }
 
 /**
- * Reverse index: which specs and findings cite each ADR. The forward edges live
+ * Reverse index: which specs and debts cite each ADR. The forward edges live
  * in `related_decisions` on the citing artifact, so this is the only place the
  * ADR side of the relationship can be assembled.
  */
 export function buildInboundIndex(
   specs: Spec[],
-  findings: Finding[],
+  debts: Debt[],
 ): Map<string, InboundReference[]> {
   const index = new Map<string, InboundReference[]>();
   const add = (adrId: string, reference: InboundReference) => {
@@ -138,9 +138,9 @@ export function buildInboundIndex(
       add(adrId, { id: spec.id, title: spec.title, kind: "spec" });
     }
   }
-  for (const finding of findings ?? []) {
-    for (const adrId of ids(finding.related_decisions)) {
-      add(adrId, { id: finding.id, title: finding.title, kind: "finding" });
+  for (const debt of debts ?? []) {
+    for (const adrId of ids(debt.related_decisions)) {
+      add(adrId, { id: debt.id, title: debt.title, kind: "debt" });
     }
   }
   return index;

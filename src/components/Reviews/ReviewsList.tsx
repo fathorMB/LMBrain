@@ -117,7 +117,7 @@ export function ReviewsList() {
                       const reviewConfig = statusConfig[review.status] ?? groupConfig;
                       const isMalformed = !!review.malformed;
                       const latestEvent = review.events.at(-1);
-                      const promoted = (state.findings ?? []).filter((finding) => finding.origin_artifact === review.id || finding.related_reviews.includes(review.id));
+                      const promoted = (state.debts ?? []).filter((debt) => debt.origin_artifact === review.id || debt.related_reviews.includes(review.id));
                       const openReview = () => dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: { title: review.title, path: review.path } });
 
                       return (
@@ -150,7 +150,7 @@ export function ReviewsList() {
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "var(--text-xs)", fontWeight: 600, color: reviewConfig.color, background: `${reviewConfig.color}1a`, border: `1px solid ${reviewConfig.color}40`, borderRadius: 6, padding: "4px 9px" }}>{reviewConfig.label}</span>
                             <i className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 18, color: "var(--text-tertiary)" }}>chevron_right</i>
                           </button>
-                          {promoted.length > 0 && <button type="button" onClick={() => navigateTo("findings")} style={{ marginTop: 6, border: 0, padding: 0, background: "transparent", color: "#bcaef6", cursor: "pointer", fontSize: "var(--text-xs)" }}>{promoted.length} promoted {promoted.length === 1 ? "finding" : "findings"} · view current disposition</button>}
+                          {promoted.length > 0 && <button type="button" onClick={() => navigateTo("debts")} style={{ marginTop: 6, border: 0, padding: 0, background: "transparent", color: "#bcaef6", cursor: "pointer", fontSize: "var(--text-xs)" }}>{promoted.length} promoted {promoted.length === 1 ? "debt" : "debts"} · view current disposition</button>}
                         </div>
                       );
                     })}

@@ -1,7 +1,7 @@
 {
   "planned_debt": {
     "origin_artifact": "REVIEW-054",
-    "origin_ref": "FINDING-07",
+    "origin_ref": "RF-07",
     "origin_severity": "blocking",
     "severity": "medium",
     "target_specs": ["SPEC-059"],
@@ -9,7 +9,7 @@
   },
   "documented_limitation": {
     "origin_artifact": "REVIEW-049",
-    "origin_ref": "FINDING-050-001",
+    "origin_ref": "RF-050-001",
     "expected_status": "resolved",
     "must_not_reopen_as": "open"
   },
@@ -18,11 +18,11 @@
     { "origin_artifact": null, "target_specs": [], "expected_status": "open" }
   ],
   "duplicate_local_ids": [
-    { "origin_artifact": "REVIEW-001", "origin_ref": "FINDING-01" },
-    { "origin_artifact": "REVIEW-002", "origin_ref": "FINDING-01" }
+    { "origin_artifact": "REVIEW-001", "origin_ref": "RF-01" },
+    { "origin_artifact": "REVIEW-002", "origin_ref": "RF-01" }
   ],
   "verification_gate_debt": {
     "unchecked_before_done": 3,
-    "auto_promoted_findings": 0
+    "auto_promoted_debts": 0
   }
 }

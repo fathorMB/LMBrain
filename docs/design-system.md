@@ -39,7 +39,7 @@ Wiki content pane, and the artifact detail modal body.
 `--page-wide`, relaxing to `--page-wide-xl` above a 2200px viewport. Cards flow
 through `CardGrid` into as many columns as the width allows, instead of centring
 a single narrow column. Used by Board-adjacent list pages: Decisions, Reviews,
-Findings, Kit Feedback, Agents, MCP, Skills, Insights, Roadmap, Harnesses, Pulse.
+Debts, Kit Feedback, Agents, MCP, Skills, Insights, Roadmap, Harnesses, Pulse.
 
 **Full** (`archetype="full"`) — full-bleed shells whose panes own their own
 scrolling. Board, Sessions, Wiki, Design, Repository, and Settings keep their own

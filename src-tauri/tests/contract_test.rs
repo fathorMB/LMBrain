@@ -1555,21 +1555,38 @@ ADR Body 3"#;
 }
 
 #[test]
-fn findings_are_visible_in_statistics_but_generic_status_mutation_is_rejected() {
+fn reviews_parse_only_rf_identifiers_from_the_canonical_review_findings_section() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());
-    fs::create_dir_all(dir.path().join(".lmbrain/findings/open")).unwrap();
-    let path = dir.path().join(".lmbrain/findings/open/FINDING-001.md");
+    fs::create_dir_all(dir.path().join(".lmbrain/reviews/accepted")).unwrap();
+    fs::write(
+        dir.path().join(".lmbrain/reviews/accepted/REVIEW-001.md"),
+        "---\nid: REVIEW-001\ntitle: Review\nstatus: accepted\ncreated: 2026-08-13\nupdated: 2026-08-13\ntags: []\nlinks: []\n---\n## Review findings\n- RF-001 | category=correctness | severity=high | remediation=Fix it\n- FINDING-002 legacy token\n\n## Notes\n- RF-999 outside the canonical section\n",
+    )
+    .unwrap();
+
+    let reviews = contract::build_reviews(dir.path()).unwrap();
+    assert_eq!(reviews.len(), 1);
+    assert_eq!(reviews[0].findings.len(), 1);
+    assert_eq!(reviews[0].findings[0].id, "RF-001");
+}
+
+#[test]
+fn debts_are_visible_in_statistics_but_generic_status_mutation_is_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    fs::create_dir_all(dir.path().join(".lmbrain/debts/open")).unwrap();
+    let path = dir.path().join(".lmbrain/debts/open/DEBT-001.md");
     fs::write(
         &path,
-        "---\nid: FINDING-001\ntitle: Durable observation\nstatus: open\ncategory: design\nseverity: medium\nrelated_specs: []\nrelated_reviews: []\nrelated_decisions: []\ntarget_specs: []\nblocked_by: []\nresolution_refs: []\ncreated: 2026-07-29\nupdated: 2026-07-29\n---\n## Statement\nObservation\n\n## Resolution criteria\nDecision\n\n## Resolution evidence\n",
+        "---\nid: DEBT-001\ntitle: Durable observation\nstatus: open\ncategory: design\nseverity: medium\nrelated_specs: []\nrelated_reviews: []\nrelated_decisions: []\ntarget_specs: []\nblocked_by: []\nresolution_refs: []\ncreated: 2026-07-29\nupdated: 2026-07-29\n---\n## Statement\nObservation\n\n## Resolution criteria\nDecision\n\n## Resolution evidence\n",
     )
     .unwrap();
     let statistics = contract::build_project_statistics(dir.path()).unwrap();
     let family = statistics
         .artifact_families
         .iter()
-        .find(|family| family.family == "findings")
+        .find(|family| family.family == "debts")
         .unwrap();
     assert_eq!(family.total, 1);
 

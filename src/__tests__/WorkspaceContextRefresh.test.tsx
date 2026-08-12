@@ -38,7 +38,7 @@ function snapshot(totalSpecs: number): WorkspaceSnapshot {
     },
     specs: [],
     reviews: [],
-    findings: [],
+    debts: [],
     adrs: [],
     agents: [],
     agent_proposals: [],

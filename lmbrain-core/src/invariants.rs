@@ -12,7 +12,7 @@ pub fn spec_has_accepted_review(root: &Path, spec_id: &str) -> bool {
         .any(|path| read(path, "spec").as_deref() == Some(spec_id))
 }
 
-pub fn extract_waived_finding_id(line: &str) -> Option<&str> {
+pub fn extract_waived_debt_id(line: &str) -> Option<&str> {
     let trimmed = line.trim_start();
     if !trimmed.starts_with("- [~]") {
         return None;
@@ -22,9 +22,9 @@ pub fn extract_waived_finding_id(line: &str) -> Option<&str> {
     let end = rest
         .find(|c: char| c.is_whitespace() || c == '|' || c == ']' || c == ')')
         .unwrap_or(rest.len());
-    let finding_id = rest[..end].trim();
-    if finding_id.starts_with("FINDING-") {
-        Some(finding_id)
+    let debt_id = rest[..end].trim();
+    if debt_id.starts_with("DEBT-") {
+        Some(debt_id)
     } else {
         None
     }
@@ -44,7 +44,7 @@ pub fn criteria_complete_with_evidence(body: &str) -> bool {
             let trimmed = line.trim_start();
             trimmed.starts_with("- [x]")
                 || trimmed.starts_with("- [X]")
-                || extract_waived_finding_id(trimmed).is_some()
+                || extract_waived_debt_id(trimmed).is_some()
         })
         && markdown_section(body, &["implementation evidence", "evidence"])
             .is_some_and(has_evidence_content)
@@ -57,21 +57,19 @@ pub fn waived_findings_are_valid(root: &Path, body: &str) -> Result<(), String> 
     for line in criteria_section.lines() {
         let trimmed = line.trim_start();
         if trimmed.starts_with("- [~]") {
-            let Some(finding_id) = extract_waived_finding_id(trimmed) else {
+            let Some(debt_id) = extract_waived_debt_id(trimmed) else {
                 return Err(format!(
-                    "waived criterion '{trimmed}' must include '| waived=FINDING-xxx'"
+                    "waived criterion '{trimmed}' must include '| waived=DEBT-xxx'"
                 ));
             };
-            let finding_exists = scan(root.join(".lmbrain/findings"))
-                .iter()
-                .any(|path| {
-                    path.file_name()
-                        .and_then(|n| n.to_str())
-                        .is_some_and(|name| name.starts_with(finding_id))
-                });
-            if !finding_exists {
+            let debt_exists = scan(root.join(".lmbrain/debts")).iter().any(|path| {
+                path.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|name| name.starts_with(debt_id))
+            });
+            if !debt_exists {
                 return Err(format!(
-                    "waived criterion references non-existent finding '{finding_id}'"
+                    "waived criterion references non-existent debt '{debt_id}'"
                 ));
             }
         }
@@ -250,7 +248,7 @@ pub fn folder_matches_status(path: &Path) -> bool {
         .and_then(|parent| parent.file_name())
         .and_then(|name| name.to_str())
     {
-        Some("specs") | Some("reviews") | Some("skills") | Some("findings") => {
+        Some("specs") | Some("reviews") | Some("skills") | Some("debts") => {
             path.parent()
                 .and_then(|parent| parent.file_name())
                 .and_then(|name| name.to_str())

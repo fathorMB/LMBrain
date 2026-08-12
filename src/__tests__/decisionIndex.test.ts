@@ -11,7 +11,7 @@ import {
   matchesDecisionFilters,
   supersessionChain,
 } from "../lib/decisionIndex";
-import type { Adr, Finding, Spec } from "../types";
+import type { Adr, Debt, Spec } from "../types";
 
 function adr(overrides: Partial<Adr> = {}): Adr {
   return {
@@ -117,24 +117,24 @@ describe("filtering", () => {
 });
 
 describe("inbound references", () => {
-  it("indexes specs and findings that cite a decision, without duplicates", () => {
+  it("indexes specs and debts that cite a decision, without duplicates", () => {
     const specs = [
       { id: "SPEC-001", title: "One", related_decisions: ["ADR-001", "adr-001"] },
       { id: "SPEC-002", title: "Two", related_decisions: ["ADR-002"] },
     ] as unknown as Spec[];
-    const findings = [
-      { id: "FINDING-001", title: "F", related_decisions: [" ADR-001 "] },
-    ] as unknown as Finding[];
+    const debts = [
+      { id: "DEBT-001", title: "F", related_decisions: [" ADR-001 "] },
+    ] as unknown as Debt[];
 
-    const index = buildInboundIndex(specs, findings);
-    expect(index.get("ADR-001")?.map((entry) => entry.id)).toEqual(["SPEC-001", "FINDING-001"]);
+    const index = buildInboundIndex(specs, debts);
+    expect(index.get("ADR-001")?.map((entry) => entry.id)).toEqual(["SPEC-001", "DEBT-001"]);
     expect(index.get("ADR-002")).toHaveLength(1);
     expect(index.get("ADR-999")).toBeUndefined();
   });
 
   it("tolerates artifacts with no related decisions", () => {
     const specs = [{ id: "SPEC-001", title: "One" }] as unknown as Spec[];
-    expect(buildInboundIndex(specs, [] as unknown as Finding[]).size).toBe(0);
+    expect(buildInboundIndex(specs, [] as unknown as Debt[]).size).toBe(0);
   });
 });
 

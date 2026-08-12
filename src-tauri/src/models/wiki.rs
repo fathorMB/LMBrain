@@ -25,8 +25,8 @@ pub enum WikiNodeKind {
     Tasks,
     #[serde(rename = "reviews")]
     Reviews,
-    #[serde(rename = "findings")]
-    Findings,
+    #[serde(rename = "debts")]
+    Debts,
     #[serde(rename = "handoffs")]
     Handoffs,
     #[serde(rename = "agents")]

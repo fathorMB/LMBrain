@@ -24,7 +24,7 @@ describe("unread page eligibility", () => {
     expect([...UNREAD_PAGES]).toEqual([
       "taskboard",
       "reviews",
-      "findings",
+      "debts",
       "feedback",
       "decisions",
       "agents",
@@ -54,14 +54,14 @@ describe("item identity and signatures", () => {
   });
 
   it("keeps malformed and id-less records countable instead of dropping them", () => {
-    const items = toUnreadItems("finding", [
-      { id: "", path: "docs/findings/f-1.md", status: "open", updated: "2026-07-01", malformed: true },
+    const items = toUnreadItems("debt", [
+      { id: "", path: "docs/debts/f-1.md", status: "open", updated: "2026-07-01", malformed: true },
       { status: null, updated: undefined },
     ]);
     expect(items).toHaveLength(2);
-    expect(items[0].id).toBe("finding:docs/findings/f-1.md");
+    expect(items[0].id).toBe("debt:docs/debts/f-1.md");
     expect(items[0].signature).toContain("malformed");
-    expect(items[1].id).toBe("finding:#1");
+    expect(items[1].id).toBe("debt:#1");
   });
 
   it("tolerates missing or non-array collections", () => {
@@ -69,7 +69,7 @@ describe("item identity and signatures", () => {
     for (const page of UNREAD_PAGES) {
       expect(items[page]).toEqual([]);
     }
-    expect(collectPageItems(null).findings).toEqual([]);
+    expect(collectPageItems(null).debts).toEqual([]);
   });
 
   it("identifies kit feedback notes by note id and timestamp", () => {
@@ -113,12 +113,12 @@ describe("read-state transitions", () => {
   it("marks a whole page read without touching other pages", () => {
     const items = collectPageItems({
       reviews: [artifact("R-1")],
-      findings: [artifact("F-1")],
+      debts: [artifact("F-1")],
     });
     const read = markItemsRead({}, "reviews", items.reviews);
     const counts = countAllUnread(items, read);
     expect(counts.reviews).toBe(0);
-    expect(counts.findings).toBe(1);
+    expect(counts.debts).toBe(1);
   });
 
   it("returns the same state object when nothing changed", () => {
@@ -144,7 +144,7 @@ describe("read-state transitions", () => {
   it("seeds an existing project as fully read", () => {
     const items = collectPageItems({
       specs: [artifact("SPEC-1")],
-      findings: [artifact("F-1")],
+      debts: [artifact("F-1")],
       kitFeedbackNotes: [{ id: "NOTE-1", timestamp: "2026-07-01", severity: "low" }],
     });
     const counts = countAllUnread(items, seedAllRead(items));
@@ -160,7 +160,7 @@ describe("persistence", () => {
   });
 
   it("round-trips read state per workspace path", () => {
-    const read = markItemsRead({}, "findings", toUnreadItems("finding", [artifact("F-1")]));
+    const read = markItemsRead({}, "debts", toUnreadItems("debt", [artifact("F-1")]));
     saveReadState("E:/projects/alpha", read);
     expect(loadReadState("E:/projects/alpha")).toEqual(read);
     expect(loadReadState("E:/projects/beta")).toBeNull();
@@ -173,7 +173,7 @@ describe("persistence", () => {
   it("discards malformed stored state instead of breaking navigation", () => {
     localStorage.setItem(readStateStorageKey("E:/projects/alpha"), "{not json");
     expect(loadReadState("E:/projects/alpha")).toBeNull();
-    localStorage.setItem(readStateStorageKey("E:/projects/alpha"), JSON.stringify({ findings: 42 }));
+    localStorage.setItem(readStateStorageKey("E:/projects/alpha"), JSON.stringify({ debts: 42 }));
     expect(loadReadState("E:/projects/alpha")).toBeNull();
   });
 });

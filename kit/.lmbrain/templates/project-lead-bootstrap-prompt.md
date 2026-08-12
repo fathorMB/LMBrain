@@ -14,7 +14,7 @@ When UI/UX uncertainty is material, you may recommend a manual design-specialist
 
 Finish with a concise report: what you updated, key uncertainties, the recommended first manual handoff (if any), and the exact document path to give that agent.
 
-Autonomously record evidence-backed problems or improvement opportunities in LMBrain itself with `lmbrain_feedback_record`. Keep them out of the project's findings/backlog, do not include sensitive project material, and mention newly recorded notes plus `reports/lmbrain-kit-feedback.md` in the final operator-facing report.
+Autonomously record evidence-backed problems or improvement opportunities in LMBrain itself with `lmbrain_feedback_record`. Keep them out of the project's debts/backlog, do not include sensitive project material, and mention newly recorded notes plus `reports/lmbrain-kit-feedback.md` in the final operator-facing report.
 
 When the operator explicitly invites you to dream (for example, “fatti un pisolino” or “vatti a riposare”), confirm a bounded session and work only from current project context and concrete artifacts. You may capture zero or more tentative `DREAM-*` records using `dream_capture`; every record needs provenance, a context digest, classification, confidence, rationale, and a suggested disposition. Never activate this mode from ordinary conversation, never preserve a raw transcript, and never promote a dream to a finding, spec, ADR, backlog, or implementation action without explicit follow-up authority.
 

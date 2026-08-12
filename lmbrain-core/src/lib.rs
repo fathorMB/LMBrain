@@ -2,9 +2,10 @@
 pub mod attestation;
 pub mod branching_strategy;
 pub mod context;
+pub mod debt;
+pub mod debt_migration;
 pub mod diagnostics;
 pub mod dream;
-pub mod finding;
 pub mod frontmatter;
 pub mod harness_environment;
 pub mod harness_manifest;
@@ -37,21 +38,27 @@ pub use branching_strategy::{
 };
 pub use context::{
     build_project_digest, build_review_context, build_spec_context, AgentProfileSummary,
-    BoundedDiagnosticList, BoundedFindingList, BoundedSpecList, CompactAdr, CompactFinding,
-    CompactReview, CompactSpec, Criterion, DeclaredProjectState, DerivedProjectState,
-    DiagnosticsSummary, FindingDigest, ProjectDigest, ReviewContext, SpecContext,
-    SpecDependencyDigest, SpecDependencyDigestItem, SpecLifecycleView, SpecParkingSummary,
+    BoundedDebtList, BoundedDiagnosticList, BoundedSpecList, CompactAdr, CompactDebt,
+    CompactReview, CompactSpec, Criterion, DebtDigest, DeclaredProjectState, DerivedProjectState,
+    DiagnosticsSummary, ProjectDigest, ReviewContext, SpecContext, SpecDependencyDigest,
+    SpecDependencyDigestItem, SpecLifecycleView, SpecParkingSummary,
+};
+pub use debt::{
+    accept_debt_risk, create_debt, debt_candidates, debt_context, defer_debt, list_debts,
+    plan_debt, reopen_debt, resolve_debt, supersede_debt, validate_debt_document, Debt,
+    DebtCandidate, DebtCandidateInventory, DebtContext, DebtCreateInput, DebtError,
+    RelationSummary,
+};
+pub use debt_migration::{
+    debt_migrate, debt_migration_preview, DebtMigrationError, DebtMigrationItem,
+    DebtMigrationPreview, DebtMigrationResult,
 };
 pub use diagnostics::{
     build_diagnostics, Diagnostic, DiagnosticFixability, DiagnosticSeverity,
     DIAGNOSTIC_SCHEMA_VERSION,
 };
-pub use dream::{capture_dream, list_dreams, Dream, DreamCreateInput, DreamError, DREAM_EVENT_SCHEMA_VERSION};
-pub use finding::{
-    accept_finding_risk, create_finding, defer_finding, finding_candidates, finding_context,
-    list_findings, plan_finding, reopen_finding, resolve_finding, supersede_finding,
-    validate_finding_document, Finding, FindingCandidate, FindingCandidateInventory,
-    FindingContext, FindingCreateInput, FindingError, RelationSummary,
+pub use dream::{
+    capture_dream, list_dreams, Dream, DreamCreateInput, DreamError, DREAM_EVENT_SCHEMA_VERSION,
 };
 pub use harness_manifest::{
     canonical_manifest_digest, content_digest, load_harness_manifest, parse_harness_manifest,
@@ -81,9 +88,9 @@ pub use review::{
 pub use spec_dependencies::{
     set_spec_dependencies, spec_dependency_blockers, spec_dependency_candidates,
     spec_dependency_context, validate_spec_dependency_graph, MalformedSpec, SpecDependency,
-    SpecDependencyBlocker,
-    SpecDependencyCandidate, SpecDependencyCandidateInventory, SpecDependencyContext,
-    SpecDependencyError, SpecDependencyMutation, SPEC_DEPENDENCY_EVENT_SCHEMA_VERSION,
+    SpecDependencyBlocker, SpecDependencyCandidate, SpecDependencyCandidateInventory,
+    SpecDependencyContext, SpecDependencyError, SpecDependencyMutation,
+    SPEC_DEPENDENCY_EVENT_SCHEMA_VERSION,
 };
 pub use taxonomy::{
     canonical_finding_categories, canonical_spec_tags, capability_tiers, default_thinking_level,

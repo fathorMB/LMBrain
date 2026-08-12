@@ -17,7 +17,7 @@ import type {
   FileEvent,
   GitInfo,
   Handoff,
-  Finding,
+  Debt,
   Dream,
   KitDiagnostic,
   KitFeedbackNote,
@@ -65,7 +65,7 @@ export interface WorkspaceState {
   pulseData: PulseData | null;
   specs: Spec[];
   reviews: Review[];
-  findings: Finding[];
+  debts: Debt[];
   dreams: Dream[];
   adrs: Adr[];
   agents: AgentProfile[];
@@ -105,7 +105,7 @@ export type Action =
   | { type: "SET_PULSE"; data: PulseData }
   | { type: "SET_SPECS"; specs: Spec[] }
   | { type: "SET_REVIEWS"; reviews: Review[] }
-  | { type: "SET_FINDINGS"; findings: Finding[] }
+  | { type: "SET_DEBTS"; debts: Debt[] }
   | { type: "SET_ADRS"; adrs: Adr[] }
   | { type: "SET_AGENTS"; agents: AgentProfile[] }
   | { type: "SET_AGENT_PROPOSALS"; proposals: AgentProposal[] }
@@ -142,7 +142,7 @@ const initialState: WorkspaceState = {
   pulseData: null,
   specs: [],
   reviews: [],
-  findings: [],
+  debts: [],
   dreams: [],
   adrs: [],
   agents: [],
@@ -259,8 +259,8 @@ function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, specs: action.specs };
     case "SET_REVIEWS":
       return { ...state, reviews: action.reviews };
-    case "SET_FINDINGS":
-      return { ...state, findings: action.findings };
+    case "SET_DEBTS":
+      return { ...state, debts: action.debts };
     case "SET_ADRS":
       return { ...state, adrs: action.adrs };
     case "SET_AGENTS":
@@ -430,7 +430,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           pulseData: snapshot.pulse_data,
           specs: snapshot.specs,
           reviews: snapshot.reviews,
-          findings: snapshot.findings,
+          debts: snapshot.debts,
           dreams: snapshot.dreams,
           adrs: snapshot.adrs,
           agents: snapshot.agents,
@@ -493,7 +493,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       collectPageItems({
         specs: state.specs,
         reviews: state.reviews,
-        findings: state.findings,
+        debts: state.debts,
         adrs: state.adrs,
         agents: state.agents,
         agentProposals: state.agentProposals,
@@ -505,7 +505,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [
       state.specs,
       state.reviews,
-      state.findings,
+      state.debts,
       state.adrs,
       state.agents,
       state.agentProposals,

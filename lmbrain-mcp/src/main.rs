@@ -6,33 +6,33 @@ use std::{
 use lmbrain_core::context::{
     build_branching_strategy_digest, build_project_digest, build_review_context, build_spec_context,
 };
-use lmbrain_core::transitions::{
-    create, record_effort_observation, record_review_event, repair_artifact_frontmatter,
-    review_verdict, set_agent_mnemonic_name, set_recommended_agent, set_review_implementation_agent,
-    set_spec_effort, set_spec_tags,
-    supersede_adr, transition, ArtifactKind, CreateRequest, MutationOptions,
-};
 use lmbrain_core::harness_environment::{
     apply_approved_harness_configuration, approve_harness_manifest,
     default_harness_approval_store_path, harness_approval_status, plan_harness_configuration,
     revoke_harness_approval,
 };
+use lmbrain_core::transitions::{
+    create, record_effort_observation, record_review_event, repair_artifact_frontmatter,
+    review_verdict, set_agent_mnemonic_name, set_recommended_agent,
+    set_review_implementation_agent, set_spec_effort, set_spec_tags, supersede_adr, transition,
+    ArtifactKind, CreateRequest, MutationOptions,
+};
 use lmbrain_core::{
-    accept_finding_risk, apply_improvement_proposal, approve_verification_manifest,
+    accept_debt_risk, apply_improvement_proposal, approve_verification_manifest,
     attest_spec_requirement, attest_spec_requirement_delegated, build_agent_improvement_signals,
-    build_review_migration_preview, AttestationDelegation,
-    canonical_manifest_digest, canonical_verification_manifest_digest, capture_dream, create_finding,
-    create_improvement_proposal, default_verification_approval_path, defer_finding,
-    discover_verification_manifest, execute_spec_verification, finding_candidates, finding_context,
-    load_branching_strategy, load_harness_manifest, load_verification_manifest, park_spec,
-    parse_harness_manifest, plan_finding, read_kit_feedback, record_kit_feedback,
-    record_kit_feedback_resolution, reopen_finding,
-    resolve_finding, rollback_verification_manifest, set_branching_strategy, set_harness_manifest,
+    build_review_migration_preview, canonical_manifest_digest,
+    canonical_verification_manifest_digest, capture_dream, create_debt,
+    create_improvement_proposal, debt_candidates, debt_context, debt_migrate,
+    debt_migration_preview, default_verification_approval_path, defer_debt,
+    discover_verification_manifest, execute_spec_verification, load_branching_strategy,
+    load_harness_manifest, load_verification_manifest, park_spec, parse_harness_manifest,
+    plan_debt, read_kit_feedback, record_kit_feedback, record_kit_feedback_resolution, reopen_debt,
+    resolve_debt, rollback_verification_manifest, set_branching_strategy, set_harness_manifest,
     set_spec_dependencies, set_verification_manifest, spec_dependency_candidates,
-    spec_dependency_context, supersede_finding, validate_verification_manifest_source,
-    verification_manifest_status, BranchingStrategy, FindingCreateInput, HarnessManifestError,
-    DreamCreateInput, ImprovementProposalRequest, KitFeedbackInput, ReviewEventInput, SpecParkingInput,
-    VerificationManifest, VerificationManifestState,
+    spec_dependency_context, supersede_debt, validate_verification_manifest_source,
+    verification_manifest_status, AttestationDelegation, BranchingStrategy, DebtCreateInput,
+    DreamCreateInput, HarnessManifestError, ImprovementProposalRequest, KitFeedbackInput,
+    ReviewEventInput, SpecParkingInput, VerificationManifest, VerificationManifestState,
 };
 use serde_json::{json, Value};
 
@@ -332,7 +332,7 @@ fn tools() -> Vec<Value> {
         ),
         read_tool(
             "review_migration_preview",
-            "Read-only deterministic report of review lifecycle and finding-taxonomy migration coverage.",
+            "Read-only deterministic report of review lifecycle and debt-taxonomy migration coverage.",
         ),
         read_tool(
             "verification_migration_preview",
@@ -368,7 +368,7 @@ fn tools() -> Vec<Value> {
         improvement_apply_tool(),
     ]);
     entries.extend(harness_environment_tools());
-    entries.extend(finding_tools());
+    entries.extend(debt_tools());
     entries.extend(dream_tools());
     entries.extend(spec_dependency_tools());
     entries.extend(kit_feedback_tools());
@@ -463,18 +463,18 @@ fn spec_dependency_tools() -> Vec<Value> {
 fn dream_tools() -> Vec<Value> {
     vec![json!({
         "name":"dream_capture",
-        "description":"Project Lead, only after an explicit operator invitation to a bounded dreaming session: capture one grounded, tentative technical- or design-debt observation. It never creates a finding, spec, roadmap item, or decision.",
+        "description":"Project Lead, only after an explicit operator invitation to a bounded dreaming session: capture one grounded, tentative technical- or design-debt observation. It never creates a debt, spec, roadmap item, or decision.",
         "inputSchema": {"type":"object","required":["title","classification","confidence","related_artifacts","context_digest","rationale","suggested_disposition","actor"],"properties":{
             "title":{"type":"string"}, "classification":{"enum":["technical-debt","design-debt"]}, "confidence":{"enum":["low","medium","high"]}, "area":{"type":["string","null"]}, "related_artifacts":{"type":"array","items":{"type":"string"},"minItems":1}, "context_digest":{"type":"string","description":"Digest/timestamp of the bounded project context examined."}, "rationale":{"type":"string","description":"Tentative, evidence-grounded observation; do not state unsupported facts."}, "suggested_disposition":{"type":"string"}, "actor":{"type":"string"}
         },"additionalProperties":false}
     })]
 }
 
-fn finding_tools() -> Vec<Value> {
+fn debt_tools() -> Vec<Value> {
     vec![
         json!({
-            "name":"finding_create",
-            "description":"Project Lead: create one evidence-backed open FINDING-* artifact. This does not authorize implementation or rewrite its origin.",
+            "name":"debt_create",
+            "description":"Project Lead: create one evidence-backed open DEBT-* artifact. This does not authorize implementation or rewrite its origin.",
             "inputSchema":{
                 "type":"object",
                 "required":["title","category","severity","statement","evidence","impact","resolution_criteria","actor","rationale"],
@@ -496,38 +496,48 @@ fn finding_tools() -> Vec<Value> {
                 },"additionalProperties":false
             }
         }),
-        finding_transition_tool("finding_plan", "Project Lead: route an unresolved finding to validated target specs.", &[
+        debt_transition_tool("debt_plan", "Project Lead: route an unresolved debt to validated target specs.", &[
             ("target_specs", json!({"type":"array","items":{"type":"string"},"minItems":1}))
         ]),
-        finding_transition_tool("finding_defer", "Project Lead: retain a finding outside active delivery with a revisit condition.", &[
+        debt_transition_tool("debt_defer", "Project Lead: retain a debt outside active delivery with a revisit condition.", &[
             ("revisit_condition", json!({"type":"string"}))
         ]),
-        finding_transition_tool("finding_resolve", "Project Lead: resolve a finding only with canonical references and explicit resolution evidence.", &[
+        debt_transition_tool("debt_resolve", "Project Lead: resolve a debt only with canonical references and explicit resolution evidence.", &[
             ("resolution_refs", json!({"type":"array","items":{"type":"string"},"minItems":1})),
             ("resolution_evidence", json!({"type":"string"}))
         ]),
-        finding_transition_tool("finding_accept_risk", "Requires explicit operator authorization: accept remaining behavior with rationale and an explicit revisit policy. Call when instructed by operator.", &[
+        debt_transition_tool("debt_accept_risk", "Requires explicit operator authorization: accept remaining behavior with rationale and an explicit revisit policy. Call when instructed by operator.", &[
             ("revisit_condition", json!({"type":"string"})),
             ("resolution_refs", json!({"type":"array","items":{"type":"string"}}))
         ]),
-        finding_transition_tool("finding_supersede", "Project Lead: supersede a finding with a successor or explicit obsolescence rationale.", &[
+        debt_transition_tool("debt_supersede", "Project Lead: supersede a debt with a successor or explicit obsolescence rationale.", &[
             ("successor", json!({"type":["string","null"]}))
         ]),
-        finding_transition_tool("finding_reopen", "Requires explicit operator authorization: reopen a resolved or accepted-risk finding with rationale. Superseded history cannot be reopened. Call when instructed by operator.", &[]),
+        debt_transition_tool("debt_reopen", "Requires explicit operator authorization: reopen a resolved or accepted-risk debt with rationale. Superseded history cannot be reopened. Call when instructed by operator.", &[]),
         json!({
-            "name":"finding_context",
-            "description":"Read-only bounded finding detail with canonical source, targets, blockers, decisions, evidence, and event timeline.",
-            "inputSchema":{"type":"object","required":["finding"],"properties":{"finding":{"type":"string"}},"additionalProperties":false}
+            "name":"debt_context",
+            "description":"Read-only bounded debt detail with canonical source, targets, blockers, decisions, evidence, and event timeline.",
+            "inputSchema":{"type":"object","required":["debt"],"properties":{"debt":{"type":"string"}},"additionalProperties":false}
         }),
         json!({
-            "name":"finding_candidates",
-            "description":"Read-only bounded inventory of stable-form legacy review entries. It never infers disposition or creates findings.",
+            "name":"debt_candidates",
+            "description":"Read-only bounded inventory of stable-form legacy review entries. It never infers disposition or creates debts.",
             "inputSchema":{"type":"object","properties":{},"additionalProperties":false}
+        }),
+        json!({
+            "name":"debt_migration_preview",
+            "description":"Read-only deterministic preview of the breaking legacy-durable-ID to DEBT workspace migration. Fails closed on malformed or ambiguous input.",
+            "inputSchema":{"type":"object","properties":{},"additionalProperties":false}
+        }),
+        json!({
+            "name":"debt_migrate",
+            "description":"Operator-confirmed, digest-bound atomic migration from legacy durable findings to debts and review-local RF identifiers.",
+            "inputSchema":{"type":"object","required":["expected_preview_digest","confirmed"],"properties":{"expected_preview_digest":{"type":"string"},"confirmed":{"const":true}},"additionalProperties":false}
         }),
     ]
 }
 
-fn finding_transition_tool(name: &str, description: &str, extras: &[(&str, Value)]) -> Value {
+fn debt_transition_tool(name: &str, description: &str, extras: &[(&str, Value)]) -> Value {
     let mut properties = serde_json::Map::from_iter([
         ("path".into(), json!({"type":"string"})),
         ("actor".into(), json!({"type":"string"})),
@@ -636,7 +646,7 @@ fn spec_verify_tool() -> Value {
 fn improvement_signals_tool() -> Value {
     json!({
         "name":"agent_improvement_signals",
-        "description":"Derive evidence-backed repeated finding signals and per-profile effectiveness metrics without mutating artifacts.",
+        "description":"Derive evidence-backed repeated debt signals and per-profile effectiveness metrics without mutating artifacts.",
         "inputSchema":{"type":"object","properties":{},"additionalProperties":false}
     })
 }
@@ -1388,17 +1398,20 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             Ok(text(json!(ctx)))
         }
         "dream_capture" => {
-            let input: DreamCreateInput = serde_json::from_value(args.clone()).map_err(|error| error.to_string())?;
-            capture_dream(root, input).map(|result| text(json!(result))).map_err(|error| error.to_string())
-        }
-        "finding_create" => {
-            let input: FindingCreateInput =
+            let input: DreamCreateInput =
                 serde_json::from_value(args.clone()).map_err(|error| error.to_string())?;
-            create_finding(root, input)
+            capture_dream(root, input)
                 .map(|result| text(json!(result)))
                 .map_err(|error| error.to_string())
         }
-        "finding_plan" => plan_finding(
+        "debt_create" => {
+            let input: DebtCreateInput =
+                serde_json::from_value(args.clone()).map_err(|error| error.to_string())?;
+            create_debt(root, input)
+                .map(|result| text(json!(result)))
+                .map_err(|error| error.to_string())
+        }
+        "debt_plan" => plan_debt(
             root,
             required_string(args, "path")?,
             string_array(args, "target_specs")?,
@@ -1407,7 +1420,7 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         )
         .map(|result| text(json!(result)))
         .map_err(|error| error.to_string()),
-        "finding_defer" => defer_finding(
+        "debt_defer" => defer_debt(
             root,
             required_string(args, "path")?,
             required_string(args, "actor")?,
@@ -1416,7 +1429,7 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         )
         .map(|result| text(json!(result)))
         .map_err(|error| error.to_string()),
-        "finding_resolve" => resolve_finding(
+        "debt_resolve" => resolve_debt(
             root,
             required_string(args, "path")?,
             required_string(args, "actor")?,
@@ -1426,7 +1439,7 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         )
         .map(|result| text(json!(result)))
         .map_err(|error| error.to_string()),
-        "finding_accept_risk" => accept_finding_risk(
+        "debt_accept_risk" => accept_debt_risk(
             root,
             required_string(args, "path")?,
             required_string(args, "actor")?,
@@ -1436,7 +1449,7 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         )
         .map(|result| text(json!(result)))
         .map_err(|error| error.to_string()),
-        "finding_supersede" => supersede_finding(
+        "debt_supersede" => supersede_debt(
             root,
             required_string(args, "path")?,
             required_string(args, "actor")?,
@@ -1447,7 +1460,7 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         )
         .map(|result| text(json!(result)))
         .map_err(|error| error.to_string()),
-        "finding_reopen" => reopen_finding(
+        "debt_reopen" => reopen_debt(
             root,
             required_string(args, "path")?,
             required_string(args, "actor")?,
@@ -1455,10 +1468,22 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         )
         .map(|result| text(json!(result)))
         .map_err(|error| error.to_string()),
-        "finding_context" => finding_context(root, required_string(args, "finding")?)
+        "debt_context" => debt_context(root, required_string(args, "debt")?)
             .map(|context| text(json!(context)))
             .map_err(|error| error.to_string()),
-        "finding_candidates" => Ok(text(json!(finding_candidates(root)))),
+        "debt_candidates" => Ok(text(json!(debt_candidates(root)))),
+        "debt_migration_preview" => debt_migration_preview(root)
+            .map(|preview| text(json!(preview)))
+            .map_err(|error| error.to_string()),
+        "debt_migrate" => debt_migrate(
+            root,
+            required_string(args, "expected_preview_digest")?,
+            args.get("confirmed")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
         "harness_config_get" => match load_harness_manifest(root) {
             Ok(manifest) => Ok(text(json!({
                 "configured": true,
@@ -1494,8 +1519,7 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         }
         "harness_approval_revoke" => {
             let store = default_harness_approval_store_path()?;
-            revoke_harness_approval(root, &store, "project-lead")
-                .map(|status| text(json!(status)))
+            revoke_harness_approval(root, &store, "project-lead").map(|status| text(json!(status)))
         }
         "harness_plan_preview" => {
             let command = mcp_server_command()?;
@@ -1505,19 +1529,12 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
             let expected = required_string(args, "expected_digest")?;
             let store = default_harness_approval_store_path()?;
             let command = mcp_server_command()?;
-            apply_approved_harness_configuration(
-                root,
-                &store,
-                &command,
-                expected,
-                "project-lead",
-            )
-            .map(|result| text(json!(result)))
+            apply_approved_harness_configuration(root, &store, &command, expected, "project-lead")
+                .map(|result| text(json!(result)))
         }
         "harness_drift_status" => {
             let store = default_harness_approval_store_path()?;
-            let applied =
-                lmbrain_core::harness_environment::applied_files(root, &store)?;
+            let applied = lmbrain_core::harness_environment::applied_files(root, &store)?;
             let drift = lmbrain_core::harness_environment::detect_drift(root, &applied);
             Ok(text(json!({"applied_files": applied, "drift": drift})))
         }
@@ -1777,15 +1794,17 @@ mod tests {
         assert!(names.contains(&"verification_manifest_set".to_string()));
         assert!(names.contains(&"verification_manifest_rollback".to_string()));
         for name in [
-            "finding_create",
-            "finding_plan",
-            "finding_defer",
-            "finding_resolve",
-            "finding_accept_risk",
-            "finding_supersede",
-            "finding_reopen",
-            "finding_context",
-            "finding_candidates",
+            "debt_create",
+            "debt_plan",
+            "debt_defer",
+            "debt_resolve",
+            "debt_accept_risk",
+            "debt_supersede",
+            "debt_reopen",
+            "debt_context",
+            "debt_candidates",
+            "debt_migration_preview",
+            "debt_migrate",
         ] {
             assert!(names.contains(&name.to_string()), "{name} missing");
         }
@@ -2107,13 +2126,13 @@ mod tests {
     }
 
     #[test]
-    fn finding_protocol_creates_plans_and_contextualizes_without_rewriting_origin() {
+    fn debt_protocol_creates_plans_and_contextualizes_without_rewriting_origin() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".lmbrain/reviews/accepted")).unwrap();
         std::fs::create_dir_all(dir.path().join(".lmbrain/specs/backlog")).unwrap();
         let review = dir.path().join(".lmbrain/reviews/accepted/REVIEW-054.md");
         let review_source =
-            "---\nid: REVIEW-054\ntitle: Review\nstatus: accepted\n---\n- FINDING-07 debt\n";
+            "---\nid: REVIEW-054\ntitle: Review\nstatus: accepted\n---\n## Review findings\n- RF-007 debt\n";
         std::fs::write(&review, review_source).unwrap();
         std::fs::write(
             dir.path().join(".lmbrain/specs/backlog/SPEC-059.md"),
@@ -2124,10 +2143,10 @@ mod tests {
         let created = super::call(
             &root,
             &serde_json::json!({
-                "name":"finding_create",
+                "name":"debt_create",
                 "arguments":{
                     "title":"Routed debt","category":"correctness","severity":"high",
-                    "origin_artifact":"REVIEW-054","origin_ref":"FINDING-07",
+                    "origin_artifact":"REVIEW-054","origin_ref":"RF-007",
                     "related_specs":[],"related_reviews":["REVIEW-054"],
                     "related_decisions":[],"blocked_by":[],"tags":[],
                     "statement":"Defect remains","evidence":"Review evidence",
@@ -2148,7 +2167,7 @@ mod tests {
         super::call(
             &root,
             &serde_json::json!({
-                "name":"finding_plan",
+                "name":"debt_plan",
                 "arguments":{
                     "path":path,"target_specs":["SPEC-059"],
                     "actor":"AGENT-LEAD","rationale":"Delivery routed"
@@ -2159,7 +2178,7 @@ mod tests {
         let context = super::call(
             &root,
             &serde_json::json!({
-                "name":"finding_context","arguments":{"finding":"FINDING-001"}
+                "name":"debt_context","arguments":{"debt":"DEBT-001"}
             }),
         )
         .unwrap();
@@ -2172,7 +2191,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             context_payload
-                .pointer("/finding/status")
+                .pointer("/debt/status")
                 .and_then(Value::as_str),
             Some("planned")
         );
@@ -2184,7 +2203,7 @@ mod tests {
         );
         let candidates = super::call(
             &root,
-            &serde_json::json!({"name":"finding_candidates","arguments":{}}),
+            &serde_json::json!({"name":"debt_candidates","arguments":{}}),
         )
         .unwrap();
         let candidate_payload: Value = serde_json::from_str(
@@ -2718,7 +2737,11 @@ mod tests {
         )
         .unwrap();
         let get_val: Value = serde_json::from_str(
-            get_resp.pointer("/content/0/text").unwrap().as_str().unwrap(),
+            get_resp
+                .pointer("/content/0/text")
+                .unwrap()
+                .as_str()
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(get_val["digest"]["status"], "absent");

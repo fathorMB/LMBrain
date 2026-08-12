@@ -4,7 +4,21 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `4.1.0`.
+The current kit is `4.2.0`.
+
+### 4.2.0 (durable Debts and review-local RF identifiers)
+
+Supported source version is `4.1.0`. This is a breaking, controlled migration: legacy aliases and fallback readers are intentionally not retained.
+
+1. Commit or back up the complete workspace and require a clean worktree. Update the desktop application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together, but do not edit `.lmbrain/VERSION` yet.
+2. Call `debt_migration_preview`. Review its deterministic path/reference inventory, the per-review `FINDING-*`/`F-*` to `RF-*` mappings, and the returned preview digest. Preview is read-only and fails on malformed artifacts, unsafe paths, ambiguous review wikilinks, or unresolved migration input.
+3. After explicit operator confirmation, call `debt_migrate` with `confirmed: true` and the exact `expected_preview_digest`. The operation stages the entire brain, renames `.lmbrain/findings/` to `.lmbrain/debts/`, converts durable IDs to `DEBT-*`, converts `finding_events` and `finding_*` lifecycle references, converts review-local identifiers to `RF-*`, and changes the heading to `## Review findings`.
+4. The migration validates the staged workspace before swapping it into place. It updates `.lmbrain/VERSION` to `4.2.0` only after validation succeeds. Any preflight or staging failure leaves the original `.lmbrain/` unchanged; a failed final swap restores the pre-migration directory.
+5. Run `lmbrain_validate`; verify unique IDs, resolvable references, matching status directories, preserved lifecycle chronology/evidence, and successful waived criteria using `waived=DEBT-*`.
+6. Run a zero-residue search over operational content: `rg "FINDING-|finding_events|finding_(create|plan|defer|resolve|accept_risk|supersede|reopen|context|candidates)" .lmbrain --glob '!MIGRATIONS.md' --glob '!CHANGELOG.md'`. Investigate every result; do not add compatibility aliases.
+7. Review the complete Git diff before committing. Confirm the desktop **Debts** route, MCP catalog, review-local findings, and relevant project/spec/review context packs.
+
+Rollback is restoration of the pre-migration Git commit or backup. Do not attempt a reverse in-place rename and do not run a 4.1.x binary against migrated `DEBT-*` artifacts.
 
 ### 4.1.0 (Dream Journal, grounded dreaming, and review-cycle insights)
 

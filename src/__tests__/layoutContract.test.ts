@@ -18,7 +18,7 @@ function source(relativePath: string): string {
 const DENSE_PAGES = [
   "components/Decisions/DecisionsList.tsx",
   "components/Reviews/ReviewsList.tsx",
-  "components/Findings/FindingsView.tsx",
+  "components/Debts/DebtsView.tsx",
   "components/Feedback/FeedbackView.tsx",
   "components/Agents/AgentsView.tsx",
   "components/Agents/McpView.tsx",
