@@ -94,6 +94,9 @@ pub struct VerificationGateResult {
     pub exit_code: Option<i32>,
     pub timed_out: bool,
     pub expectation_met: bool,
+    /// Names only; inherited values are deliberately never retained or
+    /// serialized. The list is deterministic for diagnostic comparison.
+    pub removed_environment_variables: Vec<String>,
     pub stdout: String,
     pub stderr: String,
 }
@@ -710,6 +713,7 @@ fn run_gate(
     }
     let started_at = Utc::now().to_rfc3339();
     let started = Instant::now();
+    let minimal_environment = minimal_gate_environment();
     let mut command = Command::new(&gate.program);
     command
         .args(&gate.args)
@@ -718,7 +722,7 @@ fn run_gate(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env_clear();
-    command.envs(minimal_gate_environment());
+    command.envs(&minimal_environment.preserved);
     command.envs(&gate.environment);
     #[cfg(unix)]
     {
@@ -737,6 +741,7 @@ fn run_gate(
                 exit_code: None,
                 timed_out: false,
                 expectation_met: false,
+                removed_environment_variables: minimal_environment.removed,
                 stdout: String::new(),
                 stderr: format!("LMBrain could not launch the gate: {error}"),
             });
@@ -776,19 +781,25 @@ fn run_gate(
         exit_code,
         timed_out,
         expectation_met: !timed_out && exit_code == Some(expected) && matcher_ok,
+        removed_environment_variables: minimal_environment.removed,
         stdout,
         stderr,
     })
 }
 
-fn minimal_gate_environment() -> BTreeMap<OsString, OsString> {
+struct MinimalGateEnvironment {
+    preserved: BTreeMap<OsString, OsString>,
+    removed: Vec<String>,
+}
+
+fn minimal_gate_environment() -> MinimalGateEnvironment {
     minimal_gate_environment_from(std::env::vars_os(), cfg!(windows))
 }
 
 fn minimal_gate_environment_from(
     inherited: impl IntoIterator<Item = (OsString, OsString)>,
     windows: bool,
-) -> BTreeMap<OsString, OsString> {
+) -> MinimalGateEnvironment {
     let mut allowed = vec![
         "PATH",
         "PATHEXT",
@@ -806,15 +817,27 @@ fn minimal_gate_environment_from(
         allowed.push("ProgramData");
     }
 
-    inherited
-        .into_iter()
-        .filter(|(key, _)| {
-            let key = key.to_string_lossy();
-            allowed
-                .iter()
-                .any(|candidate| key.eq_ignore_ascii_case(candidate))
-        })
-        .collect()
+    let mut preserved = BTreeMap::new();
+    let mut removed = BTreeSet::new();
+    for (key, value) in inherited {
+        let name = key.to_string_lossy();
+        if allowed
+            .iter()
+            .any(|candidate| name.eq_ignore_ascii_case(candidate))
+        {
+            preserved.insert(key, value);
+        } else {
+            removed.insert(if windows {
+                name.to_ascii_uppercase()
+            } else {
+                name.into_owned()
+            });
+        }
+    }
+    MinimalGateEnvironment {
+        preserved,
+        removed: removed.into_iter().collect(),
+    }
 }
 
 fn bounded_read(reader: impl Read, limit: usize) -> String {
@@ -870,7 +893,7 @@ fn render_transcript(
     }
     for result in results {
         text.push_str(&format!(
-            "\n#### Gate `{}`\n\n```text\n$ {}\nstarted: {}\nfinished: {}\nduration_ms: {}\nexit_code: {}\ntimed_out: {}\nexpectation_met: {}\n--- stdout ---\n{}\n--- stderr ---\n{}\n```\n",
+            "\n#### Gate `{}`\n\n```text\n$ {}\nstarted: {}\nfinished: {}\nduration_ms: {}\nexit_code: {}\ntimed_out: {}\nexpectation_met: {}\nenvironment_policy: minimal-inherited-allowlist\nremoved_environment_variables: {}\n--- stdout ---\n{}\n--- stderr ---\n{}\n```\n",
             result.id,
             result.command,
             result.started_at,
@@ -879,6 +902,7 @@ fn render_transcript(
             result.exit_code.map_or_else(|| "none".into(), |code| code.to_string()),
             result.timed_out,
             result.expectation_met,
+            result.removed_environment_variables.join(", "),
             result.stdout,
             result.stderr
         ));
@@ -1214,14 +1238,62 @@ mod tests {
 
         let windows = minimal_gate_environment_from(inherited.clone(), true);
         assert_eq!(
-            windows.get(&OsString::from("ProgramData")),
+            windows.preserved.get(&OsString::from("ProgramData")),
             Some(&OsString::from(r"C:\\ProgramData"))
         );
-        assert!(!windows.contains_key(&OsString::from("SESSION_SECRET")));
+        assert!(!windows
+            .preserved
+            .contains_key(&OsString::from("SESSION_SECRET")));
 
         let non_windows = minimal_gate_environment_from(inherited, false);
-        assert!(!non_windows.contains_key(&OsString::from("ProgramData")));
-        assert!(!non_windows.contains_key(&OsString::from("SESSION_SECRET")));
+        assert!(!non_windows
+            .preserved
+            .contains_key(&OsString::from("ProgramData")));
+        assert!(!non_windows
+            .preserved
+            .contains_key(&OsString::from("SESSION_SECRET")));
+    }
+
+    #[test]
+    fn removed_environment_diagnostics_are_normalized_without_values() {
+        let inherited = [
+            (OsString::from("Path"), OsString::from("allowed")),
+            (OsString::from("Mixed_Case"), OsString::from("sensitive")),
+            (OsString::from("mixed_case"), OsString::from("other-secret")),
+        ];
+
+        let windows = minimal_gate_environment_from(inherited.clone(), true);
+        assert_eq!(windows.removed, vec!["MIXED_CASE"]);
+        assert!(!format!("{:?}", windows.removed).contains("sensitive"));
+
+        let non_windows = minimal_gate_environment_from(inherited, false);
+        assert_eq!(non_windows.removed, vec!["Mixed_Case", "mixed_case"]);
+
+        let transcript = render_transcript(
+            "manifest",
+            "before",
+            "after",
+            "contract",
+            &[VerificationGateResult {
+                id: "sample".into(),
+                command: "check".into(),
+                started_at: "start".into(),
+                finished_at: "finish".into(),
+                duration_ms: 1,
+                exit_code: Some(1),
+                timed_out: false,
+                expectation_met: false,
+                removed_environment_variables: windows.removed,
+                stdout: String::new(),
+                stderr: String::new(),
+            }],
+            None,
+            None,
+        );
+        assert!(transcript.contains("removed_environment_variables: MIXED_CASE"));
+        assert!(transcript.contains("environment_policy: minimal-inherited-allowlist"));
+        assert!(!transcript.contains("sensitive"));
+        assert!(!transcript.contains("other-secret"));
     }
 
     #[test]

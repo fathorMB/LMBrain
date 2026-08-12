@@ -44,6 +44,12 @@ The Cargo workspace contains:
 - `lmbrain-core`: shared mutation engine;
 - `lmbrain-mcp`: MCP stdio server.
 
+## Verification gate environment diagnostics
+
+Verification gates start from a minimal inherited environment. Their generated transcript and structured run result include `removed_environment_variables`, a deterministic list of variable names excluded by the `minimal-inherited-allowlist` policy. Values are never recorded. On Windows names are compared case-insensitively and reported in uppercase; on other platforms their case is preserved.
+
+When a tool reports a missing executable, SDK, or system installation, inspect this list before treating the failure as a machine-provisioning defect. A removed name identifies the minimal-environment policy as a possible cause; it does not expose the removed value or change the environment used by the gate.
+
 ## Repository Map
 
 ```text
