@@ -45,6 +45,8 @@ Decisions record supersession on both sides. `supersedes` and `superseded_by` ar
 
 `DEBT-*` is the durable cross-spec obligation domain. Review findings stay local to one review as `RF-*`; promotion is explicit, evidence-backed, and identified by the source pair plus a globally allocated debt ID. Planning never means resolution, a done target never auto-closes the debt, and operator-only risk/reopen decisions remain semantic MCP actions rather than app buttons.
 
+When authoring a spec, replace the scaffolded body instead of inserting finished content above it. Shared diagnostics report duplicated canonical H2 sections (`Objective`, `Context`, `Acceptance criteria`, `Required verification`, and `Implementation evidence`) outside fenced code blocks. The diagnostic is deliberately non-mutating: inspect the duplicate and remove only a confirmed empty template tail.
+
 `design/` is intentionally not a managed artifact directory. It stores self-contained HTML/CSS/JS mockups and optional README/manifest metadata that the Project Lead may reference from specs.
 
 `reports/lmbrain-kit-feedback.md` is a structured append-only exception to ordinary snapshot reports. It records evidence-backed LMBrain product/kit observations, not project work. The Project Lead writes it autonomously with `lmbrain_feedback_record`, reads it with `lmbrain_feedback_report`, and reports newly added notes to the operator for later delivery to the LMBrain team.

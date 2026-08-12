@@ -30,6 +30,8 @@ tags: []
 
 # Title
 
+Replace the scaffolded sections below with the specification body. Do not insert a completed body above the untouched template: duplicated canonical H2 sections are reported as an authoring diagnostic and are never removed automatically.
+
 ## Objective
 
 ## Context

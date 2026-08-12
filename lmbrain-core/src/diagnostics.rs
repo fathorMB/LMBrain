@@ -166,6 +166,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
     diagnose_roadmap(root, &artifacts, &mut diagnostics);
     diagnose_kit_feedback(root, &mut diagnostics);
     diagnose_spec_metadata(&artifacts, &mut diagnostics);
+    diagnose_duplicate_spec_sections(&artifacts, &mut diagnostics);
     diagnose_decisions(&artifacts, &mut diagnostics);
 
     let harness = lmbrain.join("HARNESSES.json");
@@ -222,6 +223,85 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
     });
     diagnostics.dedup_by(|left, right| left.id == right.id);
     diagnostics
+}
+
+const CANONICAL_SPEC_SECTIONS: &[&str] = &[
+    "Objective",
+    "Context",
+    "Acceptance criteria",
+    "Required verification",
+    "Implementation evidence",
+];
+
+fn diagnose_duplicate_spec_sections(artifacts: &[Artifact], diagnostics: &mut Vec<Diagnostic>) {
+    let canonical = CANONICAL_SPEC_SECTIONS
+        .iter()
+        .map(|heading| (normalize_heading(heading), *heading))
+        .collect::<BTreeMap<_, _>>();
+    for artifact in artifacts {
+        let Some(id) = artifact
+            .document
+            .value("id")
+            .filter(|id| id.starts_with("SPEC-"))
+        else {
+            continue;
+        };
+        let mut counts = BTreeMap::<String, usize>::new();
+        let mut fence: Option<(char, usize)> = None;
+        for line in artifact.document.body.lines() {
+            let trimmed = line.trim();
+            if let Some((marker, length)) = fence {
+                if trimmed.chars().take_while(|value| *value == marker).count() >= length {
+                    fence = None;
+                }
+                continue;
+            }
+            if let Some((marker, length)) = fence_start(trimmed) {
+                fence = Some((marker, length));
+                continue;
+            }
+            let Some(heading) = trimmed.strip_prefix("## ") else {
+                continue;
+            };
+            if heading.starts_with('#') {
+                continue;
+            }
+            let normalized = normalize_heading(heading.trim_end_matches('#').trim());
+            if canonical.contains_key(&normalized) {
+                *counts.entry(normalized).or_default() += 1;
+            }
+        }
+        for (normalized, count) in counts.into_iter().filter(|(_, count)| *count > 1) {
+            let display = canonical[&normalized];
+            diagnostics.push(diagnostic(
+                "duplicate-spec-section",
+                DiagnosticSeverity::Warning,
+                Some(id.clone()),
+                Some(artifact.relative.clone()),
+                format!("Specification {id} contains {count} '{display}' H2 sections"),
+                "Inspect the duplicated body manually and remove only a confirmed empty template tail; do not truncate or deduplicate content automatically.",
+                DiagnosticFixability::Manual,
+                &normalized,
+            ));
+        }
+    }
+}
+
+fn fence_start(line: &str) -> Option<(char, usize)> {
+    let marker = line.chars().next()?;
+    if !matches!(marker, '`' | '~') {
+        return None;
+    }
+    let length = line.chars().take_while(|value| *value == marker).count();
+    (length >= 3).then_some((marker, length))
+}
+
+fn normalize_heading(heading: &str) -> String {
+    heading
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 /// Spec metadata diagnostics (issues #49 and #64). These never block: they make
@@ -1466,6 +1546,44 @@ mod tests {
         assert!(diagnostics_with_misplaced
             .iter()
             .any(|d| d.artifact_id.as_deref() == Some("DEBT-999")));
+    }
+
+    #[test]
+    fn duplicated_canonical_spec_sections_are_heading_aware_and_non_mutating() {
+        let directory = tempdir().unwrap();
+        let specs = directory.path().join(".lmbrain/specs/backlog");
+        fs::create_dir_all(&specs).unwrap();
+        let path = specs.join("SPEC-001.md");
+        let source = "---\nid: SPEC-001\ntitle: Duplicate tail\nstatus: backlog\n---\n## Objective\nReal objective.\n\nProse mentions ## Objective without being a heading.\n\n```markdown\n## Objective\n## Context\n```\n\n##   objective   \n\n## Context\nReal context.\n\n## CONTEXT\n\n## Acceptance criteria\n- [ ] One\n\n## Required verification\nCheck.\n\n## Implementation evidence\nEvidence.\n";
+        fs::write(&path, source).unwrap();
+
+        let diagnostics = build_diagnostics(directory.path())
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == "duplicate-spec-section")
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("'Objective'")));
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("'Context'")));
+        assert_eq!(fs::read_to_string(path).unwrap(), source);
+    }
+
+    #[test]
+    fn one_of_each_canonical_spec_section_is_valid() {
+        let directory = tempdir().unwrap();
+        let specs = directory.path().join(".lmbrain/specs/backlog");
+        fs::create_dir_all(&specs).unwrap();
+        fs::write(
+            specs.join("SPEC-001.md"),
+            "---\nid: SPEC-001\ntitle: Valid\nstatus: backlog\n---\n## Objective\nA\n## Context\nB\n## Acceptance criteria\n- [ ] C\n## Required verification\nD\n## Implementation evidence\nE\n",
+        )
+        .unwrap();
+        assert!(!build_diagnostics(directory.path())
+            .iter()
+            .any(|diagnostic| diagnostic.code == "duplicate-spec-section"));
     }
 }
 
