@@ -955,6 +955,25 @@ fn diagnose_roadmap(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<D
         Err(_) => return,
     };
     let milestones = parse_roadmap_milestones(&roadmap_source);
+    for milestone in milestones.values().filter(|milestone| {
+        !milestone.status.is_empty() && !crate::is_roadmap_status(&milestone.status)
+    }) {
+        diagnostics.push(diagnostic(
+            "roadmap-milestone-status-unknown",
+            DiagnosticSeverity::Info,
+            Some(milestone.id.clone()),
+            Some("ROADMAP.md".into()),
+            format!(
+                "Roadmap milestone '{}' has unknown status '{}'; allowed values are {}",
+                milestone.id,
+                milestone.status,
+                crate::ROADMAP_STATUSES.join(", ")
+            ),
+            "Replace only the milestone status with one of: proposed, active, completed; preserve the milestone and its other roadmap data.",
+            DiagnosticFixability::Manual,
+            &format!("{}:{}", milestone.id, milestone.status),
+        ));
+    }
     let milestone_ids = milestones.keys().cloned().collect::<BTreeSet<_>>();
     let specs = artifacts
         .iter()
@@ -1108,67 +1127,13 @@ fn diagnose_roadmap(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<D
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub(crate) struct RoadmapMilestone {
-    pub status: Option<String>,
-    pub specs: BTreeSet<String>,
+pub(crate) fn parse_roadmap_milestones(source: &str) -> BTreeMap<String, crate::RoadmapMilestone> {
+    crate::parse_roadmap(source)
+        .milestones
+        .into_iter()
+        .map(|milestone| (milestone.id.clone(), milestone))
+        .collect()
 }
-
-pub(crate) fn parse_roadmap_milestones(source: &str) -> BTreeMap<String, RoadmapMilestone> {
-    let mut milestones: BTreeMap<String, RoadmapMilestone> = BTreeMap::new();
-    let mut current: Option<String> = None;
-    for line in source.lines() {
-        let trimmed = line.trim();
-        if let Some(heading) = trimmed
-            .strip_prefix("### ")
-            .or_else(|| trimmed.strip_prefix("## "))
-        {
-            current = heading
-                .split_whitespace()
-                .next()
-                .filter(|candidate| candidate.starts_with("M-"))
-                .map(str::to_string);
-            if let Some(id) = current.as_ref() {
-                milestones.entry(id.clone()).or_default();
-            }
-            continue;
-        }
-        let Some(id) = current.as_ref() else {
-            continue;
-        };
-        let Some((key, value)) = roadmap_property(trimmed) else {
-            continue;
-        };
-        let entry = milestones.entry(id.clone()).or_default();
-        match key {
-            "status" => entry.status = Some(value.trim().trim_matches('`').to_string()),
-            "specs" => {
-                // Extract only the bracket-delimited list if present,
-                // ignoring parenthetical annotations in trailing prose.
-                let source = if let (Some(open), Some(close)) = (value.find('['), value.rfind(']'))
-                {
-                    &value[open + 1..close]
-                } else {
-                    value
-                };
-                for token in source
-                    .split(|character: char| !character.is_ascii_alphanumeric() && character != '-')
-                {
-                    if token.starts_with("SPEC-")
-                        && token
-                            .rsplit_once('-')
-                            .is_some_and(|(_, number)| number.chars().all(|c| c.is_ascii_digit()))
-                    {
-                        entry.specs.insert(token.to_string());
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    milestones
-}
-
 fn current_milestone_candidates(specs: &[&Artifact]) -> Vec<String> {
     let mut scores: BTreeMap<String, usize> = BTreeMap::new();
     for artifact in specs {
@@ -1212,12 +1177,6 @@ pub(crate) fn extract_declared_milestone(source: &str) -> Option<String> {
         }
     }
     None
-}
-
-fn roadmap_property(line: &str) -> Option<(&str, &str)> {
-    let line = line.strip_prefix("- `")?;
-    let (key, value) = line.split_once("`:")?;
-    Some((key, value.trim()))
 }
 
 fn missing_reference(artifact_id: &str, path: &str, kind: &str, target: &str) -> Diagnostic {
@@ -1365,12 +1324,12 @@ mod tests {
         .unwrap();
         fs::write(
             lmbrain.join("ROADMAP.md"),
-            "# Roadmap\n\n## M-NEW - Current\n\n- `status`: active\n- `specs`: []\n",
+            "# Roadmap\n\n## M-01 - Current\n\n- `status`: active\n- `specs`: []\n",
         )
         .unwrap();
         fs::write(
             lmbrain.join("specs/working/SPEC-001.md"),
-            "---\nid: SPEC-001\ntitle: Work\nstatus: working\nmilestone: M-NEW\nrecommended_agent: AGENT-MISSING\n---\n",
+            "---\nid: SPEC-001\ntitle: Work\nstatus: working\nmilestone: M-01\nrecommended_agent: AGENT-MISSING\n---\n",
         )
         .unwrap();
 
@@ -1392,12 +1351,37 @@ mod tests {
     #[test]
     fn roadmap_parser_accepts_h2_h3_and_xenomark_shaped_spec_annotations() {
         let milestones = parse_roadmap_milestones(
-            "## M-01 — First\n- `status`: active\n- `specs`: [SPEC-001, SPEC-002]\n\n### M-02 — Second\n- `status`: done\n- `specs`: [SPEC-003 (done: evidence), SPEC-004]\n",
+            "## M-01 — First\n- `status`: active\n- `specs`: [SPEC-001, SPEC-002]\n\n### M-02 — Second\n- `status`: completed\n- `specs`: [SPEC-003 (done: evidence), SPEC-004]\n",
         );
         assert_eq!(milestones.len(), 2);
+        assert_eq!(milestones["M-02"].specs, vec!["SPEC-003", "SPEC-004"]);
+    }
+
+    #[test]
+    fn unknown_roadmap_status_is_informational_and_preserves_the_milestone() {
+        let directory = tempdir().unwrap();
+        let lmbrain = directory.path().join(".lmbrain");
+        fs::create_dir_all(&lmbrain).unwrap();
+        fs::write(lmbrain.join("STATUS.md"), "# Status\n\nstatus: active\n").unwrap();
+        let source = "## M-01 — Release\n- `status`: completata (2026-08-12)\n- `specs`: []\n";
+        fs::write(lmbrain.join("ROADMAP.md"), source).unwrap();
+
+        let diagnostics = build_diagnostics(directory.path());
+        let diagnostic = diagnostics
+            .iter()
+            .find(|item| item.code == "roadmap-milestone-status-unknown")
+            .expect("unknown status diagnostic");
+        assert_eq!(diagnostic.severity, DiagnosticSeverity::Info);
+        assert_eq!(diagnostic.artifact_id.as_deref(), Some("M-01"));
+        assert!(diagnostic.message.contains("completata (2026-08-12)"));
+        assert!(diagnostic.message.contains("proposed, active, completed"));
         assert_eq!(
-            milestones["M-02"].specs,
-            BTreeSet::from(["SPEC-003".into(), "SPEC-004".into()])
+            crate::parse_roadmap(source).milestones[0].status,
+            "completata (2026-08-12)"
+        );
+        assert_eq!(
+            fs::read_to_string(lmbrain.join("ROADMAP.md")).unwrap(),
+            source
         );
     }
 

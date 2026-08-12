@@ -221,7 +221,15 @@ pub fn attest_spec_requirement(
     actor: &str,
     evidence_ref: &str,
 ) -> Result<AttestationResult, AttestationError> {
-    attest_spec_requirement_inner(root, artifact, requirement_id, actor_role, actor, evidence_ref, None)
+    attest_spec_requirement_inner(
+        root,
+        artifact,
+        requirement_id,
+        actor_role,
+        actor,
+        evidence_ref,
+        None,
+    )
 }
 
 /// Record an operator attestation that was granted out of band — for
@@ -462,10 +470,7 @@ fn check_requirement_in_body(
     let mut new_lines = Vec::new();
     let mut found = false;
     for line in document.body.lines() {
-        if !found
-            && line.contains(requirement_id)
-            && line.trim_start().starts_with("- [ ]")
-        {
+        if !found && line.contains(requirement_id) && line.trim_start().starts_with("- [ ]") {
             new_lines.push(line.replacen("- [ ]", "- [x]", 1));
             found = true;
         } else {
@@ -827,10 +832,16 @@ mod tests {
             "Moren",
             "playtest:unchecked",
         );
-        assert!(result.is_ok(), "operator auto-check should succeed: {result:?}");
+        assert!(
+            result.is_ok(),
+            "operator auto-check should succeed: {result:?}"
+        );
         // Verify the spec body was auto-checked
         let updated = fs::read_to_string(&review_path).unwrap();
-        assert!(updated.contains("- [x] HUMAN"), "checkbox should be auto-checked");
+        assert!(
+            updated.contains("- [x] HUMAN"),
+            "checkbox should be auto-checked"
+        );
 
         // Lead attesting an unchecked owner=lead gate succeeds and auto-checks the spec body
         let lead_path = directory.path().join(".lmbrain/specs/review/SPEC-003.md");
@@ -845,9 +856,15 @@ mod tests {
             "Ada",
             "review:unchecked",
         );
-        assert!(lead_result.is_ok(), "lead auto-check should succeed: {lead_result:?}");
+        assert!(
+            lead_result.is_ok(),
+            "lead auto-check should succeed: {lead_result:?}"
+        );
         let updated_lead = fs::read_to_string(&lead_path).unwrap();
-        assert!(updated_lead.contains("- [x] LEAD-CHECK"), "lead checkbox should be auto-checked");
+        assert!(
+            updated_lead.contains("- [x] LEAD-CHECK"),
+            "lead checkbox should be auto-checked"
+        );
     }
 
     #[test]
@@ -884,14 +901,18 @@ mod tests {
             AttestationDelegation {
                 recorded_by: "AGENT-LEAD".into(),
                 channel: "conversation".into(),
-                authorization: "All four delegated economic models are approved as proposed.".into(),
+                authorization: "All four delegated economic models are approved as proposed."
+                    .into(),
             },
         )
         .unwrap();
         assert!(result.created);
         assert_eq!(result.attestation.actor_role, "operator");
         assert_eq!(result.attestation.actor, "Moreno");
-        assert_eq!(result.attestation.delegated_by.as_deref(), Some("AGENT-LEAD"));
+        assert_eq!(
+            result.attestation.delegated_by.as_deref(),
+            Some("AGENT-LEAD")
+        );
 
         // The gate is genuinely satisfied: no blocker, no force needed.
         let document = Document::parse(&fs::read_to_string(&path).unwrap()).unwrap();

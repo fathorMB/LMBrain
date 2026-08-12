@@ -1162,22 +1162,12 @@ fn derive_project_state(lmbrain: &Path, specs: &[CompactSpec]) -> DerivedProject
         .unwrap_or_default();
     let active_milestones = roadmap
         .iter()
-        .filter(|(_, milestone)| {
-            milestone
-                .status
-                .as_deref()
-                .is_some_and(|status| matches!(status, "active" | "in-progress" | "working"))
-        })
+        .filter(|(_, milestone)| milestone.status == "active")
         .map(|(id, _)| id.clone())
         .collect::<Vec<_>>();
     let planned_milestones = roadmap
         .iter()
-        .filter(|(_, milestone)| {
-            milestone
-                .status
-                .as_deref()
-                .is_some_and(|status| matches!(status, "planned" | "proposed"))
-        })
+        .filter(|(_, milestone)| milestone.status == "proposed")
         .map(|(id, _)| id.clone())
         .collect::<Vec<_>>();
     let mut scores: BTreeMap<String, usize> = BTreeMap::new();
@@ -3126,12 +3116,12 @@ links: []
         .unwrap();
         fs::write(
             lmbrain.join("ROADMAP.md"),
-            "# Roadmap\n\n## M-NEW - Planned\n\n- `status`: planned\n- `specs`: []\n",
+            "# Roadmap\n\n## M-01 - Planned\n\n- `status`: proposed\n- `specs`: []\n",
         )
         .unwrap();
         fs::write(
             lmbrain.join("specs/backlog/SPEC-001.md"),
-            "---\nid: SPEC-001\ntitle: Planned work\nstatus: backlog\nmilestone: M-NEW\nrecommended_agent: AGENT-MISSING\n---\n",
+            "---\nid: SPEC-001\ntitle: Planned work\nstatus: backlog\nmilestone: M-01\nrecommended_agent: AGENT-MISSING\n---\n",
         )
         .unwrap();
 

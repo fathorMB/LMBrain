@@ -1,13 +1,13 @@
 use lmbrain_core::{
+    build_diagnostics,
     context::{build_review_context, build_spec_context},
     frontmatter::Document,
-    invariants, park_spec,
+    invariants, park_spec, parse_review_event_history,
     transitions::{
         create, record_review_event, review_verdict, set_agent_mnemonic_name, supersede_adr,
         transition, ArtifactKind, CreateRequest, MutationOptions,
     },
-    build_diagnostics,
-    parse_review_event_history, ReviewEventInput, SpecParkingInput,
+    ReviewEventInput, SpecParkingInput,
 };
 use std::fs;
 use tempfile::tempdir;
@@ -1643,9 +1643,14 @@ fn effort_rejects_unknown_and_constrained_combinations() {
     let spec = ".lmbrain/specs/backlog/SPEC-200.md";
     spec_fixture(dir.path(), spec, "");
 
-    let unknown =
-        lmbrain_core::set_spec_effort(dir.path(), spec, "jupiter", None, MutationOptions::default())
-            .unwrap_err();
+    let unknown = lmbrain_core::set_spec_effort(
+        dir.path(),
+        spec,
+        "jupiter",
+        None,
+        MutationOptions::default(),
+    )
+    .unwrap_err();
     assert!(unknown.to_string().contains("unknown capability tier"));
 
     let constrained = lmbrain_core::set_spec_effort(
@@ -1671,10 +1676,7 @@ fn effort_rejects_unknown_and_constrained_combinations() {
     )
     .unwrap();
     let document = Document::parse(&fs::read_to_string(&forced.path).unwrap()).unwrap();
-    assert_eq!(
-        document.value("thinking_level").as_deref(),
-        Some("minimal")
-    );
+    assert_eq!(document.value("thinking_level").as_deref(), Some("minimal"));
     assert!(!document.object_array("mutation_overrides").is_empty());
 }
 
@@ -1726,7 +1728,9 @@ fn effort_observations_are_append_only_and_never_rewrite_the_recommendation() {
     let observations = document.object_array("effort_observations");
     assert_eq!(observations.len(), 2);
     assert_eq!(
-        observations[0].get("observed_tier").and_then(|v| v.as_str()),
+        observations[0]
+            .get("observed_tier")
+            .and_then(|v| v.as_str()),
         Some("sol")
     );
     assert_eq!(
@@ -1803,16 +1807,12 @@ fn supersession_writes_both_sides() {
         &decision("ADR-009", "accepted"),
     );
 
-    let result = supersede_adr(
-        dir.path(),
-        successor,
-        "ADR-009",
-        MutationOptions::default(),
-    )
-    .unwrap();
+    let result =
+        supersede_adr(dir.path(), successor, "ADR-009", MutationOptions::default()).unwrap();
     assert_eq!(result.id, "ADR-010");
 
-    let new_side = Document::parse(&fs::read_to_string(dir.path().join(successor)).unwrap()).unwrap();
+    let new_side =
+        Document::parse(&fs::read_to_string(dir.path().join(successor)).unwrap()).unwrap();
     assert_eq!(new_side.string_array("supersedes"), vec!["ADR-009"]);
 
     let old_side = Document::parse(
@@ -1839,7 +1839,10 @@ fn supersession_is_idempotent() {
     supersede_adr(dir.path(), successor, "ADR-009", MutationOptions::default()).unwrap();
     let after_first = fs::read_to_string(dir.path().join(successor)).unwrap();
     supersede_adr(dir.path(), successor, "ADR-009", MutationOptions::default()).unwrap();
-    assert_eq!(fs::read_to_string(dir.path().join(successor)).unwrap(), after_first);
+    assert_eq!(
+        fs::read_to_string(dir.path().join(successor)).unwrap(),
+        after_first
+    );
 }
 
 /// ADR-014 is `proposed` yet declares `supersedes: [ADR-013]`. Declaring the
@@ -1876,16 +1879,24 @@ fn supersession_rejects_self_reference_and_unknown_targets() {
     let self_error = supersede_adr(dir.path(), successor, "ADR-010", MutationOptions::default())
         .unwrap_err()
         .to_string();
-    assert!(self_error.contains("cannot supersede itself"), "{self_error}");
+    assert!(
+        self_error.contains("cannot supersede itself"),
+        "{self_error}"
+    );
 
     let missing = supersede_adr(dir.path(), successor, "ADR-404", MutationOptions::default())
         .unwrap_err()
         .to_string();
     assert!(missing.contains("does not exist"), "{missing}");
 
-    let wrong_kind = supersede_adr(dir.path(), successor, "SPEC-001", MutationOptions::default())
-        .unwrap_err()
-        .to_string();
+    let wrong_kind = supersede_adr(
+        dir.path(),
+        successor,
+        "SPEC-001",
+        MutationOptions::default(),
+    )
+    .unwrap_err()
+    .to_string();
     assert!(wrong_kind.contains("not a decision ID"), "{wrong_kind}");
 }
 
@@ -1911,7 +1922,8 @@ fn forced_supersession_records_the_invariant_it_broke() {
     )
     .unwrap();
 
-    let document = Document::parse(&fs::read_to_string(dir.path().join(successor)).unwrap()).unwrap();
+    let document =
+        Document::parse(&fs::read_to_string(dir.path().join(successor)).unwrap()).unwrap();
     let overrides = document.object_array("mutation_overrides");
     assert_eq!(overrides.len(), 1);
     assert!(
@@ -2139,10 +2151,7 @@ fn creation_normalizes_list_valued_fields_and_rejects_ambiguity() {
             kind: ArtifactKind::Spec,
             title: "List normalization".into(),
             status: None,
-            fields: vec![(
-                "related_decisions".into(),
-                "ADR-001,ADR-002".into(),
-            )],
+            fields: vec![("related_decisions".into(), "ADR-001,ADR-002".into())],
         },
     )
     .unwrap();

@@ -18,7 +18,7 @@ use crate::models::mcp::{McpProposal, McpProposalStatus, McpRecord, McpStatus};
 use crate::models::pulse::{ActionItem, MetricCard, PulseData};
 use crate::models::review::{Review, ReviewFinding, ReviewStatus};
 use crate::models::roadmap::{
-    Milestone, MilestoneAdrSummary, MilestoneDetail, MilestoneOverview, MilestoneReviewSummary,
+    MilestoneAdrSummary, MilestoneDetail, MilestoneOverview, MilestoneReviewSummary,
     MilestoneSpecSummary, Roadmap,
 };
 use crate::models::skill::{Skill, SkillStatus};
@@ -1552,134 +1552,7 @@ pub fn build_roadmap(root: &Path) -> Result<Roadmap, AppError> {
         return Err(AppError::FileNotFound("ROADMAP.md not found".into()));
     }
     let content = fs::read_to_string(&roadmap_path)?;
-    Ok(parse_roadmap_content(&content))
-}
-
-fn parse_roadmap_content(content: &str) -> Roadmap {
-    let parsed = parser::parse_frontmatter(content);
-    let title = fm_string(&parsed.frontmatter, "title").unwrap_or_else(|| "Roadmap".to_string());
-    let body = if parsed.frontmatter.is_empty() && content.trim_start().starts_with("---") {
-        content
-    } else {
-        parsed.body.as_str()
-    };
-
-    let mut milestones = Vec::new();
-    let mut current_milestone: Option<Milestone> = None;
-
-    for line in body.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('#') {
-            let heading_level = trimmed.chars().take_while(|ch| *ch == '#').count();
-            let heading_content = trimmed.trim_start_matches('#').trim();
-            let (id, milestone_title) = split_milestone_heading(heading_content);
-            let is_milestone = is_milestone_id(&id);
-            if is_milestone {
-                if let Some(milestone) = current_milestone.take() {
-                    milestones.push(milestone);
-                }
-                current_milestone = Some(Milestone {
-                    id,
-                    title: milestone_title,
-                    status: String::new(),
-                    outcome: String::new(),
-                    specs: Vec::new(),
-                    decisions: Vec::new(),
-                    risks: Vec::new(),
-                    depends_on: None,
-                });
-            } else if heading_level <= 3 {
-                if let Some(milestone) = current_milestone.take() {
-                    milestones.push(milestone);
-                }
-            }
-        } else if (trimmed.starts_with("- ") || trimmed.starts_with("* "))
-            && current_milestone.is_some()
-        {
-            let list_content = &trimmed[2..];
-            let parts: Vec<&str> = list_content.splitn(2, ':').collect();
-            if parts.len() != 2 {
-                continue;
-            }
-
-            let key = parts[0].trim().trim_matches('`').trim();
-            let value = parts[1].trim();
-            if let Some(milestone) = current_milestone.as_mut() {
-                match key {
-                    "status" => milestone.status = value.to_string(),
-                    "outcome" => milestone.outcome = value.to_string(),
-                    "depends_on" => milestone.depends_on = Some(value.to_string()),
-                    "specs" => milestone.specs = parse_list_items(value),
-                    "decisions" => milestone.decisions = parse_list_items(value),
-                    "risks" => milestone.risks = parse_list_items(value),
-                    _ => {}
-                }
-            }
-        }
-    }
-
-    if let Some(milestone) = current_milestone {
-        milestones.push(milestone);
-    }
-
-    Roadmap { title, milestones }
-}
-
-fn parse_list_items(value: &str) -> Vec<String> {
-    let bracketed = value
-        .match_indices('[')
-        .filter_map(|(start, _)| {
-            let rest = &value[start + 1..];
-            let end = rest.find(']')?;
-            Some(rest[..end].to_string())
-        })
-        .flat_map(|inside| {
-            inside
-                .split(',')
-                .map(|item| clean_reference_item(item).to_string())
-                .filter(|item| !item.is_empty())
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-
-    if !bracketed.is_empty() {
-        return bracketed;
-    }
-
-    value
-        .split(',')
-        .map(clean_reference_item)
-        .filter(|item| !item.is_empty() && *item != "(backlog)")
-        .map(str::to_string)
-        .collect()
-}
-
-fn split_milestone_heading(heading: &str) -> (String, String) {
-    for delimiter in [" — ", " – ", " - ", "—", "–"] {
-        if let Some((id, title)) = heading.split_once(delimiter) {
-            return (id.trim().to_string(), title.trim().to_string());
-        }
-    }
-
-    let mut parts = heading.splitn(2, char::is_whitespace);
-    let id = parts.next().unwrap_or_default().trim().to_string();
-    let title = parts.next().unwrap_or_default().trim().to_string();
-    (id, title)
-}
-
-fn is_milestone_id(id: &str) -> bool {
-    let Some(rest) = id.strip_prefix('M') else {
-        return false;
-    };
-    let rest = rest.strip_prefix('-').unwrap_or(rest);
-    !rest.is_empty() && rest.chars().all(|ch| ch.is_ascii_digit())
-}
-
-fn clean_reference_item(item: &str) -> &str {
-    item.trim()
-        .trim_matches('`')
-        .trim_matches(|ch| ch == '[' || ch == ']')
-        .trim()
+    Ok(lmbrain_core::parse_roadmap(&content))
 }
 
 /// Build a derived milestone overview with joined spec, review, ADR, and diagnostic data.

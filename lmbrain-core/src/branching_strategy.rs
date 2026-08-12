@@ -132,7 +132,9 @@ impl BranchingStrategy {
     }
 }
 
-pub fn validate_branching_strategy(strategy: &BranchingStrategy) -> Result<(), BranchingStrategyError> {
+pub fn validate_branching_strategy(
+    strategy: &BranchingStrategy,
+) -> Result<(), BranchingStrategyError> {
     if strategy.schema_version != BRANCHING_STRATEGY_SCHEMA_VERSION {
         return Err(BranchingStrategyError::InvalidSchemaVersion {
             version: strategy.schema_version,
@@ -162,7 +164,9 @@ pub fn parse_branching_strategy(json: &str) -> Result<BranchingStrategy, Branchi
     Ok(strategy)
 }
 
-pub fn load_branching_strategy(root: &Path) -> Result<Option<BranchingStrategy>, BranchingStrategyError> {
+pub fn load_branching_strategy(
+    root: &Path,
+) -> Result<Option<BranchingStrategy>, BranchingStrategyError> {
     let path = root.join(BRANCHING_STRATEGY_PATH);
     if !path.exists() {
         return Ok(None);
@@ -240,7 +244,11 @@ pub fn set_branching_strategy(
     });
 
     let audit_path = root.join(BRANCHING_AUDIT_PATH);
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&audit_path) {
+    if let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&audit_path)
+    {
         let _ = writeln!(file, "{}", audit_entry.to_string());
     }
 
@@ -266,8 +274,12 @@ mod tests {
         let dir = tempdir().unwrap();
         let strat = BranchingStrategy::default_scaffolded();
 
-        let err = set_branching_strategy(dir.path(), &strat, "project-lead", "testing").unwrap_err();
-        assert!(matches!(err, BranchingStrategyError::UnauthorizedActor { .. }));
+        let err =
+            set_branching_strategy(dir.path(), &strat, "project-lead", "testing").unwrap_err();
+        assert!(matches!(
+            err,
+            BranchingStrategyError::UnauthorizedActor { .. }
+        ));
 
         let res = set_branching_strategy(dir.path(), &strat, "operator", "testing");
         assert!(res.is_ok());

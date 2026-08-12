@@ -554,7 +554,13 @@ mod tests {
     #[test]
     fn process_runner_bounds_captured_output() {
         let (program, args) = if cfg!(unix) {
-            (std::path::PathBuf::from("sh"), vec!["-c".to_string(), format!("yes x | head -c {}", MAX_CAPTURE_BYTES + 1024)])
+            (
+                std::path::PathBuf::from("sh"),
+                vec![
+                    "-c".to_string(),
+                    format!("yes x | head -c {}", MAX_CAPTURE_BYTES + 1024),
+                ],
+            )
         } else {
             (
                 std::env::current_exe().unwrap(),
