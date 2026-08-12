@@ -161,7 +161,7 @@ title: Roadmap
 
 ### M-01 — Running scaffold
 
-- `status`: planned
+- `status`: active
 - `outcome`: The stack is wired end to end.
 - `specs`: [SPEC-001]
 - `risks`: [Tauri 2.x API stability]
@@ -183,7 +183,7 @@ title: Roadmap
     let m1 = &result.milestones[0];
     assert_eq!(m1.id, "M-01");
     assert_eq!(m1.title, "Running scaffold");
-    assert_eq!(m1.status, "planned");
+    assert_eq!(m1.status, "active");
     assert_eq!(m1.specs, vec!["SPEC-001".to_string()]);
     assert_eq!(result.milestones[1].id, "M-02");
 }
@@ -1166,7 +1166,7 @@ updated: 2026-06-22
 
 ## M-02 — Operator workflow
 
-- `status`: planned
+- `status`: proposed
 - `target`: obsolete legacy schedule
 - `outcome`: Write support.
 - `decisions`: [ADR-002]
@@ -1193,7 +1193,7 @@ updated: 2026-06-22
     let m2 = &roadmap.milestones[1];
     assert_eq!(m2.id, "M-02");
     assert_eq!(m2.title, "Operator workflow");
-    assert_eq!(m2.status, "planned");
+    assert_eq!(m2.status, "proposed");
     assert_eq!(m2.outcome, "Write support.");
     assert_eq!(m2.decisions, vec!["ADR-002"]);
     assert_eq!(m2.depends_on, Some("M-01".to_string()));
@@ -1264,7 +1264,7 @@ fn test_build_milestone_overview_handles_missing_references() {
 
     fs::write(
         lmbrain.join("ROADMAP.md"),
-        "---\ntitle: Roadmap\n---\n\n# Roadmap\n\n### M-01 — Test\n\n- `status`: planned\n- `specs`: []\n- `decisions`: [ADR-999]\n- `depends_on`: M-99\n",
+        "---\ntitle: Roadmap\n---\n\n# Roadmap\n\n### M-01 — Test\n\n- `status`: proposed\n- `specs`: []\n- `decisions`: [ADR-999]\n- `depends_on`: M-99\n",
     )
     .unwrap();
 
@@ -1277,56 +1277,67 @@ fn test_build_milestone_overview_handles_missing_references() {
 }
 
 #[test]
-fn test_build_roadmap_accepts_nucleus_style_milestones_and_inline_refs() {
+fn test_build_roadmap_uses_core_contract_and_ignores_placeholders_and_fences() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());
     let lmbrain = dir.path().join(".lmbrain");
+    let source = r#"---
+title: Roadmap
+---
 
-    fs::write(
-        lmbrain.join("ROADMAP.md"),
-        "---\ntitle: Roadmap\n---\n\n# Roadmap\n\n## Milestones\n\n### M0 — Foundations & architecture\n- `status`: done\n- `outcome`: Delivered.\n- `specs`: [SPEC-001]\n- `decisions`: [ADR-001]\n\n### M4 — Persistence & data-driven scenarios\n- `status`: in progress\n- `outcome`: Versioned save/load and hardening.\n- `specs`: [SPEC-010] **delivered**. Split work: [SPEC-012], [SPEC-013], [SPEC-014].\n- `risks`: Save schema evolution.\n\n### Future — Extensibility\n- `status`: proposed\n- `specs`: (backlog)\n",
-    )
-    .unwrap();
+# Roadmap
+
+### M0 — Legacy
+- `status`: completed
+
+### M-NN — Placeholder
+- `status`: proposed
+
+```markdown
+### M-98 — Fenced example
+- `status`: active
+```
+
+## M-04 — Persistence
+- `status`: completata
+- `specs`: [SPEC-010] delivered; [SPEC-012]
+"#;
+    fs::write(lmbrain.join("ROADMAP.md"), source).unwrap();
 
     let roadmap = contract::build_roadmap(dir.path()).unwrap();
-    assert_eq!(roadmap.milestones.len(), 2);
-    assert_eq!(roadmap.milestones[0].id, "M0");
-    assert_eq!(roadmap.milestones[0].title, "Foundations & architecture");
-    assert_eq!(roadmap.milestones[1].id, "M4");
-    assert_eq!(roadmap.milestones[1].status, "in progress");
-    assert_eq!(
-        roadmap.milestones[1].specs,
-        vec!["SPEC-010", "SPEC-012", "SPEC-013", "SPEC-014"]
-    );
+    assert_eq!(roadmap, lmbrain_core::parse_roadmap(source));
+    assert_eq!(roadmap.milestones.len(), 1);
+    assert_eq!(roadmap.milestones[0].id, "M-04");
+    assert_eq!(roadmap.milestones[0].status, "completata");
+    assert_eq!(roadmap.milestones[0].specs, ["SPEC-010", "SPEC-012"]);
 }
-
 #[test]
-fn test_build_milestone_overview_maps_specs_to_nucleus_style_milestone_ids() {
+fn test_build_milestone_overview_maps_specs_to_canonical_milestone_ids() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());
     let lmbrain = dir.path().join(".lmbrain");
 
     fs::write(
         lmbrain.join("ROADMAP.md"),
-        "---\ntitle: Roadmap\n---\n\n# Roadmap\n\n### M4 — Persistence & data-driven scenarios\n- `status`: in progress\n- `outcome`: Versioned save/load and hardening.\n- `specs`: [SPEC-010] **delivered**. Split work: [SPEC-012].\n",
+        "---\ntitle: Roadmap\n---\n\n# Roadmap\n\n### M-04 — Persistence & data-driven scenarios\n- `status`: active\n- `outcome`: Versioned save/load and hardening.\n- `specs`: [SPEC-010] **delivered**. Split work: [SPEC-012].\n",
     )
     .unwrap();
     fs::create_dir_all(lmbrain.join("specs/done")).unwrap();
     fs::create_dir_all(lmbrain.join("specs/backlog")).unwrap();
     fs::write(
         lmbrain.join("specs/done/SPEC-010.md"),
-        "---\nid: SPEC-010\ntitle: Persistence\nstatus: done\nmilestone: M4\ncreated: 2026-07-03\nupdated: 2026-07-03\ntags: []\nlinks: []\n---\nBody",
+        "---\nid: SPEC-010\ntitle: Persistence\nstatus: done\nmilestone: M-04\ncreated: 2026-07-03\nupdated: 2026-07-03\ntags: []\nlinks: []\n---\nBody",
     )
     .unwrap();
     fs::write(
         lmbrain.join("specs/backlog/SPEC-012.md"),
-        "---\nid: SPEC-012\ntitle: Balance\nstatus: backlog\nmilestone: M4\ncreated: 2026-07-03\nupdated: 2026-07-03\ntags: []\nlinks: []\n---\nBody",
+        "---\nid: SPEC-012\ntitle: Balance\nstatus: backlog\nmilestone: M-04\ncreated: 2026-07-03\nupdated: 2026-07-03\ntags: []\nlinks: []\n---\nBody",
     )
     .unwrap();
 
     let overview = contract::build_milestone_overview(dir.path()).unwrap();
     assert_eq!(overview.milestones.len(), 1);
-    assert_eq!(overview.milestones[0].id, "M4");
+    assert_eq!(overview.milestones[0].id, "M-04");
     assert_eq!(overview.milestones[0].spec_count, 2);
     let spec_ids = overview.milestones[0]
         .specs

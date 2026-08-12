@@ -8,10 +8,10 @@ use commands::contract;
 use commands::design;
 use commands::filesystem::PathGuard;
 use commands::git;
-use commands::harnesses::HarnessManager;
 use commands::harness_approval::{HarnessApprovalStatus, HarnessApprovalStore};
-use commands::harness_planner::HarnessConfigurationPlan;
 use commands::harness_materializer::HarnessDriftEntry;
+use commands::harness_planner::HarnessConfigurationPlan;
+use commands::harnesses::HarnessManager;
 use commands::sessions::SessionManager;
 use commands::watcher::FileWatcherService;
 use commands::workspace::WorkspaceService;
@@ -171,23 +171,38 @@ fn parse_markdown(state: State<'_, AppState>, path: String) -> Result<ParsedDocu
 }
 
 #[tauri::command(async)]
-fn get_harness_approval_status(state: State<'_, AppState>) -> Result<HarnessApprovalStatus, String> {
-    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
+fn get_harness_approval_status(
+    state: State<'_, AppState>,
+) -> Result<HarnessApprovalStatus, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
     state.harness_approvals.status(&root)
 }
 
 #[tauri::command(async)]
-fn plan_harness_configuration(state: State<'_, AppState>) -> Result<HarnessConfigurationPlan, String> {
-    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
+fn plan_harness_configuration(
+    state: State<'_, AppState>,
+) -> Result<HarnessConfigurationPlan, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
     let command = commands::mcp_registration::resolve_mcp_command_for_root(&root);
     commands::harness_planner::plan_harness_configuration(&root, &command)
 }
 
 #[tauri::command(async)]
 fn get_harness_drift(state: State<'_, AppState>) -> Result<Vec<HarnessDriftEntry>, String> {
-    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
     let applied = state.harness_approvals.applied_files(&root)?;
-    Ok(commands::harness_materializer::detect_drift(&root, &applied))
+    Ok(commands::harness_materializer::detect_drift(
+        &root, &applied,
+    ))
 }
 
 #[tauri::command(async)]
@@ -244,7 +259,10 @@ fn get_debts(state: State<'_, AppState>) -> Result<Vec<lmbrain_core::Debt>, Stri
 
 #[tauri::command(async)]
 fn get_dreams(state: State<'_, AppState>) -> Result<Vec<lmbrain_core::Dream>, String> {
-    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
     Ok(lmbrain_core::list_dreams(&root))
 }
 
@@ -495,7 +513,9 @@ fn get_git_info(state: State<'_, AppState>) -> Result<GitInfo, String> {
 }
 
 #[tauri::command(async)]
-fn get_git_details(state: State<'_, AppState>) -> Result<commands::git_details::GitDetails, String> {
+fn get_git_details(
+    state: State<'_, AppState>,
+) -> Result<commands::git_details::GitDetails, String> {
     let root = state
         .path_guard
         .get_root()
@@ -553,7 +573,10 @@ fn delete_github_pat() -> Result<(), String> {
 }
 
 #[tauri::command(async)]
-fn get_github_dashboard(owner: String, repo: String) -> Result<commands::github_integration::GitHubDashboard, String> {
+fn get_github_dashboard(
+    owner: String,
+    repo: String,
+) -> Result<commands::github_integration::GitHubDashboard, String> {
     commands::github_integration::get_github_dashboard(&owner, &repo)
 }
 
@@ -663,7 +686,6 @@ fn session_get_transcript(state: State<'_, AppState>, id: String) -> Result<Stri
         .get_transcript(&id)
         .map_err(|err| err.to_string())
 }
-
 
 #[tauri::command(async)]
 fn list_ollama_models() -> Result<Vec<OllamaModel>, String> {
@@ -789,8 +811,7 @@ fn get_verification_manifest_status(
 ) -> Result<lmbrain_core::VerificationManifestStatus, String> {
     let root = verification_root(&state)?;
     let approval = lmbrain_core::default_verification_approval_path(&root);
-    lmbrain_core::verification_manifest_status(&root, &approval)
-        .map_err(|error| error.to_string())
+    lmbrain_core::verification_manifest_status(&root, &approval).map_err(|error| error.to_string())
 }
 
 #[tauri::command(async)]
@@ -810,12 +831,8 @@ fn set_verification_manifest(
     expected_current_digest: Option<String>,
 ) -> Result<lmbrain_core::VerificationManifestWriteResult, String> {
     let root = verification_root(&state)?;
-    lmbrain_core::set_verification_manifest(
-        &root,
-        &manifest,
-        expected_current_digest.as_deref(),
-    )
-    .map_err(|error| error.to_string())
+    lmbrain_core::set_verification_manifest(&root, &manifest, expected_current_digest.as_deref())
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command(async)]

@@ -477,7 +477,10 @@ pub fn apply_improvement_proposal(
         "primary_files",
         proposal.string_array("add_primary_files"),
     );
-    if let Some(replaces) = proposal.value("replaces_text").or_else(|| proposal.value("supersedes_text")) {
+    if let Some(replaces) = proposal
+        .value("replaces_text")
+        .or_else(|| proposal.value("supersedes_text"))
+    {
         if !replaces.trim().is_empty() {
             target.body = target.body.replace(&replaces, &format!("~~{replaces}~~"));
         }

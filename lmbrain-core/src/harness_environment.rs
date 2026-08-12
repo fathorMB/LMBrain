@@ -358,7 +358,9 @@ pub fn approve_harness_manifest(
     let manifest = load_harness_manifest(root).map_err(|error| error.to_string())?;
     let current = canonical_manifest_digest(&manifest).map_err(|error| error.to_string())?;
     if current != expected_digest {
-        return Err("manifest changed since preview; refresh and approve the current digest".into());
+        return Err(
+            "manifest changed since preview; refresh and approve the current digest".into(),
+        );
     }
     let mut data = load_store(store_path)?;
     data.approvals.insert(
@@ -583,11 +585,9 @@ pub fn plan_harness_configuration(
             && native_files
                 .iter()
                 .all(|file| file.action != PreviewAction::Conflicted)
-            && browser_mcp
-                .as_ref()
-                .map_or(true, |readiness| {
-                    readiness.state == CapabilityState::PrerequisiteReady
-                });
+            && browser_mcp.as_ref().map_or(true, |readiness| {
+                readiness.state == CapabilityState::PrerequisiteReady
+            });
         hosts.push(HostPlan {
             host,
             supported_capabilities: supported_capabilities(host),
@@ -806,7 +806,11 @@ fn browser_mcp_readiness(root: &Path, capability: &BrowserMcpCapability) -> Brow
             format!(
                 "@playwright/mcp {} provisioned with a Chromium runtime; isolated {} profile",
                 package_version.as_deref().unwrap_or("(unknown version)"),
-                if capability.headed { "headed" } else { "headless" }
+                if capability.headed {
+                    "headed"
+                } else {
+                    "headless"
+                }
             ),
         )
     };
@@ -845,9 +849,9 @@ fn playwright_chromium_found(root: &Path) -> bool {
         }
     };
     let required_revision = playwright_required_chromium_revision(root);
-    candidates.iter().any(|directory| {
-        chromium_executable_present(directory, required_revision.as_deref())
-    })
+    candidates
+        .iter()
+        .any(|directory| chromium_executable_present(directory, required_revision.as_deref()))
 }
 
 /// The Chromium revision pinned by the provisioned `playwright-core`, read from
@@ -859,16 +863,20 @@ fn playwright_required_chromium_revision(root: &Path) -> Option<String> {
         .join("playwright-core")
         .join("browsers.json");
     let value: Value = serde_json::from_str(&fs::read_to_string(manifest).ok()?).ok()?;
-    value.get("browsers")?.as_array()?.iter().find_map(|browser| {
-        if browser.get("name").and_then(Value::as_str) == Some("chromium") {
-            browser
-                .get("revision")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        } else {
-            None
-        }
-    })
+    value
+        .get("browsers")?
+        .as_array()?
+        .iter()
+        .find_map(|browser| {
+            if browser.get("name").and_then(Value::as_str) == Some("chromium") {
+                browser
+                    .get("revision")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            } else {
+                None
+            }
+        })
 }
 
 /// True only when a `chromium-*` revision directory actually contains the
@@ -897,7 +905,13 @@ fn chromium_executable_in(revision_dir: &Path) -> bool {
         ]
     } else if cfg!(target_os = "macos") {
         &[
-            &["chrome-mac", "Chromium.app", "Contents", "MacOS", "Chromium"],
+            &[
+                "chrome-mac",
+                "Chromium.app",
+                "Contents",
+                "MacOS",
+                "Chromium",
+            ],
             &[
                 "chrome-mac-arm64",
                 "Chromium.app",
@@ -1529,7 +1543,8 @@ mod tests {
         fs::create_dir(dir.path().join(".pi")).unwrap();
         fs::write(dir.path().join(".mcp.json"), claude).unwrap();
         fs::write(dir.path().join(".pi/mcp.json"), pi).unwrap();
-        let digest = canonical_manifest_digest(&load_harness_manifest(dir.path()).unwrap()).unwrap();
+        let digest =
+            canonical_manifest_digest(&load_harness_manifest(dir.path()).unwrap()).unwrap();
 
         // A failure mid-batch restores every original file.
         assert!(apply_with_failure(dir.path(), "lmbrain-mcp", &digest, Some(2)).is_err());

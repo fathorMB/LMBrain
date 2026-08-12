@@ -195,6 +195,7 @@ Controlled MCP access uses `branching_strategy_get` and `branching_strategy_set`
 | MCP | `specified`, `active`, `inactive`, `deprecated` |
 | Session handoff | `ready`, `consumed`, `superseded`, `archived` |
 | Skill | `proposed`, `active`, `retired` |
+| Roadmap milestone | `proposed`, `active`, `completed` |
 
 ## Context packs (v3 context economy)
 
@@ -219,6 +220,8 @@ Legacy aliases are normalized at read time while their raw value remains visible
 Diagnostics use a versioned core record with a stable ID, code, severity, artifact ID/path, message, safe next action, and fixability. `lmbrain_validate`, `lmbrain_project_digest`, and the desktop app consume the same rule engine. The digest is bounded: every list carries total and omitted counts, and compatibility warning strings are derived from the same findings rather than counted separately.
 
 `STATUS.md` is the declared narrative state. Lifecycle counts and the current working milestone are derived separately from governed specs and reconciled with `ROADMAP.md`; conflicts are reported and neither source is silently rewritten or chosen as universal truth.
+
+Roadmap milestones are H2 or H3 headings outside fenced code blocks. Their IDs must match `M-[0-9]+`; placeholder and legacy forms such as `M-NN`, `M-<number>`, `M-`, and `M0` are not milestones. Allowed milestone statuses are `proposed`, `active`, and `completed`. An unknown status remains visible as authored and produces an informational diagnostic with safe remediation; validation never rewrites `ROADMAP.md`.
 
 ## Invariants
 

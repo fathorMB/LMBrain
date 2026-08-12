@@ -86,7 +86,8 @@ pub fn parse_markdown_file(path: &str, content: &str) -> ParsedDocument {
 
 /// Extract a string field from frontmatter.
 pub fn fm_string(fm: &HashMap<String, Value>, key: &str) -> Option<String> {
-    fm.get(key).and_then(|value| value.as_str().map(str::to_string))
+    fm.get(key)
+        .and_then(|value| value.as_str().map(str::to_string))
 }
 
 /// Extract a string array field from frontmatter.

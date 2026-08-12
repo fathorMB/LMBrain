@@ -162,7 +162,9 @@ fn codex_user_config_path() -> Result<PathBuf, AppError> {
         } else {
             let home_dir = std::env::var("USERPROFILE")
                 .or_else(|_| std::env::var("HOME"))
-                .map_err(|_| AppError::WorkspaceNotFound("Could not resolve home directory".into()))?;
+                .map_err(|_| {
+                    AppError::WorkspaceNotFound("Could not resolve home directory".into())
+                })?;
             PathBuf::from(home_dir).join(".codex").join("config.toml")
         }
     } else {

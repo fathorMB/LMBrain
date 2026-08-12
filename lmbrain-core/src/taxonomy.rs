@@ -161,10 +161,9 @@ pub fn normalize_spec_tag(raw: &str) -> SpecTagNormalization {
         Some(format!(
             "tag `{normalized}` must start with a letter or digit"
         ))
-    } else if !normalized
-        .chars()
-        .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-')
-    {
+    } else if !normalized.chars().all(|character| {
+        character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+    }) {
         Some(format!(
             "tag `{normalized}` may only contain lowercase letters, digits, and `-`"
         ))
@@ -238,10 +237,18 @@ pub fn canonical_spec_tags() -> &'static [&'static str] {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SpecTagIssue {
-    Invalid { raw: String, reason: String },
+    Invalid {
+        raw: String,
+        reason: String,
+    },
     /// The value duplicates a structured field on the same spec.
-    RestatesField { raw: String, field: String },
-    Duplicate { value: String },
+    RestatesField {
+        raw: String,
+        field: String,
+    },
+    Duplicate {
+        value: String,
+    },
 }
 
 impl SpecTagIssue {
@@ -412,7 +419,10 @@ mod spec_metadata_tests {
     fn syntactically_invalid_tags_are_reported_not_silently_dropped() {
         for raw in ["", "x", "spaced value!", &"a".repeat(33)] {
             let normalization = normalize_spec_tag(raw);
-            assert!(normalization.value.is_none(), "expected {raw} to be invalid");
+            assert!(
+                normalization.value.is_none(),
+                "expected {raw} to be invalid"
+            );
             assert!(normalization.invalid_reason.is_some());
         }
     }
@@ -433,10 +443,9 @@ mod spec_metadata_tests {
         );
         assert_eq!(tags, vec!["wiki".to_string()]);
         assert_eq!(issues.len(), 4);
-        assert!(issues.iter().all(|issue| matches!(
-            issue,
-            SpecTagIssue::RestatesField { .. }
-        )));
+        assert!(issues
+            .iter()
+            .all(|issue| matches!(issue, SpecTagIssue::RestatesField { .. })));
         assert!(issues[0].message().contains("milestone"));
     }
 
@@ -459,7 +468,10 @@ mod spec_metadata_tests {
     fn duplicates_collapse_after_normalization() {
         let (tags, issues) = validate_spec_tags(&["UI".into(), "ui".into()], None, None, None);
         assert_eq!(tags, vec!["ui".to_string()]);
-        assert!(matches!(issues.as_slice(), [SpecTagIssue::Duplicate { .. }]));
+        assert!(matches!(
+            issues.as_slice(),
+            [SpecTagIssue::Duplicate { .. }]
+        ));
     }
 
     #[test]

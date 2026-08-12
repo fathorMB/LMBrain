@@ -180,7 +180,10 @@ pub fn get_git_worktrees(repo_path: &str) -> Result<Vec<GitWorktree>, String> {
     let main_path = run_git(repo_path, &["rev-parse", "--show-toplevel"]).ok();
 
     let mut worktrees = Vec::new();
-    for block in output.split("\n\n").filter(|block| !block.trim().is_empty()) {
+    for block in output
+        .split("\n\n")
+        .filter(|block| !block.trim().is_empty())
+    {
         let mut path = None;
         let mut head = None;
         let mut branch = None;

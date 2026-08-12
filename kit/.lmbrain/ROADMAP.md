@@ -7,10 +7,9 @@ updated: 2026-06-22
 
 ## Milestone template
 
-### M-01 — Milestone name
+### M-NN — Milestone name
 
 - `status`: proposed
-- `target`: YYYY-QN or YYYY-MM-DD
 - `outcome`: User or business outcome
 - `specs`: []
 - `risks`: []
@@ -18,3 +17,4 @@ updated: 2026-06-22
 ## Milestones
 
 > Replace the template above with project-specific milestones during bootstrap.
+> Use only IDs matching `M-[0-9]+` and one of the documented milestone statuses.

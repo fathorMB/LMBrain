@@ -245,7 +245,6 @@ impl SessionManager {
         Ok(session.full_transcript.clone())
     }
 
-
     fn lock_inner(&self) -> MutexGuard<'_, SessionManagerInner> {
         self.inner
             .lock()
@@ -678,26 +677,26 @@ fn spawn_output_reader(
                     let data = String::from_utf8_lossy(&pending[..valid_len]).to_string();
                     pending.drain(..valid_len);
 
-                     // Under the lock: if the terminal has attached, emit live;
-                     // otherwise buffer until attach replays it. If the session is
-                     // gone, stop reading. Accrue to full_transcript in both cases.
-                     let emit = {
-                         let mut inner = sessions
-                             .lock()
-                             .unwrap_or_else(|poisoned| poisoned.into_inner());
-                         match inner.sessions.get_mut(&id) {
-                             Some(session) => {
-                                 session.full_transcript.push_str(&data);
-                                 if session.attached {
-                                     true
-                                 } else {
-                                     session.pre_attach.push_str(&data);
-                                     false
-                                 }
-                             }
-                             None => break,
-                         }
-                     };
+                    // Under the lock: if the terminal has attached, emit live;
+                    // otherwise buffer until attach replays it. If the session is
+                    // gone, stop reading. Accrue to full_transcript in both cases.
+                    let emit = {
+                        let mut inner = sessions
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner());
+                        match inner.sessions.get_mut(&id) {
+                            Some(session) => {
+                                session.full_transcript.push_str(&data);
+                                if session.attached {
+                                    true
+                                } else {
+                                    session.pre_attach.push_str(&data);
+                                    false
+                                }
+                            }
+                            None => break,
+                        }
+                    };
                     if emit {
                         let _ = app.emit(
                             SESSION_OUTPUT_EVENT,
@@ -858,18 +857,24 @@ mod tests {
 
     use super::{
         default_label, is_cloud_model, kill_error_means_process_absent, launch_spec,
-        newest_desktop_codex_command_in,
-        opencode_ollama_config, parse_ollama_list_output, resolve_codex_command,
-        resolve_opencode_command, resolve_windows_opencode_command, validate_route, LaunchSpec,
+        newest_desktop_codex_command_in, opencode_ollama_config, parse_ollama_list_output,
+        resolve_codex_command, resolve_opencode_command, resolve_windows_opencode_command,
+        validate_route, LaunchSpec,
     };
     use crate::models::session::{AgentHost, ModelRoute, SessionStartRequest};
 
     #[cfg(windows)]
     #[test]
     fn treats_closed_conpty_handle_results_as_already_stopped() {
-        assert!(kill_error_means_process_absent(&io::Error::from_raw_os_error(0)));
-        assert!(kill_error_means_process_absent(&io::Error::from_raw_os_error(6)));
-        assert!(!kill_error_means_process_absent(&io::Error::from_raw_os_error(5)));
+        assert!(kill_error_means_process_absent(
+            &io::Error::from_raw_os_error(0)
+        ));
+        assert!(kill_error_means_process_absent(
+            &io::Error::from_raw_os_error(6)
+        ));
+        assert!(!kill_error_means_process_absent(
+            &io::Error::from_raw_os_error(5)
+        ));
     }
 
     #[test]

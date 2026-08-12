@@ -127,8 +127,8 @@ mod tests {
 
     #[test]
     fn preserves_explicit_lsp_policy_and_customization() {
-        let disabled = build_opencode_config(Some(r#"{"lsp":false}"#), "lmbrain-mcp", "/ws")
-            .unwrap();
+        let disabled =
+            build_opencode_config(Some(r#"{"lsp":false}"#), "lmbrain-mcp", "/ws").unwrap();
         let customized = build_opencode_config(
             Some(r#"{"lsp":{"rust":{"command":["rust-analyzer"]}}}"#),
             "lmbrain-mcp",
@@ -151,12 +151,7 @@ mod tests {
         .unwrap();
         let existing: Value = serde_json::from_str(&existing).unwrap();
         assert_eq!(existing["references"]["workspace"]["path"], "./custom");
-        assert!(build_opencode_config(
-            Some(r#"{"references":[]}"#),
-            "lmbrain-mcp",
-            "/ws"
-        )
-        .is_err());
+        assert!(build_opencode_config(Some(r#"{"references":[]}"#), "lmbrain-mcp", "/ws").is_err());
     }
 
     #[test]

@@ -126,7 +126,10 @@ mod tests {
     fn creates_config_when_absent() {
         let out = build_antigravity_config(None, "/bin/lmbrain-mcp", "/ws").unwrap();
         let value: Value = serde_json::from_str(&out).unwrap();
-        assert_eq!(value["mcpServers"]["lmbrain"]["command"], "/bin/lmbrain-mcp");
+        assert_eq!(
+            value["mcpServers"]["lmbrain"]["command"],
+            "/bin/lmbrain-mcp"
+        );
         assert_eq!(value["mcpServers"]["lmbrain"]["args"][0], "--root");
         assert_eq!(value["mcpServers"]["lmbrain"]["args"][1], "/ws");
     }

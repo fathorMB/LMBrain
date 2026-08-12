@@ -41,10 +41,7 @@ pub fn read_artifact(root: impl AsRef<Path>, relative: &str) -> Result<String, A
     // Both separators act as segment boundaries regardless of platform so that
     // `..\` cannot slip through a Unix build or `../` through data written on
     // another platform.
-    if trimmed
-        .split(['/', '\\'])
-        .any(|segment| segment == "..")
-    {
+    if trimmed.split(['/', '\\']).any(|segment| segment == "..") {
         return Err(ArtifactReadError::InvalidPath(display));
     }
     let candidate = Path::new(trimmed);
@@ -63,10 +60,12 @@ pub fn read_artifact(root: impl AsRef<Path>, relative: &str) -> Result<String, A
     }
 
     let guard = PathGuard::new(root).map_err(|_| ArtifactReadError::WorkspaceUnavailable)?;
-    let resolved = guard.resolve_existing(candidate).map_err(|error| match error {
-        PathError::OutsideRoot(_) => ArtifactReadError::OutsideWorkspace(display.clone()),
-        _ => ArtifactReadError::NotFound(display.clone()),
-    })?;
+    let resolved = guard
+        .resolve_existing(candidate)
+        .map_err(|error| match error {
+            PathError::OutsideRoot(_) => ArtifactReadError::OutsideWorkspace(display.clone()),
+            _ => ArtifactReadError::NotFound(display.clone()),
+        })?;
     if !resolved.is_file() {
         return Err(ArtifactReadError::NotAFile(display));
     }
@@ -174,8 +173,7 @@ mod tests {
     #[test]
     fn reads_valid_nested_artifact() {
         let dir = workspace();
-        let source =
-            read_artifact(dir.path(), ".lmbrain/specs/backlog/SPEC-001-demo.md").unwrap();
+        let source = read_artifact(dir.path(), ".lmbrain/specs/backlog/SPEC-001-demo.md").unwrap();
         assert!(source.contains("SPEC-001"));
     }
 
@@ -183,15 +181,18 @@ mod tests {
     #[test]
     fn reads_valid_artifact_with_backslash_separators() {
         let dir = workspace();
-        let source =
-            read_artifact(dir.path(), r".lmbrain\specs\backlog\SPEC-001-demo.md").unwrap();
+        let source = read_artifact(dir.path(), r".lmbrain\specs\backlog\SPEC-001-demo.md").unwrap();
         assert!(source.contains("SPEC-001"));
     }
 
     #[test]
     fn rejects_parent_traversal_with_either_separator() {
         let dir = workspace();
-        for path in ["../outside.md", r"..\outside.md", ".lmbrain/../../outside.md"] {
+        for path in [
+            "../outside.md",
+            r"..\outside.md",
+            ".lmbrain/../../outside.md",
+        ] {
             let error = read_artifact(dir.path(), path).unwrap_err();
             assert!(
                 matches!(error, ArtifactReadError::InvalidPath(_)),

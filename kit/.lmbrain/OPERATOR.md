@@ -136,6 +136,8 @@ Open these documents in order:
 
 1. `STATUS.md` — current focus, blockers, and recommended action.
 2. `ROADMAP.md` — milestone direction and planning.
+
+Roadmap milestones use an H2 or H3 heading with a numeric `M-` ID (for example `M-01`) and status `proposed`, `active`, or `completed`. Keep template examples as non-numeric placeholders such as `M-NN`; fenced examples and placeholders are ignored by LMBrain.
 3. `specs/ready/` — work ready for manual spec assignment.
 4. `specs/review/` and `reviews/pending/` — completed work waiting for review.
 5. `specs/review/` — specs in the review ping-pong.
