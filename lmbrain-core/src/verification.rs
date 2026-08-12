@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
+    ffi::OsString,
     fs,
     io::Read,
     path::{Component, Path, PathBuf},
@@ -717,20 +718,7 @@ fn run_gate(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env_clear();
-    for key in [
-        "PATH",
-        "PATHEXT",
-        "SYSTEMROOT",
-        "WINDIR",
-        "HOME",
-        "USERPROFILE",
-        "TEMP",
-        "TMP",
-    ] {
-        if let Some(value) = std::env::var_os(key) {
-            command.env(key, value);
-        }
-    }
+    command.envs(minimal_gate_environment());
     command.envs(&gate.environment);
     #[cfg(unix)]
     {
@@ -791,6 +779,42 @@ fn run_gate(
         stdout,
         stderr,
     })
+}
+
+fn minimal_gate_environment() -> BTreeMap<OsString, OsString> {
+    minimal_gate_environment_from(std::env::vars_os(), cfg!(windows))
+}
+
+fn minimal_gate_environment_from(
+    inherited: impl IntoIterator<Item = (OsString, OsString)>,
+    windows: bool,
+) -> BTreeMap<OsString, OsString> {
+    let mut allowed = vec![
+        "PATH",
+        "PATHEXT",
+        "SYSTEMROOT",
+        "WINDIR",
+        "HOME",
+        "USERPROFILE",
+        "TEMP",
+        "TMP",
+    ];
+    if windows {
+        // Rust's MSVC target consults this system root to discover installed
+        // Visual Studio instances and their linker. It is machine-scoped, not
+        // user/session-scoped, and is intentionally preserved only on Windows.
+        allowed.push("ProgramData");
+    }
+
+    inherited
+        .into_iter()
+        .filter(|(key, _)| {
+            let key = key.to_string_lossy();
+            allowed
+                .iter()
+                .any(|candidate| key.eq_ignore_ascii_case(candidate))
+        })
+        .collect()
 }
 
 fn bounded_read(reader: impl Read, limit: usize) -> String {
@@ -1172,6 +1196,32 @@ mod tests {
         let mut invalid = valid.clone();
         invalid.gates[0].program = "../bad".into();
         assert!(!validate_verification_manifest(&invalid).is_empty());
+    }
+
+    #[test]
+    fn windows_minimal_environment_preserves_program_data_only_as_a_system_root() {
+        let inherited = [
+            (OsString::from("PATH"), OsString::from(r"C:\\Tools")),
+            (
+                OsString::from("ProgramData"),
+                OsString::from(r"C:\\ProgramData"),
+            ),
+            (
+                OsString::from("SESSION_SECRET"),
+                OsString::from("must-not-leak"),
+            ),
+        ];
+
+        let windows = minimal_gate_environment_from(inherited.clone(), true);
+        assert_eq!(
+            windows.get(&OsString::from("ProgramData")),
+            Some(&OsString::from(r"C:\\ProgramData"))
+        );
+        assert!(!windows.contains_key(&OsString::from("SESSION_SECRET")));
+
+        let non_windows = minimal_gate_environment_from(inherited, false);
+        assert!(!non_windows.contains_key(&OsString::from("ProgramData")));
+        assert!(!non_windows.contains_key(&OsString::from("SESSION_SECRET")));
     }
 
     #[test]
