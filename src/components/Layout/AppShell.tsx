@@ -8,7 +8,7 @@ import { WikiView } from "../Wiki/WikiView";
 import { TaskboardView } from "../Taskboard/TaskboardView";
 import { SpecDetail } from "../Spec/SpecDetail";
 import { ReviewsList } from "../Reviews/ReviewsList";
-import { FindingsView } from "../Findings/FindingsView";
+import { DebtsView } from "../Debts/DebtsView";
 import { DreamsView } from "../Dreams/DreamsView";
 import { FeedbackView } from "../Feedback/FeedbackView";
 import { DecisionsList } from "../Decisions/DecisionsList";
@@ -51,8 +51,8 @@ export function AppShell() {
         return <SpecDetail />;
       case "reviews":
         return <ReviewsList />;
-      case "findings":
-        return <FindingsView />;
+      case "debts":
+        return <DebtsView />;
       case "dreams":
         return <DreamsView />;
       case "feedback":

@@ -24,15 +24,15 @@ use crate::models::roadmap::{
 use crate::models::skill::{Skill, SkillStatus};
 use crate::models::spec::{Spec, SpecParkingEvent, SpecStatus};
 use crate::models::statistics::{
-    ArtifactFamilyStats, DiagnosticStats, ProjectStatistics, ReviewCycleRankingEntry, ReviewDimensionStat,
-    ReviewQualityStats, ReviewTrendPoint, SpecFlowStats, StatusCount,
+    ArtifactFamilyStats, DiagnosticStats, ProjectStatistics, ReviewCycleRankingEntry,
+    ReviewDimensionStat, ReviewQualityStats, ReviewTrendPoint, SpecFlowStats, StatusCount,
 };
 use crate::models::wiki::{WikiNode, WikiNodeKind, WikiTree};
 use crate::models::workspace::{DiagnosticSeverity, KitDiagnostic, WorkspaceSnapshot};
 
 const WIKI_CONTENT_DIRS: &[(&str, WikiNodeKind)] = &[
     ("decisions", WikiNodeKind::Decisions),
-    ("findings", WikiNodeKind::Findings),
+    ("debts", WikiNodeKind::Debts),
     ("knowledge", WikiNodeKind::Knowledge),
     ("specs", WikiNodeKind::Specs),
 ];
@@ -151,7 +151,7 @@ fn parse_review_findings(body: &str) -> Vec<ReviewFinding> {
             in_findings = trimmed
                 .trim_start_matches("## ")
                 .trim()
-                .eq_ignore_ascii_case("findings");
+                .eq_ignore_ascii_case("review findings");
             continue;
         }
         if !in_findings {
@@ -164,7 +164,7 @@ fn parse_review_findings(body: &str) -> Vec<ReviewFinding> {
         let Some((id, rest)) = candidate.split_once(char::is_whitespace) else {
             continue;
         };
-        if !(id.starts_with("FINDING-") || id.starts_with("F-")) {
+        if !id.starts_with("RF-") {
             continue;
         }
         let severity = rest
@@ -644,10 +644,7 @@ fn build_tree_node(dir: &Path, relative: &str) -> Result<WikiNode, AppError> {
             continue;
         }
 
-        if relative.starts_with(".lmbrain/findings")
-            && !path.is_dir()
-            && !name.starts_with("FINDING-")
-        {
+        if relative.starts_with(".lmbrain/debts") && !path.is_dir() && !name.starts_with("DEBT-") {
             continue;
         }
 
@@ -781,7 +778,7 @@ pub fn build_pulse_data(
 pub fn build_project_statistics(root: &Path) -> Result<ProjectStatistics, AppError> {
     let specs = build_specs(root)?;
     let reviews = build_reviews(root)?;
-    let findings = lmbrain_core::list_findings(root);
+    let debts = lmbrain_core::list_debts(root);
     let adrs = build_adrs(root)?;
     let agents = build_agents(root)?;
     let agent_proposals = build_agent_proposals(root)?;
@@ -795,7 +792,7 @@ pub fn build_project_statistics(root: &Path) -> Result<ProjectStatistics, AppErr
     Ok(build_project_statistics_from_collections(
         &specs,
         &reviews,
-        &findings,
+        &debts,
         &adrs,
         &agents,
         &agent_proposals,
@@ -811,7 +808,7 @@ pub fn build_project_statistics(root: &Path) -> Result<ProjectStatistics, AppErr
 pub fn build_workspace_snapshot(root: &Path) -> Result<WorkspaceSnapshot, AppError> {
     let specs = build_specs(root)?;
     let reviews = build_reviews(root)?;
-    let findings = lmbrain_core::list_findings(root);
+    let debts = lmbrain_core::list_debts(root);
     let dreams = lmbrain_core::list_dreams(root);
     let adrs = build_adrs(root)?;
     let agents = build_agents(root)?;
@@ -826,7 +823,7 @@ pub fn build_workspace_snapshot(root: &Path) -> Result<WorkspaceSnapshot, AppErr
     let project_statistics = build_project_statistics_from_collections(
         &specs,
         &reviews,
-        &findings,
+        &debts,
         &adrs,
         &agents,
         &agent_proposals,
@@ -842,7 +839,7 @@ pub fn build_workspace_snapshot(root: &Path) -> Result<WorkspaceSnapshot, AppErr
         pulse_data,
         specs,
         reviews,
-        findings,
+        debts,
         dreams,
         adrs,
         agents,
@@ -860,7 +857,7 @@ pub fn build_workspace_snapshot(root: &Path) -> Result<WorkspaceSnapshot, AppErr
 pub fn build_project_statistics_from_collections(
     specs: &[Spec],
     reviews: &[Review],
-    findings: &[lmbrain_core::Finding],
+    debts: &[lmbrain_core::Debt],
     adrs: &[Adr],
     agents: &[AgentProfile],
     agent_proposals: &[AgentProposal],
@@ -885,9 +882,9 @@ pub fn build_project_statistics_from_collections(
                 .map(|review| review.status.as_str().to_string()),
         ),
         family_stats(
-            "findings",
-            "Findings",
-            findings.iter().map(|finding| finding.status.clone()),
+            "debts",
+            "Debts",
+            debts.iter().map(|debt| debt.status.clone()),
         ),
         family_stats(
             "decisions",
@@ -1141,24 +1138,61 @@ fn build_review_quality_stats(specs: &[Spec], reviews: &[Review]) -> ReviewQuali
         }
     }
 
-    let mut review_cycle_ranking = reviews_by_spec.iter().filter_map(|(spec_id, spec_reviews)| {
-        let spec = spec_by_id.get(spec_id)?;
-        if spec_reviews.iter().any(|review| review.lifecycle.source == lmbrain_core::ReviewHistorySource::StatusOnly) {
-            return None;
-        }
-        let warnings = spec_reviews.iter().flat_map(|review| review.lifecycle.warnings.clone()).collect::<Vec<_>>();
-        let confidence = if warnings.is_empty() && spec_reviews.iter().all(|review| review.lifecycle.confidence == "high") {
-            "high"
-        } else { "medium" };
-        Some(ReviewCycleRankingEntry {
-            spec_id: (*spec_id).to_string(), title: spec.title.clone(), path: spec.path.clone(), status: spec.status.as_str().into(),
-            review_count: spec_reviews.len(), review_passes: spec_reviews.iter().map(|review| review.lifecycle.review_passes).sum(),
-            remediation_cycles: spec_reviews.iter().map(|review| review.lifecycle.remediation_cycles).sum(),
-            history_source: if spec_reviews.iter().all(|review| review.lifecycle.source == lmbrain_core::ReviewHistorySource::StructuredEvents) { "structured".into() } else { "legacy".into() },
-            confidence: confidence.into(), warnings,
+    let mut review_cycle_ranking = reviews_by_spec
+        .iter()
+        .filter_map(|(spec_id, spec_reviews)| {
+            let spec = spec_by_id.get(spec_id)?;
+            if spec_reviews.iter().any(|review| {
+                review.lifecycle.source == lmbrain_core::ReviewHistorySource::StatusOnly
+            }) {
+                return None;
+            }
+            let warnings = spec_reviews
+                .iter()
+                .flat_map(|review| review.lifecycle.warnings.clone())
+                .collect::<Vec<_>>();
+            let confidence = if warnings.is_empty()
+                && spec_reviews
+                    .iter()
+                    .all(|review| review.lifecycle.confidence == "high")
+            {
+                "high"
+            } else {
+                "medium"
+            };
+            Some(ReviewCycleRankingEntry {
+                spec_id: (*spec_id).to_string(),
+                title: spec.title.clone(),
+                path: spec.path.clone(),
+                status: spec.status.as_str().into(),
+                review_count: spec_reviews.len(),
+                review_passes: spec_reviews
+                    .iter()
+                    .map(|review| review.lifecycle.review_passes)
+                    .sum(),
+                remediation_cycles: spec_reviews
+                    .iter()
+                    .map(|review| review.lifecycle.remediation_cycles)
+                    .sum(),
+                history_source: if spec_reviews.iter().all(|review| {
+                    review.lifecycle.source == lmbrain_core::ReviewHistorySource::StructuredEvents
+                }) {
+                    "structured".into()
+                } else {
+                    "legacy".into()
+                },
+                confidence: confidence.into(),
+                warnings,
+            })
         })
-    }).collect::<Vec<_>>();
-    review_cycle_ranking.sort_by(|left, right| right.remediation_cycles.cmp(&left.remediation_cycles).then_with(|| right.review_passes.cmp(&left.review_passes)).then_with(|| left.spec_id.cmp(&right.spec_id)));
+        .collect::<Vec<_>>();
+    review_cycle_ranking.sort_by(|left, right| {
+        right
+            .remediation_cycles
+            .cmp(&left.remediation_cycles)
+            .then_with(|| right.review_passes.cmp(&left.review_passes))
+            .then_with(|| left.spec_id.cmp(&right.spec_id))
+    });
     let review_cycle_ranking_coverage = review_cycle_ranking.len();
 
     ReviewQualityStats {
@@ -1420,10 +1454,10 @@ fn wiki_content_files(lmbrain: &Path) -> Vec<PathBuf> {
         .filter_map(|(directory, _)| scan_md_files(&lmbrain.join(directory)).ok())
         .flatten()
         .filter(|path| {
-            if path.components().any(|c| c.as_os_str() == "findings") {
+            if path.components().any(|c| c.as_os_str() == "debts") {
                 path.file_name()
                     .and_then(|n| n.to_str())
-                    .map_or(false, |name| name.starts_with("FINDING-"))
+                    .map_or(false, |name| name.starts_with("DEBT-"))
             } else {
                 true
             }

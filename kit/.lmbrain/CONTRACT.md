@@ -43,17 +43,17 @@ Planning is read-only and deterministic. It reports the effective host configura
 
 Application requires a currently approved digest and uses the same workspace mutation lock as manifest replacement. All changed native files are staged before replacement; structural conflicts stop before writing, and a failed batch restores the prior files. Successful application records machine-local content hashes for read-only drift reporting. Repeating an unchanged application is a no-op.
 
-## First-class findings
+## First-class debts
 
-A review-local finding remains evidence inside one review. Promote it to a global `FINDING-*` only when the underlying observation survives the originating spec, spans artifacts, records a durable limitation/risk, or is retained before a spec is ready. A finding records what remains true; it is not a spec, work authorization, ADR, diagnostic, GitHub issue, verification requirement, or agent-performance signal.
+A review finding remains local evidence inside one review, uses an `RF-*` identifier scoped to that review, and appears under `## Review findings`. Promote it to a global `DEBT-*` only when the underlying observation survives the originating spec, spans artifacts, records a durable limitation/risk, or is retained before a spec is ready. A debt records what remains true; it is not a spec, work authorization, ADR, diagnostic, GitHub issue, verification requirement, or agent-performance signal.
 
-Findings live under `findings/<status>/` with globally allocated IDs. Creation is `open` only. Normal transitions are `open|planned|deferred -> planned|open|deferred|resolved|accepted-risk|superseded` as allowed by the semantic operation. `resolved`, `accepted-risk`, and `superseded` are terminal; only the operator may reopen resolved/accepted-risk, and superseded history is never reopened. Blocked state is derived from `blocked_by`.
+Debts live under `debts/<status>/` with globally allocated IDs. Creation is `open` only. Normal transitions are `open|planned|deferred -> planned|open|deferred|resolved|accepted-risk|superseded` as allowed by the semantic operation. `resolved`, `accepted-risk`, and `superseded` are terminal; only the operator may reopen resolved/accepted-risk, and superseded history is never reopened. Blocked state is derived from `blocked_by`.
 
-Canonical relationships are flat arrays: `related_specs`, `related_reviews`, `related_decisions`, `target_specs`, `blocked_by`, and `resolution_refs`. `origin_artifact + origin_ref` identifies a promoted review-local finding; two active findings cannot claim the same pair. Direct observations may omit both origin fields but require explicit statement and provenance. References must resolve to allowed families, self-links and blocker cycles fail closed, and linking or completing a target spec never resolves a finding.
+Canonical relationships are flat arrays: `related_specs`, `related_reviews`, `related_decisions`, `target_specs`, `blocked_by`, and `resolution_refs`. `origin_artifact + origin_ref` identifies a promoted review finding; two active debts cannot claim the same pair. Direct observations may omit both origin fields but require explicit statement and provenance. References must resolve to allowed families, self-links and blocker cycles fail closed, and linking or completing a target spec never resolves a debt.
 
-`planned` requires an existing target spec. `deferred` requires rationale and a revisit condition. `resolved` requires canonical resolution references, body evidence, and a reasoned typed event. `accepted-risk` is operator-only and requires rationale plus an explicit revisit condition or no-revisit statement. `superseded` requires a successor or explicit obsolescence rationale. All mutations are locked, atomic, status-directory preserving, and append a typed `finding_events` entry.
+`planned` requires an existing target spec. `deferred` requires rationale and a revisit condition. `resolved` requires canonical resolution references, body evidence, and a reasoned typed event. `accepted-risk` is operator-only and requires rationale plus an explicit revisit condition or no-revisit statement. `superseded` requires a successor or explicit obsolescence rationale. All mutations are locked, atomic, status-directory preserving, and append a typed `debt_events` entry.
 
-Semantic MCP operations are `finding_create`, `finding_plan`, `finding_defer`, `finding_resolve`, `finding_accept_risk`, `finding_supersede`, and `finding_reopen`. `finding_context` and `finding_candidates` are read-only; candidate inventory never infers disposition or creates artifacts. The app exposes only read-only finding lists, relations, and copyable governed prompts—never ungoverned lifecycle controls.
+Semantic MCP operations are `debt_create`, `debt_plan`, `debt_defer`, `debt_resolve`, `debt_accept_risk`, `debt_supersede`, and `debt_reopen`. `debt_context`, `debt_candidates`, and `debt_migration_preview` are read-only. `debt_migrate` requires explicit operator confirmation bound to the exact preview digest. Candidate inventory never infers disposition or creates artifacts. The app exposes only read-only debt lists, relations, and copyable governed prompts—never ungoverned lifecycle controls.
 
 ## Hard spec dependencies and parking
 
@@ -67,7 +67,7 @@ Normal `spec_ready` and `spec_start` require every direct hard prerequisite to b
 
 ## LMBrain kit feedback report
 
-`reports/lmbrain-kit-feedback.md` is the portable, append-only field report for evidence-backed observations about LMBrain itself. It is not project status, backlog, a review, a diagnostic, a `FINDING-*`, or implementation authority. Its fixed identity is `LMBRAIN-KIT-FEEDBACK`, schema version 1, with typed `notes`.
+`reports/lmbrain-kit-feedback.md` is the portable, append-only field report for evidence-backed observations about LMBrain itself. It is not project status, backlog, a review, a diagnostic, a `DEBT-*`, or implementation authority. Its fixed identity is `LMBRAIN-KIT-FEEDBACK`, schema version 1, with typed `notes`.
 
 Each note has a stable `KIT-NOTE-*` ID, timestamp, LMBrain version, category, severity, summary, observed behavior, expected behavior, impact, evidence, actor, and optional workaround, suggested improvement, or `related_note`. Categories are `bug`, `usability`, `workflow`, `documentation`, `compatibility`, `performance`, and `improvement`. Severities are `blocking`, `high`, `medium`, `low`, and `info`.
 
@@ -86,7 +86,7 @@ The Project Lead may call `lmbrain_feedback_record` autonomously. The operation 
 | MCP proposal | `MCP-PROP-` | `mcp/proposals/` |
 | Session handoff | `HANDOFF-` | `handoffs/active/` |
 | Skill | `SKILL-` | `skills/<status>/` |
-| Finding | `FINDING-` | `findings/<status>/` |
+| Debt | `DEBT-` | `debts/<status>/` |
 
 ## Shared frontmatter
 

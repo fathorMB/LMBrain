@@ -69,9 +69,9 @@ For a checked `owner=operator`, `phase=before-done` requirement, open the spec d
 
 Creating, replacing, or rolling back `.lmbrain/verification.toml` does not run verification, approve configuration, attest evidence, accept a review, or change a spec status.
 
-## I need to triage a durable finding
+## I need to triage a durable debt
 
-Use **Findings** to inspect active/history counts, severity, owner, origin, targets, blockers, canonical relations, and the typed timeline. The view is read-only. It offers a governed MCP prompt, not lifecycle buttons.
+Use **Debts** to inspect active/history counts, severity, owner, origin, targets, blockers, canonical relations, and the typed timeline. The view is read-only. It offers a governed MCP prompt, not lifecycle buttons.
 
 The Board and spec detail show hard dependency blockers, prerequisite-complete filters, and preserved parking history. They are read-only: the app has no approve, park, dependency-edit, or status-change action. Governed dependency changes use `spec_dependencies_set` in backlog; intentional `ready -> backlog` parking uses `spec_park` with a reason, then normal `spec_ready` is required later.
 
@@ -79,11 +79,11 @@ The Project Lead should speak to you in your language using concise, ordinary wo
 
 The Lead also maintains `reports/lmbrain-kit-feedback.md` autonomously when it encounters an evidence-backed problem or improvement opportunity in LMBrain itself. This does not change project state and needs no approval. At session end, the Lead reports newly added notes; you can deliver that single file to the LMBrain team. Review it before external sharing if the project is confidential, even though the contract requires minimal, non-sensitive evidence.
 
-- A review can be accepted while a promoted finding remains open, planned, or deferred.
-- Planning a target spec does not authorize implementation and does not resolve the finding.
+- A review can be accepted while a promoted debt remains open, planned, or deferred.
+- Planning a target spec does not authorize implementation and does not resolve the debt.
 - A done target spec produces an attention diagnostic; closure still requires explicit evidence.
-- Only you may authorize `finding_accept_risk` or `finding_reopen`. A superseded finding stays historical.
-- Legacy review bullets remain local unless you explicitly select them for promotion after inspecting `finding_candidates`.
+- Only you may authorize `debt_accept_risk` or `debt_reopen`. A superseded debt stays historical.
+- Legacy review bullets remain local unless you explicitly select them for promotion after inspecting `debt_candidates`.
 
 ## I need to end a Project Lead session and resume later
 
@@ -98,7 +98,7 @@ The handoff preserves context. It does not replace validation of the actual repo
 
 Explicitly invite a bounded dreaming session, for example: “Fatti un pisolino sul lavoro appena fatto” or “Vatti a riposare e cerca debito di design”. The Lead confirms the scope, examines current project context, and may capture zero or more tentative `DREAM-*` records through its controlled MCP tool.
 
-Open **Dream Journal** in the sidebar to inspect them. Dreams are deliberately read-only in the app and never become Findings, specs, ADRs, roadmap items, or implementation work automatically. Ask the Lead to triage or promote a specific dream only after you have reviewed its provenance and suggestion.
+Open **Dream Journal** in the sidebar to inspect them. Dreams are deliberately read-only in the app and never become Debts, specs, ADRs, roadmap items, or implementation work automatically. Ask the Lead to triage or promote a specific dream only after you have reviewed its provenance and suggestion.
 
 ## I need a new type of specialist agent
 

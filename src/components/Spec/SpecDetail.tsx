@@ -12,11 +12,11 @@ export function SpecDetail() {
 
   // Show first ready spec, or first spec
   const spec = state.selectedSpec || readySpecs[0] || specs[0];
-  const relatedFindings = spec ? (state.findings ?? []).filter((finding) =>
-    ["open", "planned", "deferred"].includes(finding.status)
-    && (finding.origin_artifact === spec.id
-      || finding.related_specs.includes(spec.id)
-      || finding.target_specs.includes(spec.id))
+  const relatedDebts = spec ? (state.debts ?? []).filter((debt) =>
+    ["open", "planned", "deferred"].includes(debt.status)
+    && (debt.origin_artifact === spec.id
+      || debt.related_specs.includes(spec.id)
+      || debt.target_specs.includes(spec.id))
   ) : [];
   const directDependencies = spec
     ? (spec.depends_on ?? []).map((id) => ({
@@ -174,16 +174,16 @@ export function SpecDetail() {
             />
           )}
         </div>
-        {relatedFindings.length > 0 && <button
+        {relatedDebts.length > 0 && <button
           type="button"
-          onClick={() => navigateTo("findings")}
+          onClick={() => navigateTo("debts")}
           style={{
             width: "100%", marginBottom: 18, padding: "10px 12px", textAlign: "left",
             border: "1px solid rgba(224,162,58,.35)", borderRadius: 8,
             background: "rgba(224,162,58,.08)", color: "#d9b86d", cursor: "pointer",
           }}
         >
-          {relatedFindings.length} active {relatedFindings.length === 1 ? "finding" : "findings"} related to this spec · Open Findings
+          {relatedDebts.length} active {relatedDebts.length === 1 ? "debt" : "debts"} related to this spec · Open Debts
         </button>}
         {directDependencies.length > 0 && (
           <section

@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     content_digest, context::parse_verification_requirements, frontmatter::Document, invariants,
-    unsupported_verification_requirements,
-    verification_blockers_for_workspace,
+    unsupported_verification_requirements, verification_blockers_for_workspace,
 };
 
 pub const DIAGNOSTIC_SCHEMA_VERSION: &str = "1";
@@ -162,7 +161,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
 
     diagnose_references(root, &artifacts, &mut diagnostics);
     diagnose_spec_dependencies(root, &artifacts, &mut diagnostics);
-    diagnose_findings(root, &artifacts, &mut diagnostics);
+    diagnose_debts(root, &artifacts, &mut diagnostics);
     diagnose_verification(root, &artifacts, &mut diagnostics);
     diagnose_roadmap(root, &artifacts, &mut diagnostics);
     diagnose_kit_feedback(root, &mut diagnostics);
@@ -205,7 +204,8 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
                 None,
                 Some("BRANCHING.json".into()),
                 format!("Invalid branching strategy declaration: {error}"),
-                "Correct .lmbrain/BRANCHING.json according to the kit branching strategy schema.".into(),
+                "Correct .lmbrain/BRANCHING.json according to the kit branching strategy schema."
+                    .into(),
                 DiagnosticFixability::Manual,
                 "branching-strategy-invalid",
             ));
@@ -392,7 +392,7 @@ fn diagnose_spec_dependencies(
     }
 }
 
-fn diagnose_findings(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<Diagnostic>) {
+fn diagnose_debts(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<Diagnostic>) {
     let spec_statuses = artifacts
         .iter()
         .filter_map(|artifact| {
@@ -405,20 +405,20 @@ fn diagnose_findings(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<
         let Some(id) = artifact
             .document
             .value("id")
-            .filter(|id| id.starts_with("FINDING-"))
+            .filter(|id| id.starts_with("DEBT-"))
         else {
             continue;
         };
         let status = artifact.document.value("status").unwrap_or_default();
         let path = root.join(".lmbrain").join(&artifact.relative);
-        if let Err(error) = crate::validate_finding_document(root, &path, &artifact.document) {
+        if let Err(error) = crate::validate_debt_document(root, &path, &artifact.document) {
             diagnostics.push(diagnostic(
-                "finding-contract-invalid",
+                "debt-contract-invalid",
                 DiagnosticSeverity::Error,
                 Some(id.clone()),
                 Some(artifact.relative.clone()),
                 error.to_string(),
-                "Repair the finding through the matching governed semantic operation; do not infer or auto-close it.",
+                "Repair the debt through the matching governed semantic operation; do not infer or auto-close it.",
                 DiagnosticFixability::GovernedMutation,
                 &error.to_string(),
             ));
@@ -427,12 +427,12 @@ fn diagnose_findings(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<
             let targets = artifact.document.string_array("target_specs");
             if targets.is_empty() {
                 diagnostics.push(diagnostic(
-                    "finding-planned-without-target",
+                    "debt-planned-without-target",
                     DiagnosticSeverity::Error,
                     Some(id.clone()),
                     Some(artifact.relative.clone()),
-                    format!("Planned finding {id} has no target spec"),
-                    "Use finding_plan with at least one existing target spec, or return the finding to open.",
+                    format!("Planned debt {id} has no target spec"),
+                    "Use debt_plan with at least one existing target spec, or return the debt to open.",
                     DiagnosticFixability::GovernedMutation,
                     "targets",
                 ));
@@ -442,12 +442,12 @@ fn diagnose_findings(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<
                     .is_some_and(|value| value == "done")
             }) {
                 diagnostics.push(diagnostic(
-                    "finding-targets-done-still-planned",
+                    "debt-targets-done-still-planned",
                     DiagnosticSeverity::Warning,
                     Some(id.clone()),
                     Some(artifact.relative.clone()),
-                    format!("Every target spec for planned finding {id} is done, but the finding remains unresolved"),
-                    "Review canonical evidence and explicitly resolve, accept risk, defer, or re-plan the finding; target completion is not resolution.",
+                    format!("Every target spec for planned debt {id} is done, but the debt remains unresolved"),
+                    "Review canonical evidence and explicitly resolve, accept risk, defer, or re-plan the debt; target completion is not resolution.",
                     DiagnosticFixability::GovernedMutation,
                     "done-targets",
                 ));
@@ -464,11 +464,11 @@ fn diagnose_findings(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<
                 .map_or(true, |owner| owner.trim().is_empty())
         {
             diagnostics.push(diagnostic(
-                "finding-high-severity-unowned",
+                "debt-high-severity-unowned",
                 DiagnosticSeverity::Warning,
                 Some(id.clone()),
                 Some(artifact.relative.clone()),
-                format!("Active high-severity finding {id} has no owner"),
+                format!("Active high-severity debt {id} has no owner"),
                 "Assign an explicit owner or record a reasoned defer/accepted-risk disposition.",
                 DiagnosticFixability::GovernedMutation,
                 "owner",
@@ -488,11 +488,11 @@ fn diagnose_findings(root: &Path, artifacts: &[Artifact], diagnostics: &mut Vec<
                 })
         {
             diagnostics.push(diagnostic(
-                "finding-open-without-next-action",
+                "debt-open-without-next-action",
                 DiagnosticSeverity::Warning,
                 Some(id.clone()),
                 Some(artifact.relative.clone()),
-                format!("Open finding {id} has no usable resolution criteria"),
+                format!("Open debt {id} has no usable resolution criteria"),
                 "Record a concrete resolution criterion before planning implementation work.",
                 DiagnosticFixability::Manual,
                 "resolution-criteria",
@@ -634,8 +634,7 @@ fn diagnose_verification(root: &Path, artifacts: &[Artifact], diagnostics: &mut 
         }
         let status = artifact.document.value("status").unwrap_or_default();
         let gates = artifact.document.string_array("verification_gates");
-        let (requirements, _, _) =
-            parse_verification_requirements(&artifact.document.body, &gates);
+        let (requirements, _, _) = parse_verification_requirements(&artifact.document.body, &gates);
         declared_executable_gates.extend(
             requirements
                 .into_iter()
@@ -797,9 +796,7 @@ fn diagnose_executable_gate_coverage(
                 .collect::<BTreeSet<_>>()
         })
         .unwrap_or_default();
-    let available = declared_executable_gates
-        .intersection(&known)
-        .count();
+    let available = declared_executable_gates.intersection(&known).count();
     let message = format!(
         "Declared executable verification gates: {}; available in manifest: {}; manifest state: {}",
         declared_executable_gates.len(),
@@ -1068,8 +1065,7 @@ pub(crate) fn parse_roadmap_milestones(source: &str) -> BTreeMap<String, Roadmap
             "specs" => {
                 // Extract only the bracket-delimited list if present,
                 // ignoring parenthetical annotations in trailing prose.
-                let source = if let (Some(open), Some(close)) =
-                    (value.find('['), value.rfind(']'))
+                let source = if let (Some(open), Some(close)) = (value.find('['), value.rfind(']'))
                 {
                     &value[open + 1..close]
                 } else {
@@ -1237,7 +1233,7 @@ fn is_status_artifact(path: &Path) -> bool {
         .is_some_and(|family| {
             matches!(
                 family.to_string_lossy().as_ref(),
-                "specs" | "reviews" | "skills" | "findings"
+                "specs" | "reviews" | "skills" | "debts"
             )
         })
 }
@@ -1258,7 +1254,7 @@ fn requires_frontmatter(relative: &str) -> bool {
         "mcp/proposals/",
         "handoffs/active/",
         "skills/",
-        "findings/",
+        "debts/",
     ]
     .iter()
     .any(|prefix| normalized.starts_with(prefix))
@@ -1431,9 +1427,7 @@ mod tests {
         crate::set_verification_manifest(
             directory.path(),
             &partial_manifest,
-            Some(
-                &crate::canonical_verification_manifest_digest(&manifest).unwrap(),
-            ),
+            Some(&crate::canonical_verification_manifest_digest(&manifest).unwrap()),
         )
         .unwrap();
         crate::approve_verification_manifest(directory.path(), &approval).unwrap();
@@ -1449,25 +1443,29 @@ mod tests {
         let templates_dir = directory.path().join(".lmbrain/templates");
         fs::create_dir_all(&templates_dir).unwrap();
         fs::write(
-            templates_dir.join("finding.md"),
-            "---\nid: FINDING-XXX\ntitle: Template Finding\nstatus: open\ncategory: architecture\nseverity: medium\ncreated: '2026-07-29'\nupdated: '2026-07-29'\n---\n",
+            templates_dir.join("debt.md"),
+            "---\nid: DEBT-XXX\ntitle: Template Debt\nstatus: open\ncategory: architecture\nseverity: medium\ncreated: '2026-07-29'\nupdated: '2026-07-29'\n---\n",
         )
         .unwrap();
 
         let diagnostics = build_diagnostics(directory.path());
-        assert!(!diagnostics.iter().any(|d| d.artifact_id.as_deref() == Some("FINDING-XXX")));
+        assert!(!diagnostics
+            .iter()
+            .any(|d| d.artifact_id.as_deref() == Some("DEBT-XXX")));
         assert!(invariants::unique_ids(directory.path()));
 
         let invalid_dir = directory.path().join(".lmbrain/invalid");
         fs::create_dir_all(&invalid_dir).unwrap();
         fs::write(
-            invalid_dir.join("FINDING-999.md"),
-            "---\nid: FINDING-999\ntitle: Misplaced Finding\nstatus: open\ncategory: architecture\nseverity: medium\ncreated: '2026-07-29'\nupdated: '2026-07-29'\n---\n",
+            invalid_dir.join("DEBT-999.md"),
+            "---\nid: DEBT-999\ntitle: Misplaced Debt\nstatus: open\ncategory: architecture\nseverity: medium\ncreated: '2026-07-29'\nupdated: '2026-07-29'\n---\n",
         )
         .unwrap();
 
         let diagnostics_with_misplaced = build_diagnostics(directory.path());
-        assert!(diagnostics_with_misplaced.iter().any(|d| d.artifact_id.as_deref() == Some("FINDING-999")));
+        assert!(diagnostics_with_misplaced
+            .iter()
+            .any(|d| d.artifact_id.as_deref() == Some("DEBT-999")));
     }
 }
 
@@ -1481,12 +1479,7 @@ fn diagnose_decisions(artifacts: &[Artifact], diagnostics: &mut Vec<Diagnostic>)
         .collect();
     let by_id: BTreeMap<String, &Artifact> = decisions
         .iter()
-        .filter_map(|artifact| {
-            artifact
-                .document
-                .value("id")
-                .map(|id| (id, *artifact))
-        })
+        .filter_map(|artifact| artifact.document.value("id").map(|id| (id, *artifact)))
         .collect();
 
     for artifact in &decisions {

@@ -32,9 +32,9 @@ tags: [review]
 
 ## Production quality and documentation compliance
 
-## Findings
+## Review findings
 
-<!-- Stable form: FINDING-ID | category=... | severity=... | criterion=... | remediation=... -->
+<!-- Stable form: RF-001 | category=... | severity=... | criterion=... | remediation=... -->
 
 ## Required follow-up
 

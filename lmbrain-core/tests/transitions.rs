@@ -159,11 +159,11 @@ fn artifact(kind: ArtifactKind, status: &str) -> (&'static str, String) {
         ArtifactKind::McpProposal => ("MCP-PROP-001", "mcp/proposals"),
         ArtifactKind::Handoff => ("HANDOFF-001", "handoffs/active"),
         ArtifactKind::Skill => ("SKILL-001", "skills"),
-        ArtifactKind::Finding => ("FINDING-001", "findings"),
+        ArtifactKind::Debt => ("DEBT-001", "debts"),
     };
     let relative = if matches!(
         kind,
-        ArtifactKind::Spec | ArtifactKind::Review | ArtifactKind::Skill | ArtifactKind::Finding
+        ArtifactKind::Spec | ArtifactKind::Review | ArtifactKind::Skill | ArtifactKind::Debt
     ) {
         format!(".lmbrain/{base}/{status}/{id}.md")
     } else {

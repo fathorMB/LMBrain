@@ -1,6 +1,6 @@
 ---
-id: FINDING-XXX
-title: "Stable finding title"
+id: DEBT-XXX
+title: "Stable debt title"
 status: open
 category: correctness
 severity: medium
@@ -23,9 +23,9 @@ updated: YYYY-MM-DD
 tags: []
 links: []
 activity: []
-finding_events: []
+debt_events: []
 ---
-# Stable finding title
+# Stable debt title
 
 ## Statement
 
@@ -37,7 +37,7 @@ Record where it was observed and how the claim was verified.
 
 ## Impact and scope boundary
 
-Explain why it matters and what is explicitly outside this finding.
+Explain why it matters and what is explicitly outside this debt.
 
 ## Decision log
 
@@ -49,4 +49,4 @@ State what must become true before explicit closure.
 
 ## Resolution evidence
 
-Populate only when resolving the finding or accepting the remaining risk.
+Populate only when resolving the debt or accepting the remaining risk.

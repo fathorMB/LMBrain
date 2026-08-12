@@ -351,11 +351,11 @@ export function TaskboardView() {
                     <SpecCard
                       key={spec.id}
                       spec={spec}
-                      activeFindingCount={(state.findings ?? []).filter((finding) =>
-                        ["open", "planned", "deferred"].includes(finding.status)
-                        && (finding.origin_artifact === spec.id
-                          || finding.related_specs.includes(spec.id)
-                          || finding.target_specs.includes(spec.id))
+                      activeDebtCount={(state.debts ?? []).filter((debt) =>
+                        ["open", "planned", "deferred"].includes(debt.status)
+                        && (debt.origin_artifact === spec.id
+                          || debt.related_specs.includes(spec.id)
+                          || debt.target_specs.includes(spec.id))
                       ).length}
                       dependencyBlockers={(spec.depends_on ?? []).filter((id) =>
                         state.specs.find((candidate) => candidate.id === id)?.status !== "done"
@@ -375,12 +375,12 @@ export function TaskboardView() {
 
 function SpecCard({
   spec,
-  activeFindingCount,
+  activeDebtCount,
   dependencyBlockers,
   onClick,
 }: {
   spec: Spec;
-  activeFindingCount: number;
+  activeDebtCount: number;
   dependencyBlockers: string[];
   onClick: () => void;
 }) {
@@ -511,10 +511,10 @@ function SpecCard({
             {done}/{total}
           </span>
         )}
-        {activeFindingCount > 0 && (
+        {activeDebtCount > 0 && (
           <span
-            aria-label={`${activeFindingCount} active findings`}
-            title={`${activeFindingCount} active finding${activeFindingCount > 1 ? "s" : ""} linked to this spec`}
+            aria-label={`${activeDebtCount} active debts`}
+            title={`${activeDebtCount} active debt${activeDebtCount > 1 ? "s" : ""} linked to this spec`}
             style={{
               fontSize: "var(--text-xs)",
               color: "#d9b86d",
@@ -526,7 +526,7 @@ function SpecCard({
             <i className="material-symbols-outlined" style={{ fontSize: 13 }}>
               link
             </i>{" "}
-            {activeFindingCount}
+            {activeDebtCount}
           </span>
         )}
         {dependencyBlockers.length > 0 && (

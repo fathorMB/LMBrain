@@ -10,7 +10,7 @@ const commandMocks = vi.hoisted(() => ({
 vi.mock("../lib/commands", () => commandMocks);
 
 const workspace = vi.hoisted(() => ({
-  state: { adrs: [] as Adr[], specs: [] as unknown[], findings: [] as unknown[] },
+  state: { adrs: [] as Adr[], specs: [] as unknown[], debts: [] as unknown[] },
   dispatch: vi.fn(),
 }));
 
@@ -101,7 +101,7 @@ describe("DecisionsList lifecycle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     workspace.state.specs = [];
-    workspace.state.findings = [];
+    workspace.state.debts = [];
     commandMocks.getAdrs.mockResolvedValue([]);
   });
 
@@ -157,11 +157,11 @@ describe("DecisionsList lifecycle", () => {
     expect(badge.style.color).toBe("rgb(224, 88, 74)");
   });
 
-  it("counts inbound references from specs and findings", () => {
+  it("counts inbound references from specs and debts", () => {
     workspace.state.adrs = [adr({ id: "ADR-001", title: "Cited" })];
     workspace.state.specs = [{ id: "SPEC-001", title: "A spec", related_decisions: ["ADR-001"] }];
-    workspace.state.findings = [
-      { id: "FINDING-001", title: "A finding", related_decisions: ["ADR-001"] },
+    workspace.state.debts = [
+      { id: "DEBT-001", title: "A debt", related_decisions: ["ADR-001"] },
     ];
     render(<DecisionsList />);
 

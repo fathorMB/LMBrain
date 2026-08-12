@@ -31,9 +31,9 @@ export function ProjectPulse() {
   const [copiedMigration, setCopiedMigration] = useState(false);
 
   const navigateToWiki = useWikiNavigation();
-  const attentionFindings = (state.findings ?? []).filter((finding) =>
-    ["open", "planned", "deferred"].includes(finding.status)
-    && (["critical", "high"].includes(finding.severity) || !finding.owner)
+  const attentionDebts = (state.debts ?? []).filter((debt) =>
+    ["open", "planned", "deferred"].includes(debt.status)
+    && (["critical", "high"].includes(debt.severity) || !debt.owner)
   );
 
   const pulse = state.pulseData;
@@ -101,16 +101,16 @@ export function ProjectPulse() {
               </h1>
             </div>
           </div>
-          {attentionFindings.length > 0 && <button
+          {attentionDebts.length > 0 && <button
             type="button"
-            onClick={() => navigateTo("findings")}
+            onClick={() => navigateTo("debts")}
             style={{
               width: "100%", marginTop: 14, padding: "10px 12px", textAlign: "left",
               border: "1px solid rgba(224,162,58,.35)", borderRadius: 8,
               background: "rgba(224,162,58,.08)", color: "#d9b86d", cursor: "pointer",
             }}
           >
-            {attentionFindings.length} active critical/high or untriaged {attentionFindings.length === 1 ? "finding needs" : "findings need"} disposition
+            {attentionDebts.length} active critical/high or untriaged {attentionDebts.length === 1 ? "debt needs" : "debts need"} disposition
           </button>}
 
           {/* Metrics */}

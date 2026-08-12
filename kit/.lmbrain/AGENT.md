@@ -66,19 +66,19 @@ Before calling `spec_done`, attest every checked `owner=lead`, `phase=before-don
 5. Mark the spec accepted only with verifiable evidence.
 6. Record the verdict with the matching semantic MCP verb. If corrections are required, leave the spec in `review`, call `review_changes_requested` with a concrete rationale and evidence references, and hand the same review-state spec plus findings back to the specialist unless the escalation authority applies. Record attempts, escalation, and takeover with `review_remediation`, `review_escalate`, and `review_takeover`. Use taxonomy-v1 canonical finding categories, `review_block` for an external blocker, and `review_supersede` only when replacing the review; never edit managed review lifecycle fields or events by hand.
 
-## Durable cross-spec findings
+## Durable cross-spec debts
 
-Keep ordinary corrective findings local to their review. Use `finding_create` only when an evidence-backed observation survives the originating spec, spans later work, records a durable limitation/risk, or is not yet implementation-ready. Promotion preserves the review body and verdict; `(origin_artifact, origin_ref)` is the source identity, while the allocated `FINDING-*` is globally unique.
+Keep ordinary corrective findings local to their review. Use `debt_create` only when an evidence-backed observation survives the originating spec, spans later work, records a durable limitation/risk, or is not yet implementation-ready. Promotion preserves the review body and verdict; `(origin_artifact, origin_ref)` is the source identity, while the allocated `DEBT-*` is globally unique.
 
 Use only semantic operations:
 
-- `finding_plan` links validated target specs but does not resolve the finding or authorize implementation;
-- `finding_defer`, `finding_resolve`, and `finding_supersede` require explicit rationale and their status-specific evidence;
-- `finding_accept_risk` and `finding_reopen` are operator-only;
-- `finding_context` supplies bounded canonical joins;
-- `finding_candidates` is a read-only legacy inventory and never decides disposition.
+- `debt_plan` links validated target specs but does not resolve the debt or authorize implementation;
+- `debt_defer`, `debt_resolve`, and `debt_supersede` require explicit rationale and their status-specific evidence;
+- `debt_accept_risk` and `debt_reopen` are operator-only;
+- `debt_context` supplies bounded canonical joins;
+- `debt_candidates` is a read-only legacy inventory and never decides disposition.
 
-Never auto-promote review prose, auto-create a target spec, infer resolution from a done spec, rewrite origin history, or use a first-class finding as hidden agent scoring.
+Never auto-promote review prose, auto-create a target spec, infer resolution from a done spec, rewrite origin history, or use a first-class debt as hidden agent scoring.
 
 ## Operator-invited dreaming
 
@@ -86,7 +86,7 @@ Enter a dreaming session only after an explicit operator invitation such as “f
 
 During the session, examine only the supplied/current project digest and referenced specs, reviews, findings, decisions, or evidence. You may capture zero or more tentative observations with `dream_capture`. Every record needs concrete artifact references and a context digest, is classified as `technical-debt` or `design-debt`, and must state confidence and a suggested next disposition. Never present a dream as a verified fact or store a raw conversation transcript.
 
-A `DREAM-*` record is not a finding, roadmap item, spec, or decision. Do not promote it automatically: triage, promotion, or discard remains an explicit governed follow-up. Tell the operator where the Dream Journal can be consulted after capturing records.
+A `DREAM-*` record is not a debt, roadmap item, spec, or decision. Do not promote it automatically: triage, promotion, or discard remains an explicit governed follow-up. Tell the operator where the Dream Journal can be consulted after capturing records.
 
 ## Feedback for the LMBrain product team
 
@@ -94,7 +94,7 @@ Maintain `reports/lmbrain-kit-feedback.md` as an append-only field report about 
 
 Keep this domain separate:
 
-- project defects and durable project obligations belong in reviews, specs, or `FINDING-*`;
+- project defects and durable project obligations belong in reviews, specs, or `DEBT-*`;
 - LMBrain product/kit behavior belongs in the feedback report;
 - speculative preferences without observed impact do not belong in either.
 

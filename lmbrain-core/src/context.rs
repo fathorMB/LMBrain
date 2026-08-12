@@ -36,7 +36,7 @@ pub struct ProjectDigest {
     pub derived_state: DerivedProjectState,
     pub lifecycle: SpecLifecycleView,
     pub diagnostics: BoundedDiagnosticList,
-    pub findings: FindingDigest,
+    pub debts: DebtDigest,
     pub spec_dependencies: SpecDependencyDigest,
     pub branching_strategy: BranchingStrategyDigest,
     pub markdown: String,
@@ -102,7 +102,7 @@ pub struct BoundedDiagnosticList {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CompactFinding {
+pub struct CompactDebt {
     pub id: String,
     pub title: String,
     pub status: String,
@@ -119,19 +119,19 @@ pub struct CompactFinding {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BoundedFindingList {
+pub struct BoundedDebtList {
     pub total: usize,
     pub omitted: usize,
-    pub items: Vec<CompactFinding>,
+    pub items: Vec<CompactDebt>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FindingDigest {
+pub struct DebtDigest {
     pub counts: BTreeMap<String, usize>,
-    pub active: BoundedFindingList,
-    pub targetless_open: BoundedFindingList,
-    pub blocked: BoundedFindingList,
-    pub recently_closed: BoundedFindingList,
+    pub active: BoundedDebtList,
+    pub targetless_open: BoundedDebtList,
+    pub blocked: BoundedDebtList,
+    pub recently_closed: BoundedDebtList,
 }
 
 /// Compact spec reference for lists.
@@ -176,7 +176,7 @@ pub struct DiagnosticsSummary {
 
 const DIGEST_SPEC_LIMIT: usize = 20;
 const DIGEST_DIAGNOSTIC_LIMIT: usize = 50;
-const DIGEST_FINDING_LIMIT: usize = 30;
+const DIGEST_DEBT_LIMIT: usize = 30;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BranchingStrategyDigest {
@@ -243,7 +243,7 @@ pub struct SpecContext {
     pub explicit_files: Vec<String>,
     pub explicit_areas: Vec<String>,
     pub diagnostics: Vec<String>,
-    pub findings: Vec<CompactFinding>,
+    pub debts: Vec<CompactDebt>,
     pub dependencies: crate::SpecDependencyContext,
     pub branching_strategy: BranchingStrategyDigest,
     pub warnings: Vec<String>,
@@ -329,7 +329,7 @@ pub struct ReviewContext {
     pub required_verification: Vec<VerificationRequirement>,
     pub required_verification_source: Option<String>,
     pub applicable_skills: Vec<SkillSummary>,
-    pub findings: Vec<CompactFinding>,
+    pub debts: Vec<CompactDebt>,
     pub warnings: Vec<String>,
     pub markdown: String,
 }
@@ -432,7 +432,7 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
             .cloned()
             .collect(),
     };
-    let findings = build_finding_digest(root);
+    let debts = build_debt_digest(root);
     let dependency_items = all_specs
         .iter()
         .filter_map(|spec| {
@@ -471,7 +471,7 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
         &declared_state,
         &derived_state,
     );
-    append_findings_markdown(&mut markdown, "Active findings", &findings.active.items);
+    append_debts_markdown(&mut markdown, "Active debts", &debts.active.items);
 
     ProjectDigest {
         schema_version: "2".into(),
@@ -492,7 +492,7 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
         derived_state,
         lifecycle,
         diagnostics,
-        findings,
+        debts,
         spec_dependencies,
         branching_strategy: build_branching_strategy_digest(root),
         markdown,
@@ -564,7 +564,7 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
 
     // Collect diagnostics affecting this spec
     let diagnostics = spec_diagnostics(&lmbrain, &id);
-    let findings = findings_for_spec(root, &id);
+    let debts = debts_for_spec(root, &id);
     let dependencies = crate::spec_dependency_context(root, &id)
         .map_err(|error| format!("Failed to resolve spec dependencies: {error}"))?;
 
@@ -597,7 +597,7 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         &diagnostics,
         &warnings,
     );
-    append_findings_markdown(&mut markdown, "Related findings", &findings);
+    append_debts_markdown(&mut markdown, "Related debts", &debts);
     append_dependencies_markdown(&mut markdown, &dependencies);
     if let Some(event) = parking.as_ref() {
         markdown.push_str(&format!(
@@ -636,7 +636,7 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
         explicit_files,
         explicit_areas,
         diagnostics,
-        findings,
+        debts,
         dependencies,
         branching_strategy: build_branching_strategy_digest(root),
         warnings,
@@ -744,18 +744,18 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         .iter()
         .map(|review| review.id.as_str())
         .collect::<BTreeSet<_>>();
-    let findings = crate::list_findings(root)
+    let debts = crate::list_debts(root)
         .into_iter()
-        .filter_map(|finding| {
+        .filter_map(|debt| {
             let mut roles = Vec::new();
-            if finding
+            if debt
                 .origin_artifact
                 .as_deref()
                 .is_some_and(|id| review_ids.contains(id))
             {
                 roles.push("origin".into());
             }
-            if finding
+            if debt
                 .related_reviews
                 .iter()
                 .any(|id| review_ids.contains(id.as_str()))
@@ -765,10 +765,10 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
             if roles.is_empty() {
                 None
             } else {
-                Some(compact_finding(finding, roles))
+                Some(compact_debt(debt, roles))
             }
         })
-        .take(DIGEST_FINDING_LIMIT)
+        .take(DIGEST_DEBT_LIMIT)
         .collect::<Vec<_>>();
 
     let mut markdown = format_review_context_md(
@@ -783,7 +783,7 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         &applicable_skills,
         &warnings,
     );
-    append_findings_markdown(&mut markdown, "Promoted findings", &findings);
+    append_debts_markdown(&mut markdown, "Promoted debts", &debts);
 
     Ok(ReviewContext {
         spec_id,
@@ -796,7 +796,7 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         required_verification,
         required_verification_source,
         applicable_skills,
-        findings,
+        debts,
         warnings,
         markdown,
     })
@@ -804,109 +804,109 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
 
 // ─── Internal helpers ──────────────────────────────────────────────
 
-fn build_finding_digest(root: &Path) -> FindingDigest {
-    let mut findings = crate::list_findings(root)
+fn build_debt_digest(root: &Path) -> DebtDigest {
+    let mut debts = crate::list_debts(root)
         .into_iter()
-        .filter(|finding| !finding.malformed)
-        .map(|finding| compact_finding(finding, Vec::new()))
+        .filter(|debt| !debt.malformed)
+        .map(|debt| compact_debt(debt, Vec::new()))
         .collect::<Vec<_>>();
-    findings.sort_by(|left, right| {
-        finding_severity_rank(&right.severity)
-            .cmp(&finding_severity_rank(&left.severity))
+    debts.sort_by(|left, right| {
+        debt_severity_rank(&right.severity)
+            .cmp(&debt_severity_rank(&left.severity))
             .then_with(|| right.updated.cmp(&left.updated))
             .then_with(|| left.id.cmp(&right.id))
     });
     let mut counts = BTreeMap::new();
-    for finding in &findings {
-        *counts.entry(finding.status.clone()).or_insert(0) += 1;
+    for debt in &debts {
+        *counts.entry(debt.status.clone()).or_insert(0) += 1;
     }
-    let active = bounded_findings(
-        findings
+    let active = bounded_debts(
+        debts
             .iter()
-            .filter(|finding| matches!(finding.status.as_str(), "open" | "planned" | "deferred"))
+            .filter(|debt| matches!(debt.status.as_str(), "open" | "planned" | "deferred"))
             .cloned()
             .collect(),
     );
-    let targetless_open = bounded_findings(
-        findings
+    let targetless_open = bounded_debts(
+        debts
             .iter()
-            .filter(|finding| finding.status == "open" && finding.target_specs.is_empty())
+            .filter(|debt| debt.status == "open" && debt.target_specs.is_empty())
             .cloned()
             .collect(),
     );
-    let blocked = bounded_findings(
-        findings
+    let blocked = bounded_debts(
+        debts
             .iter()
-            .filter(|finding| !finding.blocked_by.is_empty())
+            .filter(|debt| !debt.blocked_by.is_empty())
             .cloned()
             .collect(),
     );
-    let mut closed = findings
+    let mut closed = debts
         .into_iter()
-        .filter(|finding| matches!(finding.status.as_str(), "resolved" | "accepted-risk"))
+        .filter(|debt| matches!(debt.status.as_str(), "resolved" | "accepted-risk"))
         .collect::<Vec<_>>();
     closed.sort_by(|left, right| right.updated.cmp(&left.updated));
-    FindingDigest {
+    DebtDigest {
         counts,
         active,
         targetless_open,
         blocked,
-        recently_closed: bounded_findings(closed),
+        recently_closed: bounded_debts(closed),
     }
 }
 
-fn findings_for_spec(root: &Path, spec_id: &str) -> Vec<CompactFinding> {
-    crate::list_findings(root)
+fn debts_for_spec(root: &Path, spec_id: &str) -> Vec<CompactDebt> {
+    crate::list_debts(root)
         .into_iter()
-        .filter_map(|finding| {
+        .filter_map(|debt| {
             let mut roles = Vec::new();
-            if finding.origin_artifact.as_deref() == Some(spec_id) {
+            if debt.origin_artifact.as_deref() == Some(spec_id) {
                 roles.push("origin".into());
             }
-            if finding.related_specs.iter().any(|id| id == spec_id) {
+            if debt.related_specs.iter().any(|id| id == spec_id) {
                 roles.push("related".into());
             }
-            if finding.target_specs.iter().any(|id| id == spec_id) {
+            if debt.target_specs.iter().any(|id| id == spec_id) {
                 roles.push("target".into());
             }
             if roles.is_empty() {
                 None
             } else {
-                Some(compact_finding(finding, roles))
+                Some(compact_debt(debt, roles))
             }
         })
-        .take(DIGEST_FINDING_LIMIT)
+        .take(DIGEST_DEBT_LIMIT)
         .collect()
 }
 
-fn compact_finding(finding: crate::Finding, relation_roles: Vec<String>) -> CompactFinding {
-    CompactFinding {
-        id: finding.id,
-        title: finding.title,
-        status: finding.status,
-        severity: finding.severity,
-        category: finding.category,
-        owner: finding.owner,
-        milestone: finding.milestone,
-        origin_artifact: finding.origin_artifact,
-        target_specs: finding.target_specs,
-        blocked_by: finding.blocked_by,
-        updated: finding.updated,
-        path: finding.path,
+fn compact_debt(debt: crate::Debt, relation_roles: Vec<String>) -> CompactDebt {
+    CompactDebt {
+        id: debt.id,
+        title: debt.title,
+        status: debt.status,
+        severity: debt.severity,
+        category: debt.category,
+        owner: debt.owner,
+        milestone: debt.milestone,
+        origin_artifact: debt.origin_artifact,
+        target_specs: debt.target_specs,
+        blocked_by: debt.blocked_by,
+        updated: debt.updated,
+        path: debt.path,
         relation_roles,
     }
 }
 
-fn bounded_findings(items: Vec<CompactFinding>) -> BoundedFindingList {
+fn bounded_debts(items: Vec<CompactDebt>) -> BoundedDebtList {
     let total = items.len();
-    BoundedFindingList {
+    BoundedDebtList {
         total,
-        omitted: total.saturating_sub(DIGEST_FINDING_LIMIT),
-        items: items.into_iter().take(DIGEST_FINDING_LIMIT).collect(),
+        omitted: total.saturating_sub(DIGEST_DEBT_LIMIT),
+        items: items.into_iter().take(DIGEST_DEBT_LIMIT).collect(),
     }
 }
 
-fn finding_severity_rank(severity: &str) -> usize {
+fn debt_severity_rank(severity: &str) -> usize {
     match severity {
         "critical" => 5,
         "high" => 4,
@@ -917,21 +917,21 @@ fn finding_severity_rank(severity: &str) -> usize {
     }
 }
 
-fn append_findings_markdown(markdown: &mut String, heading: &str, findings: &[CompactFinding]) {
+fn append_debts_markdown(markdown: &mut String, heading: &str, debts: &[CompactDebt]) {
     markdown.push_str(&format!("\n## {heading}\n"));
-    if findings.is_empty() {
+    if debts.is_empty() {
         markdown.push_str("- None\n");
         return;
     }
-    for finding in findings {
-        let roles = if finding.relation_roles.is_empty() {
+    for debt in debts {
+        let roles = if debt.relation_roles.is_empty() {
             String::new()
         } else {
-            format!("; {}", finding.relation_roles.join(", "))
+            format!("; {}", debt.relation_roles.join(", "))
         };
         markdown.push_str(&format!(
             "- {} [{}; {}{}] {}\n",
-            finding.id, finding.status, finding.severity, roles, finding.title
+            debt.id, debt.status, debt.severity, roles, debt.title
         ));
     }
 }
@@ -1530,7 +1530,7 @@ fn resolve_reviews_for_spec(lmbrain: &Path, spec_id: &str) -> Vec<CompactReview>
                                         .filter(|category| category.canonical.is_none())
                                         .map(|category| {
                                             format!(
-                                                "Unknown finding category '{}'; add an alias or use a canonical category.",
+                                                "Unknown debt category '{}'; add an alias or use a canonical category.",
                                                 category.raw
                                             )
                                         }),
@@ -1612,7 +1612,10 @@ fn parse_criteria(body: &str) -> Vec<Criterion> {
                 criteria.push(criterion);
             }
             let checked = trimmed.starts_with("- [x]") || trimmed.starts_with("- [X]");
-            current = Some(Criterion { text: trimmed[5..].trim().to_string(), checked });
+            current = Some(Criterion {
+                text: trimmed[5..].trim().to_string(),
+                checked,
+            });
         } else if let Some(criterion) = current.as_mut() {
             if trimmed.is_empty() || trimmed.starts_with("#") || trimmed.starts_with("-") {
                 if let Some(criterion) = current.take() {
@@ -2105,7 +2108,7 @@ fn format_project_digest_md(
     ));
 
     if !diagnostic_items.items.is_empty() {
-        md.push_str("\n### Actionable findings\n\n");
+        md.push_str("\n### Actionable debts\n\n");
         for diagnostic in &diagnostic_items.items {
             md.push_str(&format!(
                 "- **{}** `{}` {} — Next: {}\n",

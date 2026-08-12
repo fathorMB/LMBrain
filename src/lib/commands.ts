@@ -15,9 +15,9 @@ import type {
   GitWorktree,
   GitHubDashboard,
   Handoff,
-  Finding,
+  Debt,
   Dream,
-  FindingContext,
+  DebtContext,
   KitFeedbackReport,
   HarnessStatus,
   HarnessApprovalStatus,
@@ -106,8 +106,8 @@ export async function getReviews(): Promise<Review[]> {
   return invoke("get_reviews");
 }
 
-export async function getFindings(): Promise<Finding[]> {
-  return invoke("get_findings");
+export async function getDebts(): Promise<Debt[]> {
+  return invoke("get_debts");
 }
 
 export async function getDreams(): Promise<Dream[]> { return invoke("get_dreams"); }
@@ -120,8 +120,8 @@ export async function saveTextFile(path: string, content: string): Promise<void>
   return invoke("write_export_file", { path, content });
 }
 
-export async function getFindingContext(finding: string): Promise<FindingContext> {
-  return invoke("get_finding_context", { finding });
+export async function getDebtContext(debt: string): Promise<DebtContext> {
+  return invoke("get_debt_context", { debt });
 }
 
 export async function getAdrs(): Promise<Adr[]> {

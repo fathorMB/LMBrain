@@ -32,7 +32,7 @@ function snapshot(items: SnapshotItems): WorkspaceSnapshot {
     pulse_data: null,
     specs: items.specs ?? [],
     reviews: items.reviews ?? [],
-    findings: [],
+    debts: [],
     adrs: [],
     agents: [],
     agent_proposals: [],

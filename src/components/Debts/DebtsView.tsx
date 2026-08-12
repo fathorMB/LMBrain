@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getFindingContext, getFindings } from "../../lib/commands";
-import type { Finding, FindingContext, FindingRelation } from "../../types";
+import { getDebtContext, getDebts } from "../../lib/commands";
+import type { Debt, DebtContext, DebtRelation } from "../../types";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { RefreshButton } from "../RefreshButton";
 import { CardGrid, PageHeader, PageShell } from "../Shared/PageLayout";
@@ -12,7 +12,7 @@ const severityRank: Record<string, number> = {
   critical: 5, high: 4, medium: 3, low: 2, info: 1,
 };
 
-export function FindingsView() {
+export function DebtsView() {
   const { state, dispatch, openDetailArtifact } = useWorkspace();
   const [scope, setScope] = useState<"active" | "history" | "all">("active");
   const [status, setStatus] = useState("all");
@@ -20,23 +20,23 @@ export function FindingsView() {
   const [category, setCategory] = useState("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"severity" | "age" | "updated" | "milestone">("severity");
-  const [selected, setSelected] = useState<FindingContext | null>(null);
+  const [selected, setSelected] = useState<DebtContext | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const closeSelected = useCallback(() => setSelected(null), []);
 
-  const findings = useMemo(() => {
-    const filtered = state.findings.filter((finding) => {
+  const debts = useMemo(() => {
+    const filtered = state.debts.filter((debt) => {
       const inScope = scope === "all"
-        || (scope === "active" ? ACTIVE.has(finding.status) : !ACTIVE.has(finding.status));
+        || (scope === "active" ? ACTIVE.has(debt.status) : !ACTIVE.has(debt.status));
       const text = [
-        finding.id, finding.title, finding.area, finding.milestone, finding.owner,
-        finding.origin_artifact, ...finding.target_specs,
+        debt.id, debt.title, debt.area, debt.milestone, debt.owner,
+        debt.origin_artifact, ...debt.target_specs,
       ].filter(Boolean).join(" ").toLowerCase();
       return inScope
-        && (status === "all" || finding.status === status)
-        && (severity === "all" || finding.severity === severity)
-        && (category === "all" || finding.category === category)
+        && (status === "all" || debt.status === status)
+        && (severity === "all" || debt.severity === severity)
+        && (category === "all" || debt.category === category)
         && text.includes(query.trim().toLowerCase());
     });
     return filtered.sort((left, right) => {
@@ -49,27 +49,27 @@ export function FindingsView() {
       return (left.milestone ?? "ZZZ").localeCompare(right.milestone ?? "ZZZ")
         || left.id.localeCompare(right.id);
     });
-  }, [state.findings, scope, status, severity, category, query, sort]);
+  }, [state.debts, scope, status, severity, category, query, sort]);
 
-  const categories = [...new Set(state.findings.map((finding) => finding.category).filter(Boolean))].sort();
+  const categories = [...new Set(state.debts.map((debt) => debt.category).filter(Boolean))].sort();
   const counts = Object.fromEntries(
     ["open", "planned", "deferred", "accepted-risk", "resolved", "superseded"]
-      .map((value) => [value, state.findings.filter((finding) => finding.status === value).length]),
+      .map((value) => [value, state.debts.filter((debt) => debt.status === value).length]),
   );
   const refresh = async () => {
     setLoading(true); setError(null);
     try {
-      dispatch({ type: "SET_FINDINGS", findings: await getFindings() });
+      dispatch({ type: "SET_DEBTS", debts: await getDebts() });
     } catch (reason) {
       setError(message(reason));
     } finally {
       setLoading(false);
     }
   };
-  const open = async (finding: Finding) => {
+  const open = async (debt: Debt) => {
     setLoading(true); setError(null);
     try {
-      setSelected(await getFindingContext(finding.id));
+      setSelected(await getDebtContext(debt.id));
     } catch (reason) {
       setError(message(reason));
     } finally {
@@ -79,55 +79,55 @@ export function FindingsView() {
 
   return <PageShell archetype="dense">
     <PageHeader
-      title="Findings"
+      title="Debts"
       description="Durable cross-spec observations and obligations. This view is read-only."
       actions={<RefreshButton loading={loading} onClick={refresh} />}
     />
     {error && <div role="alert" style={errorStyle}>{error}</div>}
-    {loading && <p role="status" style={muted}>Loading findings…</p>}
+    {loading && <p role="status" style={muted}>Loading debts…</p>}
 
-    <section aria-label="Finding summary" style={summaryGrid}>
+    <section aria-label="Debt summary" style={summaryGrid}>
       {Object.entries(counts).map(([label, count]) => <div key={label} style={card}>
         <div style={summaryValue}>{count}</div>
         <div style={muted}>{label}</div>
       </div>)}
     </section>
 
-    <section aria-label="Finding filters" style={filters}>
+    <section aria-label="Debt filters" style={filters}>
       <label style={filterLabel}>Scope
-        <select className="app-select" style={filterControl} aria-label="Finding scope" value={scope} onChange={(event) => setScope(event.target.value as typeof scope)}>
+        <select className="app-select" style={filterControl} aria-label="Debt scope" value={scope} onChange={(event) => setScope(event.target.value as typeof scope)}>
           <option value="active">Active</option>
           <option value="history">History</option>
           <option value="all">All</option>
         </select>
       </label>
       <label style={filterLabel}>Status
-        <select className="app-select" style={filterControl} aria-label="Finding status" value={status} onChange={(event) => setStatus(event.target.value)}>
+        <select className="app-select" style={filterControl} aria-label="Debt status" value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="all">All</option>
           {["open", "planned", "deferred", "resolved", "accepted-risk", "superseded"].map(option)}
         </select>
       </label>
       <label style={filterLabel}>Severity
-        <select className="app-select" style={filterControl} aria-label="Finding severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
+        <select className="app-select" style={filterControl} aria-label="Debt severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
           <option value="all">All</option>
           {["critical", "high", "medium", "low", "info"].map(option)}
         </select>
       </label>
       <label style={filterLabel}>Category
-        <select className="app-select" style={filterControl} aria-label="Finding category" value={category} onChange={(event) => setCategory(event.target.value)}>
+        <select className="app-select" style={filterControl} aria-label="Debt category" value={category} onChange={(event) => setCategory(event.target.value)}>
           <option value="all">All</option>
           {categories.map(option)}
         </select>
       </label>
       <label style={filterLabel}>Sort
-        <select className="app-select" style={filterControl} aria-label="Finding sort" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
+        <select className="app-select" style={filterControl} aria-label="Debt sort" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
           {["severity", "age", "updated", "milestone"].map(option)}
         </select>
       </label>
       <label style={{ ...filterLabel, flex: "1 1 240px" }}>Search
         <input
           style={{ ...filterControl, width: "100%" }}
-          aria-label="Search findings"
+          aria-label="Search debts"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Owner, area, milestone, target…"
@@ -135,58 +135,58 @@ export function FindingsView() {
       </label>
     </section>
 
-    {state.findings.length === 0 && !loading && <div style={empty}>No first-class findings exist. Legacy review entries are not promoted automatically.</div>}
-    {state.findings.length > 0 && findings.length === 0 && <div style={empty}>No findings match these filters.</div>}
+    {state.debts.length === 0 && !loading && <div style={empty}>No first-class debts exist. Legacy review entries are not promoted automatically.</div>}
+    {state.debts.length > 0 && debts.length === 0 && <div style={empty}>No debts match these filters.</div>}
     <CardGrid>
-      {findings.map((finding) => <button
-        key={finding.id}
+      {debts.map((debt) => <button
+        key={debt.id}
         type="button"
-        onClick={() => void open(finding)}
-        aria-label={`Open ${finding.id}: ${finding.title}`}
-        style={findingCard}
+        onClick={() => void open(debt)}
+        aria-label={`Open ${debt.id}: ${debt.title}`}
+        style={debtCard}
       >
         <div style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" }}>
-          <strong style={{ fontFamily: "var(--font-mono)" }}>{finding.id}</strong>
-          <Indicator text={finding.severity} />
-          <Indicator text={finding.status} />
-          {finding.malformed && <Indicator text="malformed" />}
+          <strong style={{ fontFamily: "var(--font-mono)" }}>{debt.id}</strong>
+          <Indicator text={debt.severity} />
+          <Indicator text={debt.status} />
+          {debt.malformed && <Indicator text="malformed" />}
         </div>
-        <div style={{ fontWeight: 650, marginTop: 7 }}>{finding.title}</div>
+        <div style={{ fontWeight: 650, marginTop: 7 }}>{debt.title}</div>
         <div style={meta}>
-          <span>Origin: {finding.origin_artifact ?? "direct observation"}</span>
-          <span>Owner: {finding.owner ?? "needs triage"}</span>
-          <span>Targets: {finding.target_specs.join(", ") || "none"}</span>
-          <span>Blockers: {finding.blocked_by.join(", ") || "none"}</span>
-          <span>Updated: {finding.updated || "unknown"}</span>
+          <span>Origin: {debt.origin_artifact ?? "direct observation"}</span>
+          <span>Owner: {debt.owner ?? "needs triage"}</span>
+          <span>Targets: {debt.target_specs.join(", ") || "none"}</span>
+          <span>Blockers: {debt.blocked_by.join(", ") || "none"}</span>
+          <span>Updated: {debt.updated || "unknown"}</span>
         </div>
-        <div style={stateLine(finding)}>
-          {finding.malformed ? "Malformed — repair before lifecycle use"
-            : finding.blocked_by.length ? "Blocked by canonical finding relationship"
-            : finding.status === "planned" && finding.target_specs.length === 0 ? "Planned but missing a target"
-            : finding.status === "open" && !finding.owner ? "Needs triage"
-            : finding.status === "accepted-risk" ? "Accepted risk"
-            : nextAction(finding)}
+        <div style={stateLine(debt)}>
+          {debt.malformed ? "Malformed — repair before lifecycle use"
+            : debt.blocked_by.length ? "Blocked by canonical debt relationship"
+            : debt.status === "planned" && debt.target_specs.length === 0 ? "Planned but missing a target"
+            : debt.status === "open" && !debt.owner ? "Needs triage"
+            : debt.status === "accepted-risk" ? "Accepted risk"
+            : nextAction(debt)}
         </div>
       </button>)}
     </CardGrid>
 
-    {selected && <FindingDetail
+    {selected && <DebtDetail
       context={selected}
       onClose={closeSelected}
       onOpenRelation={(relation) => openDetailArtifact({ title: `${relation.id}: ${relation.title}`, path: relation.path })}
-      onOpenMarkdown={() => openDetailArtifact({ title: `${selected.finding.id}: ${selected.finding.title}`, path: selected.finding.path })}
+      onOpenMarkdown={() => openDetailArtifact({ title: `${selected.debt.id}: ${selected.debt.title}`, path: selected.debt.path })}
     />}
   </PageShell>;
 }
 
-function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
-  context: FindingContext;
+function DebtDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
+  context: DebtContext;
   onClose: () => void;
-  onOpenRelation: (relation: FindingRelation) => void;
+  onOpenRelation: (relation: DebtRelation) => void;
   onOpenMarkdown: () => void;
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const groups: Array<[string, FindingRelation[]]> = [
+  const groups: Array<[string, DebtRelation[]]> = [
     ["Origin", context.origin ? [context.origin] : []],
     ["Related work", [...context.related_specs, ...context.related_reviews]],
     ["Target specs", context.target_specs],
@@ -195,19 +195,19 @@ function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
     ["Resolution evidence", context.resolution_refs],
     ["Superseded by", context.superseded_by ? [context.superseded_by] : []],
   ];
-  const prompt = `Review ${context.finding.id} with finding_context, then use the appropriate governed finding_* MCP tool. Do not infer resolution from target spec status.`;
-  const f = context.finding;
+  const prompt = `Review ${context.debt.id} with debt_context, then use the appropriate governed debt_* MCP tool. Do not infer resolution from target spec status.`;
+  const f = context.debt;
   const statusExplanation = f.status === "planned"
-    ? "This finding is planned and routed to target spec(s), but is awaiting explicit resolution evidence."
+    ? "This debt is planned and routed to target spec(s), but is awaiting explicit resolution evidence."
     : f.status === "deferred"
-    ? "This finding is deferred until declared revisit criteria are met."
+    ? "This debt is deferred until declared revisit criteria are met."
     : f.status === "resolved"
-    ? "This finding has been resolved with canonical evidence."
+    ? "This debt has been resolved with canonical evidence."
     : f.status === "accepted-risk"
     ? "Risk accepted by operator."
     : f.status === "superseded"
-    ? "Superseded by newer finding or decision."
-    : "Active open finding awaiting triage or assignment.";
+    ? "Superseded by newer debt or decision."
+    : "Active open debt awaiting triage or assignment.";
 
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -260,16 +260,16 @@ function FindingDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
       tabIndex={-1}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="finding-detail-title"
+      aria-labelledby="debt-detail-title"
       style={dialog}
       onMouseDown={(event) => event.stopPropagation()}
     >
       <div style={dialogHeader}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={mono}>{f.id}</div>
-          <h2 id="finding-detail-title" style={dialogTitle}>{f.title}</h2>
+          <h2 id="debt-detail-title" style={dialogTitle}>{f.title}</h2>
         </div>
-        <ModalCloseButton label="Close finding detail" onClick={onClose} />
+        <ModalCloseButton label="Close debt detail" onClick={onClose} />
       </div>
 
       <div style={{ display: "flex", gap: 6, margin: "10px 0 14px", flexWrap: "wrap" }}>
@@ -323,14 +323,14 @@ function Indicator({ text }: { text: string }) {
   return <span style={{ border: "1px solid var(--border-secondary)", borderRadius: 999, padding: "2px 7px", fontSize: "var(--text-xs)" }}>{text}</span>;
 }
 function option(value: string) { return <option value={value} key={value}>{value}</option>; }
-function nextAction(finding: Finding) {
-  if (finding.status === "planned") return "Await explicit resolution evidence";
-  if (finding.status === "deferred") return "Retained for its declared revisit condition";
-  if (finding.status === "resolved") return "Resolved with canonical evidence";
+function nextAction(debt: Debt) {
+  if (debt.status === "planned") return "Await explicit resolution evidence";
+  if (debt.status === "deferred") return "Retained for its declared revisit condition";
+  if (debt.status === "resolved") return "Resolved with canonical evidence";
   return "Review current disposition";
 }
-function stateLine(finding: Finding): React.CSSProperties {
-  const attention = finding.malformed || finding.blocked_by.length > 0 || (finding.status === "open" && !finding.owner);
+function stateLine(debt: Debt): React.CSSProperties {
+  const attention = debt.malformed || debt.blocked_by.length > 0 || (debt.status === "open" && !debt.owner);
   return { marginTop: 9, fontSize: "var(--text-xs)", color: attention ? "#d9b86d" : "var(--text-tertiary)" };
 }
 function message(value: unknown) { return value instanceof Error ? value.message : String(value); }
@@ -374,7 +374,7 @@ const filterControl: React.CSSProperties = {
   fontFamily: "inherit",
   fontSize: "var(--text-sm)",
 };
-const findingCard: React.CSSProperties = { ...card, width: "100%", color: "var(--text-primary)", textAlign: "left", cursor: "pointer" };
+const debtCard: React.CSSProperties = { ...card, width: "100%", color: "var(--text-primary)", textAlign: "left", cursor: "pointer" };
 const meta: React.CSSProperties = { ...muted, display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: 6 };
 const secondary: React.CSSProperties = { border: "1px solid var(--border-secondary)", borderRadius: 7, background: "var(--bg-secondary)", color: "var(--text-secondary)", padding: "7px 11px", cursor: "pointer" };
 const relationButton: React.CSSProperties = { ...secondary, fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)" };

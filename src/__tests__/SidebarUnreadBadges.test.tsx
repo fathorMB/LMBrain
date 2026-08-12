@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Sidebar } from "../components/Layout/Sidebar";
 
 const workspace = vi.hoisted(() => ({
-  state: { view: "pulse", findings: [] },
+  state: { view: "pulse", debts: [] },
   unreadCounts: {
     taskboard: 0,
     reviews: 0,
-    findings: 0,
+    debts: 0,
     feedback: 0,
     decisions: 0,
     agents: 0,
@@ -41,7 +41,7 @@ describe("Sidebar unread badges", () => {
     render(<Sidebar />);
 
     expect(screen.getByRole("link", { name: "Reviews, 3 unread items" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Findings" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Debts" })).toBeTruthy();
     expect(screen.getByTitle("3 unread").textContent).toBe("3");
     expect(screen.queryByTitle("0 unread")).toBeNull();
   });
@@ -52,7 +52,7 @@ describe("Sidebar unread badges", () => {
     }
     render(<Sidebar />);
 
-    for (const label of ["Board", "Reviews", "Findings", "Kit Feedback", "Decisions", "Agents", "MCP", "Skills"]) {
+    for (const label of ["Board", "Reviews", "Debts", "Kit Feedback", "Decisions", "Agents", "MCP", "Skills"]) {
       expect(screen.getByRole("link", { name: `${label}, 1 unread item` })).toBeTruthy();
     }
   });
@@ -71,11 +71,11 @@ describe("Sidebar unread badges", () => {
   });
 
   it("marks the active page and navigates from mouse and keyboard", () => {
-    workspace.state.view = "findings";
+    workspace.state.view = "debts";
     render(<Sidebar />);
 
-    const findings = screen.getByRole("link", { name: "Findings" });
-    expect(findings.getAttribute("aria-current")).toBe("page");
+    const debts = screen.getByRole("link", { name: "Debts" });
+    expect(debts.getAttribute("aria-current")).toBe("page");
 
     fireEvent.click(screen.getByRole("link", { name: "Decisions" }));
     expect(workspace.navigateTo).toHaveBeenCalledWith("decisions");

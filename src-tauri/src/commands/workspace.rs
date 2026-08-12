@@ -149,7 +149,7 @@ impl WorkspaceService {
                 branch: None,
                 is_clean: None,
                 spec_count: 0,
-                finding_count: 0,
+                debt_count: 0,
                 task_count: 0,
                 decision_count: 0,
                 agent_count: 0,
@@ -216,7 +216,7 @@ impl WorkspaceService {
 
         // Count artifacts
         let spec_count = count_files_in_dirs(&lmbrain_dir.join("specs"), &["md"]);
-        let finding_count = lmbrain_core::list_findings(&root_clean).len();
+        let debt_count = lmbrain_core::list_debts(&root_clean).len();
         let task_count = count_files_in_dirs(&lmbrain_dir.join("tasks"), &["md"]);
         let decision_count = count_files_in_dirs(&lmbrain_dir.join("decisions"), &["md"]);
         let agent_count = count_files_in_dirs(&lmbrain_dir.join("agents"), &["md"]);
@@ -279,7 +279,7 @@ impl WorkspaceService {
             branch: None,
             is_clean: None,
             spec_count,
-            finding_count,
+            debt_count,
             task_count,
             decision_count,
             agent_count,

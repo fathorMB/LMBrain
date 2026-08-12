@@ -17,7 +17,7 @@ use crate::{
     transitions::{kind_for_id, ArtifactKind, MutationResult},
 };
 
-pub const FINDING_EVENT_SCHEMA_VERSION: &str = "1";
+pub const DEBT_EVENT_SCHEMA_VERSION: &str = "1";
 const ACTIVE_STATUSES: &[&str] = &["open", "planned", "deferred"];
 const ALL_STATUSES: &[&str] = &[
     "open",
@@ -32,7 +32,7 @@ const MAX_CONTEXT_RELATIONS: usize = 50;
 const MAX_CANDIDATES: usize = 200;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct FindingCreateInput {
+pub struct DebtCreateInput {
     pub title: String,
     pub category: String,
     pub severity: String,
@@ -61,7 +61,7 @@ pub struct FindingCreateInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Finding {
+pub struct Debt {
     pub id: String,
     pub title: String,
     pub status: String,
@@ -89,9 +89,9 @@ pub struct Finding {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct FindingContext {
+pub struct DebtContext {
     pub schema_version: String,
-    pub finding: Finding,
+    pub debt: Debt,
     pub origin: Option<RelationSummary>,
     pub related_specs: Vec<RelationSummary>,
     pub related_reviews: Vec<RelationSummary>,
@@ -114,18 +114,18 @@ pub struct RelationSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct FindingCandidate {
+pub struct DebtCandidate {
     pub origin_artifact: String,
     pub origin_ref: String,
     pub summary: String,
-    pub promoted_finding: Option<String>,
+    pub promoted_debt: Option<String>,
     pub inference: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct FindingCandidateInventory {
+pub struct DebtCandidateInventory {
     pub schema_version: String,
-    pub candidates: Vec<FindingCandidate>,
+    pub candidates: Vec<DebtCandidate>,
     pub total: usize,
     pub omitted: usize,
     pub mutated: bool,
@@ -133,24 +133,27 @@ pub struct FindingCandidateInventory {
 }
 
 #[derive(Debug, Error)]
-pub enum FindingError {
+pub enum DebtError {
     #[error(transparent)]
     Path(#[from] PathError),
     #[error(transparent)]
     Frontmatter(#[from] FrontmatterError),
-    #[error("invalid finding: {0}")]
+    #[error("invalid debt: {0}")]
     Invalid(String),
-    #[error("finding changed concurrently: {0}")]
+    #[error("debt changed concurrently: {0}")]
     Concurrent(String),
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
 
-pub fn list_findings(root: &Path) -> Vec<Finding> {
-    let mut findings = Vec::new();
-    for path in markdown_files(&root.join(".lmbrain/findings")) {
-        let file_stem = path.file_stem().and_then(|value| value.to_str()).unwrap_or("");
-        if !file_stem.starts_with("FINDING-") {
+pub fn list_debts(root: &Path) -> Vec<Debt> {
+    let mut debts = Vec::new();
+    for path in markdown_files(&root.join(".lmbrain/debts")) {
+        let file_stem = path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or("");
+        if !file_stem.starts_with("DEBT-") {
             continue;
         }
         let relative = relative_path(root, &path);
@@ -159,16 +162,16 @@ pub fn list_findings(root: &Path) -> Vec<Finding> {
             .and_then(|source| Document::parse(&source).ok())
         {
             Some(document) => {
-                let malformed = finding_shape_is_malformed(&path, &document);
-                findings.push(finding_from_document(&document, relative, malformed));
+                let malformed = debt_shape_is_malformed(&path, &document);
+                debts.push(debt_from_document(&document, relative, malformed));
             }
-            None => findings.push(Finding {
+            None => debts.push(Debt {
                 id: path
                     .file_stem()
                     .and_then(|value| value.to_str())
                     .unwrap_or("MALFORMED")
                     .to_string(),
-                title: "Malformed finding".into(),
+                title: "Malformed debt".into(),
                 status: path_status(&path).unwrap_or("unknown").into(),
                 category: "unknown".into(),
                 severity: "unknown".into(),
@@ -194,14 +197,14 @@ pub fn list_findings(root: &Path) -> Vec<Finding> {
             }),
         }
     }
-    findings.sort_by(|left, right| left.id.cmp(&right.id));
-    findings
+    debts.sort_by(|left, right| left.id.cmp(&right.id));
+    debts
 }
 
-pub fn create_finding(
+pub fn create_debt(
     root: impl AsRef<Path>,
-    input: FindingCreateInput,
-) -> Result<MutationResult, FindingError> {
+    input: DebtCreateInput,
+) -> Result<MutationResult, DebtError> {
     let guard = PathGuard::new(root)?;
     validate_create_input(guard.root(), &input)?;
     let _lock = ArtifactMutationLock::acquire(guard.root(), "creation-allocation")?;
@@ -211,12 +214,12 @@ pub fn create_finding(
         input.origin_artifact.as_deref(),
         input.origin_ref.as_deref(),
     )?;
-    let id = next_finding_id(guard.root());
+    let id = next_debt_id(guard.root());
     validate_blocker_graph(guard.root(), &id, &input.blocked_by)?;
-    let dir = guard.root().join(".lmbrain/findings/open");
+    let dir = guard.root().join(".lmbrain/debts/open");
     let path = dir.join(format!("{}-{}.md", id, slug(&input.title)));
     let date = today();
-    let mut document = Document::parse(&render_new_finding(&id, &date, &input))?;
+    let mut document = Document::parse(&render_new_debt(&id, &date, &input))?;
     append_event(
         &mut document,
         &id,
@@ -238,19 +241,19 @@ pub fn create_finding(
     })
 }
 
-pub fn plan_finding(
+pub fn plan_debt(
     root: impl AsRef<Path>,
     artifact: impl AsRef<Path>,
     target_specs: Vec<String>,
     actor: &str,
     rationale: &str,
-) -> Result<MutationResult, FindingError> {
+) -> Result<MutationResult, DebtError> {
     if target_specs.is_empty() {
-        return Err(FindingError::Invalid(
-            "planned findings require at least one target spec".into(),
+        return Err(DebtError::Invalid(
+            "planned debts require at least one target spec".into(),
         ));
     }
-    mutate_finding(
+    mutate_debt(
         root,
         artifact,
         "planned",
@@ -272,15 +275,15 @@ pub fn plan_finding(
     )
 }
 
-pub fn defer_finding(
+pub fn defer_debt(
     root: impl AsRef<Path>,
     artifact: impl AsRef<Path>,
     actor: &str,
     rationale: &str,
     revisit_condition: &str,
-) -> Result<MutationResult, FindingError> {
+) -> Result<MutationResult, DebtError> {
     require_text("revisit_condition", revisit_condition)?;
-    mutate_finding(
+    mutate_debt(
         root,
         artifact,
         "deferred",
@@ -295,21 +298,21 @@ pub fn defer_finding(
     )
 }
 
-pub fn resolve_finding(
+pub fn resolve_debt(
     root: impl AsRef<Path>,
     artifact: impl AsRef<Path>,
     actor: &str,
     rationale: &str,
     resolution_refs: Vec<String>,
     resolution_evidence: &str,
-) -> Result<MutationResult, FindingError> {
+) -> Result<MutationResult, DebtError> {
     if resolution_refs.is_empty() {
-        return Err(FindingError::Invalid(
-            "resolved findings require resolution_refs".into(),
+        return Err(DebtError::Invalid(
+            "resolved debts require resolution_refs".into(),
         ));
     }
     require_text("resolution_evidence", resolution_evidence)?;
-    mutate_finding(
+    mutate_debt(
         root,
         artifact,
         "resolved",
@@ -326,21 +329,21 @@ pub fn resolve_finding(
     )
 }
 
-pub fn accept_finding_risk(
+pub fn accept_debt_risk(
     root: impl AsRef<Path>,
     artifact: impl AsRef<Path>,
     actor: &str,
     rationale: &str,
     revisit_condition: &str,
     resolution_refs: Vec<String>,
-) -> Result<MutationResult, FindingError> {
+) -> Result<MutationResult, DebtError> {
     require_text("operator actor", actor)?;
     require_text("rationale", rationale)?;
     require_text(
         "revisit condition or explicit no-revisit statement",
         revisit_condition,
     )?;
-    mutate_finding(
+    mutate_debt(
         root,
         artifact,
         "accepted-risk",
@@ -362,15 +365,15 @@ pub fn accept_finding_risk(
     )
 }
 
-pub fn supersede_finding(
+pub fn supersede_debt(
     root: impl AsRef<Path>,
     artifact: impl AsRef<Path>,
     actor: &str,
     rationale: &str,
     successor: Option<String>,
-) -> Result<MutationResult, FindingError> {
+) -> Result<MutationResult, DebtError> {
     require_text("rationale", rationale)?;
-    mutate_finding(
+    mutate_debt(
         root,
         artifact,
         "superseded",
@@ -384,7 +387,7 @@ pub fn supersede_finding(
                     root,
                     "superseded_by",
                     &[successor.to_string()],
-                    &[ArtifactKind::Finding],
+                    &[ArtifactKind::Debt],
                     id,
                 )?;
                 document.set("superseded_by", &format!("[{}]", quoted(successor)));
@@ -397,13 +400,13 @@ pub fn supersede_finding(
     )
 }
 
-pub fn reopen_finding(
+pub fn reopen_debt(
     root: impl AsRef<Path>,
     artifact: impl AsRef<Path>,
     actor: &str,
     rationale: &str,
-) -> Result<MutationResult, FindingError> {
-    mutate_finding(
+) -> Result<MutationResult, DebtError> {
+    mutate_debt(
         root,
         artifact,
         "open",
@@ -419,7 +422,7 @@ pub fn reopen_finding(
     )
 }
 
-fn mutate_finding(
+fn mutate_debt(
     root: impl AsRef<Path>,
     artifact: impl AsRef<Path>,
     target: &str,
@@ -427,8 +430,8 @@ fn mutate_finding(
     actor_role: &str,
     actor: &str,
     rationale: &str,
-    prepare: impl FnOnce(&Path, &str, &mut Document) -> Result<Vec<String>, FindingError>,
-) -> Result<MutationResult, FindingError> {
+    prepare: impl FnOnce(&Path, &str, &mut Document) -> Result<Vec<String>, DebtError>,
+) -> Result<MutationResult, DebtError> {
     require_text("actor", actor)?;
     require_text("rationale", rationale)?;
     let guard = PathGuard::new(root)?;
@@ -437,10 +440,10 @@ fn mutate_finding(
     let initial = Document::parse(&initial_source)?;
     let initial_id = initial
         .value("id")
-        .ok_or_else(|| FindingError::Invalid("missing finding id".into()))?;
-    if kind_for_id(&initial_id) != Some(ArtifactKind::Finding) {
-        return Err(FindingError::Invalid(
-            "semantic finding operations require FINDING-*".into(),
+        .ok_or_else(|| DebtError::Invalid("missing debt id".into()))?;
+    if kind_for_id(&initial_id) != Some(ArtifactKind::Debt) {
+        return Err(DebtError::Invalid(
+            "semantic debt operations require DEBT-*".into(),
         ));
     }
     let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
@@ -449,30 +452,30 @@ fn mutate_finding(
     let mut document = Document::parse(&source)?;
     let id = document
         .value("id")
-        .ok_or_else(|| FindingError::Invalid("missing finding id".into()))?;
+        .ok_or_else(|| DebtError::Invalid("missing debt id".into()))?;
     if id != initial_id {
-        return Err(FindingError::Concurrent(
+        return Err(DebtError::Concurrent(
             "identity changed while waiting for lock".into(),
         ));
     }
     let from = document
         .value("status")
-        .ok_or_else(|| FindingError::Invalid("missing finding status".into()))?;
-    validate_finding_document(guard.root(), &path, &document)?;
+        .ok_or_else(|| DebtError::Invalid("missing debt status".into()))?;
+    validate_debt_document(guard.root(), &path, &document)?;
     let terminal = matches!(from.as_str(), "resolved" | "accepted-risk" | "superseded");
     let legal = if action == "reopened" {
         terminal
     } else {
-        crate::transitions::allowed(ArtifactKind::Finding, &from, target)
+        crate::transitions::allowed(ArtifactKind::Debt, &from, target)
     };
     if !legal {
-        return Err(FindingError::Invalid(format!(
-            "illegal finding transition from '{from}' to '{target}'"
+        return Err(DebtError::Invalid(format!(
+            "illegal debt transition from '{from}' to '{target}'"
         )));
     }
     if action == "reopened" && from == "superseded" {
-        return Err(FindingError::Invalid(
-            "a superseded finding is historical and cannot be reopened".into(),
+        return Err(DebtError::Invalid(
+            "a superseded debt is historical and cannot be reopened".into(),
         ));
     }
     let evidence_refs = prepare(guard.root(), &id, &mut document)?;
@@ -490,18 +493,16 @@ fn mutate_finding(
         rationale,
         &evidence_refs,
     )?;
-    let destination = guard.root().join(".lmbrain/findings").join(target).join(
+    let destination = guard.root().join(".lmbrain/debts").join(target).join(
         path.file_name()
-            .ok_or_else(|| FindingError::Invalid("missing file name".into()))?,
+            .ok_or_else(|| DebtError::Invalid("missing file name".into()))?,
     );
-    validate_finding_document(guard.root(), &destination, &document)?;
+    validate_debt_document(guard.root(), &destination, &document)?;
     if destination != path && destination.exists() {
-        return Err(FindingError::Invalid(
-            "finding destination already exists".into(),
-        ));
+        return Err(DebtError::Invalid("debt destination already exists".into()));
     }
     if fs::read_to_string(&path)? != source {
-        return Err(FindingError::Concurrent(
+        return Err(DebtError::Concurrent(
             "artifact changed while mutation was prepared".into(),
         ));
     }
@@ -516,7 +517,7 @@ fn mutate_finding(
         atomic_write(&path, &rendered)?;
         if let Err(error) = fs::rename(&path, &destination) {
             atomic_write(&path, &source)?;
-            return Err(FindingError::Io(error));
+            return Err(DebtError::Io(error));
         }
     }
     Ok(MutationResult {
@@ -527,25 +528,25 @@ fn mutate_finding(
     })
 }
 
-pub fn validate_finding_document(
+pub fn validate_debt_document(
     root: &Path,
     path: &Path,
     document: &Document,
-) -> Result<(), FindingError> {
+) -> Result<(), DebtError> {
     let id = document
         .value("id")
-        .ok_or_else(|| FindingError::Invalid("missing id".into()))?;
-    if kind_for_id(&id) != Some(ArtifactKind::Finding) {
-        return Err(FindingError::Invalid("id must use FINDING-*".into()));
+        .ok_or_else(|| DebtError::Invalid("missing id".into()))?;
+    if kind_for_id(&id) != Some(ArtifactKind::Debt) {
+        return Err(DebtError::Invalid("id must use DEBT-*".into()));
     }
     let status = document
         .value("status")
-        .ok_or_else(|| FindingError::Invalid("missing status".into()))?;
+        .ok_or_else(|| DebtError::Invalid("missing status".into()))?;
     if !ALL_STATUSES.contains(&status.as_str()) {
-        return Err(FindingError::Invalid(format!("unknown status '{status}'")));
+        return Err(DebtError::Invalid(format!("unknown status '{status}'")));
     }
     if path_status(path).is_some_and(|folder| folder != status) {
-        return Err(FindingError::Invalid(format!(
+        return Err(DebtError::Invalid(format!(
             "status '{status}' does not match containing directory"
         )));
     }
@@ -555,7 +556,7 @@ pub fn validate_finding_document(
     )?;
     let severity = document.value("severity").unwrap_or_default();
     if !SEVERITIES.contains(&severity.as_str()) {
-        return Err(FindingError::Invalid(format!(
+        return Err(DebtError::Invalid(format!(
             "severity must be one of {}",
             SEVERITIES.join(", ")
         )));
@@ -563,7 +564,7 @@ pub fn validate_finding_document(
     let origin = document.value("origin_artifact");
     let origin_ref = document.value("origin_ref");
     if origin.is_some() != origin_ref.is_some() {
-        return Err(FindingError::Invalid(
+        return Err(DebtError::Invalid(
             "origin_artifact and origin_ref must be both present or both absent".into(),
         ));
     }
@@ -575,6 +576,13 @@ pub fn validate_finding_document(
             &[ArtifactKind::Review, ArtifactKind::Spec, ArtifactKind::Adr],
             &id,
         )?;
+        if origin.starts_with("REVIEW-")
+            && !origin_ref.as_deref().is_some_and(valid_review_finding_id)
+        {
+            return Err(DebtError::Invalid(
+                "review-origin debts require an RF-* origin_ref".into(),
+            ));
+        }
     }
     validate_unique_origin(root, Some(&id), origin.as_deref(), origin_ref.as_deref())?;
     validate_refs(
@@ -601,20 +609,20 @@ pub fn validate_finding_document(
     let targets = document.string_array("target_specs");
     validate_refs(root, "target_specs", &targets, &[ArtifactKind::Spec], &id)?;
     if status == "planned" && targets.is_empty() {
-        return Err(FindingError::Invalid(
-            "planned finding requires target_specs".into(),
+        return Err(DebtError::Invalid(
+            "planned debt requires target_specs".into(),
         ));
     }
     let blockers = document.string_array("blocked_by");
-    validate_refs(root, "blocked_by", &blockers, &[ArtifactKind::Finding], &id)?;
+    validate_refs(root, "blocked_by", &blockers, &[ArtifactKind::Debt], &id)?;
     validate_blocker_graph(root, &id, &blockers)?;
     let resolution_refs = document.string_array("resolution_refs");
     if status == "resolved" {
         if resolution_refs.is_empty()
             || !body_section_has_content(&document.body, "Resolution evidence")
         {
-            return Err(FindingError::Invalid(
-                "resolved finding requires resolution_refs and resolution evidence".into(),
+            return Err(DebtError::Invalid(
+                "resolved debt requires resolution_refs and resolution evidence".into(),
             ));
         }
         validate_evidence_refs(root, &id, &resolution_refs)?;
@@ -628,14 +636,14 @@ pub fn validate_finding_document(
                 .unwrap_or_default(),
         )?;
         if !body_section_has_content(&document.body, "Resolution evidence") {
-            return Err(FindingError::Invalid(
+            return Err(DebtError::Invalid(
                 "accepted-risk requires operator rationale in resolution evidence".into(),
             ));
         }
     }
     if status == "superseded"
         && document.value("superseded_by").is_none()
-        && !document.object_array("finding_events").iter().any(|event| {
+        && !document.object_array("debt_events").iter().any(|event| {
             event.get("action").and_then(|value| value.as_str()) == Some("superseded")
                 && event
                     .get("rationale")
@@ -643,14 +651,14 @@ pub fn validate_finding_document(
                     .is_some_and(|value| !value.trim().is_empty())
         })
     {
-        return Err(FindingError::Invalid(
-            "superseded finding requires a successor or obsolescence rationale".into(),
+        return Err(DebtError::Invalid(
+            "superseded debt requires a successor or obsolescence rationale".into(),
         ));
     }
     Ok(())
 }
 
-pub fn finding_context(root: &Path, identity: &str) -> Result<FindingContext, FindingError> {
+pub fn debt_context(root: &Path, identity: &str) -> Result<DebtContext, DebtError> {
     let index = artifact_index(root);
     let (path, document) = index
         .get(identity)
@@ -660,14 +668,12 @@ pub fn finding_context(root: &Path, identity: &str) -> Result<FindingContext, Fi
                 .find(|(path, _)| relative_path(root, path) == identity)
         })
         .cloned()
-        .ok_or_else(|| FindingError::Invalid(format!("finding '{identity}' not found")))?;
-    if kind_for_id(&document.value("id").unwrap_or_default()) != Some(ArtifactKind::Finding) {
-        return Err(FindingError::Invalid(format!(
-            "'{identity}' is not a finding"
-        )));
+        .ok_or_else(|| DebtError::Invalid(format!("debt '{identity}' not found")))?;
+    if kind_for_id(&document.value("id").unwrap_or_default()) != Some(ArtifactKind::Debt) {
+        return Err(DebtError::Invalid(format!("'{identity}' is not a debt")));
     }
-    validate_finding_document(root, &path, &document)?;
-    let finding = finding_from_document(&document, relative_path(root, &path), false);
+    validate_debt_document(root, &path, &document)?;
+    let debt = debt_from_document(&document, relative_path(root, &path), false);
     let mut omitted = 0;
     let mut warnings = Vec::new();
     let relation = |id: &str| -> Option<RelationSummary> {
@@ -693,24 +699,24 @@ pub fn finding_context(root: &Path, identity: &str) -> Result<FindingContext, Fi
         }
         out
     };
-    let origin = finding.origin_artifact.as_deref().and_then(relation);
-    let related_specs = resolve_many(&finding.related_specs);
-    let related_reviews = resolve_many(&finding.related_reviews);
-    let related_decisions = resolve_many(&finding.related_decisions);
-    let target_specs = resolve_many(&finding.target_specs);
-    let blockers = resolve_many(&finding.blocked_by);
+    let origin = debt.origin_artifact.as_deref().and_then(relation);
+    let related_specs = resolve_many(&debt.related_specs);
+    let related_reviews = resolve_many(&debt.related_reviews);
+    let related_decisions = resolve_many(&debt.related_decisions);
+    let target_specs = resolve_many(&debt.target_specs);
+    let blockers = resolve_many(&debt.blocked_by);
     let resolution_refs = resolve_many(
-        &finding
+        &debt
             .resolution_refs
             .iter()
             .filter(|reference| kind_for_id(reference).is_some())
             .cloned()
             .collect::<Vec<_>>(),
     );
-    let superseded_by = finding.superseded_by.as_deref().and_then(relation);
-    Ok(FindingContext {
+    let superseded_by = debt.superseded_by.as_deref().and_then(relation);
+    Ok(DebtContext {
         schema_version: "1".into(),
-        finding,
+        debt,
         origin,
         related_specs,
         related_reviews,
@@ -721,7 +727,7 @@ pub fn finding_context(root: &Path, identity: &str) -> Result<FindingContext, Fi
         superseded_by,
         events: document
             .fields()
-            .get("finding_events")
+            .get("debt_events")
             .and_then(|value| value.as_array())
             .cloned()
             .unwrap_or_default(),
@@ -730,12 +736,12 @@ pub fn finding_context(root: &Path, identity: &str) -> Result<FindingContext, Fi
     })
 }
 
-pub fn finding_candidates(root: &Path) -> FindingCandidateInventory {
-    let promoted = list_findings(root)
+pub fn debt_candidates(root: &Path) -> DebtCandidateInventory {
+    let promoted = list_debts(root)
         .into_iter()
-        .filter_map(|finding| Some(((finding.origin_artifact?, finding.origin_ref?), finding.id)))
+        .filter_map(|debt| Some(((debt.origin_artifact?, debt.origin_ref?), debt.id)))
         .collect::<HashMap<_, _>>();
-    let token = Regex::new(r"(?i)\b(FINDING-[A-Z0-9-]+)\b").unwrap();
+    let token = Regex::new(r"(?i)\b(RF-[A-Z0-9-]+)\b").unwrap();
     let mut all = Vec::new();
     let mut warnings = Vec::new();
     for path in markdown_files(&root.join(".lmbrain/reviews")) {
@@ -760,7 +766,31 @@ pub fn finding_candidates(root: &Path) -> FindingCandidateInventory {
             continue;
         };
         let mut seen = BTreeSet::new();
+        let mut in_review_findings = false;
+        let mut fence: Option<char> = None;
         for line in document.body.lines() {
+            let trimmed = line.trim();
+            if let Some(marker) = fence {
+                if trimmed.starts_with(&marker.to_string().repeat(3)) {
+                    fence = None;
+                }
+                continue;
+            }
+            if trimmed.starts_with("```") {
+                fence = Some('`');
+                continue;
+            }
+            if trimmed.starts_with("~~~") {
+                fence = Some('~');
+                continue;
+            }
+            if trimmed.starts_with("## ") {
+                in_review_findings = trimmed[3..].trim().eq_ignore_ascii_case("review findings");
+                continue;
+            }
+            if !in_review_findings {
+                continue;
+            }
             let Some(capture) = token.captures(line) else {
                 continue;
             };
@@ -768,11 +798,11 @@ pub fn finding_candidates(root: &Path) -> FindingCandidateInventory {
             if !seen.insert(local.clone()) {
                 continue;
             }
-            all.push(FindingCandidate {
+            all.push(DebtCandidate {
                 origin_artifact: review_id.clone(),
                 origin_ref: local.clone(),
                 summary: line.trim().chars().take(300).collect(),
-                promoted_finding: promoted.get(&(review_id.clone(), local)).cloned(),
+                promoted_debt: promoted.get(&(review_id.clone(), local)).cloned(),
                 inference: "stable-form token only; disposition is not inferred".into(),
             });
         }
@@ -784,7 +814,7 @@ pub fn finding_candidates(root: &Path) -> FindingCandidateInventory {
     });
     let total = all.len();
     all.truncate(MAX_CANDIDATES);
-    FindingCandidateInventory {
+    DebtCandidateInventory {
         schema_version: "1".into(),
         candidates: all,
         total,
@@ -794,7 +824,7 @@ pub fn finding_candidates(root: &Path) -> FindingCandidateInventory {
     }
 }
 
-fn validate_create_input(root: &Path, input: &FindingCreateInput) -> Result<(), FindingError> {
+fn validate_create_input(root: &Path, input: &DebtCreateInput) -> Result<(), DebtError> {
     for (label, value) in [
         ("title", input.title.as_str()),
         ("category", input.category.as_str()),
@@ -809,13 +839,13 @@ fn validate_create_input(root: &Path, input: &FindingCreateInput) -> Result<(), 
         require_text(label, value)?;
     }
     if !SEVERITIES.contains(&input.severity.as_str()) {
-        return Err(FindingError::Invalid(format!(
+        return Err(DebtError::Invalid(format!(
             "severity must be one of {}",
             SEVERITIES.join(", ")
         )));
     }
     if input.origin_artifact.is_some() != input.origin_ref.is_some() {
-        return Err(FindingError::Invalid(
+        return Err(DebtError::Invalid(
             "origin_artifact and origin_ref must be both present or both absent".into(),
         ));
     }
@@ -827,6 +857,16 @@ fn validate_create_input(root: &Path, input: &FindingCreateInput) -> Result<(), 
             &[ArtifactKind::Review, ArtifactKind::Spec, ArtifactKind::Adr],
             "",
         )?;
+        if origin.starts_with("REVIEW-")
+            && !input
+                .origin_ref
+                .as_deref()
+                .is_some_and(valid_review_finding_id)
+        {
+            return Err(DebtError::Invalid(
+                "review-origin debts require an RF-* origin_ref".into(),
+            ));
+        }
     }
     validate_refs(
         root,
@@ -853,10 +893,16 @@ fn validate_create_input(root: &Path, input: &FindingCreateInput) -> Result<(), 
         root,
         "blocked_by",
         &input.blocked_by,
-        &[ArtifactKind::Finding],
+        &[ArtifactKind::Debt],
         "",
     )?;
     Ok(())
+}
+
+fn valid_review_finding_id(value: &str) -> bool {
+    value.strip_prefix("RF-").is_some_and(|suffix| {
+        !suffix.is_empty() && suffix.bytes().all(|byte| byte.is_ascii_digit())
+    })
 }
 
 fn validate_refs(
@@ -865,30 +911,30 @@ fn validate_refs(
     refs: &[String],
     allowed: &[ArtifactKind],
     self_id: &str,
-) -> Result<(), FindingError> {
+) -> Result<(), DebtError> {
     let index = artifact_index(root);
     let mut seen = HashSet::new();
     for reference in refs {
         if reference == self_id {
-            return Err(FindingError::Invalid(format!(
+            return Err(DebtError::Invalid(format!(
                 "{field} cannot contain a self-link"
             )));
         }
         if !seen.insert(reference) {
-            return Err(FindingError::Invalid(format!(
+            return Err(DebtError::Invalid(format!(
                 "{field} contains duplicate '{reference}'"
             )));
         }
         let kind = kind_for_id(reference).ok_or_else(|| {
-            FindingError::Invalid(format!("{field} contains invalid ID '{reference}'"))
+            DebtError::Invalid(format!("{field} contains invalid ID '{reference}'"))
         })?;
         if !allowed.contains(&kind) {
-            return Err(FindingError::Invalid(format!(
+            return Err(DebtError::Invalid(format!(
                 "{field} does not allow {kind:?} reference '{reference}'"
             )));
         }
         if !index.contains_key(reference) {
-            return Err(FindingError::Invalid(format!(
+            return Err(DebtError::Invalid(format!(
                 "{field} reference '{reference}' does not resolve"
             )));
         }
@@ -896,22 +942,22 @@ fn validate_refs(
     Ok(())
 }
 
-fn validate_evidence_refs(root: &Path, self_id: &str, refs: &[String]) -> Result<(), FindingError> {
+fn validate_evidence_refs(root: &Path, self_id: &str, refs: &[String]) -> Result<(), DebtError> {
     let index = artifact_index(root);
     for reference in refs {
         if reference == self_id {
-            return Err(FindingError::Invalid(
+            return Err(DebtError::Invalid(
                 "resolution_refs cannot contain a self-link".into(),
             ));
         }
         if kind_for_id(reference).is_some() {
             if !index.contains_key(reference) {
-                return Err(FindingError::Invalid(format!(
+                return Err(DebtError::Invalid(format!(
                     "resolution reference '{reference}' does not resolve"
                 )));
             }
         } else if !reference.starts_with("operator-observation:") {
-            return Err(FindingError::Invalid(format!(
+            return Err(DebtError::Invalid(format!(
                 "resolution reference '{reference}' must be an existing artifact ID or operator-observation:<id>"
             )));
         }
@@ -924,22 +970,20 @@ fn validate_unique_origin(
     self_id: Option<&str>,
     origin: Option<&str>,
     origin_ref: Option<&str>,
-) -> Result<(), FindingError> {
+) -> Result<(), DebtError> {
     let (Some(origin), Some(origin_ref)) = (origin, origin_ref) else {
         return Ok(());
     };
-    for finding in list_findings(root) {
-        if Some(finding.id.as_str()) == self_id
-            || !ACTIVE_STATUSES.contains(&finding.status.as_str())
-        {
+    for debt in list_debts(root) {
+        if Some(debt.id.as_str()) == self_id || !ACTIVE_STATUSES.contains(&debt.status.as_str()) {
             continue;
         }
-        if finding.origin_artifact.as_deref() == Some(origin)
-            && finding.origin_ref.as_deref() == Some(origin_ref)
+        if debt.origin_artifact.as_deref() == Some(origin)
+            && debt.origin_ref.as_deref() == Some(origin_ref)
         {
-            return Err(FindingError::Invalid(format!(
-                "active finding {} already promotes {origin}/{origin_ref}",
-                finding.id
+            return Err(DebtError::Invalid(format!(
+                "active debt {} already promotes {origin}/{origin_ref}",
+                debt.id
             )));
         }
     }
@@ -948,14 +992,14 @@ fn validate_unique_origin(
 
 fn validate_blocker_graph(
     root: &Path,
-    finding_id: &str,
+    debt_id: &str,
     proposed: &[String],
-) -> Result<(), FindingError> {
-    let mut graph = list_findings(root)
+) -> Result<(), DebtError> {
+    let mut graph = list_debts(root)
         .into_iter()
-        .map(|finding| (finding.id, finding.blocked_by))
+        .map(|debt| (debt.id, debt.blocked_by))
         .collect::<HashMap<_, _>>();
-    graph.insert(finding_id.to_string(), proposed.to_vec());
+    graph.insert(debt_id.to_string(), proposed.to_vec());
     fn visit(
         node: &str,
         graph: &HashMap<String, Vec<String>>,
@@ -978,8 +1022,8 @@ fn validate_blocker_graph(
         visited.insert(node.to_string());
         false
     }
-    if visit(finding_id, &graph, &mut HashSet::new(), &mut HashSet::new()) {
-        return Err(FindingError::Invalid(
+    if visit(debt_id, &graph, &mut HashSet::new(), &mut HashSet::new()) {
+        return Err(DebtError::Invalid(
             "blocked_by relationships contain a cycle".into(),
         ));
     }
@@ -988,7 +1032,7 @@ fn validate_blocker_graph(
 
 fn append_event(
     document: &mut Document,
-    finding_id: &str,
+    debt_id: &str,
     action: &str,
     from: &str,
     to: &str,
@@ -996,16 +1040,13 @@ fn append_event(
     actor: &str,
     rationale: &str,
     evidence_refs: &[String],
-) -> Result<(), FindingError> {
-    let sequence = document.object_array("finding_events").len() + 1;
+) -> Result<(), DebtError> {
+    let sequence = document.object_array("debt_events").len() + 1;
     document.append_object(
-        "finding_events",
+        "debt_events",
         &[
-            ("schema_version".into(), json!(FINDING_EVENT_SCHEMA_VERSION)),
-            (
-                "id".into(),
-                json!(format!("{finding_id}-EVENT-{sequence:03}")),
-            ),
+            ("schema_version".into(), json!(DEBT_EVENT_SCHEMA_VERSION)),
+            ("id".into(), json!(format!("{debt_id}-EVENT-{sequence:03}"))),
             ("timestamp".into(), json!(Local::now().to_rfc3339())),
             ("action".into(), json!(action)),
             ("from_status".into(), json!(from)),
@@ -1019,9 +1060,9 @@ fn append_event(
     Ok(())
 }
 
-fn render_new_finding(id: &str, date: &str, input: &FindingCreateInput) -> String {
+fn render_new_debt(id: &str, date: &str, input: &DebtCreateInput) -> String {
     format!(
-        "---\nid: {id}\ntitle: {}\nstatus: open\ncategory: {}\nseverity: {}\norigin_severity: {}\narea: {}\nmilestone: {}\nowner: {}\norigin_artifact: {}\norigin_ref: {}\nrelated_specs: {}\nrelated_reviews: {}\nrelated_decisions: {}\ntarget_specs: []\nblocked_by: {}\nresolution_refs: []\nsuperseded_by: null\nrevisit_condition: null\ncreated: {date}\nupdated: {date}\ntags: {}\nlinks: []\nactivity: []\nfinding_events: []\n---\n# {}\n\n## Statement\n\n{}\n\n## Evidence and provenance\n\n{}\n\n## Impact and scope boundary\n\n{}\n\n## Decision log\n\nCreated by {}: {}\n\n## Resolution criteria\n\n{}\n\n## Resolution evidence\n\n",
+        "---\nid: {id}\ntitle: {}\nstatus: open\ncategory: {}\nseverity: {}\norigin_severity: {}\narea: {}\nmilestone: {}\nowner: {}\norigin_artifact: {}\norigin_ref: {}\nrelated_specs: {}\nrelated_reviews: {}\nrelated_decisions: {}\ntarget_specs: []\nblocked_by: {}\nresolution_refs: []\nsuperseded_by: null\nrevisit_condition: null\ncreated: {date}\nupdated: {date}\ntags: {}\nlinks: []\nactivity: []\ndebt_events: []\n---\n# {}\n\n## Statement\n\n{}\n\n## Evidence and provenance\n\n{}\n\n## Impact and scope boundary\n\n{}\n\n## Decision log\n\nCreated by {}: {}\n\n## Resolution criteria\n\n{}\n\n## Resolution evidence\n\n",
         quoted(&input.title),
         quoted(&input.category),
         quoted(&input.severity),
@@ -1046,8 +1087,8 @@ fn render_new_finding(id: &str, date: &str, input: &FindingCreateInput) -> Strin
     )
 }
 
-fn finding_from_document(document: &Document, path: String, malformed: bool) -> Finding {
-    Finding {
+fn debt_from_document(document: &Document, path: String, malformed: bool) -> Debt {
+    Debt {
         id: document.value("id").unwrap_or_default(),
         title: document.value("title").unwrap_or_default(),
         status: document.value("status").unwrap_or_default(),
@@ -1075,12 +1116,12 @@ fn finding_from_document(document: &Document, path: String, malformed: bool) -> 
     }
 }
 
-fn finding_shape_is_malformed(path: &Path, document: &Document) -> bool {
+fn debt_shape_is_malformed(path: &Path, document: &Document) -> bool {
     let id = document.value("id").unwrap_or_default();
     let status = document.value("status").unwrap_or_default();
     let severity = document.value("severity").unwrap_or_default();
     let fields = document.fields();
-    kind_for_id(&id) != Some(ArtifactKind::Finding)
+    kind_for_id(&id) != Some(ArtifactKind::Debt)
         || !ALL_STATUSES.contains(&status.as_str())
         || path_status(path).is_some_and(|folder| folder != status)
         || document
@@ -1111,14 +1152,14 @@ fn artifact_index(root: &Path) -> HashMap<String, (PathBuf, Document)> {
         .collect()
 }
 
-fn next_finding_id(root: &Path) -> String {
-    let mut max = list_findings(root)
+fn next_debt_id(root: &Path) -> String {
+    let mut max = list_debts(root)
         .iter()
-        .filter_map(|finding| finding.id.strip_prefix("FINDING-")?.parse::<u32>().ok())
+        .filter_map(|debt| debt.id.strip_prefix("DEBT-")?.parse::<u32>().ok())
         .max()
         .unwrap_or(0);
 
-    let regex = Regex::new(r"\bFINDING-(\d{3,})\b").unwrap();
+    let regex = Regex::new(r"\bDEBT-(\d{3,})\b").unwrap();
     for path in markdown_files(&root.join(".lmbrain")) {
         if path.components().any(|c| c.as_os_str() == "templates") {
             continue;
@@ -1134,7 +1175,7 @@ fn next_finding_id(root: &Path) -> String {
         }
     }
 
-    format!("FINDING-{:03}", max + 1)
+    format!("DEBT-{:03}", max + 1)
 }
 
 fn markdown_files(dir: &Path) -> Vec<PathBuf> {
@@ -1189,9 +1230,9 @@ fn append_body_entry(document: &mut Document, heading: &str, value: &str) {
     }
 }
 
-fn require_text(label: &str, value: &str) -> Result<(), FindingError> {
+fn require_text(label: &str, value: &str) -> Result<(), DebtError> {
     if value.trim().is_empty() {
-        Err(FindingError::Invalid(format!("{label} cannot be empty")))
+        Err(DebtError::Invalid(format!("{label} cannot be empty")))
     } else {
         Ok(())
     }
@@ -1229,7 +1270,7 @@ fn slug(value: &str) -> String {
         .collect::<Vec<_>>()
         .join("-");
     if slug.is_empty() {
-        "finding".into()
+        "debt".into()
     } else {
         slug
     }
@@ -1257,7 +1298,7 @@ mod tests {
         fs::create_dir_all(dir.path().join(".lmbrain/specs/done")).unwrap();
         fs::write(
             dir.path().join(".lmbrain/reviews/accepted/REVIEW-054.md"),
-            "---\nid: REVIEW-054\ntitle: Review\nstatus: accepted\nspec: SPEC-048\n---\n## Findings\n- FINDING-07 routed debt\n",
+            "---\nid: REVIEW-054\ntitle: Review\nstatus: accepted\nspec: SPEC-048\n---\n## Review findings\n- RF-007 routed debt\n",
         )
         .unwrap();
         for (status, id) in [("backlog", "SPEC-059"), ("done", "SPEC-048")] {
@@ -1270,8 +1311,8 @@ mod tests {
         dir
     }
 
-    fn input() -> FindingCreateInput {
-        FindingCreateInput {
+    fn input() -> DebtCreateInput {
+        DebtCreateInput {
             title: "Routed debt".into(),
             category: "correctness".into(),
             severity: "high".into(),
@@ -1280,7 +1321,7 @@ mod tests {
             milestone: Some("M-04".into()),
             owner: None,
             origin_artifact: Some("REVIEW-054".into()),
-            origin_ref: Some("FINDING-07".into()),
+            origin_ref: Some("RF-007".into()),
             related_specs: vec!["SPEC-048".into()],
             related_reviews: vec!["REVIEW-054".into()],
             related_decisions: Vec::new(),
@@ -1298,8 +1339,8 @@ mod tests {
     #[test]
     fn semantic_lifecycle_keeps_planned_unresolved_and_audits_resolution() {
         let dir = workspace();
-        let created = create_finding(dir.path(), input()).unwrap();
-        let planned = plan_finding(
+        let created = create_debt(dir.path(), input()).unwrap();
+        let planned = plan_debt(
             dir.path(),
             &created.path,
             vec!["SPEC-059".into()],
@@ -1314,18 +1355,18 @@ mod tests {
             Some("blocking")
         );
         assert!(planned_doc.string_array("resolution_refs").is_empty());
-        assert_eq!(planned_doc.object_array("finding_events").len(), 2);
+        assert_eq!(planned_doc.object_array("debt_events").len(), 2);
         let digest = crate::build_project_digest(dir.path());
-        assert_eq!(digest.findings.active.total, 1);
+        assert_eq!(digest.debts.active.total, 1);
         let target_context = crate::build_spec_context(dir.path(), "SPEC-059").unwrap();
-        assert_eq!(target_context.findings[0].relation_roles, vec!["target"]);
+        assert_eq!(target_context.debts[0].relation_roles, vec!["target"]);
         let review_context = crate::build_review_context(dir.path(), "SPEC-048").unwrap();
         assert_eq!(
-            review_context.findings[0].relation_roles,
+            review_context.debts[0].relation_roles,
             vec!["origin", "related-review"]
         );
 
-        let resolved = resolve_finding(
+        let resolved = resolve_debt(
             dir.path(),
             &planned.path,
             "AGENT-LEAD",
@@ -1336,16 +1377,16 @@ mod tests {
         .unwrap();
         let resolved_doc = Document::parse(&fs::read_to_string(&resolved.path).unwrap()).unwrap();
         assert_eq!(resolved_doc.value("status").as_deref(), Some("resolved"));
-        assert_eq!(resolved_doc.object_array("finding_events").len(), 3);
+        assert_eq!(resolved_doc.object_array("debt_events").len(), 3);
     }
 
     #[test]
     fn duplicate_active_origin_and_invalid_planning_fail_without_mutation() {
         let dir = workspace();
-        let created = create_finding(dir.path(), input()).unwrap();
-        assert!(create_finding(dir.path(), input()).is_err());
+        let created = create_debt(dir.path(), input()).unwrap();
+        assert!(create_debt(dir.path(), input()).is_err());
         let source = fs::read_to_string(&created.path).unwrap();
-        assert!(plan_finding(
+        assert!(plan_debt(
             dir.path(),
             &created.path,
             vec!["SPEC-404".into()],
@@ -1359,8 +1400,8 @@ mod tests {
     #[test]
     fn terminal_reopen_requires_operator_semantic_action_and_superseded_stays_historical() {
         let dir = workspace();
-        let created = create_finding(dir.path(), input()).unwrap();
-        let accepted = accept_finding_risk(
+        let created = create_debt(dir.path(), input()).unwrap();
+        let accepted = accept_debt_risk(
             dir.path(),
             &created.path,
             "moren",
@@ -1369,7 +1410,7 @@ mod tests {
             vec!["operator-observation:playtest-1".into()],
         )
         .unwrap();
-        let reopened = reopen_finding(
+        let reopened = reopen_debt(
             dir.path(),
             &accepted.path,
             "moren",
@@ -1377,7 +1418,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(reopened.status, "open");
-        let superseded = supersede_finding(
+        let superseded = supersede_debt(
             dir.path(),
             &reopened.path,
             "AGENT-LEAD",
@@ -1385,7 +1426,7 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(reopen_finding(
+        assert!(reopen_debt(
             dir.path(),
             superseded.path,
             "moren",
@@ -1399,12 +1440,12 @@ mod tests {
         let dir = workspace();
         fs::write(
             dir.path().join(".lmbrain/reviews/accepted/REVIEW-055.md"),
-            "---\nid: REVIEW-055\ntitle: Other\nstatus: accepted\n---\n- FINDING-07 another local item\n",
+            "---\nid: REVIEW-055\ntitle: Other\nstatus: accepted\n---\n## Review findings\n- RF-007 another local item\n",
         )
         .unwrap();
         let before =
             fs::read_to_string(dir.path().join(".lmbrain/reviews/accepted/REVIEW-054.md")).unwrap();
-        let inventory = finding_candidates(dir.path());
+        let inventory = debt_candidates(dir.path());
         assert_eq!(inventory.total, 2);
         assert_ne!(
             inventory.candidates[0].origin_artifact,
@@ -1419,8 +1460,10 @@ mod tests {
 
     #[test]
     fn xenomark_fixture_preserves_distinct_dispositions_without_auto_promotion() {
-        let fixture: serde_json::Value =
-            serde_json::from_str(include_str!("../tests/fixtures/xenomark-findings.json")).unwrap();
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../tests/fixtures/xenomark-review-findings.json"
+        ))
+        .unwrap();
         assert_eq!(
             fixture
                 .pointer("/planned_debt/expected_status")
@@ -1450,40 +1493,52 @@ mod tests {
         );
         assert_eq!(
             fixture
-                .pointer("/verification_gate_debt/auto_promoted_findings")
+                .pointer("/verification_gate_debt/auto_promoted_debts")
                 .and_then(|value| value.as_u64()),
             Some(0)
         );
     }
 
     #[test]
-    fn list_findings_ignores_scaffolding_readmes_and_keeps_malformed_findings_visible() {
+    fn list_debts_ignores_scaffolding_readmes_and_keeps_malformed_debts_visible() {
         let dir = tempfile::tempdir().unwrap();
-        let open_dir = dir.path().join(".lmbrain/findings/open");
-        let planned_dir = dir.path().join(".lmbrain/findings/planned");
+        let open_dir = dir.path().join(".lmbrain/debts/open");
+        let planned_dir = dir.path().join(".lmbrain/debts/planned");
         fs::create_dir_all(&open_dir).unwrap();
         fs::create_dir_all(&planned_dir).unwrap();
 
-        fs::write(dir.path().join(".lmbrain/findings/README.md"), "# Findings Scaffolding\n").unwrap();
-        fs::write(open_dir.join("README.md"), "# Open Findings Scaffolding\n").unwrap();
-        fs::write(planned_dir.join("README.md"), "# Planned Findings Scaffolding\n").unwrap();
-
         fs::write(
-            planned_dir.join("FINDING-001-good.md"),
-            "---\nid: FINDING-001\ntitle: Good finding\nstatus: planned\ncategory: architecture\nseverity: medium\ncreated: '2026-07-29'\nupdated: '2026-07-29'\n---\n## Statement\nValid statement.\n",
+            dir.path().join(".lmbrain/debts/README.md"),
+            "# Debts Scaffolding\n",
+        )
+        .unwrap();
+        fs::write(open_dir.join("README.md"), "# Open Debts Scaffolding\n").unwrap();
+        fs::write(
+            planned_dir.join("README.md"),
+            "# Planned Debts Scaffolding\n",
         )
         .unwrap();
 
-        fs::write(open_dir.join("FINDING-002-malformed.md"), "Broken content without frontmatter").unwrap();
+        fs::write(
+            planned_dir.join("DEBT-001-good.md"),
+            "---\nid: DEBT-001\ntitle: Good debt\nstatus: planned\ncategory: architecture\nseverity: medium\ncreated: '2026-07-29'\nupdated: '2026-07-29'\n---\n## Statement\nValid statement.\n",
+        )
+        .unwrap();
 
-        let findings = list_findings(dir.path());
-        assert_eq!(findings.len(), 2);
-        assert_eq!(findings[0].id, "FINDING-001");
-        assert_eq!(findings[0].status, "planned");
-        assert!(!findings[0].malformed);
+        fs::write(
+            open_dir.join("DEBT-002-malformed.md"),
+            "Broken content without frontmatter",
+        )
+        .unwrap();
 
-        assert_eq!(findings[1].id, "FINDING-002-malformed");
-        assert_eq!(findings[1].status, "open");
-        assert!(findings[1].malformed);
+        let debts = list_debts(dir.path());
+        assert_eq!(debts.len(), 2);
+        assert_eq!(debts[0].id, "DEBT-001");
+        assert_eq!(debts[0].status, "planned");
+        assert!(!debts[0].malformed);
+
+        assert_eq!(debts[1].id, "DEBT-002-malformed");
+        assert_eq!(debts[1].status, "open");
+        assert!(debts[1].malformed);
     }
 }

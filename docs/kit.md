@@ -18,7 +18,7 @@ Initialization refuses to overwrite an existing `.lmbrain/`.
 - `OPERATOR.md`: human operator guide.
 - `README.md`: kit entry point.
 - `CHANGELOG.md`, `MIGRATIONS.md`, `VERSION`: kit versioning and upgrade information.
-- `templates/`: templates for specs, reviews, first-class findings, ADRs, agent profiles/proposals, skills, MCP proposals/specs, and handoffs.
+- `templates/`: templates for specs, reviews, first-class debts, ADRs, agent profiles/proposals, skills, MCP proposals/specs, and handoffs.
 - `design/`: operator-loaded design mockups used as support material for specs and implementation handoffs.
 
 ## Artifact Directories
@@ -27,7 +27,7 @@ The kit includes directories for:
 
 - `specs/<status>/`
 - `reviews/<status>/`
-- `findings/<open|planned|deferred|resolved|accepted-risk|superseded>/`
+- `debts/<open|planned|deferred|resolved|accepted-risk|superseded>/`
 - `decisions/`
 - `agents/`
 - `skills/`
@@ -43,7 +43,7 @@ Specs carry two kinds of Project Lead-owned metadata. `tags` is descriptive plan
 
 Decisions record supersession on both sides. `supersedes` and `superseded_by` are written together by `adr_supersede`, which requires the successor to already be accepted and moves the predecessor to `superseded` in the same operation. Writing only one side is what let a retired decision keep presenting itself as authoritative, so the drift is now reported as a diagnostic rather than left to convention.
 
-`FINDING-*` is the durable cross-spec obligation domain. Most review findings stay local; promotion is explicit, evidence-backed, and identified by the source pair plus a globally allocated ID. Planning never means resolution, a done target never auto-closes the finding, and operator-only risk/reopen decisions remain semantic MCP actions rather than app buttons.
+`DEBT-*` is the durable cross-spec obligation domain. Review findings stay local to one review as `RF-*`; promotion is explicit, evidence-backed, and identified by the source pair plus a globally allocated debt ID. Planning never means resolution, a done target never auto-closes the debt, and operator-only risk/reopen decisions remain semantic MCP actions rather than app buttons.
 
 `design/` is intentionally not a managed artifact directory. It stores self-contained HTML/CSS/JS mockups and optional README/manifest metadata that the Project Lead may reference from specs.
 

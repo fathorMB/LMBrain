@@ -8,9 +8,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    frontmatter::{
-        atomic_write, repair_duplicate_top_level_keys, Document, FrontmatterError,
-    },
+    frontmatter::{atomic_write, repair_duplicate_top_level_keys, Document, FrontmatterError},
     invariants,
     mutation_lock::ArtifactMutationLock,
     path::{PathError, PathGuard},
@@ -33,7 +31,7 @@ pub enum ArtifactKind {
     McpProposal,
     Handoff,
     Skill,
-    Finding,
+    Debt,
 }
 
 impl ArtifactKind {
@@ -48,7 +46,7 @@ impl ArtifactKind {
             Self::McpProposal => "MCP-PROP",
             Self::Handoff => "HANDOFF",
             Self::Skill => "SKILL",
-            Self::Finding => "FINDING",
+            Self::Debt => "DEBT",
         }
     }
 
@@ -63,7 +61,7 @@ impl ArtifactKind {
             Self::McpProposal => "mcp/proposals",
             Self::Handoff => "handoffs",
             Self::Skill => "skills",
-            Self::Finding => "findings",
+            Self::Debt => "debts",
         }
     }
 
@@ -83,7 +81,7 @@ impl ArtifactKind {
     fn moves_for_status(self) -> bool {
         matches!(
             self,
-            Self::Spec | Self::Review | Self::Skill | Self::Handoff | Self::Finding
+            Self::Spec | Self::Review | Self::Skill | Self::Handoff | Self::Debt
         )
     }
 
@@ -98,7 +96,7 @@ impl ArtifactKind {
             }
             Self::Mcp => &["specified"],
             Self::Handoff => &["ready"],
-            Self::Finding => &["open"],
+            Self::Debt => &["open"],
         }
     }
 }
@@ -485,9 +483,9 @@ fn transition_internal(
             "review lifecycle changes require review_verdict event metadata".into(),
         ));
     }
-    if kind == ArtifactKind::Finding {
+    if kind == ArtifactKind::Debt {
         return Err(TransitionError::Invariant(
-            "finding lifecycle changes require a semantic finding operation".into(),
+            "debt lifecycle changes require a semantic debt operation".into(),
         ));
     }
     if parking_event.is_some()
@@ -518,7 +516,8 @@ fn transition_internal(
 
     if kind == ArtifactKind::Spec && target == "ready" {
         let gates = document.string_array("verification_gates");
-        let (requirements, _, _) = crate::context::parse_verification_requirements(&document.body, &gates);
+        let (requirements, _, _) =
+            crate::context::parse_verification_requirements(&document.body, &gates);
         let declared_executables: Vec<String> = requirements
             .into_iter()
             .filter(|r| r.kind == "executable")
@@ -528,14 +527,20 @@ fn transition_internal(
             let manifest = crate::load_verification_manifest(guard.root()).ok();
             let approval_path = crate::default_verification_approval_path(guard.root());
             let status = crate::verification_manifest_status(guard.root(), &approval_path).ok();
-            if status.as_ref().map(|s| &s.state) != Some(&crate::VerificationManifestState::Approved) {
+            if status.as_ref().map(|s| &s.state)
+                != Some(&crate::VerificationManifestState::Approved)
+            {
                 let msg = format!("spec declares executable verification gates but verification manifest is not approved");
                 if !options.force {
                     return Err(TransitionError::Invariant(msg));
                 }
             } else if let Some(manifest) = manifest {
-                let known: std::collections::BTreeSet<_> = manifest.gates.into_iter().map(|g| g.id).collect();
-                let missing: Vec<_> = declared_executables.into_iter().filter(|g| !known.contains(g)).collect();
+                let known: std::collections::BTreeSet<_> =
+                    manifest.gates.into_iter().map(|g| g.id).collect();
+                let missing: Vec<_> = declared_executables
+                    .into_iter()
+                    .filter(|g| !known.contains(g))
+                    .collect();
                 if !missing.is_empty() {
                     let msg = format!("spec declares executable verification gates missing from approved manifest: {}", missing.join(", "));
                     if !options.force {
@@ -1083,9 +1088,9 @@ pub fn create(
     root: impl AsRef<Path>,
     request: CreateRequest,
 ) -> Result<MutationResult, TransitionError> {
-    if request.kind == ArtifactKind::Finding {
+    if request.kind == ArtifactKind::Debt {
         return Err(TransitionError::Invariant(
-            "findings require the semantic finding_create operation".into(),
+            "debts require the semantic debt_create operation".into(),
         ));
     }
     let guard = PathGuard::new(root)?;
@@ -1357,8 +1362,8 @@ pub fn kind_for_id(id: &str) -> Option<ArtifactKind> {
         Some(ArtifactKind::Handoff)
     } else if id.starts_with("SKILL-") {
         Some(ArtifactKind::Skill)
-    } else if id.starts_with("FINDING-") {
-        Some(ArtifactKind::Finding)
+    } else if id.starts_with("DEBT-") {
+        Some(ArtifactKind::Debt)
     } else {
         None
     }
@@ -1428,7 +1433,7 @@ pub fn allowed(kind: ArtifactKind, from: &str, to: &str) -> bool {
             (from, to),
             ("proposed", "active") | ("proposed", "retired") | ("active", "retired")
         ),
-        ArtifactKind::Finding => matches!(
+        ArtifactKind::Debt => matches!(
             (from, to),
             ("open", "planned")
                 | ("open", "deferred")
@@ -1571,7 +1576,7 @@ fn default_status(kind: ArtifactKind) -> &'static str {
         ArtifactKind::Mcp => "specified",
         ArtifactKind::Handoff => "ready",
         ArtifactKind::Skill => "proposed",
-        ArtifactKind::Finding => "open",
+        ArtifactKind::Debt => "open",
     }
 }
 
@@ -1586,7 +1591,7 @@ fn template_name(kind: ArtifactKind) -> &'static str {
         ArtifactKind::McpProposal => "mcp-proposal.md",
         ArtifactKind::Handoff => "session-handoff.md",
         ArtifactKind::Skill => "skill.md",
-        ArtifactKind::Finding => "finding.md",
+        ArtifactKind::Debt => "debt.md",
     }
 }
 
@@ -1677,7 +1682,9 @@ pub fn set_spec_effort(
         }
         document.set("capability_tier", &tier);
         document.set("thinking_level", &level);
-        Ok(constrained.err().map(|_| "constrained effort combination".to_string()))
+        Ok(constrained
+            .err()
+            .map(|_| "constrained effort combination".to_string()))
     })
 }
 
@@ -1717,10 +1724,7 @@ pub fn record_effort_observation(
                 .append_object(
                     "effort_observations",
                     &[
-                        (
-                            "timestamp".into(),
-                            serde_json::Value::String(today()),
-                        ),
+                        ("timestamp".into(), serde_json::Value::String(today())),
                         ("actor".into(), serde_json::Value::String(actor.into())),
                         (
                             "observed_tier".into(),
@@ -1775,7 +1779,9 @@ fn set_governed_spec_metadata(
         )));
     }
     if kind_for_id(&id) != Some(ArtifactKind::Spec) {
-        return Err(TransitionError::Invariant("expected a spec artifact".into()));
+        return Err(TransitionError::Invariant(
+            "expected a spec artifact".into(),
+        ));
     }
 
     let violated = edit(&mut document, options.force).map_err(TransitionError::Invariant)?;

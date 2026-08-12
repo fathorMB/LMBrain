@@ -45,7 +45,7 @@ const specs: Spec[] = [
 ];
 
 const workspace = vi.hoisted(() => ({
-  state: { specs: [] as Spec[], findings: [] as unknown[] },
+  state: { specs: [] as Spec[], debts: [] as unknown[] },
   dispatch: vi.fn(),
   openSpec: vi.fn(),
 }));

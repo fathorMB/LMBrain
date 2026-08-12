@@ -96,7 +96,7 @@ export interface WorkspaceInfo {
   branch: string | null;
   is_clean: boolean | null;
   spec_count: number;
-  finding_count?: number;
+  debt_count?: number;
   task_count: number;
   decision_count: number;
   agent_count: number;
@@ -146,7 +146,7 @@ export interface SpecParkingEvent {
   revisit_condition: string | null;
 }
 
-export type FindingStatus =
+export type DebtStatus =
   | "open"
   | "planned"
   | "deferred"
@@ -154,14 +154,14 @@ export type FindingStatus =
   | "accepted-risk"
   | "superseded";
 
-export type FindingSeverity = "critical" | "high" | "medium" | "low" | "info";
+export type DebtSeverity = "critical" | "high" | "medium" | "low" | "info";
 
-export interface Finding {
+export interface Debt {
   id: string;
   title: string;
-  status: FindingStatus | string;
+  status: DebtStatus | string;
   category: string;
-  severity: FindingSeverity | string;
+  severity: DebtSeverity | string;
   origin_severity: string | null;
   area: string | null;
   milestone: string | null;
@@ -190,24 +190,24 @@ export interface Dream {
   created: string; updated: string; body: string; path: string; malformed: boolean;
 }
 
-export interface FindingRelation {
+export interface DebtRelation {
   id: string;
   title: string;
   status: string;
   path: string;
 }
 
-export interface FindingContext {
+export interface DebtContext {
   schema_version: string;
-  finding: Finding;
-  origin: FindingRelation | null;
-  related_specs: FindingRelation[];
-  related_reviews: FindingRelation[];
-  related_decisions: FindingRelation[];
-  target_specs: FindingRelation[];
-  blockers: FindingRelation[];
-  resolution_refs: FindingRelation[];
-  superseded_by: FindingRelation | null;
+  debt: Debt;
+  origin: DebtRelation | null;
+  related_specs: DebtRelation[];
+  related_reviews: DebtRelation[];
+  related_decisions: DebtRelation[];
+  target_specs: DebtRelation[];
+  blockers: DebtRelation[];
+  resolution_refs: DebtRelation[];
+  superseded_by: DebtRelation | null;
   events: Array<Record<string, unknown>>;
   warnings: string[];
   omitted_relations: number;
@@ -765,7 +765,7 @@ export interface WorkspaceSnapshot {
   pulse_data: PulseData;
   specs: Spec[];
   reviews: Review[];
-  findings: Finding[];
+  debts: Debt[];
   dreams: Dream[];
   adrs: Adr[];
   agents: AgentProfile[];
@@ -988,7 +988,7 @@ export type WikiNodeKind =
   | "specs"
   | "tasks"
   | "reviews"
-  | "findings"
+  | "debts"
   | "dreams"
   | "handoffs"
   | "agents"
@@ -1026,7 +1026,7 @@ export type AppView =
   | "taskboard"
   | "spec"
   | "reviews"
-  | "findings"
+  | "debts"
   | "dreams"
   | "feedback"
   | "decisions"

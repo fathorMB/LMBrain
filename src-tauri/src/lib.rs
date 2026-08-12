@@ -234,12 +234,12 @@ fn get_reviews(state: State<'_, AppState>) -> Result<Vec<models::review::Review>
 }
 
 #[tauri::command(async)]
-fn get_findings(state: State<'_, AppState>) -> Result<Vec<lmbrain_core::Finding>, String> {
+fn get_debts(state: State<'_, AppState>) -> Result<Vec<lmbrain_core::Debt>, String> {
     let root = state
         .path_guard
         .get_root()
         .ok_or_else(|| "No workspace open".to_string())?;
-    Ok(lmbrain_core::list_findings(&root))
+    Ok(lmbrain_core::list_debts(&root))
 }
 
 #[tauri::command(async)]
@@ -258,15 +258,15 @@ fn get_kit_feedback(state: State<'_, AppState>) -> Result<lmbrain_core::KitFeedb
 }
 
 #[tauri::command(async)]
-fn get_finding_context(
+fn get_debt_context(
     state: State<'_, AppState>,
-    finding: String,
-) -> Result<lmbrain_core::FindingContext, String> {
+    debt: String,
+) -> Result<lmbrain_core::DebtContext, String> {
     let root = state
         .path_guard
         .get_root()
         .ok_or_else(|| "No workspace open".to_string())?;
-    lmbrain_core::finding_context(&root, &finding).map_err(|error| error.to_string())
+    lmbrain_core::debt_context(&root, &debt).map_err(|error| error.to_string())
 }
 
 #[tauri::command(async)]
@@ -926,11 +926,11 @@ pub fn run() {
             get_workspace_snapshot,
             get_specs,
             get_reviews,
-            get_findings,
+            get_debts,
             get_dreams,
             get_kit_feedback,
             write_export_file,
-            get_finding_context,
+            get_debt_context,
             get_adrs,
             get_agents,
             get_agent_proposals,

@@ -58,8 +58,8 @@ export function DecisionsList() {
   const adrs = state.adrs;
   const byId = useMemo(() => indexById(adrs), [adrs]);
   const inbound = useMemo(
-    () => buildInboundIndex(state.specs, state.findings),
-    [state.specs, state.findings],
+    () => buildInboundIndex(state.specs, state.debts),
+    [state.specs, state.debts],
   );
   const attention = useMemo(() => collectAttentionItems(adrs), [adrs]);
   const tags = useMemo(() => collectDecisionTags(adrs), [adrs]);

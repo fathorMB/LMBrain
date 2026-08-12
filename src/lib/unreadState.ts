@@ -20,7 +20,7 @@
 export const UNREAD_PAGES = [
   "taskboard",
   "reviews",
-  "findings",
+  "debts",
   "feedback",
   "decisions",
   "agents",
@@ -59,7 +59,7 @@ interface FeedbackNoteLike {
 export interface UnreadSource {
   specs?: ArtifactLike[] | null;
   reviews?: ArtifactLike[] | null;
-  findings?: ArtifactLike[] | null;
+  debts?: ArtifactLike[] | null;
   adrs?: ArtifactLike[] | null;
   agents?: ArtifactLike[] | null;
   agentProposals?: ArtifactLike[] | null;
@@ -79,7 +79,7 @@ function emptyPageItems(): PageItems {
   return {
     taskboard: [],
     reviews: [],
-    findings: [],
+    debts: [],
     feedback: [],
     decisions: [],
     agents: [],
@@ -129,7 +129,7 @@ export function collectPageItems(source: UnreadSource | null | undefined): PageI
   if (!source) return items;
   items.taskboard = toUnreadItems("spec", source.specs);
   items.reviews = toUnreadItems("review", source.reviews);
-  items.findings = toUnreadItems("finding", source.findings);
+  items.debts = toUnreadItems("debt", source.debts);
   items.feedback = toFeedbackItems(source.kitFeedbackNotes);
   items.decisions = toUnreadItems("adr", source.adrs);
   items.agents = [
