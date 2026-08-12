@@ -101,7 +101,7 @@ Installed LMBrain packages bundle the repository-scoped MCP sidecar and register
 
 - Agents are started manually; LMBrain does not run them in the background.
 - Repository harness intent is inert until the operator approves its exact manifest digest locally.
-- Named verification gates execute project code with the current user's permissions only after explicit local approval. They are governed execution, not an operating-system sandbox.
+- Named verification gates execute project code with the current user's permissions only after explicit local approval. They are governed execution, not an operating-system sandbox. Gate processes receive a minimal inherited environment: executable/system roots, home/profile, and temporary-directory variables only. On Windows this also preserves the machine-scoped `ProgramData` root required by installed toolchains such as Rust/MSVC; arbitrary user and session variables remain removed.
 - Profile-learning signals are read-only. Applying a profile improvement requires an evidence-linked proposal, operator approval, and a non-stale target digest.
 - Existing project files and customized brains are not silently migrated or overwritten.
 - The Findings workspace is read-only: it never promotes legacy review prose, resolves debt from target status, or exposes lifecycle/approval buttons.
