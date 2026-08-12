@@ -1,5 +1,4 @@
 use keyring::{Entry, Error as KeyringError};
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::{Serialize, Deserialize};
 
 const SERVICE_NAME: &str = "lmbrain";
@@ -37,29 +36,8 @@ pub struct GitHubWorkflowRun {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitHubBranch {
-    pub name: String,
-    pub sha: String,
-    pub protected: bool,
-    pub commits: Vec<GitHubCommit>,
-    pub merge_base_sha: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitHubCommit {
-    pub sha: String,
-    pub message: String,
-    pub author: Option<String>,
-    pub date: Option<String>,
-    pub parents: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitHubDashboard {
     pub has_token: bool,
-    pub default_branch: Option<String>,
-    pub branches: Vec<GitHubBranch>,
-    pub branches_error: Option<String>,
     pub pull_requests: Vec<GitHubPullRequest>,
     pub workflow_runs: Vec<GitHubWorkflowRun>,
 }
@@ -110,141 +88,11 @@ pub fn get_github_dashboard(owner: &str, repo: &str) -> Result<GitHubDashboard, 
 
     let prs = fetch_pull_requests(owner, repo, token.as_deref())?;
     let runs = fetch_workflow_runs(owner, repo, token.as_deref())?;
-    let default_branch = fetch_default_branch(owner, repo, token.as_deref()).ok();
-    let (mut branches, branches_error) = match fetch_branches(owner, repo, token.as_deref()) {
-        Ok(branches) => (branches, None),
-        Err(error) => (Vec::new(), Some(error)),
-    };
-    for branch in branches.iter_mut().take(24) {
-        if let Ok((commits, merge_base_sha)) = fetch_branch_commits(owner, repo, &branch.name, token.as_deref()) {
-            branch.commits = commits;
-            branch.merge_base_sha = merge_base_sha;
-        }
-    }
-
     Ok(GitHubDashboard {
         has_token,
-        default_branch,
-        branches,
-        branches_error,
         pull_requests: prs,
         workflow_runs: runs,
     })
-}
-
-fn fetch_default_branch(owner: &str, repo: &str, token: Option<&str>) -> Result<String, String> {
-    let url = format!("https://api.github.com/repos/{owner}/{repo}");
-    let mut req = ureq::get(&url)
-        .set("Accept", "application/vnd.github+json")
-        .set("User-Agent", "lmbrain");
-    if let Some(t) = token.filter(|value| !value.is_empty()) {
-        req = req.set("Authorization", &format!("Bearer {t}"));
-    }
-    let response = req
-        .call()
-        .map_err(|error| format!("GitHub API repository request failed: {error}"))?;
-    let json: serde_json::Value = response
-        .into_json()
-        .map_err(|error| format!("Failed to parse repository JSON: {error}"))?;
-    json.get("default_branch")
-        .and_then(|value| value.as_str())
-        .filter(|value| !value.is_empty())
-        .map(str::to_owned)
-        .ok_or_else(|| "GitHub repository response did not include a default branch".to_string())
-}
-
-fn fetch_branches(owner: &str, repo: &str, token: Option<&str>) -> Result<Vec<GitHubBranch>, String> {
-    let url = format!("https://api.github.com/repos/{owner}/{repo}/branches?per_page=100");
-    let mut req = ureq::get(&url)
-        .set("Accept", "application/vnd.github+json")
-        .set("User-Agent", "lmbrain");
-    if let Some(t) = token.filter(|value| !value.is_empty()) {
-        req = req.set("Authorization", &format!("Bearer {t}"));
-    }
-    let response = req
-        .call()
-        .map_err(|error| format!("GitHub API branches request failed: {error}"))?;
-    let json: serde_json::Value = response
-        .into_json()
-        .map_err(|error| format!("Failed to parse branches JSON: {error}"))?;
-    let array = json
-        .as_array()
-        .ok_or_else(|| "GitHub branches response was not an array".to_string())?;
-
-    Ok(array
-        .iter()
-        .filter_map(|item| {
-            let name = item.get("name")?.as_str()?.to_owned();
-            let sha = item.get("commit")?.get("sha")?.as_str()?.to_owned();
-            Some(GitHubBranch {
-                name,
-                sha,
-                protected: item.get("protected").and_then(|value| value.as_bool()).unwrap_or(false),
-                commits: Vec::new(),
-                merge_base_sha: None,
-            })
-        })
-        .collect())
-}
-
-fn fetch_branch_commits(owner: &str, repo: &str, branch: &str, token: Option<&str>) -> Result<(Vec<GitHubCommit>, Option<String>), String> {
-    let encoded_branch = utf8_percent_encode(branch, NON_ALPHANUMERIC).to_string();
-    let url = format!("https://api.github.com/repos/{owner}/{repo}/commits?sha={encoded_branch}&per_page=50");
-    let mut req = ureq::get(&url)
-        .set("Accept", "application/vnd.github+json")
-        .set("User-Agent", "lmbrain");
-    if let Some(t) = token.filter(|value| !value.is_empty()) {
-        req = req.set("Authorization", &format!("Bearer {t}"));
-    }
-    let response = req
-        .call()
-        .map_err(|error| format!("GitHub API commits request failed: {error}"))?;
-    let json: serde_json::Value = response
-        .into_json()
-        .map_err(|error| format!("Failed to parse commits JSON: {error}"))?;
-    let array = json.as_array().ok_or_else(|| "GitHub commits response was not an array".to_string())?;
-
-    let mut commits: Vec<GitHubCommit> = array
-        .iter()
-        .filter_map(|item| {
-            let sha = item.get("sha")?.as_str()?.to_owned();
-            let commit = item.get("commit")?;
-            Some(GitHubCommit {
-                sha,
-                message: commit
-                    .get("message")
-                    .and_then(|value| value.as_str())
-                    .unwrap_or("")
-                    .lines()
-                    .next()
-                    .unwrap_or("")
-                    .to_owned(),
-                author: commit
-                    .get("author")
-                    .and_then(|value| value.get("name"))
-                    .and_then(|value| value.as_str())
-                    .map(str::to_owned),
-                date: commit
-                    .get("author")
-                    .and_then(|value| value.get("date"))
-                    .and_then(|value| value.as_str())
-                    .map(str::to_owned),
-                parents: item
-                    .get("parents")
-                    .and_then(|value| value.as_array())
-                    .map(|parents| {
-                        parents
-                            .iter()
-                            .filter_map(|parent| parent.get("sha").and_then(|value| value.as_str()))
-                            .map(str::to_owned)
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-            })
-        })
-        .collect();
-    commits.truncate(50);
-    Ok((commits, None))
 }
 
 fn fetch_pull_requests(owner: &str, repo: &str, token: Option<&str>) -> Result<Vec<GitHubPullRequest>, String> {
