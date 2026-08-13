@@ -532,7 +532,7 @@ fn debt_tools() -> Vec<Value> {
         json!({
             "name":"debt_migrate",
             "description":"Operator-confirmed, digest-bound atomic migration from legacy durable findings to debts and review-local RF identifiers.",
-            "inputSchema":{"type":"object","required":["expected_preview_digest","confirmed"],"properties":{"expected_preview_digest":{"type":"string"},"confirmed":{"const":true}},"additionalProperties":false}
+            "inputSchema":{"type":"object","required":["expected_preview_digest","confirmed"],"properties":{"expected_preview_digest":{"type":"string"},"confirmed":{"type":"boolean","const":true,"description":"Set to true only after the operator explicitly confirms the reviewed preview."}},"additionalProperties":false}
         }),
     ]
 }
@@ -1719,6 +1719,22 @@ mod tests {
             .into_iter()
     }
 
+    fn legacy_debt_workspace(root: &std::path::Path) {
+        std::fs::create_dir_all(root.join(".lmbrain/findings/open")).unwrap();
+        std::fs::create_dir_all(root.join(".lmbrain/reviews/accepted")).unwrap();
+        std::fs::write(root.join(".lmbrain/VERSION"), "4.1.0\n").unwrap();
+        std::fs::write(
+            root.join(".lmbrain/findings/open/FINDING-001-sample.md"),
+            "---\nid: FINDING-001\ntitle: Sample\nstatus: open\ncategory: correctness\nseverity: medium\ncreated: 2026-08-13\nupdated: 2026-08-13\norigin_artifact: REVIEW-001\norigin_ref: FINDING-07\nrelated_specs: []\nrelated_reviews: [REVIEW-001]\nrelated_decisions: []\ntarget_specs: []\nblocked_by: []\nresolution_refs: []\nfinding_events: []\n---\n## Statement\nSample\n",
+        )
+        .unwrap();
+        std::fs::write(
+            root.join(".lmbrain/reviews/accepted/REVIEW-001.md"),
+            "---\nid: REVIEW-001\ntitle: Review\nstatus: accepted\ncreated: 2026-08-13\nupdated: 2026-08-13\ntags: []\nlinks: []\n---\n## Findings\n- FINDING-07 local issue\n",
+        )
+        .unwrap();
+    }
+
     #[test]
     fn flag_space_form_wins() {
         let root = resolve_root(
@@ -1809,6 +1825,65 @@ mod tests {
             assert!(names.contains(&name.to_string()), "{name} missing");
         }
         assert!(names.contains(&"lmbrain_set_agent_mnemonic_name".to_string()));
+    }
+
+    #[test]
+    fn debt_migration_confirmation_is_typed_and_dispatches_true() {
+        let tool = super::tools()
+            .into_iter()
+            .find(|tool| tool.get("name").and_then(Value::as_str) == Some("debt_migrate"))
+            .unwrap();
+        assert_eq!(
+            tool.pointer("/inputSchema/properties/confirmed/type")
+                .and_then(Value::as_str),
+            Some("boolean")
+        );
+        assert_eq!(
+            tool.pointer("/inputSchema/properties/confirmed/const")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+
+        let directory = tempfile::tempdir().unwrap();
+        legacy_debt_workspace(directory.path());
+        let root = directory.path().to_path_buf();
+        let preview = super::call(
+            &root,
+            &serde_json::json!({"name":"debt_migration_preview","arguments":{}}),
+        )
+        .unwrap();
+        let preview: Value = serde_json::from_str(
+            preview
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        let digest = preview.get("digest").and_then(Value::as_str).unwrap();
+
+        let migrated = super::call(
+            &root,
+            &serde_json::json!({
+                "name":"debt_migrate",
+                "arguments":{"expected_preview_digest":digest,"confirmed":true}
+            }),
+        )
+        .unwrap();
+        let migrated: Value = serde_json::from_str(
+            migrated
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            migrated.get("version").and_then(Value::as_str),
+            Some("4.2.0")
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join(".lmbrain/VERSION")).unwrap(),
+            "4.2.0\n"
+        );
     }
 
     #[test]
