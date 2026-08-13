@@ -539,6 +539,15 @@ pub fn plan_harness_configuration(
     root: &Path,
     command: &str,
 ) -> Result<HarnessConfigurationPlan, String> {
+    let browsers_path = env::var("PLAYWRIGHT_BROWSERS_PATH").ok();
+    plan_harness_configuration_with_browser_path(root, command, browsers_path.as_deref())
+}
+
+fn plan_harness_configuration_with_browser_path(
+    root: &Path,
+    command: &str,
+    browsers_path: Option<&str>,
+) -> Result<HarnessConfigurationPlan, String> {
     let manifest = load_harness_manifest(root).map_err(|error| error.to_string())?;
     let digest = canonical_manifest_digest(&manifest).map_err(|error| error.to_string())?;
     let mut hosts = Vec::new();
@@ -580,7 +589,7 @@ pub fn plan_harness_configuration(
         let browser_mcp = effective
             .browser_mcp
             .as_ref()
-            .map(|capability| browser_mcp_readiness(root, capability));
+            .map(|capability| browser_mcp_readiness(root, capability, browsers_path));
         let ready = tools.iter().all(|tool| tool.available)
             && native_files
                 .iter()
@@ -775,7 +784,11 @@ fn supported_capabilities(host: HarnessHost) -> Vec<String> {
 /// package presence and version under the project-local `node_modules`, and a
 /// best-effort browser-runtime probe honoring `PLAYWRIGHT_BROWSERS_PATH`.
 /// Nothing is executed and nothing is ever installed.
-fn browser_mcp_readiness(root: &Path, capability: &BrowserMcpCapability) -> BrowserMcpReadiness {
+fn browser_mcp_readiness(
+    root: &Path,
+    capability: &BrowserMcpCapability,
+    browsers_path: Option<&str>,
+) -> BrowserMcpReadiness {
     let package_dir = root.join("node_modules").join("@playwright").join("mcp");
     let package_json = package_dir.join("package.json");
     let cli = package_dir.join("cli.js");
@@ -789,7 +802,7 @@ fn browser_mcp_readiness(root: &Path, capability: &BrowserMcpCapability) -> Brow
                 .and_then(Value::as_str)
                 .map(str::to_string)
         });
-    let browser_runtime_found = playwright_chromium_found(root);
+    let browser_runtime_found = playwright_chromium_found_with_path(root, browsers_path);
     let (state, detail) = if !package_available {
         (
             CapabilityState::Failed,
@@ -824,8 +837,8 @@ fn browser_mcp_readiness(root: &Path, capability: &BrowserMcpCapability) -> Brow
     }
 }
 
-fn playwright_chromium_found(root: &Path) -> bool {
-    let candidates: Vec<PathBuf> = match env::var("PLAYWRIGHT_BROWSERS_PATH").ok().as_deref() {
+fn playwright_chromium_found_with_path(root: &Path, browsers_path: Option<&str>) -> bool {
+    let candidates: Vec<PathBuf> = match browsers_path {
         Some("0") => vec![root
             .join("node_modules")
             .join("playwright-core")
@@ -1464,8 +1477,9 @@ mod tests {
 
         // A bare revision directory without the launchable executable is the
         // KIT-NOTE-013 false positive: it must NOT count as a runtime.
-        env::set_var("PLAYWRIGHT_BROWSERS_PATH", "0");
-        let plan = plan_harness_configuration(dir.path(), "lmbrain-mcp").unwrap();
+        let plan =
+            plan_harness_configuration_with_browser_path(dir.path(), "lmbrain-mcp", Some("0"))
+                .unwrap();
         let readiness = plan.hosts[0].browser_mcp.as_ref().unwrap();
         assert!(readiness.package_available);
         assert!(!readiness.browser_runtime_found);
@@ -1481,8 +1495,9 @@ mod tests {
         });
         fs::create_dir_all(executable.parent().unwrap()).unwrap();
         fs::write(&executable, "").unwrap();
-        let plan = plan_harness_configuration(dir.path(), "lmbrain-mcp").unwrap();
-        env::remove_var("PLAYWRIGHT_BROWSERS_PATH");
+        let plan =
+            plan_harness_configuration_with_browser_path(dir.path(), "lmbrain-mcp", Some("0"))
+                .unwrap();
         let host = &plan.hosts[0];
         let readiness = host.browser_mcp.as_ref().unwrap();
         assert!(readiness.package_available);
@@ -1515,16 +1530,14 @@ mod tests {
         fs::create_dir_all(stale_executable.parent().unwrap()).unwrap();
         fs::write(&stale_executable, "").unwrap();
 
-        env::set_var("PLAYWRIGHT_BROWSERS_PATH", "0");
         // A different revision, even fully installed, is not the runtime the
         // provisioned provider launches.
-        assert!(!playwright_chromium_found(dir.path()));
+        assert!(!playwright_chromium_found_with_path(dir.path(), Some("0")));
 
         let pinned_executable = local.join("chromium-1237").join(executable_tail);
         fs::create_dir_all(pinned_executable.parent().unwrap()).unwrap();
         fs::write(&pinned_executable, "").unwrap();
-        let found = playwright_chromium_found(dir.path());
-        env::remove_var("PLAYWRIGHT_BROWSERS_PATH");
+        let found = playwright_chromium_found_with_path(dir.path(), Some("0"));
         assert!(found);
     }
 
