@@ -18,6 +18,7 @@ pub struct FileWatcherService {
 struct WatcherInner {
     watcher: Option<RecommendedWatcher>,
     active: bool,
+    generation: u64,
 }
 
 impl Default for FileWatcherService {
@@ -32,11 +33,12 @@ impl FileWatcherService {
             inner: Arc::new(Mutex::new(WatcherInner {
                 watcher: None,
                 active: false,
+                generation: 0,
             })),
         }
     }
 
-    /// Start watching the given directory for .md file changes.
+    /// Watch workspace Markdown artifacts and survive replacement of `.lmbrain`.
     /// Stops any previously active watcher first.
     pub fn start(&self, path: &str, app: AppHandle) -> Result<(), crate::errors::AppError> {
         // Stop any existing watcher first
@@ -52,18 +54,24 @@ impl FileWatcherService {
         )
         .map_err(|e| crate::errors::AppError::Watcher(e.to_string()))?;
 
-        let watch_path = PathBuf::from(path).join(".lmbrain");
+        let workspace_path = PathBuf::from(path);
+        let watch_path = workspace_path.join(".lmbrain");
+        watcher
+            .watch(&workspace_path, RecursiveMode::NonRecursive)
+            .map_err(|e| crate::errors::AppError::Watcher(e.to_string()))?;
         if watch_path.exists() {
             watcher
                 .watch(&watch_path, RecursiveMode::Recursive)
                 .map_err(|e| crate::errors::AppError::Watcher(e.to_string()))?;
         }
 
-        {
+        let generation = {
             let mut inner = self.inner.lock().unwrap();
+            inner.generation = inner.generation.wrapping_add(1);
             inner.watcher = Some(watcher);
             inner.active = true;
-        }
+            inner.generation
+        };
 
         let inner = self.inner.clone();
 
@@ -71,11 +79,23 @@ impl FileWatcherService {
         thread::spawn(move || {
             let debounce = Duration::from_millis(500);
             let mut pending: Option<(Instant, Vec<FileEvent>)> = None;
+            let mut reattach_pending = false;
 
             loop {
                 // Check if we should stop
-                if !inner.lock().unwrap().active {
+                let current = inner.lock().unwrap();
+                if !current.active || current.generation != generation {
                     break;
+                }
+                drop(current);
+
+                if reattach_pending && watch_path.is_dir() {
+                    if let Some(watcher) = inner.lock().unwrap().watcher.as_mut() {
+                        let _ = watcher.unwatch(&watch_path);
+                        if watcher.watch(&watch_path, RecursiveMode::Recursive).is_ok() {
+                            reattach_pending = false;
+                        }
+                    }
                 }
 
                 // Try to receive events
@@ -84,9 +104,19 @@ impl FileWatcherService {
                         let now = Instant::now();
                         let mut events = pending.take().map(|(_, e)| e).unwrap_or_default();
 
-                        // Filter to .md files only
+                        // A controlled migration atomically replaces the complete
+                        // `.lmbrain` directory. Recursive OS watches remain attached
+                        // to the removed directory, so keep a non-recursive parent
+                        // watch and attach the replacement as soon as it appears.
+                        if event.paths.iter().any(|path| path == &watch_path) {
+                            reattach_pending = true;
+                        }
+
+                        // Badge-bearing artifacts are Markdown. The `.lmbrain`
+                        // root itself is also relevant because replacing it must
+                        // immediately refresh the snapshot after reattachment.
                         for path in event.paths {
-                            if path.extension().and_then(|e| e.to_str()) == Some("md") {
+                            if is_relevant_path(&path, &watch_path) {
                                 let kind = match event.kind {
                                     EventKind::Create(_) => FileEventKind::Created,
                                     EventKind::Modify(_) => FileEventKind::Modified,
@@ -129,10 +159,50 @@ impl FileWatcherService {
     pub fn stop(&self) {
         let mut inner = self.inner.lock().unwrap();
         inner.active = false;
+        inner.generation = inner.generation.wrapping_add(1);
         inner.watcher = None;
     }
 
     pub fn is_active(&self) -> bool {
         self.inner.lock().unwrap().active
+    }
+}
+
+fn is_relevant_path(path: &std::path::Path, brain_path: &std::path::Path) -> bool {
+    path == brain_path
+        || (path.starts_with(brain_path)
+            && path.extension().and_then(|extension| extension.to_str()) == Some("md"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_relevant_path;
+    use std::path::Path;
+
+    #[test]
+    fn brain_replacement_and_markdown_artifacts_trigger_refresh() {
+        let brain = Path::new("C:/workspace/.lmbrain");
+        assert!(is_relevant_path(Path::new("C:/workspace/.lmbrain"), brain));
+        assert!(is_relevant_path(
+            Path::new("C:/workspace/.lmbrain/specs/backlog/SPEC-001.md"),
+            brain
+        ));
+    }
+
+    #[test]
+    fn parent_watch_ignores_unrelated_repository_events() {
+        let brain = Path::new("C:/workspace/.lmbrain");
+        assert!(!is_relevant_path(
+            Path::new("C:/workspace/README.md"),
+            brain
+        ));
+        assert!(!is_relevant_path(
+            Path::new("C:/workspace/.lmbrain-stage/specs/SPEC-001.md"),
+            brain
+        ));
+        assert!(!is_relevant_path(
+            Path::new("C:/workspace/.lmbrain/VERSION"),
+            brain
+        ));
     }
 }

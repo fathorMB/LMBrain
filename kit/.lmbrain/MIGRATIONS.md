@@ -4,7 +4,19 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `4.2.0`.
+The current kit is `4.2.1`.
+
+### 4.2.1 (real-time refresh after controlled migrations)
+
+Supported source version is `4.2.0`. This maintenance release changes no artifact schema and requires no content rewrite.
+
+1. Update the desktop application and bundled kit together.
+2. Preserve project-specific content while realigning kit-owned release documentation and update `.lmbrain/VERSION` to `4.2.1` after validation.
+3. Run `lmbrain_validate`. Existing `DEBT-*` artifacts and review-local `RF-*` identifiers remain unchanged.
+
+The desktop file watcher now survives an atomic replacement of `.lmbrain`, such as the controlled 4.2.0 debt migration swap. It reattaches to the replacement directory and refreshes sidebar unread badges without a manual refresh or page change.
+
+Rollback to 4.2.0 does not change workspace data, but the older desktop watcher can again become detached if `.lmbrain` is replaced while the application is open.
 
 ### 4.2.0 (durable Debts and review-local RF identifiers)
 
