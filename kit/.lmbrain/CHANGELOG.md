@@ -4,6 +4,12 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 4.2.1 - 2026-08-13
+
+### Fixed
+
+- **Real-time refresh after migration.** The desktop watcher now observes the workspace root non-recursively and reattaches its recursive `.lmbrain` watch after a controlled atomic directory replacement. Sidebar unread badges update from subsequent artifact changes without requiring a manual refresh or page navigation, while unrelated repository events remain ignored.
+
 ## 4.1.0 - 2026-08-10
 
 ### Added
