@@ -30,6 +30,104 @@ pub fn extract_waived_debt_id(line: &str) -> Option<&str> {
     }
 }
 
+/// How a single acceptance criterion reads to the tools.
+///
+/// Until 4.2.2 an unmet criterion was invisible outside the `spec_done`
+/// invariant, so an agent that honestly declared an impediment got exactly the
+/// same silence as one that ticked a box it could not verify (KIT-NOTE-002).
+/// Classifying the marker makes the difference legible to `lmbrain_validate`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AcceptanceCriterionState {
+    /// `- [x]`: satisfied.
+    Met,
+    /// `- [~] ... | waived=DEBT-xxx` backed by an existing debt.
+    Waived(String),
+    /// `- [ ]`: declared and not satisfied.
+    Unmet,
+    /// A marker the contract does not define, such as an invented `- [!]`.
+    /// Every transition treats it as unmet; saying so is the point.
+    UnknownMarker(String),
+    /// `- [~]` without a parseable `| waived=DEBT-xxx` reference.
+    WaiverMalformed,
+    /// `- [~] ... | waived=DEBT-xxx` naming a debt that does not exist.
+    WaiverDebtMissing(String),
+}
+
+impl AcceptanceCriterionState {
+    pub fn is_satisfied(&self) -> bool {
+        matches!(self, Self::Met | Self::Waived(_))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AcceptanceCriterion {
+    /// 1-based position within the section, so a diagnostic can name the
+    /// criterion even when two share the same prose.
+    pub position: usize,
+    pub text: String,
+    pub state: AcceptanceCriterionState,
+}
+
+/// Classifies every acceptance criterion of a spec body. An absent section
+/// yields an empty list: whether that is itself a problem is a caller's
+/// decision, not this function's.
+pub fn classify_acceptance_criteria(root: &Path, body: &str) -> Vec<AcceptanceCriterion> {
+    let Some(criteria_section) = markdown_section(body, &["acceptance criteria"]) else {
+        return Vec::new();
+    };
+    criteria_section
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| line.starts_with("- ["))
+        .enumerate()
+        .map(|(index, line)| AcceptanceCriterion {
+            position: index + 1,
+            text: criterion_text(line),
+            state: classify_criterion(root, line),
+        })
+        .collect()
+}
+
+fn classify_criterion(root: &Path, line: &str) -> AcceptanceCriterionState {
+    let Some(marker) = line
+        .strip_prefix("- [")
+        .and_then(|rest| rest.split_once(']'))
+        .map(|(marker, _)| marker)
+    else {
+        return AcceptanceCriterionState::UnknownMarker(String::new());
+    };
+    match marker {
+        "x" | "X" => AcceptanceCriterionState::Met,
+        " " | "" => AcceptanceCriterionState::Unmet,
+        "~" => match extract_waived_debt_id(line) {
+            None => AcceptanceCriterionState::WaiverMalformed,
+            Some(debt_id) => {
+                if debt_exists(root, debt_id) {
+                    AcceptanceCriterionState::Waived(debt_id.to_string())
+                } else {
+                    AcceptanceCriterionState::WaiverDebtMissing(debt_id.to_string())
+                }
+            }
+        },
+        other => AcceptanceCriterionState::UnknownMarker(other.to_string()),
+    }
+}
+
+fn criterion_text(line: &str) -> String {
+    line.split_once(']')
+        .map(|(_, rest)| rest.trim())
+        .unwrap_or(line)
+        .to_string()
+}
+
+fn debt_exists(root: &Path, debt_id: &str) -> bool {
+    scan(root.join(".lmbrain/debts")).iter().any(|path| {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with(debt_id))
+    })
+}
+
 pub fn criteria_complete_with_evidence(body: &str) -> bool {
     let Some(criteria_section) = markdown_section(body, &["acceptance criteria"]) else {
         return false;
@@ -62,12 +160,7 @@ pub fn waived_findings_are_valid(root: &Path, body: &str) -> Result<(), String> 
                     "waived criterion '{trimmed}' must include '| waived=DEBT-xxx'"
                 ));
             };
-            let debt_exists = scan(root.join(".lmbrain/debts")).iter().any(|path| {
-                path.file_name()
-                    .and_then(|n| n.to_str())
-                    .is_some_and(|name| name.starts_with(debt_id))
-            });
-            if !debt_exists {
+            if !debt_exists(root, debt_id) {
                 return Err(format!(
                     "waived criterion references non-existent debt '{debt_id}'"
                 ));

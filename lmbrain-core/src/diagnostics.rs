@@ -163,6 +163,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
     diagnose_spec_dependencies(root, &artifacts, &mut diagnostics);
     diagnose_debts(root, &artifacts, &mut diagnostics);
     diagnose_verification(root, &artifacts, &mut diagnostics);
+    diagnose_acceptance_criteria(root, &artifacts, &mut diagnostics);
     diagnose_roadmap(root, &artifacts, &mut diagnostics);
     diagnose_kit_feedback(root, &mut diagnostics);
     diagnose_spec_metadata(&artifacts, &mut diagnostics);
@@ -700,6 +701,72 @@ fn diagnose_references(root: &Path, artifacts: &[Artifact], diagnostics: &mut Ve
                     ));
                 }
             }
+        }
+    }
+}
+
+/// Reports acceptance criteria that are not satisfied on a spec that has
+/// already reached `review` or `done`.
+///
+/// A verification requirement left open surfaces as `verification-unresolved`
+/// and blocks `spec_submit`, while an open acceptance criterion produced no
+/// signal at all before `spec_done` (KIT-NOTE-002). The asymmetry made the
+/// honest declaration of an impediment indistinguishable from silence, so the
+/// diagnostic exists to make the difference readable. In `review` it is
+/// informative and deliberately non-blocking: `criteria_complete_with_evidence`
+/// remains the only hard gate, applied at `spec_done`.
+fn diagnose_acceptance_criteria(
+    root: &Path,
+    artifacts: &[Artifact],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for artifact in artifacts {
+        let id = artifact.document.value("id").unwrap_or_default();
+        if !id.starts_with("SPEC-") {
+            continue;
+        }
+        let status = artifact.document.value("status").unwrap_or_default();
+        // A done spec with an open criterion contradicts the invariant that let
+        // it close, so it is a warning; in review it is still ordinary work.
+        let severity = match status.as_str() {
+            "review" => DiagnosticSeverity::Info,
+            "done" => DiagnosticSeverity::Warning,
+            _ => continue,
+        };
+        for criterion in invariants::classify_acceptance_criteria(root, &artifact.document.body) {
+            let (cause, next_action) = match &criterion.state {
+                invariants::AcceptanceCriterionState::Met
+                | invariants::AcceptanceCriterionState::Waived(_) => continue,
+                invariants::AcceptanceCriterionState::Unmet => (
+                    "not satisfied".to_string(),
+                    "Satisfy the criterion, or waive it with '- [~] ... | waived=DEBT-xxx' backed by an existing debt.",
+                ),
+                invariants::AcceptanceCriterionState::UnknownMarker(marker) => (
+                    format!("uses unrecognized marker '[{marker}]' and counts as not satisfied"),
+                    "Use '- [x]' when satisfied or '- [~] ... | waived=DEBT-xxx' when impeded; no other marker is recognized.",
+                ),
+                invariants::AcceptanceCriterionState::WaiverMalformed => (
+                    "is waived without a debt reference".to_string(),
+                    "Complete the waiver as '- [~] ... | waived=DEBT-xxx'.",
+                ),
+                invariants::AcceptanceCriterionState::WaiverDebtMissing(debt_id) => (
+                    format!("waives to '{debt_id}', which does not exist"),
+                    "Record the debt with debt_create, or point the waiver at the debt that carries the residue.",
+                ),
+            };
+            diagnostics.push(diagnostic(
+                "acceptance-criterion-unsatisfied",
+                severity,
+                Some(id.clone()),
+                Some(artifact.relative.clone()),
+                format!(
+                    "Acceptance criterion {} on {id} ({status}) {cause}: {}",
+                    criterion.position, criterion.text
+                ),
+                next_action,
+                DiagnosticFixability::Manual,
+                &format!("criterion:{}", criterion.position),
+            ));
         }
     }
 }
@@ -1311,6 +1378,147 @@ fn severity_rank(severity: DiagnosticSeverity) -> u8 {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    fn workspace_with_criteria(status: &str, criteria: &str) -> tempfile::TempDir {
+        let directory = tempdir().unwrap();
+        let lmbrain = directory.path().join(".lmbrain");
+        fs::create_dir_all(lmbrain.join(format!("specs/{status}"))).unwrap();
+        fs::write(
+            lmbrain.join(format!("specs/{status}/SPEC-001-criteria.md")),
+            format!(
+                "---
+id: SPEC-001
+title: Criteria
+status: {status}
+---
+
+## Acceptance criteria
+
+{criteria}
+
+## Implementation evidence
+
+### Changes made
+
+Done.
+"
+            ),
+        )
+        .unwrap();
+        directory
+    }
+
+    fn criterion_diagnostics(directory: &tempfile::TempDir) -> Vec<Diagnostic> {
+        build_diagnostics(directory.path())
+            .into_iter()
+            .filter(|item| item.code == "acceptance-criterion-unsatisfied")
+            .collect()
+    }
+
+    #[test]
+    fn unmet_acceptance_criteria_are_reported_informationally_in_review() {
+        let directory = workspace_with_criteria(
+            "review",
+            "- [x] Done
+- [ ] Still open",
+        );
+        let reported = criterion_diagnostics(&directory);
+
+        assert_eq!(reported.len(), 1);
+        assert_eq!(reported[0].severity, DiagnosticSeverity::Info);
+        assert!(
+            reported[0].message.contains("Still open"),
+            "{:?}",
+            reported[0]
+        );
+        assert!(
+            reported[0].message.contains("criterion 2"),
+            "{:?}",
+            reported[0]
+        );
+    }
+
+    #[test]
+    fn an_unrecognized_marker_is_named_rather_than_silently_treated_as_unmet() {
+        let directory =
+            workspace_with_criteria("review", "- [!] Blocked by an external dependency");
+        let reported = criterion_diagnostics(&directory);
+
+        assert_eq!(reported.len(), 1);
+        assert!(
+            reported[0].message.contains("unrecognized marker '[!]'"),
+            "{:?}",
+            reported[0]
+        );
+        assert!(reported[0].next_action.contains("waived=DEBT-xxx"));
+    }
+
+    #[test]
+    fn a_waiver_backed_by_an_existing_debt_is_silent() {
+        let directory = workspace_with_criteria(
+            "review",
+            "- [~] No real tickers available | waived=DEBT-007",
+        );
+        fs::create_dir_all(directory.path().join(".lmbrain/debts")).unwrap();
+        fs::write(
+            directory.path().join(".lmbrain/debts/DEBT-007-tickers.md"),
+            "---
+id: DEBT-007
+---
+",
+        )
+        .unwrap();
+
+        assert!(criterion_diagnostics(&directory).is_empty());
+    }
+
+    #[test]
+    fn a_waiver_pointing_at_a_missing_debt_is_reported() {
+        let directory =
+            workspace_with_criteria("review", "- [~] No real tickers | waived=DEBT-404");
+        let reported = criterion_diagnostics(&directory);
+
+        assert_eq!(reported.len(), 1);
+        assert!(
+            reported[0].message.contains("DEBT-404"),
+            "{:?}",
+            reported[0]
+        );
+    }
+
+    #[test]
+    fn a_waiver_without_a_debt_reference_is_reported_as_malformed() {
+        let directory = workspace_with_criteria("review", "- [~] No real tickers");
+        let reported = criterion_diagnostics(&directory);
+
+        assert_eq!(reported.len(), 1);
+        assert!(
+            reported[0]
+                .message
+                .contains("waived without a debt reference"),
+            "{:?}",
+            reported[0]
+        );
+    }
+
+    #[test]
+    fn an_unmet_criterion_on_a_done_spec_is_a_warning() {
+        let directory = workspace_with_criteria("done", "- [ ] Never satisfied");
+        let reported = criterion_diagnostics(&directory);
+
+        assert_eq!(reported.len(), 1);
+        assert_eq!(reported[0].severity, DiagnosticSeverity::Warning);
+    }
+
+    #[test]
+    fn criteria_are_not_diagnosed_before_review() {
+        let directory = workspace_with_criteria(
+            "working",
+            "- [ ] Still open
+- [!] Impeded",
+        );
+        assert!(criterion_diagnostics(&directory).is_empty());
+    }
 
     #[test]
     fn diagnostics_are_stable_actionable_and_reconcile_roadmap_state() {

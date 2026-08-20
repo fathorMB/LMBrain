@@ -115,6 +115,7 @@ const RESERVED_CREATION_FIELDS: &[&str] = &[
     "review_events",
     "mutation_overrides",
     "dependency_events",
+    "verification_gate_events",
     "parking_events",
     "finding_taxonomy_version",
 ];

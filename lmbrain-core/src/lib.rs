@@ -17,6 +17,7 @@ pub mod path;
 pub mod review;
 pub mod roadmap;
 pub mod spec_dependencies;
+pub mod spec_verification_gates;
 pub mod taxonomy;
 pub mod transitions;
 pub mod verification;
@@ -73,6 +74,7 @@ pub use improvement::{
     AgentEffectivenessMetrics, AgentImprovementSignal, ImprovementApplyResult, ImprovementError,
     ImprovementProposalRequest,
 };
+pub use invariants::{classify_acceptance_criteria, AcceptanceCriterion, AcceptanceCriterionState};
 pub use kit_feedback::{
     read_kit_feedback, record_kit_feedback, record_kit_feedback_resolution, KitFeedbackError,
     KitFeedbackInput, KitFeedbackMutation, KitFeedbackNote, KitFeedbackNoteStatus,
@@ -93,6 +95,10 @@ pub use spec_dependencies::{
     SpecDependencyBlocker, SpecDependencyCandidate, SpecDependencyCandidateInventory,
     SpecDependencyContext, SpecDependencyError, SpecDependencyMutation,
     SPEC_DEPENDENCY_EVENT_SCHEMA_VERSION,
+};
+pub use spec_verification_gates::{
+    set_spec_verification_gates, SpecVerificationGatesError, SpecVerificationGatesMutation,
+    SPEC_VERIFICATION_GATE_EVENT_SCHEMA_VERSION,
 };
 pub use taxonomy::{
     canonical_finding_categories, canonical_spec_tags, capability_tiers, default_thinking_level,
