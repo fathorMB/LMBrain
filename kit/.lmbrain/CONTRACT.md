@@ -27,6 +27,8 @@ Operator approval is machine-local application state keyed by canonical workspac
 
 `.lmbrain/verification.toml` is an optional strict, versioned registry of named verification gates. Specs reference gates with `verification_gates`; MCP `spec_verify` accepts a spec identity, never an ad-hoc command. Execution requires a machine-local approval bound to the canonical workspace identity and manifest digest, granted by the Project Lead through `verification_manifest_approve`. Gates use direct program/argv execution, confined cwd, a minimal environment, time/output limits, and process-tree termination. Generated transcripts record real green or red results, manifest digest, workspace fingerprint, tool version, and content hash.
 
+`spec_set_verification_gates` is the only operation that replaces the gate contract a spec declares. It requires actor, reason, and the exact source digest of the spec, validates every ID against the current manifest, and appends a `verification_gate_events` record. Gates may also be declared at `lmbrain_create` through the `verification_gates` creation field. Replacement is allowed only in `backlog`, `ready`, and `working`: a spec in `review` or `done` has already been verified against a specific contract, and swapping it there would invalidate the recorded transcript instead of re-earning it. The path from an approved manifest to an executed gate is therefore walkable entirely through verbs, and the managed frontmatter is never edited by hand.
+
 A `Required verification` item with `kind=executable` declares a gate that the kit could execute only when its ID is present in the approved manifest. Manual or operator evidence is distinct: a checked transcript or checklist item is self-reported evidence and never proves kit execution. Validation and project digest diagnostics report declared executable-gate count, manifest coverage, and approval state; they never treat a checked item as executed.
 
 Verification onboarding is explicit and reversible. `verification_manifest_status` reports `absent`, `invalid`, `unsafe`, `unapproved`, `approved`, `stale`, or `approval-invalid` with a next action. `verification_manifest_init` produces a bounded deterministic preview from supported repository metadata; it never executes discovered commands and never imports shell bodies from package scripts or CI. `verification_manifest_validate` validates complete TOML without writing. `verification_manifest_set` atomically replaces the complete manifest with optimistic digest checking and preserves one recoverable previous version; `verification_manifest_rollback` restores it with the same stale-write protection. Every create, replace, or rollback requires a separate approval of the resulting digest.
@@ -64,6 +66,16 @@ Normal `spec_ready` and `spec_start` require every direct hard prerequisite to b
 `spec_dependencies_set` is the only dependency replacement operation. It requires actor, reason, the exact source digest returned by dependency context, graph validation, and an append-only `dependency_events` record. Dependency edits are allowed only in `backlog`; an approved spec must first be parked so its readiness cannot survive a changed contract.
 
 `spec_park` is the only legal `ready -> backlog` operation. It requires actor and reason, accepts an optional revisit condition, moves atomically, and appends `parking_events` with `readiness_invalidated: true`. It is not discard, rejection, remediation rollback, or an agent-failure signal. Re-entry uses normal `spec_ready` and preserves all parking history. The app displays dependency and parking state read-only and exposes no approve, parking, dependency mutation, or other status-changing action.
+
+## Acceptance criteria markers
+
+A spec's `## Acceptance criteria` section recognizes exactly three markers, and no others:
+
+- `- [ ]` — declared and not satisfied.
+- `- [x]` — satisfied, with the evidence recorded in `## Implementation evidence`.
+- `- [~] <criterion> | waived=DEBT-xxx` — impeded and consciously waived, with the residue carried by an existing debt. The original criterion text is preserved in full; the waiver never rewrites it.
+
+Any other marker is treated as not satisfied by every transition and is reported by name as `acceptance-criterion-unsatisfied`, so an invented convention cannot pass as an accepted one. `spec_done` requires every criterion to be satisfied or validly waived, and rejects a waiver whose debt does not exist. From `review` onward, validation reports each unsatisfied criterion individually: informative in `review`, a warning in `done`, where an open criterion contradicts the invariant that allowed the closeout. Declaring an impediment honestly is therefore visible to the tools, not only to whoever reads the artifact in full.
 
 ## LMBrain kit feedback report
 

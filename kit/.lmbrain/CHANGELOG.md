@@ -4,6 +4,17 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 4.2.2 - 2026-08-20
+
+### Added
+
+- **Governed verification gate binding (#119).** `spec_set_verification_gates` replaces the executable gate contract a spec declares. It validates every ID against the current verification manifest, requires actor, reason, and the exact source digest, and appends a `verification_gate_events` record. Replacement is confined to `backlog`, `ready`, and `working`, so a contract a spec has already been verified against is never swapped underneath its transcript. The path from an approved manifest to an executed gate is now walkable entirely through verbs.
+- **Visible acceptance criteria (#120).** Validation reports each unsatisfied acceptance criterion on a spec in `review` or `done` as `acceptance-criterion-unsatisfied`: informative in `review`, a warning in `done`. Unrecognized markers, waivers without a debt reference, and waivers naming a missing debt are each named for what they are, instead of collapsing into silence.
+
+### Documentation
+
+- **Acceptance criteria markers (#121).** The contract and the agent instructions now define the three recognized markers, including `- [~] <criterion> | waived=DEBT-xxx` for a consciously waived criterion, and state that any other marker counts as not satisfied. The marker existed and was enforced since 4.0.x but was documented only in release notes, so agents invented conventions the tools could not read.
+
 ## 4.2.1 - 2026-08-13
 
 ### Fixed

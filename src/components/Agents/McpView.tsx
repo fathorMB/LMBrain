@@ -12,6 +12,7 @@ const LMBRAIN_MCP_TOOLS: { name: string; category: string; description: string }
   { name: "spec_discard", category: "Spec", description: "Discard a spec (requires operator approval)." },
   { name: "spec_park", category: "Spec", description: "Project Lead: park a ready spec in backlog with preserved reason and history." },
   { name: "spec_dependencies_set", category: "Spec", description: "Replace backlog hard prerequisites with graph validation, audit, and stale-write protection." },
+  { name: "spec_set_verification_gates", category: "Spec", description: "Replace the executable gate contract a spec declares, validated against the current verification manifest, with audit history and stale-write protection." },
   { name: "spec_dependency_context", category: "Context", description: "Inspect direct, dependent, transitive, and blocking hard-spec relationships. Read-only." },
   { name: "spec_dependency_candidates", category: "Context", description: "Inventory explicit legacy hard-dependency prose without promoting it. Read-only." },
   { name: "review_accept", category: "Review", description: "Accept a review and record the verdict event on explicit operator request." },

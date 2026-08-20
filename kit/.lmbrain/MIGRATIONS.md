@@ -4,7 +4,21 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `4.2.1`.
+The current kit is `4.2.2`.
+
+### 4.2.2 (governed verification gates and visible acceptance criteria)
+
+Supported source version is `4.2.1`. This maintenance release changes no artifact schema and requires no content rewrite.
+
+1. Update the desktop application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together.
+2. Preserve project-specific content while realigning kit-owned release documentation and update `.lmbrain/VERSION` to `4.2.2` after validation.
+3. Run `lmbrain_validate`.
+
+Specs may now declare their executable gates through `spec_set_verification_gates`. Existing specs are unaffected: an empty `verification_gates` set remains valid and simply executes no gate. Specs that already reference gates keep their references, and the new optional `verification_gate_events` field only appears once a governed replacement is recorded.
+
+Validation reports `acceptance-criterion-unsatisfied` for each criterion that is not satisfied or validly waived on a spec in `review` or `done`. Existing workspaces may therefore surface new informational diagnostics on specs already in review, and warnings on legacy `done` specs closed before the invariant was enforced. This is reporting only: no transition behaviour changes, and `spec_done` remains the single hard gate.
+
+Rollback to 4.2.1 leaves workspace data intact. `verification_gate_events` written by 4.2.2 is preserved as unread frontmatter, and the new diagnostics simply stop being reported.
 
 ### 4.2.1 (real-time refresh after controlled migrations)
 

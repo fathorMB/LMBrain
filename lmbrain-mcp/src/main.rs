@@ -28,11 +28,12 @@ use lmbrain_core::{
     load_harness_manifest, load_verification_manifest, park_spec, parse_harness_manifest,
     plan_debt, read_kit_feedback, record_kit_feedback, record_kit_feedback_resolution, reopen_debt,
     resolve_debt, rollback_verification_manifest, set_branching_strategy, set_harness_manifest,
-    set_spec_dependencies, set_verification_manifest, spec_dependency_candidates,
-    spec_dependency_context, supersede_debt, validate_verification_manifest_source,
-    verification_manifest_status, AttestationDelegation, BranchingStrategy, DebtCreateInput,
-    DreamCreateInput, HarnessManifestError, ImprovementProposalRequest, KitFeedbackInput,
-    ReviewEventInput, SpecParkingInput, VerificationManifest, VerificationManifestState,
+    set_spec_dependencies, set_spec_verification_gates, set_verification_manifest,
+    spec_dependency_candidates, spec_dependency_context, supersede_debt,
+    validate_verification_manifest_source, verification_manifest_status, AttestationDelegation,
+    BranchingStrategy, DebtCreateInput, DreamCreateInput, HarnessManifestError,
+    ImprovementProposalRequest, KitFeedbackInput, ReviewEventInput, SpecParkingInput,
+    VerificationManifest, VerificationManifestState,
 };
 use serde_json::{json, Value};
 
@@ -441,6 +442,21 @@ fn spec_dependency_tools() -> Vec<Value> {
             "name":"spec_dependency_candidates",
             "description":"Read-only conservative inventory of explicit hard-dependency prose. Candidates are never promoted automatically.",
             "inputSchema":{"type":"object","properties":{},"additionalProperties":false}
+        }),
+        json!({
+            "name":"spec_set_verification_gates",
+            "description":"Project Lead: replace the executable gate contract a spec declares, validated against the current verification manifest, with audit history and optimistic concurrency. Allowed in backlog, ready, and working only.",
+            "inputSchema":{
+                "type":"object","required":["path","verification_gates","actor","reason","expected_digest"],
+                "properties":{
+                    "path":{"type":"string"},
+                    "verification_gates":{"type":"array","items":{"type":"string"},"description":"Gate IDs from .lmbrain/verification.toml. An empty array clears the contract."},
+                    "actor":{"type":"string"},
+                    "reason":{"type":"string"},
+                    "expected_digest":{"type":"string"}
+                },
+                "additionalProperties":false
+            }
         }),
         json!({
             "name":"spec_dependencies_set",
@@ -1182,6 +1198,16 @@ fn call(root: &PathBuf, params: &Value) -> Result<Value, String> {
         "spec_dependency_candidates" => spec_dependency_candidates(root)
             .map(|result| text(json!(result)))
             .map_err(|error| error.to_string()),
+        "spec_set_verification_gates" => set_spec_verification_gates(
+            root,
+            PathBuf::from(required_string(args, "path")?).as_path(),
+            string_array(args, "verification_gates")?,
+            required_string(args, "actor")?,
+            required_string(args, "reason")?,
+            required_string(args, "expected_digest")?,
+        )
+        .map(|result| text(json!(result)))
+        .map_err(|error| error.to_string()),
         "spec_dependencies_set" => set_spec_dependencies(
             root,
             PathBuf::from(required_string(args, "path")?).as_path(),
@@ -1792,6 +1818,7 @@ mod tests {
         assert!(names.contains(&"spec_dependency_context".to_string()));
         assert!(names.contains(&"spec_dependency_candidates".to_string()));
         assert!(names.contains(&"spec_dependencies_set".to_string()));
+        assert!(names.contains(&"spec_set_verification_gates".to_string()));
         assert!(names.contains(&"lmbrain_feedback_record".to_string()));
         assert!(names.contains(&"lmbrain_feedback_report".to_string()));
         assert!(names.contains(&"review_accept".to_string()));
@@ -2576,6 +2603,82 @@ mod tests {
         assert!(apply
             .pointer("/inputSchema/properties/raw_markdown")
             .is_none());
+    }
+
+    #[test]
+    fn spec_set_verification_gates_binds_manifest_gates_and_rejects_unknown_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        std::fs::create_dir_all(root.join(".lmbrain/specs/working")).unwrap();
+        std::fs::write(
+            root.join(".lmbrain/verification.toml"),
+            "schema_version = 1
+
+[[gates]]
+id = \"unit\"
+program = \"cargo\"
+args = [\"test\"]
+",
+        )
+        .unwrap();
+        let spec = root.join(".lmbrain/specs/working/SPEC-001-demo.md");
+        std::fs::write(
+            &spec,
+            "---
+id: SPEC-001
+title: Demo
+status: working
+verification_gates: []
+---
+
+## Acceptance criteria
+
+- [ ] Works
+",
+        )
+        .unwrap();
+        let digest = lmbrain_core::content_digest(&std::fs::read(&spec).unwrap());
+
+        let unknown = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "spec_set_verification_gates",
+                "arguments": {
+                    "path": ".lmbrain/specs/working/SPEC-001-demo.md",
+                    "verification_gates": ["missing"],
+                    "actor": "AGENT-LEAD",
+                    "reason": "bind the approved manifest",
+                    "expected_digest": digest
+                }
+            }),
+        )
+        .unwrap_err();
+        assert!(
+            unknown.contains("absent from the current manifest"),
+            "{unknown}"
+        );
+
+        let ok = super::call(
+            &root,
+            &serde_json::json!({
+                "name": "spec_set_verification_gates",
+                "arguments": {
+                    "path": ".lmbrain/specs/working/SPEC-001-demo.md",
+                    "verification_gates": ["unit"],
+                    "actor": "AGENT-LEAD",
+                    "reason": "bind the approved manifest",
+                    "expected_digest": digest
+                }
+            }),
+        )
+        .unwrap();
+        assert!(ok.to_string().contains("unit"));
+        let written = std::fs::read_to_string(&spec).unwrap();
+        assert!(
+            written.contains("verification_gates: [\"unit\"]"),
+            "{written}"
+        );
+        assert!(written.contains("verification_gate_events"), "{written}");
     }
 
     #[test]
