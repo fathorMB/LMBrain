@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 pub use lmbrain_core::AdrStatus;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct Adr {
     pub id: String,
     pub title: String,

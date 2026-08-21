@@ -1,4 +1,4 @@
-﻿use std::{
+use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     path::{Component, Path, PathBuf},
@@ -26,7 +26,7 @@ pub const DEFAULT_TIMEOUT_SECONDS: u64 = 900;
 pub const DEFAULT_OUTPUT_BYTES: usize = 128 * 1024;
 pub const MAX_OUTPUT_BYTES: usize = 2 * 1024 * 1024;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct VerificationManifest {
     pub schema_version: u32,
@@ -34,7 +34,7 @@ pub struct VerificationManifest {
     pub gates: Vec<VerificationGate>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct VerificationGate {
     pub id: String,

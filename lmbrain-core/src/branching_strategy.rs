@@ -31,7 +31,7 @@ pub enum BranchingStrategyError {
     UnauthorizedActor { actor: String },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum BranchingTopology {
     MainOnly,
@@ -40,7 +40,7 @@ pub enum BranchingTopology {
     Custom,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct BranchNamingConfig {
     #[serde(default)]
@@ -59,7 +59,7 @@ fn default_true() -> bool {
     true
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct BranchAuthorityConfig {
     #[serde(default)]
@@ -70,7 +70,7 @@ pub struct BranchAuthorityConfig {
     pub require_pr_for_merge: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct CommitTriggersConfig {
     #[serde(default = "default_true")]
@@ -79,7 +79,7 @@ pub struct CommitTriggersConfig {
     pub commit_on_doc_change: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct BranchingStrategy {
     pub schema_version: u32,

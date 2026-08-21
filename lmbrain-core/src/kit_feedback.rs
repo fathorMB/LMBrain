@@ -40,7 +40,7 @@ pub struct KitFeedbackInput {
     pub actor: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct KitFeedbackNote {
     pub id: String,
     pub timestamp: String,
@@ -61,7 +61,7 @@ pub struct KitFeedbackNote {
 /// An append-only lifecycle event for one note: `resolved` retires the note
 /// against a named LMBrain release; `reconfirmed` records that a still-open
 /// note reproduced on a later version, without minting a new note ID.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct KitFeedbackResolution {
     pub note_id: String,
     pub kind: String,
@@ -82,7 +82,7 @@ pub struct KitFeedbackResolutionInput {
 
 /// Derived, never persisted: the current standing of one note given its
 /// resolution events.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct KitFeedbackNoteStatus {
     pub note_id: String,
     pub status: String,
@@ -90,7 +90,7 @@ pub struct KitFeedbackNoteStatus {
     pub reconfirmed_in: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct KitFeedbackReport {
     pub schema_version: String,
     pub path: String,

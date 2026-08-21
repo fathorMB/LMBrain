@@ -4,7 +4,7 @@ use crate::frontmatter::Document;
 
 pub const ROADMAP_STATUSES: &[&str] = &["proposed", "active", "completed"];
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct RoadmapMilestone {
     pub id: String,
     pub title: String,
@@ -16,7 +16,7 @@ pub struct RoadmapMilestone {
     pub depends_on: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct Roadmap {
     pub title: String,
     pub milestones: Vec<RoadmapMilestone>,

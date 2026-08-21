@@ -14,6 +14,7 @@ toml.workspace = true
 toml_edit.workspace = true
 regex.workspace = true
 fs2.workspace = true
+ts-rs.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true

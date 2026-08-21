@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 pub use lmbrain_core::{McpProposalStatus, McpStatus};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct McpRecord {
     pub id: String,
     pub title: String,
@@ -16,7 +17,7 @@ pub struct McpRecord {
     pub malformed: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct McpProposal {
     pub id: String,
     pub title: String,

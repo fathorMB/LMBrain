@@ -13,7 +13,7 @@ use crate::{
 
 pub const DIAGNOSTIC_SCHEMA_VERSION: &str = "1";
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, ts_rs::TS)]
 #[serde(rename_all = "lowercase")]
 pub enum DiagnosticSeverity {
     Info,
@@ -21,7 +21,7 @@ pub enum DiagnosticSeverity {
     Error,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum DiagnosticFixability {
     Manual,
@@ -29,7 +29,7 @@ pub enum DiagnosticFixability {
     ReadOnly,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct Diagnostic {
     pub schema_version: String,
     pub id: String,

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct DesignMockup {
     pub id: String,
     pub name: String,
@@ -16,7 +17,7 @@ pub struct DesignMockup {
     pub has_readme: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
 pub enum DesignMockupKind {
     #[serde(rename = "package")]
     Package,
@@ -24,7 +25,7 @@ pub enum DesignMockupKind {
     HtmlFile,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct DesignMockupHtml {
     pub path: String,
     pub content: String,

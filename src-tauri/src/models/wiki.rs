@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct WikiNode {
     pub name: String,
     pub path: String,
@@ -9,7 +10,7 @@ pub struct WikiNode {
     pub count: Option<usize>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
 pub enum WikiNodeKind {
     #[serde(rename = "file")]
     File,
@@ -35,7 +36,7 @@ pub enum WikiNodeKind {
     Mcp,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct WikiPage {
     pub path: String,
     pub name: String,
@@ -47,7 +48,7 @@ pub struct WikiPage {
     pub word_count: Option<usize>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct WikiTree {
     pub root: WikiNode,
 }

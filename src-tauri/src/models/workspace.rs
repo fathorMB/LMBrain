@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::models::{
     adr::Adr,
@@ -12,7 +13,7 @@ use crate::models::{
     statistics::ProjectStatistics,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
 pub enum KitHealth {
     #[serde(rename = "ok")]
     Ok,
@@ -24,7 +25,7 @@ pub enum KitHealth {
 
 pub use lmbrain_core::{Diagnostic as KitDiagnostic, DiagnosticFixability, DiagnosticSeverity};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct WorkspaceSummary {
     pub path: String,
     pub name: String,
@@ -34,7 +35,7 @@ pub struct WorkspaceSummary {
     pub is_clean: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
 pub enum KitMigrationStatus {
     #[serde(rename = "up-to-date")]
     UpToDate,
@@ -50,7 +51,7 @@ pub enum KitMigrationStatus {
     MigrationGuidanceMissing,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct WorkspaceInfo {
     pub path: String,
     pub name: String,
@@ -70,13 +71,13 @@ pub struct WorkspaceInfo {
     pub kit_migration_status: KitMigrationStatus,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct WorkspaceRegistry {
     pub recent: Vec<WorkspaceSummary>,
     pub pinned: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct WorkspaceSnapshot {
     pub pulse_data: PulseData,
     pub specs: Vec<Spec>,

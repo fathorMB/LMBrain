@@ -1,15 +1,16 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 pub use lmbrain_core::ReviewStatus;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ReviewFinding {
     pub id: String,
     pub text: String,
     pub severity: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct Review {
     pub id: String,
     pub title: String,

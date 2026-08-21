@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct StatusCount {
     pub status: String,
     pub count: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ArtifactFamilyStats {
     pub family: String,
     pub label: String,
@@ -14,7 +15,7 @@ pub struct ArtifactFamilyStats {
     pub statuses: Vec<StatusCount>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct SpecFlowStats {
     pub total_specs: usize,
     pub done_specs: usize,
@@ -25,7 +26,7 @@ pub struct SpecFlowStats {
     pub by_area: Vec<StatusCount>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ReviewDimensionStat {
     pub value: String,
     pub reviewed_specs: usize,
@@ -33,7 +34,7 @@ pub struct ReviewDimensionStat {
     pub change_request_rate: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ReviewTrendPoint {
     pub period: String,
     pub total_reviews: usize,
@@ -43,7 +44,7 @@ pub struct ReviewTrendPoint {
     pub specs_with_changes_requested: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ReviewCycleRankingEntry {
     pub spec_id: String,
     pub title: String,
@@ -57,7 +58,7 @@ pub struct ReviewCycleRankingEntry {
     pub warnings: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ReviewQualityStats {
     pub total_reviews: usize,
     pub total_review_passes: usize,
@@ -87,7 +88,7 @@ pub struct ReviewQualityStats {
     pub trend: Vec<ReviewTrendPoint>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct DiagnosticStats {
     pub total: usize,
     pub warnings: usize,
@@ -95,7 +96,7 @@ pub struct DiagnosticStats {
     pub by_family: Vec<StatusCount>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ProjectStatistics {
     pub artifact_families: Vec<ArtifactFamilyStats>,
     pub spec_flow: SpecFlowStats,

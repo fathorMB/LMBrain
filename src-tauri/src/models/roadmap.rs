@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 pub use lmbrain_core::{Roadmap, RoadmapMilestone as Milestone};
 
 // ─── V3 milestone intelligence ─────────────────────────────────────
 
 /// Derived spec summary for milestone overview.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct MilestoneSpecSummary {
     pub id: String,
     pub title: String,
@@ -17,7 +18,7 @@ pub struct MilestoneSpecSummary {
 }
 
 /// Derived review summary for milestone overview.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct MilestoneReviewSummary {
     pub id: String,
     pub title: String,
@@ -27,7 +28,7 @@ pub struct MilestoneReviewSummary {
 }
 
 /// Derived ADR summary for milestone overview.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct MilestoneAdrSummary {
     pub id: String,
     pub title: String,
@@ -36,7 +37,7 @@ pub struct MilestoneAdrSummary {
 }
 
 /// Per-milestone derived intelligence.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct MilestoneDetail {
     pub id: String,
     pub title: String,
@@ -55,7 +56,7 @@ pub struct MilestoneDetail {
 }
 
 /// Full milestone overview returned to the frontend.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct MilestoneOverview {
     pub title: String,
     pub milestones: Vec<MilestoneDetail>,

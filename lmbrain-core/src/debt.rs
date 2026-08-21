@@ -60,7 +60,7 @@ pub struct DebtCreateInput {
     pub rationale: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct Debt {
     pub id: String,
     pub title: String,
@@ -88,7 +88,7 @@ pub struct Debt {
     pub malformed: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct DebtContext {
     pub schema_version: String,
     pub debt: Debt,
@@ -100,12 +100,13 @@ pub struct DebtContext {
     pub blockers: Vec<RelationSummary>,
     pub resolution_refs: Vec<RelationSummary>,
     pub superseded_by: Option<RelationSummary>,
+    #[ts(type = "Array<Record<string, unknown>>")]
     pub events: Vec<serde_json::Value>,
     pub warnings: Vec<String>,
     pub omitted_relations: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct RelationSummary {
     pub id: String,
     pub title: String,
@@ -113,7 +114,7 @@ pub struct RelationSummary {
     pub path: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct DebtCandidate {
     pub origin_artifact: String,
     pub origin_ref: String,
@@ -122,7 +123,7 @@ pub struct DebtCandidate {
     pub inference: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct DebtCandidateInventory {
     pub schema_version: String,
     pub candidates: Vec<DebtCandidate>,
