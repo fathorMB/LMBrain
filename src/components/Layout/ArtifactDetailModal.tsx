@@ -1,5 +1,6 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
+import { useDialog } from "../../hooks/useDialog";
 import { parseMarkdown } from "../../lib/commands";
 import { MarkdownRenderer } from "../../lib/markdown";
 import type { ParsedDocument } from "../../types";
@@ -128,19 +129,10 @@ export function ArtifactDetailModal() {
   const activeError = loadedPath === path ? error : null;
   const loading = path ? path !== loadedPath && !activeError : false;
 
-  if (path !== prevPath) {
-    setPrevPath(path || "");
-  }
-
-  // Restore focus when the modal unmounts
-  useEffect(() => {
-    const prev = document.activeElement as HTMLElement;
-    return () => {
-      if (prev) {
-        prev.focus();
-      }
-    };
-  }, []);
+  const { dialogRef, handleKeyDown } = useDialog<HTMLDivElement>({
+    isOpen: Boolean(artifact && path),
+    onClose: () => openDetailArtifact(null),
+  });
 
   // Fetch the artifact content on mount, path change, or a successful write.
   useEffect(() => {
@@ -154,9 +146,6 @@ export function ArtifactDetailModal() {
         setDoc(parsedDoc);
         setContent(parsedDoc.body);
         setLoadedPath(path);
-        if (modalRef.current) {
-          modalRef.current.focus();
-        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -167,43 +156,6 @@ export function ArtifactDetailModal() {
       cancelled = true;
     };
   }, [path]);
-
-  // Handle ESC and Tab trap
-  useEffect(() => {
-    if (!path) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        openDetailArtifact(null);
-      }
-      if (e.key === "Tab" && modalRef.current) {
-        const focusableElements = modalRef.current.querySelectorAll(
-          'a[href], button, textarea, input, select, [tabindex]:not([tabindex="-1"])'
-        );
-        if (focusableElements.length === 0) {
-          e.preventDefault();
-          return;
-        }
-        const firstElement = focusableElements[0] as HTMLElement;
-        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
-
-        if (e.shiftKey) {
-          if (document.activeElement === firstElement) {
-            lastElement.focus();
-            e.preventDefault();
-          }
-        } else {
-          if (document.activeElement === lastElement) {
-            firstElement.focus();
-            e.preventDefault();
-          }
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [path, openDetailArtifact]);
 
   if (!artifact || !path) return null;
 
@@ -219,6 +171,8 @@ export function ArtifactDetailModal() {
 
   return (
     <div
+      role="presentation"
+      onKeyDown={handleKeyDown}
       style={{
         position: "fixed",
         top: 0,
@@ -236,7 +190,7 @@ export function ArtifactDetailModal() {
       onClick={() => openDetailArtifact(null)}
     >
       <div
-        ref={modalRef}
+        ref={dialogRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
