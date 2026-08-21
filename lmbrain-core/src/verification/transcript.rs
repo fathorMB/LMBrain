@@ -15,6 +15,7 @@ use super::{
     VerificationError,
 };
 use crate::frontmatter::Document;
+use crate::markdown::fence_mask;
 
 pub const GENERATED_TRANSCRIPT_START: &str = "<!-- lmbrain-generated-verification:start -->";
 pub const GENERATED_TRANSCRIPT_END: &str = "<!-- lmbrain-generated-verification:end -->";
@@ -179,25 +180,6 @@ pub fn transcript_hash_matches(transcript: &str, recorded_hash: &str) -> bool {
         .join("\n");
     let canonical = format!("{}\n", without_hash.trim_matches('\n'));
     hex_digest(canonical.as_bytes()) == recorded_hash
-}
-
-pub fn fence_mask(lines: &[&str]) -> Vec<bool> {
-    let mut mask = Vec::with_capacity(lines.len());
-    let mut in_fence = false;
-    for line in lines {
-        if is_fence(line) {
-            mask.push(true);
-            in_fence = !in_fence;
-        } else {
-            mask.push(in_fence);
-        }
-    }
-    mask
-}
-
-pub fn is_fence(line: &str) -> bool {
-    let trimmed = line.trim_start();
-    trimmed.starts_with("```") || trimmed.starts_with("~~~")
 }
 
 pub fn section_at_level<'a>(body: &'a str, heading: &str, level: usize) -> Option<&'a str> {

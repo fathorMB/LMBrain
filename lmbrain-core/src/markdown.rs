@@ -28,6 +28,32 @@ pub fn is_fence_line(line: &str) -> Option<(char, usize, &str)> {
     Some((marker, count, rest))
 }
 
+/// Marks lines that belong to fenced code blocks, including their delimiters.
+/// Closing fences must use the same marker and at least the opening length.
+pub fn fence_mask(lines: &[&str]) -> Vec<bool> {
+    let mut mask = Vec::with_capacity(lines.len());
+    let mut fence: Option<(char, usize)> = None;
+    for line in lines {
+        if let Some((marker, count, _)) = is_fence_line(line) {
+            match fence {
+                Some((open_marker, open_count)) if open_marker == marker && count >= open_count => {
+                    mask.push(true);
+                    fence = None;
+                    continue;
+                }
+                None => {
+                    mask.push(true);
+                    fence = Some((marker, count));
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        mask.push(fence.is_some());
+    }
+    mask
+}
+
 pub fn find_section<'a>(body: &'a str, heading: &str, level: usize) -> Option<&'a str> {
     find_section_with(body, level, |candidate| candidate.eq_ignore_ascii_case(heading))
 }
