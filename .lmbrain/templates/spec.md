@@ -1,0 +1,98 @@
+---
+id: SPEC-XXX
+# Note: Quote the title if it contains a colon
+title: "Feature or work item title"
+status: backlog
+kind: feature
+priority: medium
+area: null
+milestone: null
+# References use IDs only (e.g. [SPEC-001]); use [[wikilinks]] in prose
+recommended_agent: AGENT-XXX
+# Implementation estimate. Required before this spec can become `ready`.
+# capability_tier: luna | terra | sol   (expected change footprint)
+# thinking_level: minimal | standard | extended | maximum (defaults from the tier)
+capability_tier: null
+thinking_level: null
+effort_observations: []
+depends_on: []
+dependency_events: []
+parking_events: []
+skills: []
+verification_gates: []
+related_decisions: []
+links: []
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+tags: []
+---
+
+# Title
+
+Replace the scaffolded sections below with the specification body. Do not insert a completed body above the untouched template: duplicated canonical H2 sections are reported as an authoring diagnostic and are never removed automatically.
+
+## Objective
+
+## Context
+
+## Scope
+### Included
+
+### Excluded
+
+## Existing-project analysis
+
+## Technical proposal
+
+## Files and areas involved
+
+## Acceptance criteria
+- [ ] 
+
+## Implementation plan
+1. 
+
+## Required verification
+
+<!-- Canonical form: ID | kind=executable|manual|operator | owner=agent|kit|lead|operator | phase=before-submit|before-done | evidence=transcript|observation|artifact | requirement -->
+- [ ] GATE-ID | kind=manual | owner=agent | phase=before-submit | evidence=transcript | Describe the exact check
+
+## Production quality and documentation
+- Follow [[QUALITY]]; this is production work, not a prototype.
+- Identify and update all relevant technical LMBrain knowledge pages delegated by this spec.
+- Report any quality-policy exception explicitly; do not silently accept shortcuts.
+
+## Risks and open decisions
+
+## Instructions for the assigned specialist
+- If this spec is in `ready`, run `spec_start` as your first implementation action and `spec_submit` when the implementation is complete. If this spec is already in `review` for remediation, do not move it back to `working`; update evidence and report completion for re-review.
+- Implement only the stated scope.
+- Report changed files, tests run, and known limitations.
+- Produce production-grade, maintainable code; do not ship placeholder, POC, or knowingly incomplete behaviour.
+- Update only the technical documentation explicitly delegated by this spec, plus implementation evidence.
+- Challenge flawed or fragile technical assumptions and propose the clean alternative; consult current official documentation when material behavior is uncertain or changeable.
+- Do not adopt shortcuts without the explicit operator-approved exception required by [[QUALITY]].
+- Do not change product scope, roadmap, or ADRs.
+- **V3 context-economy:** Read mandatory policy files (`QUALITY.md`, `CONTRACT.md`, `AGENT.md`) first. Use `lmbrain_spec_context` for a compact handoff context. Expand to full artifacts and source code only when the context pack points to them or verification requires it. Record evidence when you expand scope beyond the context pack.
+
+## Implementation evidence
+> Filled in by the specialist after completion.
+
+### Changes made
+
+### Files changed
+
+### Verification performed
+
+### Verification transcript
+
+<!-- Required before spec_submit. Paste actual command/result output in a fenced block, or use approved `spec_verify` gates. Predictions and summaries are not execution evidence. -->
+
+```text
+
+```
+
+### Deviations from the specification
+
+### Handoff status
+- [ ] Ready for Project Lead review
