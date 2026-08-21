@@ -133,9 +133,12 @@ export function Sidebar() {
       <div style={{ flex: 1 }} />
 
       {/* Search */}
-      <div
+      <button
+        type="button"
+        aria-label="Search (Command/Ctrl + K)"
         onClick={toggleCmdk}
         style={{
+          width: "100%",
           display: "flex",
           alignItems: "center",
           gap: 9,
@@ -145,6 +148,10 @@ export function Sidebar() {
           color: "var(--text-secondary)",
           fontSize: "var(--text-md)",
           fontWeight: 500,
+          border: "none",
+          background: "transparent",
+          textAlign: "left",
+          fontFamily: "inherit",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = "var(--bg-hover)";
@@ -176,12 +183,14 @@ export function Sidebar() {
         >
           ⌘K
         </span>
-      </div>
+      </button>
 
       {/* Settings */}
-      <div
+      <button
+        type="button"
         onClick={() => navigateTo("settings")}
         style={{
+          width: "100%",
           display: "flex",
           alignItems: "center",
           gap: 9,
@@ -191,6 +200,10 @@ export function Sidebar() {
           color: "var(--text-secondary)",
           fontSize: "var(--text-md)",
           fontWeight: 500,
+          border: "none",
+          background: "transparent",
+          textAlign: "left",
+          fontFamily: "inherit",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = "var(--bg-hover)";
@@ -210,12 +223,14 @@ export function Sidebar() {
           settings
         </i>
         Settings
-      </div>
+      </button>
 
       {/* Leave Workspace */}
-      <div
+      <button
+        type="button"
         onClick={triggerLeaveWorkspace}
         style={{
+          width: "100%",
           display: "flex",
           alignItems: "center",
           gap: 9,
@@ -226,6 +241,10 @@ export function Sidebar() {
           fontSize: "var(--text-md)",
           fontWeight: 500,
           marginTop: 4,
+          border: "none",
+          background: "transparent",
+          textAlign: "left",
+          fontFamily: "inherit",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = "rgba(248, 113, 113, 0.08)";
@@ -245,7 +264,7 @@ export function Sidebar() {
           logout
         </i>
         Leave workspace
-      </div>
+      </button>
     </div>
   );
 }

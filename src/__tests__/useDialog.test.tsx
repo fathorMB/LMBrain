@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { useState } from "react";
 import { useDialog } from "../hooks/useDialog";
 import { Modal } from "../components/Shared/Modal";
 
@@ -20,6 +19,7 @@ function TestDialog({
 
   return (
     <div role="presentation" onKeyDown={handleKeyDown} onMouseDown={onClose}>
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <div
         ref={dialogRef}
         role="dialog"

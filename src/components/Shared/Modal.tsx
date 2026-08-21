@@ -77,7 +77,6 @@ export function Modal({
         aria-labelledby={effectiveLabelledBy}
         tabIndex={-1}
         className={className}
-        onMouseDown={(e) => e.stopPropagation()}
         style={{
           width: typeof maxWidth === "number" ? `${maxWidth}px` : maxWidth,
           maxHeight: "90vh",

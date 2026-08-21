@@ -191,7 +191,7 @@ export function DesignView() {
                 }}
               >
                 <span>{selected.kind === "package" ? "package" : "html"}</span>
-                <span>{formatBytes(selected.size)}</span>
+                <span>{formatBytes(Number(selected.size))}</span>
                 {selected.modified && <span>{selected.modified}</span>}
                 {selected.has_manifest && <span>manifest</span>}
                 {selected.has_readme && <span>readme</span>}

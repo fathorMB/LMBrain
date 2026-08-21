@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { getAgentImprovementInsights, getAgentProposals, getAgents } from "../../lib/commands";
+import { getAgentImprovementInsights } from "../../lib/commands";
 import { CardGrid, EmptyState, PageHeader, PageShell } from "../Shared/PageLayout";
 import type { AgentImprovementInsights, AgentProfile, AgentProposal } from "../../types";
 
@@ -144,20 +144,24 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
     proposed: { color: "#e0a23a", bg: "rgba(224,162,58,.12)" },
     retired: { color: "var(--text-tertiary)", bg: "rgba(108,102,113,.12)" },
   };
-  const sc = statusColors[agent.status] || statusColors.proposed;
+  const sc = statusColors[agent.status] ?? { color: "#e0a23a", bg: "rgba(224,162,58,.12)" };
   const hasDomains = agent.domains && agent.domains.length > 0;
   const hasReviewFocus = agent.review_focus && agent.review_focus.length > 0;
   const displayName = agent.mnemonic_name || agent.title;
 
   return (
-    <div
+    <button
+      type="button"
       onClick={() => openDetailArtifact({ title: agent.title, path: agent.path })}
       style={{
+        width: "100%",
+        textAlign: "left",
+        fontFamily: "inherit",
+        border: "1px solid var(--border-secondary)",
         display: "flex",
         alignItems: "flex-start",
         gap: 14,
         background: "var(--bg-tertiary)",
-        border: "1px solid var(--border-secondary)",
         borderRadius: 11,
         padding: "14px 16px",
         cursor: "pointer",
@@ -283,7 +287,7 @@ function AgentCard({ agent }: { agent: AgentProfile }) {
       >
         {agent.status.toUpperCase()}
       </span>
-    </div>
+    </button>
   );
 }
 
@@ -294,13 +298,17 @@ function AgentProposalCard({ proposal }: { proposal: AgentProposal }) {
     approved: { color: "#46b07d", bg: "rgba(70,176,125,.12)" },
     rejected: { color: "#e0584a", bg: "rgba(224,88,74,.12)" },
   };
-  const sc = statusColors[proposal.status] || statusColors.proposed;
+  const sc = statusColors[proposal.status] ?? { color: "#e0a23a", bg: "rgba(224,162,58,.12)" };
   const isImprovement = proposal.proposal_type === "improvement";
 
   return (
-    <div
+    <button
+      type="button"
       onClick={() => openDetailArtifact({ title: proposal.title, path: proposal.path })}
       style={{
+        width: "100%",
+        textAlign: "left",
+        fontFamily: "inherit",
         display: "flex",
         alignItems: "flex-start",
         gap: 14,
@@ -363,6 +371,6 @@ function AgentProposalCard({ proposal }: { proposal: AgentProposal }) {
       >
         {proposal.status.toUpperCase()}
       </span>
-    </div>
+    </button>
   );
 }

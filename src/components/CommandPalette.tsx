@@ -47,7 +47,9 @@ export function CommandPalette() {
   return (
     <>
       {/* Scrim */}
-      <div
+      <button
+        type="button"
+        aria-label="Close palette"
         onClick={closeCmdk}
         style={{
           position: "fixed",
@@ -58,9 +60,12 @@ export function CommandPalette() {
           alignItems: "flex-start",
           justifyContent: "center",
           paddingTop: "14vh",
+          border: "none",
+          cursor: "default",
         }}
       />
       {/* Palette */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -150,16 +155,22 @@ export function CommandPalette() {
               { icon: "account_balance", label: "View Decisions", shortcut: "G D", view: "decisions" as const },
               { icon: "smart_toy", label: "View Agents & MCP", shortcut: "G A", view: "agents" as const },
             ].map((item) => (
-              <div
+              <button
+                type="button"
                 key={item.view}
                 onClick={() => navigateTo(item.view)}
                 style={{
+                  width: "100%",
                   display: "flex",
                   alignItems: "center",
                   gap: 12,
                   padding: "9px 11px",
                   borderRadius: 9,
                   cursor: "pointer",
+                  border: "none",
+                  background: "transparent",
+                  textAlign: "left",
+                  fontFamily: "inherit",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = "#221e2b";
@@ -192,7 +203,7 @@ export function CommandPalette() {
                 >
                   {item.shortcut}
                 </span>
-              </div>
+              </button>
             ))}
 
             <div
@@ -207,23 +218,29 @@ export function CommandPalette() {
             >
               Actions
             </div>
-            <div
+            <button
+              type="button"
               onClick={() => {
                 const readySpec = state.specs.find((s) => s.status === "ready");
                 if (readySpec) {
-                  navigator.clipboard.writeText(
+                  navigator.clipboard?.writeText(
                     `Implement ${readySpec.id}: ${readySpec.title}`
                   );
                 }
                 closeCmdk();
               }}
               style={{
+                width: "100%",
                 display: "flex",
                 alignItems: "center",
                 gap: 12,
                 padding: "9px 11px",
                 borderRadius: 9,
                 cursor: "pointer",
+                border: "none",
+                background: "transparent",
+                textAlign: "left",
+                fontFamily: "inherit",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "#221e2b";
@@ -247,19 +264,25 @@ export function CommandPalette() {
               >
                 Copy handoff prompt
               </span>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 triggerLeaveWorkspace();
                 closeCmdk();
               }}
               style={{
+                width: "100%",
                 display: "flex",
                 alignItems: "center",
                 gap: 12,
                 padding: "9px 11px",
                 borderRadius: 9,
                 cursor: "pointer",
+                border: "none",
+                background: "transparent",
+                textAlign: "left",
+                fontFamily: "inherit",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "#221e2b";
@@ -283,7 +306,7 @@ export function CommandPalette() {
               >
                 Switch repository…
               </span>
-            </div>
+            </button>
           </div>
         )}
 
@@ -315,15 +338,21 @@ export function CommandPalette() {
               </div>
             )}
             {results.map((r, i) => (
-              <div
+              <button
+                type="button"
                 key={i}
                 style={{
+                  width: "100%",
                   display: "flex",
                   flexDirection: "column",
                   gap: 4,
                   padding: "9px 11px",
                   borderRadius: 9,
                   cursor: "pointer",
+                  border: "none",
+                  background: "transparent",
+                  textAlign: "left",
+                  fontFamily: "inherit",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = "#221e2b";
@@ -365,7 +394,7 @@ export function CommandPalette() {
                 >
                   {r.snippet}
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}

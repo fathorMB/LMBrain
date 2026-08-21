@@ -57,7 +57,7 @@ export function HarnessesView() {
     try {
       const result = await updateHarness({
         host: status.host,
-        codex_bin: status.host === "codex" ? codexBin : undefined,
+        codex_bin: status.host === "codex" ? (codexBin || null) : null,
       });
       setResults((current) => ({ ...current, [status.host]: result }));
       setStatuses((current) => current.map((item) => item.host === status.host ? result.after : item));

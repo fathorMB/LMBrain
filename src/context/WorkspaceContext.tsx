@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type Dispatch,
   type ReactNode,
 } from "react";
 import { listen } from "@tauri-apps/api/event";

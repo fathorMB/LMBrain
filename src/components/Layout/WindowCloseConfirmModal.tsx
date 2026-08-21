@@ -37,7 +37,8 @@ export function WindowCloseConfirmModal() {
       );
       results.forEach((result, index) => {
         if (result.status === "rejected") {
-          errors.push(`${activeSessions[index].label}: ${String(result.reason)}`);
+          const session = activeSessions[index];
+          errors.push(`${session?.label ?? "Session"}: ${String(result.reason)}`);
         }
       });
     }
@@ -124,7 +125,7 @@ export function WindowCloseConfirmModal() {
           style={{ margin: "0 0 17px", fontSize: "var(--text-md)", lineHeight: 1.55, color: "var(--text-secondary)" }}
         >
           {openSessions.length === 1
-            ? `The session “${openSessions[0].label}” is still open.`
+            ? `The session “${openSessions[0]?.label ?? "Session"}” is still open.`
             : `${openSessions.length} agent sessions are still open.`}{" "}
           {activeSessions.length > 0
             ? `Closing the application will stop ${activeSessions.length === 1 ? "the running process" : `${activeSessions.length} running processes`}.`

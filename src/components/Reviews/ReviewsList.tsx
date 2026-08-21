@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { getReviews } from "../../lib/commands";
 import { CardGrid, EmptyState, PageHeader, PageShell } from "../Shared/PageLayout";
 import type { Review } from "../../types";
 
@@ -55,7 +54,7 @@ function groupReviews(reviews: Review[]): ReviewGroup[] {
     .sort(([left], [right]) => rank(left) - rank(right) || left.localeCompare(right))
     .map(([key, group]) => ({
       key,
-      label: key === "unknown" ? "UNKNOWN STATUS" : statusConfig[key].label,
+      label: key === "unknown" ? "UNKNOWN STATUS" : (statusConfig[key]?.label ?? key.toUpperCase()),
       reviews: [...group].sort(compareReviews),
       actionable: ACTIONABLE_STATUSES.includes(key as (typeof ACTIONABLE_STATUSES)[number]),
     }));
