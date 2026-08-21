@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
+import "@xterm/xterm/css/xterm.css";
 import { sessionAttach, sessionResize, sessionWrite } from "../../lib/commands";
 import { HistorySearchPanel } from "./HistorySearchPanel";
 import { terminalClipboardAction } from "../../lib/terminalClipboard";

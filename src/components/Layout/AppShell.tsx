@@ -1,38 +1,95 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { RepositoryPicker } from "../Picker/RepositoryPicker";
-import { ProjectPulse } from "../Pulse/ProjectPulse";
-import { WikiView } from "../Wiki/WikiView";
-import { TaskboardView } from "../Taskboard/TaskboardView";
-import { SpecDetail } from "../Spec/SpecDetail";
-import { ReviewsList } from "../Reviews/ReviewsList";
-import { DebtsView } from "../Debts/DebtsView";
-import { DreamsView } from "../Dreams/DreamsView";
-import { FeedbackView } from "../Feedback/FeedbackView";
-import { DecisionsList } from "../Decisions/DecisionsList";
-import { AgentsView } from "../Agents/AgentsView";
-import { McpView } from "../Agents/McpView";
-import { SkillsView } from "../Skills/SkillsView";
-import { DesignView } from "../Design/DesignView";
-import { SettingsView } from "../Settings/SettingsView";
-import { RoadmapView } from "../Roadmap/RoadmapView";
-import { InsightsView } from "../Insights/InsightsView";
-import { SessionsView } from "../Sessions/SessionsView";
-import { CommandPalette } from "../CommandPalette";
-import { ArtifactDetailModal } from "./ArtifactDetailModal";
-import { LeaveWorkspaceModal } from "./LeaveWorkspaceModal";
-import { WindowCloseConfirmModal } from "./WindowCloseConfirmModal";
-import { RepositoryView } from "../Repository/RepositoryView";
-import { EnvironmentView } from "../Environment/EnvironmentView";
+
+const RepositoryPicker = lazy(() =>
+  import("../Picker/RepositoryPicker").then((m) => ({ default: m.RepositoryPicker }))
+);
+const ProjectPulse = lazy(() =>
+  import("../Pulse/ProjectPulse").then((m) => ({ default: m.ProjectPulse }))
+);
+const WikiView = lazy(() =>
+  import("../Wiki/WikiView").then((m) => ({ default: m.WikiView }))
+);
+const TaskboardView = lazy(() =>
+  import("../Taskboard/TaskboardView").then((m) => ({ default: m.TaskboardView }))
+);
+const SpecDetail = lazy(() =>
+  import("../Spec/SpecDetail").then((m) => ({ default: m.SpecDetail }))
+);
+const ReviewsList = lazy(() =>
+  import("../Reviews/ReviewsList").then((m) => ({ default: m.ReviewsList }))
+);
+const DebtsView = lazy(() =>
+  import("../Debts/DebtsView").then((m) => ({ default: m.DebtsView }))
+);
+const DreamsView = lazy(() =>
+  import("../Dreams/DreamsView").then((m) => ({ default: m.DreamsView }))
+);
+const FeedbackView = lazy(() =>
+  import("../Feedback/FeedbackView").then((m) => ({ default: m.FeedbackView }))
+);
+const DecisionsList = lazy(() =>
+  import("../Decisions/DecisionsList").then((m) => ({ default: m.DecisionsList }))
+);
+const AgentsView = lazy(() =>
+  import("../Agents/AgentsView").then((m) => ({ default: m.AgentsView }))
+);
+const McpView = lazy(() =>
+  import("../Agents/McpView").then((m) => ({ default: m.McpView }))
+);
+const RepositoryView = lazy(() =>
+  import("../Repository/RepositoryView").then((m) => ({ default: m.RepositoryView }))
+);
+const EnvironmentView = lazy(() =>
+  import("../Environment/EnvironmentView").then((m) => ({ default: m.EnvironmentView }))
+);
+const SkillsView = lazy(() =>
+  import("../Skills/SkillsView").then((m) => ({ default: m.SkillsView }))
+);
+const DesignView = lazy(() =>
+  import("../Design/DesignView").then((m) => ({ default: m.DesignView }))
+);
+const SettingsView = lazy(() =>
+  import("../Settings/SettingsView").then((m) => ({ default: m.SettingsView }))
+);
+const RoadmapView = lazy(() =>
+  import("../Roadmap/RoadmapView").then((m) => ({ default: m.RoadmapView }))
+);
+const InsightsView = lazy(() =>
+  import("../Insights/InsightsView").then((m) => ({ default: m.InsightsView }))
+);
+const SessionsView = lazy(() =>
+  import("../Sessions/SessionsView").then((m) => ({ default: m.SessionsView }))
+);
+const CommandPalette = lazy(() =>
+  import("../CommandPalette").then((m) => ({ default: m.CommandPalette }))
+);
+const ArtifactDetailModal = lazy(() =>
+  import("./ArtifactDetailModal").then((m) => ({ default: m.ArtifactDetailModal }))
+);
+const LeaveWorkspaceModal = lazy(() =>
+  import("./LeaveWorkspaceModal").then((m) => ({ default: m.LeaveWorkspaceModal }))
+);
+const WindowCloseConfirmModal = lazy(() =>
+  import("./WindowCloseConfirmModal").then((m) => ({ default: m.WindowCloseConfirmModal }))
+);
 
 export function AppShell() {
   const { state, setWorkspaceNotice } = useWorkspace();
   const [viewRefreshRevision, setViewRefreshRevision] = useState(0);
+  const [sessionsLoaded, setSessionsLoaded] = useState(state.view === "sessions");
+  if (state.view === "sessions" && !sessionsLoaded) {
+    setSessionsLoaded(true);
+  }
 
   if (state.screen === "picker") {
-    return <RepositoryPicker />;
+    return (
+      <Suspense fallback={null}>
+        <RepositoryPicker />
+      </Suspense>
+    );
   }
 
   const renderView = () => {
@@ -150,7 +207,9 @@ export function AppShell() {
               display: state.view === "sessions" ? "none" : "block",
             }}
           >
-            {renderView()}
+            <Suspense fallback={null}>
+              {renderView()}
+            </Suspense>
           </div>
           <div
             style={{
@@ -159,20 +218,40 @@ export function AppShell() {
               display: state.currentWorkspace && state.view === "sessions" ? "block" : "none",
             }}
           >
-            <SessionsView active={state.view === "sessions"} />
+            {sessionsLoaded && (
+              <Suspense fallback={null}>
+                <SessionsView active={state.view === "sessions"} />
+              </Suspense>
+            )}
           </div>
         </div>
       </div>
 
       {/* Command Palette */}
-      {state.cmdkOpen && <CommandPalette />}
+      {state.cmdkOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette />
+        </Suspense>
+      )}
 
       {/* Artifact Detail Modal */}
-      {state.detailArtifact && <ArtifactDetailModal key={state.detailArtifact.path} />}
+      {state.detailArtifact && (
+        <Suspense fallback={null}>
+          <ArtifactDetailModal key={state.detailArtifact.path} />
+        </Suspense>
+      )}
 
       {/* Leave Workspace Confirmation Modal */}
-      {state.showExitConfirm && <LeaveWorkspaceModal />}
-      {state.showWindowCloseConfirm && <WindowCloseConfirmModal />}
+      {state.showExitConfirm && (
+        <Suspense fallback={null}>
+          <LeaveWorkspaceModal />
+        </Suspense>
+      )}
+      {state.showWindowCloseConfirm && (
+        <Suspense fallback={null}>
+          <WindowCloseConfirmModal />
+        </Suspense>
+      )}
     </div>
   );
 }
