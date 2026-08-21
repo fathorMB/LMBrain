@@ -26,6 +26,7 @@ pub mod verification_onboarding;
 pub mod workspace_index;
 
 pub use error::{CoreError, ErrorCode};
+pub use mutation_lock::WorkspaceLock;
 pub use workspace_index::{scan_workspace, ArtifactEntry, WorkspaceIndex};
 
 pub use attestation::{

@@ -7,49 +7,31 @@ use std::{
 };
 
 use fs2::FileExt;
-use sha2::{Digest, Sha256};
 
 const LOCK_TIMEOUT: Duration = Duration::from_secs(10);
 const LOCK_RETRY: Duration = Duration::from_millis(10);
 
-/// Cross-process advisory lock for mutations of one managed artifact.
+/// Cross-process advisory lock for all mutations in a workspace.
 ///
-/// The lock file is retained intentionally. The operating system releases its
-/// lock when a process exits, so a crash cannot leave a permanently held lock.
-pub(crate) struct ArtifactMutationLock {
+/// Lock file is located at `.lmbrain/.mutation.lock`.
+/// The operating system releases advisory locks when a process exits,
+/// so crashes cannot leave a permanently held lock.
+pub struct WorkspaceLock {
     file: File,
 }
 
-impl ArtifactMutationLock {
-    pub(crate) fn acquire(root: &Path, artifact_id: &str) -> io::Result<Self> {
-        let workspace_key = root.to_string_lossy();
-        #[cfg(windows)]
-        let workspace_key = workspace_key.to_ascii_lowercase();
-        let workspace_digest = Sha256::digest(workspace_key.as_bytes())
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
-        let lock_dir = std::env::temp_dir()
-            .join("lmbrain-locks")
-            .join(workspace_digest);
-        fs::create_dir_all(&lock_dir)?;
-        let safe_id: String = artifact_id
-            .chars()
-            .map(|character| {
-                if character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.') {
-                    character
-                } else {
-                    '_'
-                }
-            })
-            .collect();
-        let path = lock_dir.join(format!("artifact-{safe_id}.lock"));
+impl WorkspaceLock {
+    pub fn acquire(root: &Path) -> io::Result<Self> {
+        let lmbrain_dir = root.join(".lmbrain");
+        fs::create_dir_all(&lmbrain_dir)?;
+        let lock_path = lmbrain_dir.join(".mutation.lock");
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
-            .open(path)?;
+            .open(lock_path)?;
+
         let started = Instant::now();
         loop {
             match file.try_lock_exclusive() {
@@ -58,7 +40,7 @@ impl ArtifactMutationLock {
                     if started.elapsed() >= LOCK_TIMEOUT {
                         return Err(io::Error::new(
                             io::ErrorKind::TimedOut,
-                            format!("timed out acquiring mutation lock for {artifact_id}"),
+                            "timed out acquiring workspace mutation lock",
                         ));
                     }
                     thread::sleep(LOCK_RETRY);
@@ -69,18 +51,44 @@ impl ArtifactMutationLock {
     }
 }
 
-/// A held lock does not surface uniformly across platforms: Unix reports
-/// `WouldBlock`, while Windows returns `ERROR_LOCK_VIOLATION` (os error 33)
-/// with an `Uncategorized` kind. Before 4.0.2 the retry loop only recognized
-/// `WouldBlock`, so on Windows a contended governed mutation failed instantly
-/// instead of waiting its turn (KIT-NOTE-001's failed concurrent setter).
+impl Drop for WorkspaceLock {
+    fn drop(&mut self) {
+        let _ = FileExt::unlock(&self.file);
+    }
+}
+
+pub(crate) struct ArtifactMutationLock;
+
+impl ArtifactMutationLock {
+    #[inline]
+    pub(crate) fn acquire(root: &Path, _artifact_id: &str) -> io::Result<WorkspaceLock> {
+        WorkspaceLock::acquire(root)
+    }
+}
+
 fn is_contention(error: &io::Error) -> bool {
     error.kind() == io::ErrorKind::WouldBlock
         || error.raw_os_error() == fs2::lock_contended_error().raw_os_error()
 }
 
-impl Drop for ArtifactMutationLock {
-    fn drop(&mut self) {
-        let _ = FileExt::unlock(&self.file);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn workspace_lock_creates_single_mutation_lockfile() {
+        let dir = tempdir().unwrap();
+        let lmbrain = dir.path().join(".lmbrain");
+        fs::create_dir_all(&lmbrain).unwrap();
+
+        {
+            let _lock = WorkspaceLock::acquire(dir.path()).unwrap();
+            let lock_file = lmbrain.join(".mutation.lock");
+            assert!(lock_file.exists());
+        }
+
+        // Lock is released on drop and can be reacquired
+        let _second_lock = WorkspaceLock::acquire(dir.path()).unwrap();
     }
 }

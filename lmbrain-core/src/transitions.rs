@@ -3000,15 +3000,7 @@ pub fn supersede_adr(
     })?;
     let superseded_path = guard.resolve_existing(&superseded_path)?;
 
-    // Lock both artifacts before reading either, ordered by ID so two
-    // concurrent supersessions acquire them in the same sequence.
-    let (first, second) = if superseding_id <= superseded_id {
-        (superseding_id.as_str(), superseded_id.as_str())
-    } else {
-        (superseded_id.as_str(), superseding_id.as_str())
-    };
-    let _first_lock = ArtifactMutationLock::acquire(guard.root(), first)?;
-    let _second_lock = ArtifactMutationLock::acquire(guard.root(), second)?;
+    let _lock = ArtifactMutationLock::acquire(guard.root(), "supersede")?;
 
     let superseding_source = fs::read_to_string(&superseding_path)?;
     let mut superseding = Document::parse(&superseding_source)?;
