@@ -10,6 +10,31 @@ export interface UseDialogOptions {
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+function trapTabFocus(event: { shiftKey: boolean; preventDefault: () => void }, dialog: HTMLElement) {
+  const focusables = Array.from(
+    dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+  );
+  if (focusables.length === 0) {
+    event.preventDefault();
+    return;
+  }
+
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const activeElement = document.activeElement;
+
+  if (!dialog.contains(activeElement)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first)?.focus();
+  } else if (event.shiftKey && activeElement === first) {
+    event.preventDefault();
+    last?.focus();
+  } else if (!event.shiftKey && activeElement === last) {
+    event.preventDefault();
+    first?.focus();
+  }
+}
+
 export function useDialog<T extends HTMLElement = HTMLDivElement>(
   options: UseDialogOptions = {}
 ): {
@@ -66,28 +91,7 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(
       }
 
       if (event.key === "Tab" && dialogRef.current) {
-        const focusables = Array.from(
-          dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
-        );
-        if (focusables.length === 0) {
-          event.preventDefault();
-          return;
-        }
-
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        const activeElement = document.activeElement;
-
-        if (!dialogRef.current.contains(activeElement)) {
-          event.preventDefault();
-          (event.shiftKey ? last : first)?.focus();
-        } else if (event.shiftKey && activeElement === first) {
-          event.preventDefault();
-          last?.focus();
-        } else if (!event.shiftKey && activeElement === last) {
-          event.preventDefault();
-          first?.focus();
-        }
+        trapTabFocus(event, dialogRef.current);
       }
     };
 
@@ -100,6 +104,10 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(
   }, [isOpen, initialFocusRef, closeOnEscape]);
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === "Tab" && dialogRef.current) {
+      trapTabFocus(event, dialogRef.current);
+    }
+
     if (event.key === "Escape" && closeOnEscape && onClose) {
       event.stopPropagation();
       onClose();
