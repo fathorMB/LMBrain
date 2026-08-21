@@ -7,7 +7,6 @@ to_role: AGENT-LEAD
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 related_specs: []
-related_tasks: []
 related_reviews: []
 related_decisions: []
 links: []

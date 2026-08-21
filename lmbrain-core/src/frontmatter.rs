@@ -1212,4 +1212,35 @@ mod tests {
         let err = Document::parse(source).unwrap_err();
         assert!(err.to_string().contains("line 3") || err.to_string().contains("indentation"));
     }
+
+    #[test]
+    fn all_kit_templates_parse_and_roundtrip_cleanly() {
+        let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let templates_dir = manifest_dir.parent().unwrap().join("kit/.lmbrain/templates");
+        if templates_dir.exists() {
+            for entry in std::fs::read_dir(&templates_dir).unwrap() {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) == Some("md") {
+                    let content = std::fs::read_to_string(&path).unwrap();
+                    if !content.starts_with("---") {
+                        continue;
+                    }
+                    let doc = Document::parse(&content).unwrap_or_else(|e| {
+                        panic!("Failed to parse template {:?}: {}", path, e);
+                    });
+                    let rendered = doc.render();
+                    let doc2 = Document::parse(&rendered).unwrap_or_else(|e| {
+                        panic!("Failed to reparse rendered template {:?}: {}", path, e);
+                    });
+                    assert_eq!(
+                        doc.fields().len(),
+                        doc2.fields().len(),
+                        "Field count mismatch in {:?}",
+                        path
+                    );
+                }
+            }
+        }
+    }
 }
