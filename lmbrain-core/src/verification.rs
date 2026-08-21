@@ -680,7 +680,11 @@ fn collect_files(
         {
             continue;
         }
-        if relative.starts_with(".lmbrain/specs") || relative.starts_with(".lmbrain/reviews") {
+        if relative.starts_with(".lmbrain/specs")
+            || relative.starts_with(".lmbrain/reviews")
+            || relative == Path::new(".lmbrain/.mutation.lock")
+            || path.file_name().and_then(|n| n.to_str()) == Some(".mutation.lock")
+        {
             continue;
         }
         if exclusions
