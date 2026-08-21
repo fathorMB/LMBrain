@@ -1963,7 +1963,7 @@ dependencies = [
 
 [[package]]
 name = "lmbrain-core"
-version = "1.5.2"
+version = "4.2.2"
 dependencies = [
  "chrono",
  "fs2",
@@ -1980,7 +1980,7 @@ dependencies = [
 
 [[package]]
 name = "lmbrain-mcp"
-version = "1.5.2"
+version = "4.2.2"
 dependencies = [
  "lmbrain-core",
  "serde",

@@ -22,27 +22,7 @@ pub enum KitHealth {
     None,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KitDiagnostic {
-    pub id: String,
-    pub code: String,
-    pub message: String,
-    pub severity: DiagnosticSeverity,
-    pub artifact_id: Option<String>,
-    pub path: Option<String>,
-    pub next_action: String,
-    pub fixability: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum DiagnosticSeverity {
-    #[serde(rename = "info")]
-    Info,
-    #[serde(rename = "warning")]
-    Warning,
-    #[serde(rename = "error")]
-    Error,
-}
+pub use lmbrain_core::{Diagnostic as KitDiagnostic, DiagnosticFixability, DiagnosticSeverity};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceSummary {

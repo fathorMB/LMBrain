@@ -4,8 +4,8 @@ use std::sync::Mutex;
 use crate::commands::filesystem::clean_path;
 use crate::errors::AppError;
 use crate::models::workspace::{
-    DiagnosticSeverity, KitDiagnostic, KitHealth, KitMigrationStatus, WorkspaceInfo,
-    WorkspaceRegistry, WorkspaceSummary,
+    DiagnosticFixability, DiagnosticSeverity, KitDiagnostic, KitHealth, KitMigrationStatus,
+    WorkspaceInfo, WorkspaceRegistry, WorkspaceSummary,
 };
 
 /// Manages the workspace registry (recent/pinned workspaces) and kit validation.
@@ -137,6 +137,7 @@ impl WorkspaceService {
                 kit_version: String::new(),
                 health: KitHealth::None,
                 diagnostics: vec![KitDiagnostic {
+                    schema_version: "1.0".into(),
                     id: "DIAG-workspace-missing".into(),
                     code: "workspace-missing".into(),
                     message: "No .lmbrain directory found".into(),
@@ -144,7 +145,7 @@ impl WorkspaceService {
                     artifact_id: None,
                     path: Some(".lmbrain".into()),
                     next_action: "Initialize the LMBrain kit in this workspace.".into(),
-                    fixability: "governed-mutation".into(),
+                    fixability: DiagnosticFixability::GovernedMutation,
                 }],
                 branch: None,
                 is_clean: None,
@@ -169,6 +170,7 @@ impl WorkspaceService {
                 .unwrap_or_default()
         } else {
             diagnostics.push(KitDiagnostic {
+                schema_version: "1.0".into(),
                 id: "DIAG-version-missing".into(),
                 code: "version-missing".into(),
                 message: "Missing VERSION file".into(),
@@ -176,7 +178,7 @@ impl WorkspaceService {
                 artifact_id: None,
                 path: Some(".lmbrain/VERSION".into()),
                 next_action: "Restore the canonical kit VERSION file.".into(),
-                fixability: "manual".into(),
+                fixability: DiagnosticFixability::Manual,
             });
             health = KitHealth::Warn;
             String::new()
@@ -186,6 +188,7 @@ impl WorkspaceService {
         let status_path = lmbrain_dir.join("STATUS.md");
         if !status_path.exists() {
             diagnostics.push(KitDiagnostic {
+                schema_version: "1.0".into(),
                 id: "DIAG-status-missing".into(),
                 code: "status-missing".into(),
                 message: "Missing STATUS.md".into(),
@@ -193,7 +196,7 @@ impl WorkspaceService {
                 artifact_id: None,
                 path: Some(".lmbrain/STATUS.md".into()),
                 next_action: "Create an explicit project status document.".into(),
-                fixability: "manual".into(),
+                fixability: DiagnosticFixability::Manual,
             });
             health = KitHealth::Warn;
         }
@@ -202,6 +205,7 @@ impl WorkspaceService {
         let roadmap_path = lmbrain_dir.join("ROADMAP.md");
         if !roadmap_path.exists() {
             diagnostics.push(KitDiagnostic {
+                schema_version: "1.0".into(),
                 id: "DIAG-roadmap-missing".into(),
                 code: "roadmap-missing".into(),
                 message: "Missing ROADMAP.md".into(),
@@ -210,7 +214,7 @@ impl WorkspaceService {
                 path: Some(".lmbrain/ROADMAP.md".into()),
                 next_action:
                     "Create a roadmap or document that milestones are intentionally unused.".into(),
-                fixability: "manual".into(),
+                fixability: DiagnosticFixability::Manual,
             });
         }
 

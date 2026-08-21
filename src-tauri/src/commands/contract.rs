@@ -1471,27 +1471,6 @@ fn wiki_content_files(lmbrain: &Path) -> Vec<PathBuf> {
 /// status-directory/frontmatter mismatches.
 pub fn build_diagnostics(root: &Path) -> Vec<KitDiagnostic> {
     lmbrain_core::build_diagnostics(root)
-        .into_iter()
-        .map(|diagnostic| KitDiagnostic {
-            id: diagnostic.id,
-            code: diagnostic.code,
-            message: diagnostic.message,
-            severity: match diagnostic.severity {
-                lmbrain_core::DiagnosticSeverity::Info => DiagnosticSeverity::Info,
-                lmbrain_core::DiagnosticSeverity::Warning => DiagnosticSeverity::Warning,
-                lmbrain_core::DiagnosticSeverity::Error => DiagnosticSeverity::Error,
-            },
-            artifact_id: diagnostic.artifact_id,
-            path: diagnostic.path,
-            next_action: diagnostic.next_action,
-            fixability: match diagnostic.fixability {
-                lmbrain_core::DiagnosticFixability::Manual => "manual",
-                lmbrain_core::DiagnosticFixability::GovernedMutation => "governed-mutation",
-                lmbrain_core::DiagnosticFixability::ReadOnly => "read-only",
-            }
-            .into(),
-        })
-        .collect()
 }
 
 /// Search .lmbrain markdown content for a query string.

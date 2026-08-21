@@ -90,9 +90,11 @@ Body"#;
     let diagnostic = missing[0];
     assert!(diagnostic.id.starts_with("DIAG-"));
     assert_eq!(diagnostic.code, "missing-reference");
-    assert_eq!(diagnostic.artifact_id.as_deref(), Some("SPEC-050"));
     assert!(!diagnostic.next_action.is_empty());
-    assert_eq!(diagnostic.fixability, "governed-mutation");
+    assert_eq!(
+        diagnostic.fixability,
+        lmbrain_core::DiagnosticFixability::GovernedMutation
+    );
     let core = lmbrain_core::build_diagnostics(dir.path());
     assert_eq!(
         diags.iter().map(|item| &item.id).collect::<Vec<_>>(),

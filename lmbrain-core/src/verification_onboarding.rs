@@ -365,6 +365,7 @@ pub fn rollback_verification_manifest(
     set_verification_manifest(root, &previous, Some(expected_current_digest))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn status(
     state: VerificationManifestState,
     workspace_fingerprint: &str,

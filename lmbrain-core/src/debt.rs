@@ -422,6 +422,7 @@ pub fn reopen_debt(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn mutate_debt(
     root: impl AsRef<Path>,
     artifact: impl AsRef<Path>,
@@ -784,8 +785,8 @@ pub fn debt_candidates(root: &Path) -> DebtCandidateInventory {
                 fence = Some('~');
                 continue;
             }
-            if trimmed.starts_with("## ") {
-                in_review_findings = trimmed[3..].trim().eq_ignore_ascii_case("review findings");
+            if let Some(stripped) = trimmed.strip_prefix("## ") {
+                in_review_findings = stripped.trim().eq_ignore_ascii_case("review findings");
                 continue;
             }
             if !in_review_findings {
@@ -1030,6 +1031,7 @@ fn validate_blocker_graph(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn append_event(
     document: &mut Document,
     debt_id: &str,
