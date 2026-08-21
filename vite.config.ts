@@ -15,6 +15,30 @@ export default defineConfig(({ mode }) => ({
     port: 5173,
     strictPort: true,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/@xterm/")) {
+            return "vendor-xterm";
+          }
+          if (
+            id.includes("node_modules/react-markdown/") ||
+            id.includes("node_modules/remark-") ||
+            id.includes("node_modules/rehype-") ||
+            id.includes("node_modules/micromark") ||
+            id.includes("node_modules/mdast-") ||
+            id.includes("node_modules/hast-") ||
+            id.includes("node_modules/unist-") ||
+            id.includes("node_modules/unified") ||
+            id.includes("node_modules/vfile")
+          ) {
+            return "vendor-markdown";
+          }
+        },
+      },
+    },
+  },
   test: {
     environment: "jsdom",
     globals: true,
