@@ -1,12 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import {
-  WorkspaceContext,
-  type WorkspaceContextValue,
-  type WorkspaceState,
-} from "../context/WorkspaceContext";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import type { WikiPage, WikiTree } from "../types";
 import { WikiView } from "../components/Wiki/WikiView";
+import { renderWithWorkspace } from "../test/testUtils";
 
 const mocks = vi.hoisted(() => ({
   getWikiTree: vi.fn(),
@@ -75,71 +71,6 @@ const wikiTree: WikiTree = {
   },
 };
 
-function createWorkspaceState(): WorkspaceState {
-  return {
-    screen: "app",
-    view: "wiki",
-    currentWorkspace: {
-      path: "C:/workspace",
-      name: "workspace",
-      kit_version: "1.0.0",
-      project_kit_version: "1.0.0",
-      bundled_kit_version: "2.2.7",
-      bundled_kit_path: "C:/app/kit/.lmbrain",
-      kit_migration_status: "migration-available",
-      health: "ok",
-      diagnostics: [],
-      branch: null,
-      is_clean: null,
-      spec_count: 0,
-      task_count: 0,
-      decision_count: 0,
-      agent_count: 0,
-    },
-    recentWorkspaces: [],
-    gitInfo: null,
-    pulseData: null,
-    tasks: [],
-    specs: [],
-    reviews: [],
-    adrs: [],
-    agents: [],
-    mcpRecords: [],
-    mcpProposals: [],
-    handoffs: [],
-    wikiTree,
-    wikiPage: null,
-    selectedSpec: null,
-    drawerTask: null,
-    cmdkOpen: false,
-    watcherActive: false,
-    loading: false,
-    error: null,
-  };
-}
-
-function renderWikiView() {
-  const context: WorkspaceContextValue = {
-    state: createWorkspaceState(),
-    dispatch: vi.fn(),
-    openWorkspace: vi.fn(),
-    loadAllData: vi.fn(),
-    navigateTo: vi.fn(),
-    openSpec: vi.fn(),
-    openTaskDrawer: vi.fn(),
-    closeTaskDrawer: vi.fn(),
-    toggleCmdk: vi.fn(),
-    closeCmdk: vi.fn(),
-    goToPicker: vi.fn(),
-  };
-
-  return render(
-    <WorkspaceContext.Provider value={context}>
-      <WikiView />
-    </WorkspaceContext.Provider>
-  );
-}
-
 describe("WikiView link-resolution integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -157,7 +88,29 @@ describe("WikiView link-resolution integration", () => {
   });
 
   it("uses the WikiTree—not outbound-link keys—to distinguish existing and missing targets", async () => {
-    renderWikiView();
+    renderWithWorkspace(<WikiView />, {
+      state: {
+        currentWorkspace: {
+          path: "C:/workspace",
+          name: "workspace",
+          kit_version: "1.0.0",
+          project_kit_version: "1.0.0",
+          bundled_kit_version: "2.2.7",
+          bundled_kit_path: "C:/app/kit/.lmbrain",
+          kit_migration_status: "migration-available",
+          health: "ok",
+          diagnostics: [],
+          branch: null,
+          is_clean: null,
+          spec_count: 0,
+          debt_count: 0,
+          task_count: 0,
+          decision_count: 0,
+          agent_count: 0,
+        },
+        wikiTree,
+      },
+    });
 
     await waitFor(() => expect(mocks.getWikiTree).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByText("knowledge"));
@@ -228,28 +181,11 @@ describe("WikiView collapsible folders", () => {
     };
     mocks.getWikiTree.mockResolvedValue(customWikiTree);
 
-    const context: WorkspaceContextValue = {
+    renderWithWorkspace(<WikiView />, {
       state: {
-        ...createWorkspaceState(),
         wikiTree: customWikiTree,
       },
-      dispatch: vi.fn(),
-      openWorkspace: vi.fn(),
-      loadAllData: vi.fn(),
-      navigateTo: vi.fn(),
-      openSpec: vi.fn(),
-      openTaskDrawer: vi.fn(),
-      closeTaskDrawer: vi.fn(),
-      toggleCmdk: vi.fn(),
-      closeCmdk: vi.fn(),
-      goToPicker: vi.fn(),
-    };
-
-    render(
-      <WorkspaceContext.Provider value={context}>
-        <WikiView />
-      </WorkspaceContext.Provider>
-    );
+    });
 
     await waitFor(() => expect(mocks.getWikiTree).toHaveBeenCalledTimes(1));
 

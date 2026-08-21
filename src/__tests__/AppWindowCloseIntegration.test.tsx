@@ -10,7 +10,8 @@ type CloseHandler = (event: CloseEvent) => void | Promise<void>;
 const mocks = vi.hoisted(() => ({
   closeHandler: undefined as CloseHandler | undefined,
   destroy: vi.fn().mockResolvedValue(undefined),
-  dispatch: vi.fn(),
+  setSessions: vi.fn(),
+  setShowWindowCloseConfirm: vi.fn(),
   sessionList: vi.fn<() => Promise<SessionInfo[]>>(),
   unlisten: vi.fn(),
 }));
@@ -37,7 +38,8 @@ vi.mock("../hooks/useWorkspace", () => ({
   useWorkspace: () => ({
     toggleCmdk: vi.fn(),
     closeCmdk: vi.fn(),
-    dispatch: mocks.dispatch,
+    setSessions: mocks.setSessions,
+    setShowWindowCloseConfirm: mocks.setShowWindowCloseConfirm,
     state: { sessions: [] },
   }),
 }));
@@ -85,14 +87,8 @@ describe("App window close integration", () => {
     resolveSessions([runningSession]);
     await request;
 
-    expect(mocks.dispatch).toHaveBeenCalledWith({
-      type: "SET_SESSIONS",
-      sessions: [runningSession],
-    });
-    expect(mocks.dispatch).toHaveBeenCalledWith({
-      type: "SET_WINDOW_CLOSE_CONFIRM",
-      show: true,
-    });
+    expect(mocks.setSessions).toHaveBeenCalledWith([runningSession]);
+    expect(mocks.setShowWindowCloseConfirm).toHaveBeenCalledWith(true);
     expect(mocks.destroy).not.toHaveBeenCalled();
   });
 
@@ -106,9 +102,6 @@ describe("App window close integration", () => {
 
     expect(preventDefault).toHaveBeenCalledTimes(1);
     expect(mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(mocks.dispatch).not.toHaveBeenCalledWith({
-      type: "SET_WINDOW_CLOSE_CONFIRM",
-      show: true,
-    });
+    expect(mocks.setShowWindowCloseConfirm).not.toHaveBeenCalledWith(true);
   });
 });

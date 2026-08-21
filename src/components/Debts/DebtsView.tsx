@@ -13,7 +13,7 @@ const severityRank: Record<string, number> = {
 };
 
 export function DebtsView() {
-  const { state, dispatch, openDetailArtifact } = useWorkspace();
+  const { state, refreshWorkspaceData, openDetailArtifact } = useWorkspace();
   const [scope, setScope] = useState<"active" | "history" | "all">("active");
   const [status, setStatus] = useState("all");
   const [severity, setSeverity] = useState("all");
@@ -59,7 +59,7 @@ export function DebtsView() {
   const refresh = async () => {
     setLoading(true); setError(null);
     try {
-      dispatch({ type: "SET_DEBTS", debts: await getDebts() });
+      await refreshWorkspaceData();
     } catch (reason) {
       setError(message(reason));
     } finally {

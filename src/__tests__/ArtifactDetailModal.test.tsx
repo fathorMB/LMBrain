@@ -8,7 +8,7 @@ vi.mock("../lib/commands", () => ({
   setArtifactStatus: vi.fn(),
 }));
 
-const mockDispatch = vi.fn();
+const mockOpenDetailArtifact = vi.fn();
 const mockLoadAllData = vi.fn();
 
 vi.mock("../hooks/useWorkspace", () => ({
@@ -19,7 +19,7 @@ vi.mock("../hooks/useWorkspace", () => ({
         path: "E:/workspace/.lmbrain/decisions/ADR-001.md",
       },
     },
-    dispatch: mockDispatch,
+    openDetailArtifact: mockOpenDetailArtifact,
     loadAllData: mockLoadAllData,
   }),
 }));
@@ -48,7 +48,7 @@ describe("ArtifactDetailModal", () => {
     });
   });
 
-  it("calls dispatch when close button is clicked", async () => {
+  it("calls openDetailArtifact(null) when close button is clicked", async () => {
     vi.mocked(commands.parseMarkdown).mockResolvedValue({
       path: "E:/workspace/.lmbrain/decisions/ADR-001.md",
       frontmatter: {},
@@ -64,13 +64,10 @@ describe("ArtifactDetailModal", () => {
     });
 
     fireEvent.click(screen.getByLabelText("Close modal"));
-    expect(mockDispatch).toHaveBeenCalledWith({
-      type: "SET_DETAIL_ARTIFACT",
-      artifact: null,
-    });
+    expect(mockOpenDetailArtifact).toHaveBeenCalledWith(null);
   });
 
-  it("calls dispatch on pressing Escape key", async () => {
+  it("calls openDetailArtifact(null) on pressing Escape key", async () => {
     vi.mocked(commands.parseMarkdown).mockResolvedValue({
       path: "E:/workspace/.lmbrain/decisions/ADR-001.md",
       frontmatter: {},
@@ -86,10 +83,7 @@ describe("ArtifactDetailModal", () => {
     });
 
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(mockDispatch).toHaveBeenCalledWith({
-      type: "SET_DETAIL_ARTIFACT",
-      artifact: null,
-    });
+    expect(mockOpenDetailArtifact).toHaveBeenCalledWith(null);
   });
 
   it("shows governance prompts and no direct buttons when status is proposed for ADR", async () => {

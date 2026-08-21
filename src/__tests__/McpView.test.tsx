@@ -4,7 +4,6 @@ import { McpView } from "../components/Agents/McpView";
 
 const workspace = vi.hoisted(() => ({
   state: { mcpRecords: [], mcpProposals: [] },
-  dispatch: vi.fn(),
 }));
 
 const commands = vi.hoisted(() => ({

@@ -28,7 +28,7 @@ import { RepositoryView } from "../Repository/RepositoryView";
 import { EnvironmentView } from "../Environment/EnvironmentView";
 
 export function AppShell() {
-  const { state, dispatch } = useWorkspace();
+  const { state, setWorkspaceNotice } = useWorkspace();
   const [viewRefreshRevision, setViewRefreshRevision] = useState(0);
 
   if (state.screen === "picker") {
@@ -118,7 +118,7 @@ export function AppShell() {
             <button
               type="button"
               aria-label="Dismiss workspace warning"
-              onClick={() => dispatch({ type: "SET_WORKSPACE_NOTICE", notice: null })}
+              onClick={() => setWorkspaceNotice(null)}
               style={{
                 border: "none",
                 background: "transparent",

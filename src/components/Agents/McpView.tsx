@@ -6,10 +6,15 @@ import type { McpRecord, McpProposal } from "../../types";
 import { LMBRAIN_MCP_TOOLS } from "../../lib/mcpCatalog";
 
 export function McpView() {
-  const { state, dispatch } = useWorkspace();
+  const { state } = useWorkspace();
+  const [localRecords, setLocalRecords] = useState<McpRecord[] | null>(null);
+  const [localProposals, setLocalProposals] = useState<McpProposal[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadRevision, setReloadRevision] = useState(0);
+
+  const mcpRecords = localRecords ?? state.mcpRecords;
+  const mcpProposals = localProposals ?? state.mcpProposals;
 
   useEffect(() => {
     let cancelled = false;
@@ -20,8 +25,8 @@ export function McpView() {
     ])
       .then(([records, proposals]) => {
         if (cancelled) return;
-        dispatch({ type: "SET_MCP_RECORDS", records });
-        dispatch({ type: "SET_MCP_PROPOSALS", proposals });
+        setLocalRecords(records);
+        setLocalProposals(proposals);
       })
       .catch((error) => {
         if (cancelled) return;
@@ -35,7 +40,7 @@ export function McpView() {
     return () => {
       cancelled = true;
     };
-  }, [dispatch, reloadRevision]);
+  }, [reloadRevision]);
 
   return (
     <PageShell archetype="dense">
@@ -91,7 +96,7 @@ export function McpView() {
               </button>
             </div>
           )}
-          {!isLoading && !loadError && state.mcpRecords.length === 0 && (
+          {!isLoading && !loadError && mcpRecords.length === 0 && (
             <div
               style={{
                 textAlign: "center",
@@ -105,9 +110,9 @@ export function McpView() {
               </div>
             </div>
           )}
-          {!isLoading && !loadError && state.mcpRecords.length > 0 && (
+          {!isLoading && !loadError && mcpRecords.length > 0 && (
             <CardGrid>
-              {state.mcpRecords.map((mcp) => (
+              {mcpRecords.map((mcp) => (
                 <MCPCard key={mcp.id} mcp={mcp} />
               ))}
             </CardGrid>

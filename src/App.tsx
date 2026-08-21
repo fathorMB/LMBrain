@@ -7,7 +7,7 @@ import { resolveOpenSessions, routeWindowCloseRequest } from "./lib/windowClose"
 import * as commands from "./lib/commands";
 
 function AppInner() {
-  const { toggleCmdk, closeCmdk, state, dispatch } = useWorkspace();
+  const { toggleCmdk, closeCmdk, state, setSessions, setShowWindowCloseConfirm } = useWorkspace();
   const sessionsRef = useRef(state.sessions);
   const closeRequestInFlight = useRef(false);
 
@@ -51,13 +51,12 @@ function AppInner() {
               fallbackSessions: sessionsRef.current,
             });
             if (openSessions.length > 0) {
-              dispatch({ type: "SET_SESSIONS", sessions: openSessions });
+              setSessions(openSessions);
             }
             await routeWindowCloseRequest({
               openSessionCount: openSessions.length,
               destroy: () => appWindow.destroy(),
-              showConfirmation: () =>
-                dispatch({ type: "SET_WINDOW_CLOSE_CONFIRM", show: true }),
+              showConfirmation: () => setShowWindowCloseConfirm(true),
             });
           } finally {
             closeRequestInFlight.current = false;
@@ -77,7 +76,7 @@ function AppInner() {
       disposed = true;
       if (unlisten) unlisten();
     };
-  }, [dispatch]);
+  }, [setSessions, setShowWindowCloseConfirm]);
 
   return <AppShell />;
 }

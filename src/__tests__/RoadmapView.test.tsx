@@ -12,7 +12,6 @@ vi.mock("../lib/commands", () => ({
 vi.mock("../hooks/useWorkspace", () => ({
   useWorkspace: () => ({
     state: {},
-    dispatch: vi.fn(),
     openDetailArtifact: mockOpenDetailArtifact,
   }),
 }));

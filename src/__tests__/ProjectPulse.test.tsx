@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ProjectPulse } from "../components/Pulse/ProjectPulse";
 
-const mockDispatch = vi.fn();
+const mockOpenDetailArtifact = vi.fn();
 
 vi.mock("../hooks/useWorkspace", () => ({
   useWorkspace: () => ({
@@ -113,7 +113,7 @@ vi.mock("../hooks/useWorkspace", () => ({
         },
       ],
     },
-    dispatch: mockDispatch,
+    openDetailArtifact: mockOpenDetailArtifact,
   }),
 }));
 
@@ -179,17 +179,17 @@ describe("ProjectPulse Diagnostics Fix Prompt", () => {
     await waitFor(() =>
       expect(screen.getByLabelText("Open STATUS.md")).toBeDefined(),
     );
-    mockDispatch.mockClear();
+    mockOpenDetailArtifact.mockClear();
     fireEvent.click(screen.getByLabelText("Open STATUS.md"));
-    expect(mockDispatch).toHaveBeenCalledWith({
-      type: "SET_DETAIL_ARTIFACT",
-      artifact: { title: "STATUS.md", path: "E:/workspace/.lmbrain/STATUS.md" },
+    expect(mockOpenDetailArtifact).toHaveBeenCalledWith({
+      title: "STATUS.md",
+      path: "E:/workspace/.lmbrain/STATUS.md",
     });
 
     fireEvent.click(screen.getByLabelText("Open ROADMAP.md"));
-    expect(mockDispatch).toHaveBeenCalledWith({
-      type: "SET_DETAIL_ARTIFACT",
-      artifact: { title: "ROADMAP.md", path: "E:/workspace/.lmbrain/ROADMAP.md" },
+    expect(mockOpenDetailArtifact).toHaveBeenCalledWith({
+      title: "ROADMAP.md",
+      path: "E:/workspace/.lmbrain/ROADMAP.md",
     });
   });
 
