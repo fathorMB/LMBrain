@@ -8,45 +8,7 @@ pub struct SpecParkingEvent {
     pub revisit_condition: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum SpecStatus {
-    #[serde(rename = "backlog")]
-    Backlog,
-    #[serde(rename = "ready")]
-    Ready,
-    #[serde(rename = "working")]
-    Working,
-    #[serde(rename = "review")]
-    Review,
-    #[serde(rename = "done")]
-    Done,
-    #[serde(rename = "discarded")]
-    Discarded,
-}
-
-impl SpecStatus {
-    pub fn all() -> &'static [SpecStatus] {
-        &[
-            SpecStatus::Backlog,
-            SpecStatus::Ready,
-            SpecStatus::Working,
-            SpecStatus::Review,
-            SpecStatus::Done,
-            SpecStatus::Discarded,
-        ]
-    }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            SpecStatus::Backlog => "backlog",
-            SpecStatus::Ready => "ready",
-            SpecStatus::Working => "working",
-            SpecStatus::Review => "review",
-            SpecStatus::Done => "done",
-            SpecStatus::Discarded => "discarded",
-        }
-    }
-}
+pub use lmbrain_core::SpecStatus;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Spec {

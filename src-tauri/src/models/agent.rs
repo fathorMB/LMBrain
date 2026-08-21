@@ -1,27 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum AgentStatus {
-    #[serde(rename = "proposed")]
-    Proposed,
-    #[serde(rename = "active")]
-    Active,
-    #[serde(rename = "inactive")]
-    Inactive,
-    #[serde(rename = "retired")]
-    Retired,
-}
-
-impl AgentStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            AgentStatus::Proposed => "proposed",
-            AgentStatus::Active => "active",
-            AgentStatus::Inactive => "inactive",
-            AgentStatus::Retired => "retired",
-        }
-    }
-}
+pub use lmbrain_core::{AgentProposalStatus, AgentStatus};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentProfile {
@@ -47,16 +26,6 @@ pub struct AgentProfile {
     pub tags: Vec<String>,
     pub links: Vec<String>,
     pub malformed: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum AgentProposalStatus {
-    #[serde(rename = "proposed")]
-    Proposed,
-    #[serde(rename = "approved")]
-    Approved,
-    #[serde(rename = "rejected")]
-    Rejected,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

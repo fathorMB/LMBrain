@@ -1,24 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum SkillStatus {
-    #[serde(rename = "proposed")]
-    Proposed,
-    #[serde(rename = "active")]
-    Active,
-    #[serde(rename = "retired")]
-    Retired,
-}
-
-impl SkillStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            SkillStatus::Proposed => "proposed",
-            SkillStatus::Active => "active",
-            SkillStatus::Retired => "retired",
-        }
-    }
-}
+pub use lmbrain_core::SkillStatus;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Skill {

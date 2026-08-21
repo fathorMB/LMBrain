@@ -19,6 +19,1158 @@ use crate::{
     taxonomy::{normalize_finding_category, FINDING_TAXONOMY_VERSION},
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SpecStatus {
+    Backlog,
+    Ready,
+    Working,
+    Review,
+    Done,
+    Discarded,
+}
+
+impl SpecStatus {
+    pub fn all() -> &'static [Self] {
+        &[
+            Self::Backlog,
+            Self::Ready,
+            Self::Working,
+            Self::Review,
+            Self::Done,
+            Self::Discarded,
+        ]
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Backlog => "backlog",
+            Self::Ready => "ready",
+            Self::Working => "working",
+            Self::Review => "review",
+            Self::Done => "done",
+            Self::Discarded => "discarded",
+        }
+    }
+}
+
+impl Default for SpecStatus {
+    fn default() -> Self {
+        Self::Backlog
+    }
+}
+
+impl std::fmt::Display for SpecStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for SpecStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "backlog" => Ok(Self::Backlog),
+            "ready" => Ok(Self::Ready),
+            "working" => Ok(Self::Working),
+            "review" => Ok(Self::Review),
+            "done" => Ok(Self::Done),
+            "discarded" => Ok(Self::Discarded),
+            _ => Err(format!("invalid spec status: {s}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ReviewStatus {
+    Pending,
+    Accepted,
+    ChangesRequested,
+    Blocked,
+    Superseded,
+}
+
+impl ReviewStatus {
+    pub fn all() -> &'static [Self] {
+        &[
+            Self::Pending,
+            Self::Accepted,
+            Self::ChangesRequested,
+            Self::Blocked,
+            Self::Superseded,
+        ]
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Accepted => "accepted",
+            Self::ChangesRequested => "changes-requested",
+            Self::Blocked => "blocked",
+            Self::Superseded => "superseded",
+        }
+    }
+}
+
+impl Default for ReviewStatus {
+    fn default() -> Self {
+        Self::Pending
+    }
+}
+
+impl std::fmt::Display for ReviewStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for ReviewStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "pending" => Ok(Self::Pending),
+            "accepted" => Ok(Self::Accepted),
+            "changes-requested" => Ok(Self::ChangesRequested),
+            "blocked" => Ok(Self::Blocked),
+            "superseded" => Ok(Self::Superseded),
+            _ => Err(format!("invalid review status: {s}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AdrStatus {
+    Proposed,
+    Accepted,
+    Rejected,
+    Superseded,
+    Deprecated,
+}
+
+impl AdrStatus {
+    pub fn all() -> &'static [Self] {
+        &[
+            Self::Proposed,
+            Self::Accepted,
+            Self::Rejected,
+            Self::Superseded,
+            Self::Deprecated,
+        ]
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Proposed => "proposed",
+            Self::Accepted => "accepted",
+            Self::Rejected => "rejected",
+            Self::Superseded => "superseded",
+            Self::Deprecated => "deprecated",
+        }
+    }
+}
+
+impl Default for AdrStatus {
+    fn default() -> Self {
+        Self::Proposed
+    }
+}
+
+impl std::fmt::Display for AdrStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for AdrStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "proposed" => Ok(Self::Proposed),
+            "accepted" => Ok(Self::Accepted),
+            "rejected" => Ok(Self::Rejected),
+            "superseded" => Ok(Self::Superseded),
+            "deprecated" => Ok(Self::Deprecated),
+            _ => Err(format!("invalid adr status: {s}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentStatus {
+    Proposed,
+    Active,
+    Inactive,
+    Retired,
+}
+
+impl AgentStatus {
+    pub fn all() -> &'static [Self] {
+        &[
+            Self::Proposed,
+            Self::Active,
+            Self::Inactive,
+            Self::Retired,
+        ]
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Proposed => "proposed",
+            Self::Active => "active",
+            Self::Inactive => "inactive",
+            Self::Retired => "retired",
+        }
+    }
+}
+
+impl Default for AgentStatus {
+    fn default() -> Self {
+        Self::Proposed
+    }
+}
+
+impl std::fmt::Display for AgentStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for AgentStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "proposed" => Ok(Self::Proposed),
+            "active" => Ok(Self::Active),
+            "inactive" => Ok(Self::Inactive),
+            "retired" => Ok(Self::Retired),
+            _ => Err(format!("invalid agent status: {s}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AgentProposalStatus {
+    Proposed,
+    Approved,
+    Rejected,
+}
+
+impl AgentProposalStatus {
+    pub fn all() -> &'static [Self] {
+        &[Self::Proposed, Self::Approved, Self::Rejected]
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Proposed => "proposed",
+            Self::Approved => "approved",
+            Self::Rejected => "rejected",
+        }
+    }
+}
+
+impl Default for AgentProposalStatus {
+    fn default() -> Self {
+        Self::Proposed
+    }
+}
+
+impl std::fmt::Display for AgentProposalStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for AgentProposalStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "proposed" => Ok(Self::Proposed),
+            "approved" => Ok(Self::Approved),
+            "rejected" => Ok(Self::Rejected),
+            _ => Err(format!("invalid agent proposal status: {s}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum McpStatus {
+    Specified,
+    Active,
+    Inactive,
+    Deprecated,
+}
+
+impl McpStatus {
+    pub fn all() -> &'static [Self] {
+        &[
+            Self::Specified,
+            Self::Active,
+            Self::Inactive,
+            Self::Deprecated,
+        ]
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Specified => "specified",
+            Self::Active => "active",
+            Self::Inactive => "inactive",
+            Self::Deprecated => "deprecated",
+        }
+    }
+}
+
+impl Default for McpStatus {
+    fn default() -> Self {
+        Self::Specified
+    }
+}
+
+impl std::fmt::Display for McpStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for McpStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "specified" => Ok(Self::Specified),
+            "active" => Ok(Self::Active),
+            "inactive" => Ok(Self::Inactive),
+            "deprecated" => Ok(Self::Deprecated),
+            _ => Err(format!("invalid mcp status: {s}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum McpProposalStatus {
+    Proposed,
+    Approved,
+    Rejected,
+    Implemented,
+    Blocked,
+}
+
+impl McpProposalStatus {
+    pub fn all() -> &'static [Self] {
+        &[
+            Self::Proposed,
+            Self::Approved,
+            Self::Rejected,
+            Self::Implemented,
+            Self::Blocked,
+        ]
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Proposed => "proposed",
+            Self::Approved => "approved",
+            Self::Rejected => "rejected",
+            Self::Implemented => "implemented",
+            Self::Blocked => "blocked",
+        }
+    }
+}
+
+impl Default for McpProposalStatus {
+    fn default() -> Self {
+        Self::Proposed
+    }
+}
+
+impl std::fmt::Display for McpProposalStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for McpProposalStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "proposed" => Ok(Self::Proposed),
+            "approved" => Ok(Self::Approved),
+            "rejected" => Ok(Self::Rejected),
+            "implemented" => Ok(Self::Implemented),
+            "blocked" => Ok(Self::Blocked),
+            _ => Err(format!("invalid mcp proposal status: {s}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HandoffStatus {
+    Ready,
+    Consumed,
+    Superseded,
+    Archived,
+}
+
+impl HandoffStatus {
+    pub fn all() -> &'static [Self] {
+        &[
+            Self::Ready,
+            Self::Consumed,
+            Self::Superseded,
+            Self::Archived,
+        ]
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Ready => "ready",
+            Self::Consumed => "consumed",
+            Self::Superseded => "superseded",
+            Self::Archived => "archived",
+        }
+    }
+}
+
+impl Default for HandoffStatus {
+    fn default() -> Self {
+        Self::Ready
+    }
+}
+
+impl std::fmt::Display for HandoffStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for HandoffStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "ready" => Ok(Self::Ready),
+            "consumed" => Ok(Self::Consumed),
+            "superseded" => Ok(Self::Superseded),
+            "archived" => Ok(Self::Archived),
+            _ => Err(format!("invalid handoff status: {s}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SkillStatus {
+    Proposed,
+    Active,
+    Retired,
+}
+
+impl SkillStatus {
+    pub fn all() -> &'static [Self] {
+        &[Self::Proposed, Self::Active, Self::Retired]
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Proposed => "proposed",
+            Self::Active => "active",
+            Self::Retired => "retired",
+        }
+    }
+}
+
+impl Default for SkillStatus {
+    fn default() -> Self {
+        Self::Proposed
+    }
+}
+
+impl std::fmt::Display for SkillStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for SkillStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "proposed" => Ok(Self::Proposed),
+            "active" => Ok(Self::Active),
+            "retired" => Ok(Self::Retired),
+            _ => Err(format!("invalid skill status: {s}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DebtStatus {
+    Open,
+    Planned,
+    Deferred,
+    Resolved,
+    AcceptedRisk,
+    Superseded,
+}
+
+impl DebtStatus {
+    pub fn all() -> &'static [Self] {
+        &[
+            Self::Open,
+            Self::Planned,
+            Self::Deferred,
+            Self::Resolved,
+            Self::AcceptedRisk,
+            Self::Superseded,
+        ]
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Planned => "planned",
+            Self::Deferred => "deferred",
+            Self::Resolved => "resolved",
+            Self::AcceptedRisk => "accepted-risk",
+            Self::Superseded => "superseded",
+        }
+    }
+}
+
+impl Default for DebtStatus {
+    fn default() -> Self {
+        Self::Open
+    }
+}
+
+impl std::fmt::Display for DebtStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for DebtStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "open" => Ok(Self::Open),
+            "planned" => Ok(Self::Planned),
+            "deferred" => Ok(Self::Deferred),
+            "resolved" => Ok(Self::Resolved),
+            "accepted-risk" => Ok(Self::AcceptedRisk),
+            "superseded" => Ok(Self::Superseded),
+            _ => Err(format!("invalid debt status: {s}")),
+        }
+    }
+}
+
+pub trait Lifecycle: 'static + Sized {
+    type Status: Copy
+        + Eq
+        + std::hash::Hash
+        + std::fmt::Debug
+        + std::fmt::Display
+        + Default
+        + std::str::FromStr
+        + Serialize
+        + for<'de> Deserialize<'de>
+        + 'static;
+
+    fn kind() -> ArtifactKind;
+    fn transitions() -> &'static [(Self::Status, Self::Status)];
+    fn is_transition_allowed(from: Self::Status, to: Self::Status) -> bool;
+    fn status_dir(status: Self::Status) -> Result<String, TransitionError>;
+    fn default_status() -> Self::Status;
+    fn authority(target: Self::Status) -> &'static str;
+    fn template_name() -> &'static str;
+    fn creation_statuses() -> &'static [Self::Status];
+    fn moves_for_status() -> bool {
+        true
+    }
+}
+
+pub struct SpecLifecycle;
+impl Lifecycle for SpecLifecycle {
+    type Status = SpecStatus;
+
+    fn kind() -> ArtifactKind {
+        ArtifactKind::Spec
+    }
+
+    fn transitions() -> &'static [(SpecStatus, SpecStatus)] {
+        &[
+            (SpecStatus::Backlog, SpecStatus::Ready),
+            (SpecStatus::Ready, SpecStatus::Working),
+            (SpecStatus::Working, SpecStatus::Review),
+            (SpecStatus::Review, SpecStatus::Done),
+            (SpecStatus::Backlog, SpecStatus::Discarded),
+            (SpecStatus::Ready, SpecStatus::Discarded),
+            (SpecStatus::Working, SpecStatus::Discarded),
+            (SpecStatus::Review, SpecStatus::Discarded),
+        ]
+    }
+
+    fn is_transition_allowed(from: SpecStatus, to: SpecStatus) -> bool {
+        matches!(
+            (from, to),
+            (SpecStatus::Backlog, SpecStatus::Ready)
+                | (SpecStatus::Ready, SpecStatus::Working)
+                | (SpecStatus::Working, SpecStatus::Review)
+                | (SpecStatus::Review, SpecStatus::Done)
+                | (_, SpecStatus::Discarded)
+        )
+    }
+
+    fn status_dir(status: SpecStatus) -> Result<String, TransitionError> {
+        Ok(status.as_str().to_string())
+    }
+
+    fn default_status() -> SpecStatus {
+        SpecStatus::Backlog
+    }
+
+    fn authority(target: SpecStatus) -> &'static str {
+        match target {
+            SpecStatus::Ready => "operator",
+            SpecStatus::Working | SpecStatus::Review => "implementation-specialist",
+            SpecStatus::Done | SpecStatus::Discarded => "project-lead",
+            SpecStatus::Backlog => "project-lead",
+        }
+    }
+
+    fn template_name() -> &'static str {
+        "spec.md"
+    }
+
+    fn creation_statuses() -> &'static [SpecStatus] {
+        &[SpecStatus::Backlog]
+    }
+
+    fn moves_for_status() -> bool {
+        true
+    }
+}
+
+pub struct ReviewLifecycle;
+impl Lifecycle for ReviewLifecycle {
+    type Status = ReviewStatus;
+
+    fn kind() -> ArtifactKind {
+        ArtifactKind::Review
+    }
+
+    fn transitions() -> &'static [(ReviewStatus, ReviewStatus)] {
+        &[
+            (ReviewStatus::Pending, ReviewStatus::Accepted),
+            (ReviewStatus::Pending, ReviewStatus::ChangesRequested),
+            (ReviewStatus::Pending, ReviewStatus::Blocked),
+            (ReviewStatus::ChangesRequested, ReviewStatus::ChangesRequested),
+            (ReviewStatus::ChangesRequested, ReviewStatus::Accepted),
+            (ReviewStatus::ChangesRequested, ReviewStatus::Blocked),
+            (ReviewStatus::Blocked, ReviewStatus::Blocked),
+            (ReviewStatus::Blocked, ReviewStatus::ChangesRequested),
+            (ReviewStatus::Blocked, ReviewStatus::Accepted),
+            (ReviewStatus::Pending, ReviewStatus::Superseded),
+            (ReviewStatus::ChangesRequested, ReviewStatus::Superseded),
+            (ReviewStatus::Blocked, ReviewStatus::Superseded),
+        ]
+    }
+
+    fn is_transition_allowed(from: ReviewStatus, to: ReviewStatus) -> bool {
+        matches!(
+            (from, to),
+            (ReviewStatus::Pending, ReviewStatus::Accepted)
+                | (ReviewStatus::Pending, ReviewStatus::ChangesRequested)
+                | (ReviewStatus::Pending, ReviewStatus::Blocked)
+                | (ReviewStatus::ChangesRequested, ReviewStatus::ChangesRequested)
+                | (ReviewStatus::ChangesRequested, ReviewStatus::Accepted)
+                | (ReviewStatus::ChangesRequested, ReviewStatus::Blocked)
+                | (ReviewStatus::Blocked, ReviewStatus::Blocked)
+                | (ReviewStatus::Blocked, ReviewStatus::ChangesRequested)
+                | (ReviewStatus::Blocked, ReviewStatus::Accepted)
+                | (_, ReviewStatus::Superseded)
+        )
+    }
+
+    fn status_dir(status: ReviewStatus) -> Result<String, TransitionError> {
+        Ok(status.as_str().to_string())
+    }
+
+    fn default_status() -> ReviewStatus {
+        ReviewStatus::Pending
+    }
+
+    fn authority(target: ReviewStatus) -> &'static str {
+        match target {
+            ReviewStatus::Accepted => "operator",
+            _ => "project-lead",
+        }
+    }
+
+    fn template_name() -> &'static str {
+        "review.md"
+    }
+
+    fn creation_statuses() -> &'static [ReviewStatus] {
+        &[ReviewStatus::Pending]
+    }
+
+    fn moves_for_status() -> bool {
+        true
+    }
+}
+
+pub struct AdrLifecycle;
+impl Lifecycle for AdrLifecycle {
+    type Status = AdrStatus;
+
+    fn kind() -> ArtifactKind {
+        ArtifactKind::Adr
+    }
+
+    fn transitions() -> &'static [(AdrStatus, AdrStatus)] {
+        &[
+            (AdrStatus::Proposed, AdrStatus::Accepted),
+            (AdrStatus::Proposed, AdrStatus::Rejected),
+            (AdrStatus::Accepted, AdrStatus::Superseded),
+            (AdrStatus::Accepted, AdrStatus::Deprecated),
+        ]
+    }
+
+    fn is_transition_allowed(from: AdrStatus, to: AdrStatus) -> bool {
+        matches!(
+            (from, to),
+            (AdrStatus::Proposed, AdrStatus::Accepted)
+                | (AdrStatus::Proposed, AdrStatus::Rejected)
+                | (AdrStatus::Accepted, AdrStatus::Superseded)
+                | (AdrStatus::Accepted, AdrStatus::Deprecated)
+        )
+    }
+
+    fn status_dir(status: AdrStatus) -> Result<String, TransitionError> {
+        Ok(status.as_str().to_string())
+    }
+
+    fn default_status() -> AdrStatus {
+        AdrStatus::Proposed
+    }
+
+    fn authority(_target: AdrStatus) -> &'static str {
+        "controlled-mutation"
+    }
+
+    fn template_name() -> &'static str {
+        "adr.md"
+    }
+
+    fn creation_statuses() -> &'static [AdrStatus] {
+        &[AdrStatus::Proposed]
+    }
+
+    fn moves_for_status() -> bool {
+        false
+    }
+}
+
+pub struct AgentLifecycle;
+impl Lifecycle for AgentLifecycle {
+    type Status = AgentStatus;
+
+    fn kind() -> ArtifactKind {
+        ArtifactKind::Agent
+    }
+
+    fn transitions() -> &'static [(AgentStatus, AgentStatus)] {
+        &[
+            (AgentStatus::Proposed, AgentStatus::Active),
+            (AgentStatus::Proposed, AgentStatus::Inactive),
+            (AgentStatus::Active, AgentStatus::Inactive),
+            (AgentStatus::Inactive, AgentStatus::Active),
+            (AgentStatus::Proposed, AgentStatus::Retired),
+            (AgentStatus::Active, AgentStatus::Retired),
+            (AgentStatus::Inactive, AgentStatus::Retired),
+        ]
+    }
+
+    fn is_transition_allowed(from: AgentStatus, to: AgentStatus) -> bool {
+        matches!(
+            (from, to),
+            (AgentStatus::Proposed, AgentStatus::Active)
+                | (AgentStatus::Proposed, AgentStatus::Inactive)
+                | (AgentStatus::Active, AgentStatus::Inactive)
+                | (AgentStatus::Inactive, AgentStatus::Active)
+                | (_, AgentStatus::Retired)
+        )
+    }
+
+    fn status_dir(status: AgentStatus) -> Result<String, TransitionError> {
+        Ok(status.as_str().to_string())
+    }
+
+    fn default_status() -> AgentStatus {
+        AgentStatus::Proposed
+    }
+
+    fn authority(_target: AgentStatus) -> &'static str {
+        "controlled-mutation"
+    }
+
+    fn template_name() -> &'static str {
+        "agent-profile.md"
+    }
+
+    fn creation_statuses() -> &'static [AgentStatus] {
+        &[AgentStatus::Proposed]
+    }
+
+    fn moves_for_status() -> bool {
+        false
+    }
+}
+
+pub struct AgentProposalLifecycle;
+impl Lifecycle for AgentProposalLifecycle {
+    type Status = AgentProposalStatus;
+
+    fn kind() -> ArtifactKind {
+        ArtifactKind::AgentProposal
+    }
+
+    fn transitions() -> &'static [(AgentProposalStatus, AgentProposalStatus)] {
+        &[
+            (AgentProposalStatus::Proposed, AgentProposalStatus::Approved),
+            (AgentProposalStatus::Proposed, AgentProposalStatus::Rejected),
+        ]
+    }
+
+    fn is_transition_allowed(from: AgentProposalStatus, to: AgentProposalStatus) -> bool {
+        matches!(
+            (from, to),
+            (AgentProposalStatus::Proposed, AgentProposalStatus::Approved)
+                | (AgentProposalStatus::Proposed, AgentProposalStatus::Rejected)
+        )
+    }
+
+    fn status_dir(status: AgentProposalStatus) -> Result<String, TransitionError> {
+        Ok(status.as_str().to_string())
+    }
+
+    fn default_status() -> AgentProposalStatus {
+        AgentProposalStatus::Proposed
+    }
+
+    fn authority(_target: AgentProposalStatus) -> &'static str {
+        "controlled-mutation"
+    }
+
+    fn template_name() -> &'static str {
+        "agent-proposal.md"
+    }
+
+    fn creation_statuses() -> &'static [AgentProposalStatus] {
+        &[AgentProposalStatus::Proposed]
+    }
+
+    fn moves_for_status() -> bool {
+        false
+    }
+}
+
+pub struct McpLifecycle;
+impl Lifecycle for McpLifecycle {
+    type Status = McpStatus;
+
+    fn kind() -> ArtifactKind {
+        ArtifactKind::Mcp
+    }
+
+    fn transitions() -> &'static [(McpStatus, McpStatus)] {
+        &[
+            (McpStatus::Specified, McpStatus::Active),
+            (McpStatus::Active, McpStatus::Inactive),
+            (McpStatus::Inactive, McpStatus::Active),
+            (McpStatus::Specified, McpStatus::Deprecated),
+            (McpStatus::Active, McpStatus::Deprecated),
+            (McpStatus::Inactive, McpStatus::Deprecated),
+        ]
+    }
+
+    fn is_transition_allowed(from: McpStatus, to: McpStatus) -> bool {
+        matches!(
+            (from, to),
+            (McpStatus::Specified, McpStatus::Active)
+                | (McpStatus::Active, McpStatus::Inactive)
+                | (McpStatus::Inactive, McpStatus::Active)
+                | (_, McpStatus::Deprecated)
+        )
+    }
+
+    fn status_dir(status: McpStatus) -> Result<String, TransitionError> {
+        Ok(status.as_str().to_string())
+    }
+
+    fn default_status() -> McpStatus {
+        McpStatus::Specified
+    }
+
+    fn authority(_target: McpStatus) -> &'static str {
+        "controlled-mutation"
+    }
+
+    fn template_name() -> &'static str {
+        "mcp-spec.md"
+    }
+
+    fn creation_statuses() -> &'static [McpStatus] {
+        &[McpStatus::Specified]
+    }
+
+    fn moves_for_status() -> bool {
+        false
+    }
+}
+
+pub struct McpProposalLifecycle;
+impl Lifecycle for McpProposalLifecycle {
+    type Status = McpProposalStatus;
+
+    fn kind() -> ArtifactKind {
+        ArtifactKind::McpProposal
+    }
+
+    fn transitions() -> &'static [(McpProposalStatus, McpProposalStatus)] {
+        &[
+            (McpProposalStatus::Proposed, McpProposalStatus::Approved),
+            (McpProposalStatus::Proposed, McpProposalStatus::Rejected),
+            (McpProposalStatus::Approved, McpProposalStatus::Implemented),
+            (McpProposalStatus::Proposed, McpProposalStatus::Blocked),
+            (McpProposalStatus::Approved, McpProposalStatus::Blocked),
+        ]
+    }
+
+    fn is_transition_allowed(from: McpProposalStatus, to: McpProposalStatus) -> bool {
+        matches!(
+            (from, to),
+            (McpProposalStatus::Proposed, McpProposalStatus::Approved)
+                | (McpProposalStatus::Proposed, McpProposalStatus::Rejected)
+                | (McpProposalStatus::Approved, McpProposalStatus::Implemented)
+                | (_, McpProposalStatus::Blocked)
+        )
+    }
+
+    fn status_dir(status: McpProposalStatus) -> Result<String, TransitionError> {
+        Ok(status.as_str().to_string())
+    }
+
+    fn default_status() -> McpProposalStatus {
+        McpProposalStatus::Proposed
+    }
+
+    fn authority(_target: McpProposalStatus) -> &'static str {
+        "controlled-mutation"
+    }
+
+    fn template_name() -> &'static str {
+        "mcp-proposal.md"
+    }
+
+    fn creation_statuses() -> &'static [McpProposalStatus] {
+        &[McpProposalStatus::Proposed]
+    }
+
+    fn moves_for_status() -> bool {
+        false
+    }
+}
+
+pub struct HandoffLifecycle;
+impl Lifecycle for HandoffLifecycle {
+    type Status = HandoffStatus;
+
+    fn kind() -> ArtifactKind {
+        ArtifactKind::Handoff
+    }
+
+    fn transitions() -> &'static [(HandoffStatus, HandoffStatus)] {
+        &[
+            (HandoffStatus::Ready, HandoffStatus::Consumed),
+            (HandoffStatus::Ready, HandoffStatus::Superseded),
+            (HandoffStatus::Ready, HandoffStatus::Archived),
+            (HandoffStatus::Consumed, HandoffStatus::Archived),
+            (HandoffStatus::Superseded, HandoffStatus::Archived),
+        ]
+    }
+
+    fn is_transition_allowed(from: HandoffStatus, to: HandoffStatus) -> bool {
+        matches!(
+            (from, to),
+            (HandoffStatus::Ready, HandoffStatus::Consumed)
+                | (HandoffStatus::Ready, HandoffStatus::Superseded)
+                | (_, HandoffStatus::Archived)
+        )
+    }
+
+    fn status_dir(status: HandoffStatus) -> Result<String, TransitionError> {
+        match status {
+            HandoffStatus::Ready => Ok("active".to_string()),
+            HandoffStatus::Consumed | HandoffStatus::Superseded | HandoffStatus::Archived => {
+                Ok("archive".to_string())
+            }
+        }
+    }
+
+    fn default_status() -> HandoffStatus {
+        HandoffStatus::Ready
+    }
+
+    fn authority(_target: HandoffStatus) -> &'static str {
+        "controlled-mutation"
+    }
+
+    fn template_name() -> &'static str {
+        "session-handoff.md"
+    }
+
+    fn creation_statuses() -> &'static [HandoffStatus] {
+        &[HandoffStatus::Ready]
+    }
+
+    fn moves_for_status() -> bool {
+        true
+    }
+}
+
+pub struct SkillLifecycle;
+impl Lifecycle for SkillLifecycle {
+    type Status = SkillStatus;
+
+    fn kind() -> ArtifactKind {
+        ArtifactKind::Skill
+    }
+
+    fn transitions() -> &'static [(SkillStatus, SkillStatus)] {
+        &[
+            (SkillStatus::Proposed, SkillStatus::Active),
+            (SkillStatus::Proposed, SkillStatus::Retired),
+            (SkillStatus::Active, SkillStatus::Retired),
+        ]
+    }
+
+    fn is_transition_allowed(from: SkillStatus, to: SkillStatus) -> bool {
+        matches!(
+            (from, to),
+            (SkillStatus::Proposed, SkillStatus::Active)
+                | (SkillStatus::Proposed, SkillStatus::Retired)
+                | (SkillStatus::Active, SkillStatus::Retired)
+        )
+    }
+
+    fn status_dir(status: SkillStatus) -> Result<String, TransitionError> {
+        Ok(status.as_str().to_string())
+    }
+
+    fn default_status() -> SkillStatus {
+        SkillStatus::Proposed
+    }
+
+    fn authority(_target: SkillStatus) -> &'static str {
+        "controlled-mutation"
+    }
+
+    fn template_name() -> &'static str {
+        "skill.md"
+    }
+
+    fn creation_statuses() -> &'static [SkillStatus] {
+        &[SkillStatus::Proposed]
+    }
+
+    fn moves_for_status() -> bool {
+        true
+    }
+}
+
+pub struct DebtLifecycle;
+impl Lifecycle for DebtLifecycle {
+    type Status = DebtStatus;
+
+    fn kind() -> ArtifactKind {
+        ArtifactKind::Debt
+    }
+
+    fn transitions() -> &'static [(DebtStatus, DebtStatus)] {
+        &[
+            (DebtStatus::Open, DebtStatus::Planned),
+            (DebtStatus::Open, DebtStatus::Deferred),
+            (DebtStatus::Open, DebtStatus::Resolved),
+            (DebtStatus::Open, DebtStatus::AcceptedRisk),
+            (DebtStatus::Open, DebtStatus::Superseded),
+            (DebtStatus::Planned, DebtStatus::Open),
+            (DebtStatus::Planned, DebtStatus::Deferred),
+            (DebtStatus::Planned, DebtStatus::Resolved),
+            (DebtStatus::Planned, DebtStatus::AcceptedRisk),
+            (DebtStatus::Planned, DebtStatus::Superseded),
+            (DebtStatus::Deferred, DebtStatus::Open),
+            (DebtStatus::Deferred, DebtStatus::Planned),
+            (DebtStatus::Deferred, DebtStatus::Resolved),
+            (DebtStatus::Deferred, DebtStatus::AcceptedRisk),
+            (DebtStatus::Deferred, DebtStatus::Superseded),
+        ]
+    }
+
+    fn is_transition_allowed(from: DebtStatus, to: DebtStatus) -> bool {
+        matches!(
+            (from, to),
+            (DebtStatus::Open, DebtStatus::Planned)
+                | (DebtStatus::Open, DebtStatus::Deferred)
+                | (DebtStatus::Open, DebtStatus::Resolved)
+                | (DebtStatus::Open, DebtStatus::AcceptedRisk)
+                | (DebtStatus::Open, DebtStatus::Superseded)
+                | (DebtStatus::Planned, DebtStatus::Open)
+                | (DebtStatus::Planned, DebtStatus::Deferred)
+                | (DebtStatus::Planned, DebtStatus::Resolved)
+                | (DebtStatus::Planned, DebtStatus::AcceptedRisk)
+                | (DebtStatus::Planned, DebtStatus::Superseded)
+                | (DebtStatus::Deferred, DebtStatus::Open)
+                | (DebtStatus::Deferred, DebtStatus::Planned)
+                | (DebtStatus::Deferred, DebtStatus::Resolved)
+                | (DebtStatus::Deferred, DebtStatus::AcceptedRisk)
+                | (DebtStatus::Deferred, DebtStatus::Superseded)
+        )
+    }
+
+    fn status_dir(status: DebtStatus) -> Result<String, TransitionError> {
+        Ok(status.as_str().to_string())
+    }
+
+    fn default_status() -> DebtStatus {
+        DebtStatus::Open
+    }
+
+    fn authority(_target: DebtStatus) -> &'static str {
+        "controlled-mutation"
+    }
+
+    fn template_name() -> &'static str {
+        "debt.md"
+    }
+
+    fn creation_statuses() -> &'static [DebtStatus] {
+        &[DebtStatus::Open]
+    }
+
+    fn moves_for_status() -> bool {
+        true
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ArtifactKind {
@@ -65,24 +1217,64 @@ impl ArtifactKind {
         }
     }
 
-    fn status_dir(self, status: &str) -> Result<String, TransitionError> {
+    pub fn status_dir(self, status: &str) -> Result<String, TransitionError> {
         match self {
-            Self::Handoff => match status {
-                "ready" => Ok("active".to_string()),
-                "consumed" | "superseded" | "archived" => Ok("archive".to_string()),
-                _ => Err(TransitionError::Invariant(format!(
-                    "invalid handoff status: {status}"
-                ))),
-            },
-            _ => Ok(status.to_string()),
+            Self::Spec => status
+                .parse::<SpecStatus>()
+                .map_err(|e| TransitionError::Invariant(e))
+                .and_then(SpecLifecycle::status_dir),
+            Self::Review => status
+                .parse::<ReviewStatus>()
+                .map_err(|e| TransitionError::Invariant(e))
+                .and_then(ReviewLifecycle::status_dir),
+            Self::Adr => status
+                .parse::<AdrStatus>()
+                .map_err(|e| TransitionError::Invariant(e))
+                .and_then(AdrLifecycle::status_dir),
+            Self::Agent => status
+                .parse::<AgentStatus>()
+                .map_err(|e| TransitionError::Invariant(e))
+                .and_then(AgentLifecycle::status_dir),
+            Self::AgentProposal => status
+                .parse::<AgentProposalStatus>()
+                .map_err(|e| TransitionError::Invariant(e))
+                .and_then(AgentProposalLifecycle::status_dir),
+            Self::Mcp => status
+                .parse::<McpStatus>()
+                .map_err(|e| TransitionError::Invariant(e))
+                .and_then(McpLifecycle::status_dir),
+            Self::McpProposal => status
+                .parse::<McpProposalStatus>()
+                .map_err(|e| TransitionError::Invariant(e))
+                .and_then(McpProposalLifecycle::status_dir),
+            Self::Handoff => status
+                .parse::<HandoffStatus>()
+                .map_err(|e| TransitionError::Invariant(e))
+                .and_then(HandoffLifecycle::status_dir),
+            Self::Skill => status
+                .parse::<SkillStatus>()
+                .map_err(|e| TransitionError::Invariant(e))
+                .and_then(SkillLifecycle::status_dir),
+            Self::Debt => status
+                .parse::<DebtStatus>()
+                .map_err(|e| TransitionError::Invariant(e))
+                .and_then(DebtLifecycle::status_dir),
         }
     }
 
-    fn moves_for_status(self) -> bool {
-        matches!(
-            self,
-            Self::Spec | Self::Review | Self::Skill | Self::Handoff | Self::Debt
-        )
+    pub fn moves_for_status(self) -> bool {
+        match self {
+            Self::Spec => SpecLifecycle::moves_for_status(),
+            Self::Review => ReviewLifecycle::moves_for_status(),
+            Self::Adr => AdrLifecycle::moves_for_status(),
+            Self::Agent => AgentLifecycle::moves_for_status(),
+            Self::AgentProposal => AgentProposalLifecycle::moves_for_status(),
+            Self::Mcp => McpLifecycle::moves_for_status(),
+            Self::McpProposal => McpProposalLifecycle::moves_for_status(),
+            Self::Handoff => HandoffLifecycle::moves_for_status(),
+            Self::Skill => SkillLifecycle::moves_for_status(),
+            Self::Debt => DebtLifecycle::moves_for_status(),
+        }
     }
 
     /// Statuses an artifact may be created with. Only initial lifecycle states
@@ -97,6 +1289,132 @@ impl ArtifactKind {
             Self::Mcp => &["specified"],
             Self::Handoff => &["ready"],
             Self::Debt => &["open"],
+        }
+    }
+
+    pub fn default_status(self) -> &'static str {
+        match self {
+            Self::Spec => SpecLifecycle::default_status().as_str(),
+            Self::Review => ReviewLifecycle::default_status().as_str(),
+            Self::Adr => AdrLifecycle::default_status().as_str(),
+            Self::Agent => AgentLifecycle::default_status().as_str(),
+            Self::AgentProposal => AgentProposalLifecycle::default_status().as_str(),
+            Self::Mcp => McpLifecycle::default_status().as_str(),
+            Self::McpProposal => McpProposalLifecycle::default_status().as_str(),
+            Self::Handoff => HandoffLifecycle::default_status().as_str(),
+            Self::Skill => SkillLifecycle::default_status().as_str(),
+            Self::Debt => DebtLifecycle::default_status().as_str(),
+        }
+    }
+
+    pub fn template_name(self) -> &'static str {
+        match self {
+            Self::Spec => SpecLifecycle::template_name(),
+            Self::Review => ReviewLifecycle::template_name(),
+            Self::Adr => AdrLifecycle::template_name(),
+            Self::Agent => AgentLifecycle::template_name(),
+            Self::AgentProposal => AgentProposalLifecycle::template_name(),
+            Self::Mcp => McpLifecycle::template_name(),
+            Self::McpProposal => McpProposalLifecycle::template_name(),
+            Self::Handoff => HandoffLifecycle::template_name(),
+            Self::Skill => SkillLifecycle::template_name(),
+            Self::Debt => DebtLifecycle::template_name(),
+        }
+    }
+
+    pub fn authority(self, target: &str) -> &'static str {
+        match self {
+            Self::Spec => target
+                .parse::<SpecStatus>()
+                .map(SpecLifecycle::authority)
+                .unwrap_or("controlled-mutation"),
+            Self::Review => target
+                .parse::<ReviewStatus>()
+                .map(ReviewLifecycle::authority)
+                .unwrap_or("controlled-mutation"),
+            Self::Adr => target
+                .parse::<AdrStatus>()
+                .map(AdrLifecycle::authority)
+                .unwrap_or("controlled-mutation"),
+            Self::Agent => target
+                .parse::<AgentStatus>()
+                .map(AgentLifecycle::authority)
+                .unwrap_or("controlled-mutation"),
+            Self::AgentProposal => target
+                .parse::<AgentProposalStatus>()
+                .map(AgentProposalLifecycle::authority)
+                .unwrap_or("controlled-mutation"),
+            Self::Mcp => target
+                .parse::<McpStatus>()
+                .map(McpLifecycle::authority)
+                .unwrap_or("controlled-mutation"),
+            Self::McpProposal => target
+                .parse::<McpProposalStatus>()
+                .map(McpProposalLifecycle::authority)
+                .unwrap_or("controlled-mutation"),
+            Self::Handoff => target
+                .parse::<HandoffStatus>()
+                .map(HandoffLifecycle::authority)
+                .unwrap_or("controlled-mutation"),
+            Self::Skill => target
+                .parse::<SkillStatus>()
+                .map(SkillLifecycle::authority)
+                .unwrap_or("controlled-mutation"),
+            Self::Debt => target
+                .parse::<DebtStatus>()
+                .map(DebtLifecycle::authority)
+                .unwrap_or("controlled-mutation"),
+        }
+    }
+
+    pub fn is_allowed(self, from: &str, to: &str) -> bool {
+        match self {
+            Self::Spec => match (from.parse::<SpecStatus>(), to.parse::<SpecStatus>()) {
+                (Ok(f), Ok(t)) => SpecLifecycle::is_transition_allowed(f, t),
+                _ => false,
+            },
+            Self::Review => match (from.parse::<ReviewStatus>(), to.parse::<ReviewStatus>()) {
+                (Ok(f), Ok(t)) => ReviewLifecycle::is_transition_allowed(f, t),
+                _ => false,
+            },
+            Self::Adr => match (from.parse::<AdrStatus>(), to.parse::<AdrStatus>()) {
+                (Ok(f), Ok(t)) => AdrLifecycle::is_transition_allowed(f, t),
+                _ => false,
+            },
+            Self::Agent => match (from.parse::<AgentStatus>(), to.parse::<AgentStatus>()) {
+                (Ok(f), Ok(t)) => AgentLifecycle::is_transition_allowed(f, t),
+                _ => false,
+            },
+            Self::AgentProposal => match (
+                from.parse::<AgentProposalStatus>(),
+                to.parse::<AgentProposalStatus>(),
+            ) {
+                (Ok(f), Ok(t)) => AgentProposalLifecycle::is_transition_allowed(f, t),
+                _ => false,
+            },
+            Self::Mcp => match (from.parse::<McpStatus>(), to.parse::<McpStatus>()) {
+                (Ok(f), Ok(t)) => McpLifecycle::is_transition_allowed(f, t),
+                _ => false,
+            },
+            Self::McpProposal => match (
+                from.parse::<McpProposalStatus>(),
+                to.parse::<McpProposalStatus>(),
+            ) {
+                (Ok(f), Ok(t)) => McpProposalLifecycle::is_transition_allowed(f, t),
+                _ => false,
+            },
+            Self::Handoff => match (from.parse::<HandoffStatus>(), to.parse::<HandoffStatus>()) {
+                (Ok(f), Ok(t)) => HandoffLifecycle::is_transition_allowed(f, t),
+                _ => false,
+            },
+            Self::Skill => match (from.parse::<SkillStatus>(), to.parse::<SkillStatus>()) {
+                (Ok(f), Ok(t)) => SkillLifecycle::is_transition_allowed(f, t),
+                _ => false,
+            },
+            Self::Debt => match (from.parse::<DebtStatus>(), to.parse::<DebtStatus>()) {
+                (Ok(f), Ok(t)) => DebtLifecycle::is_transition_allowed(f, t),
+                _ => false,
+            },
         }
     }
 }
@@ -627,14 +1945,7 @@ fn transition_internal(
 }
 
 fn transition_authority(kind: ArtifactKind, target: &str) -> &'static str {
-    match (kind, target) {
-        (ArtifactKind::Spec, "ready") => "operator",
-        (ArtifactKind::Spec, "working" | "review") => "implementation-specialist",
-        (ArtifactKind::Spec, "done" | "discarded") => "project-lead",
-        (ArtifactKind::Review, "accepted") => "operator",
-        (ArtifactKind::Review, _) => "project-lead",
-        _ => "controlled-mutation",
-    }
+    kind.authority(target)
 }
 
 fn append_spec_parking_event(
@@ -1371,88 +2682,7 @@ pub fn kind_for_id(id: &str) -> Option<ArtifactKind> {
 }
 
 pub fn allowed(kind: ArtifactKind, from: &str, to: &str) -> bool {
-    match kind {
-        ArtifactKind::Spec => matches!(
-            (from, to),
-            ("backlog", "ready")
-                | ("ready", "working")
-                | ("working", "review")
-                | ("review", "done")
-                | (_, "discarded")
-        ),
-        ArtifactKind::Review => matches!(
-            (from, to),
-            ("pending", "accepted")
-                | ("pending", "changes-requested")
-                | ("pending", "blocked")
-                | ("changes-requested", "changes-requested")
-                | ("changes-requested", "accepted")
-                | ("changes-requested", "blocked")
-                | ("blocked", "blocked")
-                | ("blocked", "changes-requested")
-                | ("blocked", "accepted")
-                | (_, "superseded")
-        ),
-        ArtifactKind::Adr => matches!(
-            (from, to),
-            ("proposed", "accepted")
-                | ("proposed", "rejected")
-                | ("accepted", "superseded")
-                | ("accepted", "deprecated")
-        ),
-        ArtifactKind::Agent => matches!(
-            (from, to),
-            ("proposed", "active")
-                | ("proposed", "inactive")
-                | ("active", "inactive")
-                | ("inactive", "active")
-                | (_, "retired")
-        ),
-        ArtifactKind::AgentProposal => matches!(
-            (from, to),
-            ("proposed", "approved") | ("proposed", "rejected")
-        ),
-        ArtifactKind::Mcp => matches!(
-            (from, to),
-            ("specified", "active")
-                | ("active", "inactive")
-                | ("inactive", "active")
-                | (_, "deprecated")
-        ),
-        ArtifactKind::McpProposal => matches!(
-            (from, to),
-            ("proposed", "approved")
-                | ("proposed", "rejected")
-                | ("approved", "implemented")
-                | (_, "blocked")
-        ),
-        ArtifactKind::Handoff => matches!(
-            (from, to),
-            ("ready", "consumed") | ("ready", "superseded") | (_, "archived")
-        ),
-        ArtifactKind::Skill => matches!(
-            (from, to),
-            ("proposed", "active") | ("proposed", "retired") | ("active", "retired")
-        ),
-        ArtifactKind::Debt => matches!(
-            (from, to),
-            ("open", "planned")
-                | ("open", "deferred")
-                | ("open", "resolved")
-                | ("open", "accepted-risk")
-                | ("open", "superseded")
-                | ("planned", "open")
-                | ("planned", "deferred")
-                | ("planned", "resolved")
-                | ("planned", "accepted-risk")
-                | ("planned", "superseded")
-                | ("deferred", "open")
-                | ("deferred", "planned")
-                | ("deferred", "resolved")
-                | ("deferred", "accepted-risk")
-                | ("deferred", "superseded")
-        ),
-    }
+    kind.is_allowed(from, to)
 }
 
 fn invariant_failure(
@@ -1462,138 +2692,125 @@ fn invariant_failure(
     target: &str,
     document: &Document,
 ) -> Option<String> {
-    if kind == ArtifactKind::Spec && matches!(target, "ready" | "working") {
-        let blockers = crate::spec_dependency_blockers(root, document);
-        if !blockers.is_empty() {
-            return Some(format!(
-                "hard spec prerequisites are not complete: {}",
-                blockers
-                    .iter()
-                    .map(|blocker| format!(
-                        "{} [{}] via {}: {}",
-                        blocker.id,
-                        blocker.status,
-                        blocker.chain.join(" -> "),
-                        blocker.cause
-                    ))
-                    .collect::<Vec<_>>()
-                    .join("; ")
-            ));
-        }
-    }
-    if kind == ArtifactKind::Spec && target == "ready" {
-        if let Err(reason) = invariants::spec_effort_is_declared(document) {
-            return Some(reason);
-        }
-    }
-    if kind == ArtifactKind::Spec && matches!(target, "review" | "done") {
-        let phase = if target == "review" {
-            "before-submit"
-        } else {
-            "before-done"
-        };
-        let blockers = crate::verification_blockers_for_workspace(root, document, phase);
-        if !blockers.is_empty() {
-            return Some(format!(
-                "{phase} verification blocked: {}",
-                blockers
-                    .iter()
-                    .map(|blocker| format!(
-                        "{} (owner={}): {}",
-                        blocker.requirement_id, blocker.owner, blocker.cause
-                    ))
-                    .collect::<Vec<_>>()
-                    .join("; ")
-            ));
-        }
-    }
-    if kind == ArtifactKind::Review {
-        if let Err(reason) = invariants::implementation_agent_resolves(
-            root,
-            document.value("implementation_agent").as_deref(),
-        ) {
-            return Some(reason);
-        }
-    }
-    match (kind, target) {
-        (ArtifactKind::Spec, "ready")
-            if !invariants::recommended_agent_resolves(
-                root,
-                document.value("recommended_agent").as_deref(),
-            ) =>
-        {
-            Some("recommended_agent does not resolve".into())
-        }
-        (ArtifactKind::Spec, "done")
-            if !invariants::criteria_complete_with_evidence(&document.body) =>
-        {
-            Some(
-                "a done spec requires its acceptance criteria checked and evidence recorded".into(),
-            )
-        }
-        (ArtifactKind::Spec, "done")
-            if invariants::waived_findings_are_valid(root, &document.body).is_err() =>
-        {
-            Some(invariants::waived_findings_are_valid(root, &document.body).unwrap_err())
-        }
-        (ArtifactKind::Spec, "done")
-            if !invariants::spec_has_accepted_review(
-                root,
-                &document.value("id").unwrap_or_default(),
-            ) =>
-        {
-            Some("a done spec requires an accepted review".into())
-        }
-        (ArtifactKind::Spec, "review") => {
-            match crate::verification::transcript_state_for_document(root, document) {
-                crate::verification::TranscriptState::Missing => Some(
-                    "spec_submit requires ### Verification transcript inside ## Implementation evidence with the exact command and pasted output in a non-empty fenced block".into(),
-                ),
-                crate::verification::TranscriptState::Empty => Some(
-                    "spec_submit requires a non-empty fenced command/result block in ### Verification transcript".into(),
-                ),
-                crate::verification::TranscriptState::GeneratedStale => Some(
-                    "kit-generated verification evidence is stale for the current workspace; run spec_verify again or use an explicitly reasoned force override".into(),
-                ),
-                crate::verification::TranscriptState::HandAuthored
-                | crate::verification::TranscriptState::GeneratedFresh => None,
+    match kind {
+        ArtifactKind::Spec => {
+            let Ok(target_status) = target.parse::<SpecStatus>() else {
+                return Some(format!("invalid spec status: {target}"));
+            };
+            if matches!(target_status, SpecStatus::Ready | SpecStatus::Working) {
+                let blockers = crate::spec_dependency_blockers(root, document);
+                if !blockers.is_empty() {
+                    return Some(format!(
+                        "hard spec prerequisites are not complete: {}",
+                        blockers
+                            .iter()
+                            .map(|blocker| format!(
+                                "{} [{}] via {}: {}",
+                                blocker.id,
+                                blocker.status,
+                                blocker.chain.join(" -> "),
+                                blocker.cause
+                            ))
+                            .collect::<Vec<_>>()
+                            .join("; ")
+                    ));
+                }
+            }
+            if target_status == SpecStatus::Ready {
+                if let Err(reason) = invariants::spec_effort_is_declared(document) {
+                    return Some(reason);
+                }
+                if !invariants::recommended_agent_resolves(
+                    root,
+                    document.value("recommended_agent").as_deref(),
+                ) {
+                    return Some("recommended_agent does not resolve".into());
+                }
+            }
+            if matches!(target_status, SpecStatus::Review | SpecStatus::Done) {
+                let phase = if target_status == SpecStatus::Review {
+                    "before-submit"
+                } else {
+                    "before-done"
+                };
+                let blockers = crate::verification_blockers_for_workspace(root, document, phase);
+                if !blockers.is_empty() {
+                    return Some(format!(
+                        "{phase} verification blocked: {}",
+                        blockers
+                            .iter()
+                            .map(|blocker| format!(
+                                "{} (owner={}): {}",
+                                blocker.requirement_id, blocker.owner, blocker.cause
+                            ))
+                            .collect::<Vec<_>>()
+                            .join("; ")
+                    ));
+                }
+            }
+            match target_status {
+                SpecStatus::Review => {
+                    match crate::verification::transcript_state_for_document(root, document) {
+                        crate::verification::TranscriptState::Missing => Some(
+                            "spec_submit requires ### Verification transcript inside ## Implementation evidence with the exact command and pasted output in a non-empty fenced block".into(),
+                        ),
+                        crate::verification::TranscriptState::Empty => Some(
+                            "spec_submit requires a non-empty fenced command/result block in ### Verification transcript".into(),
+                        ),
+                        crate::verification::TranscriptState::GeneratedStale => Some(
+                            "kit-generated verification evidence is stale for the current workspace; run spec_verify again or use an explicitly reasoned force override".into(),
+                        ),
+                        crate::verification::TranscriptState::HandAuthored
+                        | crate::verification::TranscriptState::GeneratedFresh => None,
+                    }
+                }
+                SpecStatus::Done => {
+                    if !invariants::criteria_complete_with_evidence(&document.body) {
+                        Some("a done spec requires its acceptance criteria checked and evidence recorded".into())
+                    } else if invariants::waived_findings_are_valid(root, &document.body).is_err() {
+                        Some(invariants::waived_findings_are_valid(root, &document.body).unwrap_err())
+                    } else if !invariants::spec_has_accepted_review(
+                        root,
+                        &document.value("id").unwrap_or_default(),
+                    ) {
+                        Some("a done spec requires an accepted review".into())
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
             }
         }
-        (ArtifactKind::Handoff, "ready") if !invariants::single_ready_handoff(root, Some(path)) => {
-            Some("only one ready handoff is allowed".into())
+        ArtifactKind::Review => {
+            if let Err(reason) = invariants::implementation_agent_resolves(
+                root,
+                document.value("implementation_agent").as_deref(),
+            ) {
+                Some(reason)
+            } else {
+                None
+            }
+        }
+        ArtifactKind::Handoff => {
+            let Ok(target_status) = target.parse::<HandoffStatus>() else {
+                return Some(format!("invalid handoff status: {target}"));
+            };
+            if target_status == HandoffStatus::Ready && !invariants::single_ready_handoff(root, Some(path)) {
+                Some("only one ready handoff is allowed".into())
+            } else {
+                None
+            }
         }
         _ => None,
     }
 }
 
 fn default_status(kind: ArtifactKind) -> &'static str {
-    match kind {
-        ArtifactKind::Spec => "backlog",
-        ArtifactKind::Review => "pending",
-        ArtifactKind::Adr
-        | ArtifactKind::Agent
-        | ArtifactKind::AgentProposal
-        | ArtifactKind::McpProposal => "proposed",
-        ArtifactKind::Mcp => "specified",
-        ArtifactKind::Handoff => "ready",
-        ArtifactKind::Skill => "proposed",
-        ArtifactKind::Debt => "open",
-    }
+    kind.default_status()
 }
 
 fn template_name(kind: ArtifactKind) -> &'static str {
-    match kind {
-        ArtifactKind::Spec => "spec.md",
-        ArtifactKind::Review => "review.md",
-        ArtifactKind::Adr => "adr.md",
-        ArtifactKind::Agent => "agent-profile.md",
-        ArtifactKind::AgentProposal => "agent-proposal.md",
-        ArtifactKind::Mcp => "mcp-spec.md",
-        ArtifactKind::McpProposal => "mcp-proposal.md",
-        ArtifactKind::Handoff => "session-handoff.md",
-        ArtifactKind::Skill => "skill.md",
-        ArtifactKind::Debt => "debt.md",
-    }
+    kind.template_name()
 }
 
 fn default_template() -> String {

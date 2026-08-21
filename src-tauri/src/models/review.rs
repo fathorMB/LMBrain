@@ -1,30 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum ReviewStatus {
-    #[serde(rename = "pending")]
-    Pending,
-    #[serde(rename = "accepted")]
-    Accepted,
-    #[serde(rename = "changes-requested")]
-    ChangesRequested,
-    #[serde(rename = "blocked")]
-    Blocked,
-    #[serde(rename = "superseded")]
-    Superseded,
-}
-
-impl ReviewStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            ReviewStatus::Pending => "pending",
-            ReviewStatus::Accepted => "accepted",
-            ReviewStatus::ChangesRequested => "changes-requested",
-            ReviewStatus::Blocked => "blocked",
-            ReviewStatus::Superseded => "superseded",
-        }
-    }
-}
+pub use lmbrain_core::ReviewStatus;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewFinding {

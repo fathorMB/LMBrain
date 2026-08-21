@@ -515,62 +515,49 @@ fn scan_md_files(dir: &Path) -> Result<Vec<PathBuf>, AppError> {
 }
 
 fn parse_adr_status(frontmatter: &HashMap<String, serde_json::Value>) -> AdrStatus {
-    match fm_string(frontmatter, "status").as_deref() {
-        Some("accepted") => AdrStatus::Accepted,
-        Some("rejected") => AdrStatus::Rejected,
-        Some("superseded") => AdrStatus::Superseded,
-        Some("deprecated") => AdrStatus::Deprecated,
-        _ => AdrStatus::Proposed,
-    }
+    fm_string(frontmatter, "status")
+        .as_deref()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default()
 }
 
 fn parse_agent_status(frontmatter: &HashMap<String, serde_json::Value>) -> AgentStatus {
-    match fm_string(frontmatter, "status").as_deref() {
-        Some("active") => AgentStatus::Active,
-        Some("inactive") => AgentStatus::Inactive,
-        Some("retired") => AgentStatus::Retired,
-        _ => AgentStatus::Proposed,
-    }
+    fm_string(frontmatter, "status")
+        .as_deref()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default()
 }
 
 fn parse_agent_proposal_status(
     frontmatter: &HashMap<String, serde_json::Value>,
 ) -> AgentProposalStatus {
-    match fm_string(frontmatter, "status").as_deref() {
-        Some("approved") => AgentProposalStatus::Approved,
-        Some("rejected") => AgentProposalStatus::Rejected,
-        _ => AgentProposalStatus::Proposed,
-    }
+    fm_string(frontmatter, "status")
+        .as_deref()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default()
 }
 
 fn parse_mcp_status(frontmatter: &HashMap<String, serde_json::Value>) -> McpStatus {
-    match fm_string(frontmatter, "status").as_deref() {
-        Some("active") => McpStatus::Active,
-        Some("inactive") => McpStatus::Inactive,
-        Some("deprecated") => McpStatus::Deprecated,
-        _ => McpStatus::Specified,
-    }
+    fm_string(frontmatter, "status")
+        .as_deref()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default()
 }
 
 fn parse_mcp_proposal_status(
     frontmatter: &HashMap<String, serde_json::Value>,
 ) -> McpProposalStatus {
-    match fm_string(frontmatter, "status").as_deref() {
-        Some("approved") => McpProposalStatus::Approved,
-        Some("rejected") => McpProposalStatus::Rejected,
-        Some("implemented") => McpProposalStatus::Implemented,
-        Some("blocked") => McpProposalStatus::Blocked,
-        _ => McpProposalStatus::Proposed,
-    }
+    fm_string(frontmatter, "status")
+        .as_deref()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default()
 }
 
 fn parse_handoff_status(frontmatter: &HashMap<String, serde_json::Value>) -> HandoffStatus {
-    match fm_string(frontmatter, "status").as_deref() {
-        Some("consumed") => HandoffStatus::Consumed,
-        Some("superseded") => HandoffStatus::Superseded,
-        Some("archived") => HandoffStatus::Archived,
-        _ => HandoffStatus::Ready,
-    }
+    fm_string(frontmatter, "status")
+        .as_deref()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_default()
 }
 
 /// Build the wiki tree from the .lmbrain directory structure.

@@ -110,8 +110,11 @@ pub use taxonomy::{
 pub use transitions::{
     park_spec, record_effort_observation, record_review_event, repair_artifact_frontmatter,
     review_verdict, set_review_implementation_agent, set_spec_effort, set_spec_tags, supersede_adr,
-    ArtifactKind, CreateRequest, MutationOptions, MutationResult, RepairResult, SpecParkingInput,
-    TransitionError,
+    AdrLifecycle, AdrStatus, AgentLifecycle, AgentProposalLifecycle, AgentProposalStatus,
+    AgentStatus, ArtifactKind, CreateRequest, DebtLifecycle, DebtStatus, HandoffLifecycle,
+    HandoffStatus, Lifecycle, McpLifecycle, McpProposalLifecycle, McpProposalStatus, McpStatus,
+    MutationOptions, MutationResult, RepairResult, ReviewLifecycle, ReviewStatus, SkillLifecycle,
+    SkillStatus, SpecLifecycle, SpecParkingInput, SpecStatus, TransitionError,
 };
 pub use verification::parse_manifest as parse_verification_manifest;
 pub use verification::{
