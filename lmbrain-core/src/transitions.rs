@@ -531,7 +531,7 @@ fn transition_internal(
             if status.as_ref().map(|s| &s.state)
                 != Some(&crate::VerificationManifestState::Approved)
             {
-                let msg = format!("spec declares executable verification gates but verification manifest is not approved");
+                let msg = "spec declares executable verification gates but verification manifest is not approved".to_string();
                 if !options.force {
                     return Err(TransitionError::Invariant(msg));
                 }

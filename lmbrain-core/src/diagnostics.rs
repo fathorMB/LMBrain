@@ -194,7 +194,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
             None,
             Some("BRANCHING.json".into()),
             "No declared branching strategy file (.lmbrain/BRANCHING.json) was found.".into(),
-            "Initialize a branching strategy using the operator-governed verb 'branching_strategy_set'.".into(),
+            "Initialize a branching strategy using the operator-governed verb 'branching_strategy_set'.",
             DiagnosticFixability::GovernedMutation,
             "branching-strategy-absent",
         ));
@@ -206,8 +206,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
                 None,
                 Some("BRANCHING.json".into()),
                 format!("Invalid branching strategy declaration: {error}"),
-                "Correct .lmbrain/BRANCHING.json according to the kit branching strategy schema."
-                    .into(),
+                "Correct .lmbrain/BRANCHING.json according to the kit branching strategy schema.",
                 DiagnosticFixability::Manual,
                 "branching-strategy-invalid",
             ));
@@ -1277,6 +1276,7 @@ fn missing_reference(artifact_id: &str, path: &str, kind: &str, target: &str) ->
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn diagnostic(
     code: &str,
     severity: DiagnosticSeverity,
@@ -1364,6 +1364,110 @@ fn requires_frontmatter(relative: &str) -> bool {
     ]
     .iter()
     .any(|prefix| normalized.starts_with(prefix))
+}
+
+/// Decision diagnostics (issue #48). Supersession is written on one side by the
+/// agent authoring the successor, so the other side drifts. These never block:
+/// they name the drift and point at the verb that repairs it.
+fn diagnose_decisions(artifacts: &[Artifact], diagnostics: &mut Vec<Diagnostic>) {
+    let decisions: Vec<&Artifact> = artifacts
+        .iter()
+        .filter(|artifact| artifact.relative.starts_with("decisions/"))
+        .collect();
+    let by_id: BTreeMap<String, &Artifact> = decisions
+        .iter()
+        .filter_map(|artifact| artifact.document.value("id").map(|id| (id, *artifact)))
+        .collect();
+
+    for artifact in &decisions {
+        let document = &artifact.document;
+        let Some(id) = document.value("id") else {
+            continue;
+        };
+        let status = document.value("status").unwrap_or_default();
+
+        for declared in document.string_array("supersedes") {
+            let declared = declared.trim().to_string();
+            if declared.is_empty() {
+                continue;
+            }
+            let Some(target) = by_id.get(&declared) else {
+                diagnostics.push(diagnostic(
+                    "unknown-decision-reference",
+                    DiagnosticSeverity::Warning,
+                    Some(id.clone()),
+                    Some(artifact.relative.clone()),
+                    format!("{id} supersedes {declared}, which does not exist in this workspace"),
+                    "Correct the reference, or create the decision it points at.",
+                    DiagnosticFixability::Manual,
+                    &declared,
+                ));
+                continue;
+            };
+            if declared == id {
+                diagnostics.push(diagnostic(
+                    "dangling-supersession",
+                    DiagnosticSeverity::Warning,
+                    Some(id.clone()),
+                    Some(artifact.relative.clone()),
+                    format!("{id} lists itself as superseded"),
+                    "Remove the self-reference.",
+                    DiagnosticFixability::Manual,
+                    "self",
+                ));
+                continue;
+            }
+            if let Err(reason) = invariants::supersession_is_consistent(
+                &id,
+                &status,
+                &declared,
+                &target.document.value("status").unwrap_or_default(),
+                &target.document.string_array("superseded_by"),
+            ) {
+                diagnostics.push(diagnostic(
+                    "dangling-supersession",
+                    DiagnosticSeverity::Warning,
+                    Some(declared.clone()),
+                    Some(target.relative.clone()),
+                    reason,
+                    "Run the governed supersession so both decisions record the same relationship.",
+                    DiagnosticFixability::GovernedMutation,
+                    &id,
+                ));
+            }
+        }
+
+        // The reverse side pointing at nothing is the other half of the same
+        // drift, and is what a crash mid-supersession would leave behind.
+        for successor in document.string_array("superseded_by") {
+            let successor = successor.trim().to_string();
+            if successor.is_empty() {
+                continue;
+            }
+            let declares_back = by_id
+                .get(&successor)
+                .map(|artifact| {
+                    artifact
+                        .document
+                        .string_array("supersedes")
+                        .iter()
+                        .any(|value| value.trim() == id)
+                })
+                .unwrap_or(false);
+            if !declares_back {
+                diagnostics.push(diagnostic(
+                    "supersession-not-mutual",
+                    DiagnosticSeverity::Warning,
+                    Some(id.clone()),
+                    Some(artifact.relative.clone()),
+                    format!("{id} names {successor} as its successor, but {successor} does not declare it"),
+                    "Run the governed supersession so both decisions record the same relationship.",
+                    DiagnosticFixability::GovernedMutation,
+                    &successor,
+                ));
+            }
+        }
+    }
 }
 
 fn severity_rank(severity: DiagnosticSeverity) -> u8 {
@@ -1776,109 +1880,5 @@ id: DEBT-007
         assert!(!build_diagnostics(directory.path())
             .iter()
             .any(|diagnostic| diagnostic.code == "duplicate-spec-section"));
-    }
-}
-
-/// Decision diagnostics (issue #48). Supersession is written on one side by the
-/// agent authoring the successor, so the other side drifts. These never block:
-/// they name the drift and point at the verb that repairs it.
-fn diagnose_decisions(artifacts: &[Artifact], diagnostics: &mut Vec<Diagnostic>) {
-    let decisions: Vec<&Artifact> = artifacts
-        .iter()
-        .filter(|artifact| artifact.relative.starts_with("decisions/"))
-        .collect();
-    let by_id: BTreeMap<String, &Artifact> = decisions
-        .iter()
-        .filter_map(|artifact| artifact.document.value("id").map(|id| (id, *artifact)))
-        .collect();
-
-    for artifact in &decisions {
-        let document = &artifact.document;
-        let Some(id) = document.value("id") else {
-            continue;
-        };
-        let status = document.value("status").unwrap_or_default();
-
-        for declared in document.string_array("supersedes") {
-            let declared = declared.trim().to_string();
-            if declared.is_empty() {
-                continue;
-            }
-            let Some(target) = by_id.get(&declared) else {
-                diagnostics.push(diagnostic(
-                    "unknown-decision-reference",
-                    DiagnosticSeverity::Warning,
-                    Some(id.clone()),
-                    Some(artifact.relative.clone()),
-                    format!("{id} supersedes {declared}, which does not exist in this workspace"),
-                    "Correct the reference, or create the decision it points at.",
-                    DiagnosticFixability::Manual,
-                    &declared,
-                ));
-                continue;
-            };
-            if declared == id {
-                diagnostics.push(diagnostic(
-                    "dangling-supersession",
-                    DiagnosticSeverity::Warning,
-                    Some(id.clone()),
-                    Some(artifact.relative.clone()),
-                    format!("{id} lists itself as superseded"),
-                    "Remove the self-reference.",
-                    DiagnosticFixability::Manual,
-                    "self",
-                ));
-                continue;
-            }
-            if let Err(reason) = invariants::supersession_is_consistent(
-                &id,
-                &status,
-                &declared,
-                &target.document.value("status").unwrap_or_default(),
-                &target.document.string_array("superseded_by"),
-            ) {
-                diagnostics.push(diagnostic(
-                    "dangling-supersession",
-                    DiagnosticSeverity::Warning,
-                    Some(declared.clone()),
-                    Some(target.relative.clone()),
-                    reason,
-                    "Run the governed supersession so both decisions record the same relationship.",
-                    DiagnosticFixability::GovernedMutation,
-                    &id,
-                ));
-            }
-        }
-
-        // The reverse side pointing at nothing is the other half of the same
-        // drift, and is what a crash mid-supersession would leave behind.
-        for successor in document.string_array("superseded_by") {
-            let successor = successor.trim().to_string();
-            if successor.is_empty() {
-                continue;
-            }
-            let declares_back = by_id
-                .get(&successor)
-                .map(|artifact| {
-                    artifact
-                        .document
-                        .string_array("supersedes")
-                        .iter()
-                        .any(|value| value.trim() == id)
-                })
-                .unwrap_or(false);
-            if !declares_back {
-                diagnostics.push(diagnostic(
-                    "supersession-not-mutual",
-                    DiagnosticSeverity::Warning,
-                    Some(id.clone()),
-                    Some(artifact.relative.clone()),
-                    format!("{id} names {successor} as its successor, but {successor} does not declare it"),
-                    "Run the governed supersession so both decisions record the same relationship.",
-                    DiagnosticFixability::GovernedMutation,
-                    &successor,
-                ));
-            }
-        }
     }
 }

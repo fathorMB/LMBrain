@@ -717,9 +717,7 @@ fn codex_conflict(source: Option<&str>) -> Option<String> {
         Ok(document) => document,
         Err(error) => return Some(format!("invalid Codex TOML: {error}")),
     };
-    let Some(servers) = document.get("mcp_servers") else {
-        return None;
-    };
+    let servers = document.get("mcp_servers")?;
     let Some(servers) = servers.as_table() else {
         return Some("mcp_servers must be a TOML table".into());
     };

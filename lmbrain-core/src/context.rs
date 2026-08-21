@@ -1971,6 +1971,7 @@ fn scan_md_files(dir: &Path) -> Vec<PathBuf> {
 
 // ─── Markdown summary formatters ───────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn format_project_digest_md(
     title: &str,
     status: &str,
@@ -2125,6 +2126,7 @@ fn format_project_digest_md(
     md
 }
 
+#[allow(clippy::too_many_arguments)]
 fn format_spec_context_md(
     id: &str,
     title: &str,
@@ -2289,6 +2291,7 @@ fn format_spec_context_md(
     md
 }
 
+#[allow(clippy::too_many_arguments)]
 fn format_review_context_md(
     spec_id: &str,
     spec_title: &str,

@@ -2,25 +2,16 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::SystemTime;
 
+use lmbrain_core::path::{PathError, PathGuard as CorePathGuard};
+pub use lmbrain_core::path::clean_path;
+
 use crate::errors::AppError;
 use crate::models::file::{DirEntry, FileContent};
-
-/// Helper to strip Windows verbatim path prefixes (\\?\ and \\?\UNC\).
-pub fn clean_path(path: &Path) -> PathBuf {
-    let path_str = path.to_string_lossy();
-    if let Some(stripped) = path_str.strip_prefix(r"\\?\UNC\") {
-        PathBuf::from(format!(r"\\{}", stripped))
-    } else if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
-        PathBuf::from(stripped)
-    } else {
-        path.to_path_buf()
-    }
-}
 
 /// Thread-safe path safety guard that ensures all file operations
 /// stay within an approved workspace root.
 pub struct PathGuard {
-    approved_root: Mutex<Option<PathBuf>>,
+    approved_guard: Mutex<Option<CorePathGuard>>,
 }
 
 impl Default for PathGuard {
@@ -32,47 +23,33 @@ impl Default for PathGuard {
 impl PathGuard {
     pub fn new() -> Self {
         PathGuard {
-            approved_root: Mutex::new(None),
+            approved_guard: Mutex::new(None),
         }
     }
 
     pub fn set_root(&self, root: &Path) {
-        let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
-        let clean = clean_path(&canonical);
-        *self.lock_root() = Some(clean);
+        let guard = CorePathGuard::new(root).ok();
+        *self.lock_guard() = guard;
     }
 
     pub fn get_root(&self) -> Option<PathBuf> {
-        self.lock_root().clone()
+        self.lock_guard().as_ref().map(|g| g.root().to_path_buf())
     }
 
     /// Resolve a path relative to the approved root and validate it stays inside.
     pub fn resolve(&self, path: &str) -> Result<PathBuf, AppError> {
-        let root = self
-            .lock_root()
+        let guard = self
+            .lock_guard()
             .clone()
             .ok_or_else(|| AppError::PathSafety("No workspace root is set".into()))?;
 
-        let target = if Path::new(path).is_absolute() {
-            PathBuf::from(path)
-        } else {
-            root.join(path)
-        };
-
-        let canonical = target
-            .canonicalize()
-            .map_err(|_| AppError::PathSafety(format!("Path does not exist: {}", path)))?;
-
-        let clean = clean_path(&canonical);
-
-        if !clean.starts_with(&root) {
-            return Err(AppError::PathSafety(format!(
+        guard.resolve_existing(path).map_err(|error| match error {
+            PathError::OutsideRoot(_) => AppError::PathSafety(format!(
                 "Path traversal detected: {} is outside the workspace root",
                 path
-            )));
-        }
-
-        Ok(clean)
+            )),
+            _ => AppError::PathSafety(format!("Path does not exist: {}", path)),
+        })
     }
 
     /// Read a file, validating it's within the approved root.
@@ -132,8 +109,8 @@ impl PathGuard {
 
         Ok(entries)
     }
-    fn lock_root(&self) -> std::sync::MutexGuard<'_, Option<PathBuf>> {
-        self.approved_root
+    fn lock_guard(&self) -> std::sync::MutexGuard<'_, Option<CorePathGuard>> {
+        self.approved_guard
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }

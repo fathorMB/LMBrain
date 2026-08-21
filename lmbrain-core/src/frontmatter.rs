@@ -164,11 +164,14 @@ impl Document {
             "date": today.to_string(),
             "action": action,
         });
-        self.fields
+        if let Some(arr) = self
+            .fields
             .entry("activity".to_string())
             .or_insert_with(|| Value::Array(Vec::new()))
             .as_array_mut()
-            .map(|arr| arr.push(item));
+        {
+            arr.push(item);
+        }
     }
 
     pub fn append_object(

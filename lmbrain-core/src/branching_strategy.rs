@@ -249,7 +249,7 @@ pub fn set_branching_strategy(
         .append(true)
         .open(&audit_path)
     {
-        let _ = writeln!(file, "{}", audit_entry.to_string());
+        let _ = writeln!(file, "{}", audit_entry);
     }
 
     Ok(())
