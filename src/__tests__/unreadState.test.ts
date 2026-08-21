@@ -24,6 +24,7 @@ describe("unread page eligibility", () => {
     expect([...UNREAD_PAGES]).toEqual([
       "taskboard",
       "reviews",
+      "operations",
       "debts",
       "feedback",
       "decisions",

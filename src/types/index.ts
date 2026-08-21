@@ -257,6 +257,7 @@ export type AppView =
   | "taskboard"
   | "spec"
   | "reviews"
+  | "operations"
   | "debts"
   | "dreams"
   | "feedback"

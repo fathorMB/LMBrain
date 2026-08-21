@@ -45,6 +45,7 @@ export function createMockWorkspaceState(overrides?: Partial<WorkspaceState>): W
     handoffs: [],
     diagnostics: [],
     kitFeedbackNotes: [],
+    operatorGates: [],
     projectStatistics: null,
     wikiTree: null,
     wikiPage: null,

@@ -9,9 +9,9 @@ use lmbrain_core::{
     BranchAuthorityConfig, BranchNamingConfig, BranchingStrategy, BranchingTopology,
     CommitTriggersConfig, Debt, DebtCandidate, DebtCandidateInventory, DebtContext, Diagnostic,
     DiagnosticFixability, DiagnosticSeverity, Dream, KitFeedbackNote, KitFeedbackNoteStatus,
-    KitFeedbackReport, KitFeedbackResolution, RelationSummary, ReviewEventHistory,
+    KitFeedbackReport, KitFeedbackResolution, OperatorGate, RelationSummary, ReviewEventHistory,
     ReviewEventInput, ReviewHistorySource, ReviewLifecycleAnalysis, ReviewLifecycleEvent,
-    Roadmap, RoadmapMilestone, VerificationGate, VerificationManifest,
+    Roadmap, RoadmapMilestone, VerificationAttestation, VerificationGate, VerificationManifest,
 };
 
 use lmbrain_lib::models::{
@@ -92,6 +92,8 @@ fn generate_typescript() -> String {
         BranchingStrategy::decl(),
         VerificationGate::decl(),
         VerificationManifest::decl(),
+        VerificationAttestation::decl(),
+        OperatorGate::decl(),
         // Roadmap
         RoadmapMilestone::decl(),
         Roadmap::decl(),

@@ -24,6 +24,7 @@ const DENSE_PAGES = [
   "components/Agents/McpView.tsx",
   "components/Skills/SkillsView.tsx",
   "components/Insights/InsightsView.tsx",
+  "components/Operations/OperationsView.tsx",
   "components/Roadmap/RoadmapView.tsx",
   "components/Harnesses/HarnessesView.tsx",
   "components/Pulse/ProjectPulse.tsx",

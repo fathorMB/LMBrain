@@ -18,7 +18,8 @@ use crate::{
 
 pub const VERIFICATION_ATTESTATION_SCHEMA_VERSION: &str = "1";
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[ts(export)]
 pub struct VerificationAttestation {
     pub schema_version: String,
     pub id: String,
@@ -41,6 +42,24 @@ pub struct VerificationAttestation {
     pub delegation_channel: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delegation_authorization: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[ts(export)]
+pub struct OperatorGate {
+    pub spec_id: String,
+    pub spec_title: String,
+    pub spec_status: String,
+    pub spec_path: String,
+    pub requirement_id: String,
+    pub text: String,
+    pub kind: String,
+    pub evidence_kind: String,
+    pub checked: bool,
+    pub attested: Option<VerificationAttestation>,
+    pub blocker: Option<String>,
+    pub milestone: Option<String>,
+    pub updated: String,
 }
 
 /// The recorded consent behind a delegated operator attestation.
@@ -133,6 +152,61 @@ pub fn verification_blockers_for_workspace(
     phase: &str,
 ) -> Vec<VerificationBlocker> {
     verification_blockers_at(Some(root.as_ref()), document, phase)
+}
+
+pub fn operator_gates(root: &Path, index: &crate::WorkspaceIndex) -> Vec<OperatorGate> {
+    let mut gates = Vec::new();
+    let spec_ids = index.by_kind.get(&crate::ArtifactKind::Spec).cloned().unwrap_or_default();
+
+    for id in spec_ids {
+        let Some(entry) = index.get(&id) else { continue };
+        let status = entry.status.as_str();
+        if !matches!(status, "review" | "done") {
+            continue;
+        }
+
+        let doc = &entry.document;
+        let title = doc.value("title").unwrap_or_else(|| id.clone());
+        let milestone = doc.value("milestone");
+        let updated = doc.value("updated").or_else(|| doc.value("created")).unwrap_or_default();
+        let rel_path_str = entry.rel_path.to_string_lossy().replace('\\', "/");
+
+        let requirements = verification_requirements(doc);
+        let attestations = verification_attestations(doc);
+        let blockers = verification_blockers_for_workspace(root, doc, "before-done");
+
+        for req in requirements {
+            if req.owner != "operator" || req.phase != "before-done" {
+                continue;
+            }
+
+            let matching_attestation = attestations.iter().rev().find(|a| {
+                a.requirement_id == req.id && a.actor_role == "operator" && a.result == "passed"
+            });
+
+            let blocker_cause = blockers.iter().find(|b| b.requirement_id == req.id).map(|b| b.cause.clone());
+            let valid_attested = matching_attestation.cloned();
+
+            gates.push(OperatorGate {
+                spec_id: id.clone(),
+                spec_title: title.clone(),
+                spec_status: status.to_string(),
+                spec_path: rel_path_str.clone(),
+                requirement_id: req.id,
+                text: req.text,
+                kind: req.kind,
+                evidence_kind: req.evidence,
+                checked: req.checked,
+                attested: valid_attested,
+                blocker: blocker_cause,
+                milestone: milestone.clone(),
+                updated: updated.clone(),
+            });
+        }
+    }
+
+    gates.sort_by(|a, b| a.spec_id.cmp(&b.spec_id).then(a.requirement_id.cmp(&b.requirement_id)));
+    gates
 }
 
 fn verification_blockers_at(
@@ -1015,5 +1089,41 @@ mod tests {
         assert_eq!(first.candidates[1].proposed_owner.as_deref(), Some("lead"));
         assert_eq!(fs::read_to_string(lead).unwrap(), lead_source);
         assert_eq!(fs::read_to_string(human).unwrap(), human_source);
+    }
+
+    #[test]
+    fn operator_gates_aggregation_indexes_workspace_correctly() {
+        let directory = tempdir().unwrap();
+        let review_dir = directory.path().join(".lmbrain/specs/review");
+        let backlog_dir = directory.path().join(".lmbrain/specs/backlog");
+        fs::create_dir_all(&review_dir).unwrap();
+        fs::create_dir_all(&backlog_dir).unwrap();
+
+        // Review spec with an operator gate
+        let review_spec = review_dir.join("SPEC-010.md");
+        fs::write(
+            &review_spec,
+            "---\nid: SPEC-010\ntitle: Feature Review\nstatus: review\nmilestone: M-01\n---\n## Required verification\n- [x] HUMAN | kind=operator | owner=operator | phase=before-done | evidence=observation | Manual check\n- [x] LEAD | kind=manual | owner=lead | phase=before-done | evidence=artifact | Lead check\n",
+        )
+        .unwrap();
+
+        // Backlog spec with an operator gate (should be ignored)
+        let backlog_spec = backlog_dir.join("SPEC-011.md");
+        fs::write(
+            &backlog_spec,
+            "---\nid: SPEC-011\ntitle: Feature Backlog\nstatus: backlog\n---\n## Required verification\n- [x] HUMAN | kind=operator | owner=operator | phase=before-done | evidence=observation | Manual check\n",
+        )
+        .unwrap();
+
+        let index = crate::scan_workspace(directory.path()).unwrap();
+        let gates = operator_gates(directory.path(), &index);
+
+        assert_eq!(gates.len(), 1);
+        assert_eq!(gates[0].spec_id, "SPEC-010");
+        assert_eq!(gates[0].requirement_id, "HUMAN");
+        assert_eq!(gates[0].spec_status, "review");
+        assert_eq!(gates[0].milestone.as_deref(), Some("M-01"));
+        assert!(gates[0].attested.is_none());
+        assert_eq!(gates[0].blocker.as_deref(), Some("missing operator attestation"));
     }
 }

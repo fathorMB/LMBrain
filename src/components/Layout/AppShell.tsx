@@ -21,6 +21,9 @@ const SpecDetail = lazy(() =>
 const ReviewsList = lazy(() =>
   import("../Reviews/ReviewsList").then((m) => ({ default: m.ReviewsList }))
 );
+const OperationsView = lazy(() =>
+  import("../Operations/OperationsView").then((m) => ({ default: m.OperationsView }))
+);
 const DebtsView = lazy(() =>
   import("../Debts/DebtsView").then((m) => ({ default: m.DebtsView }))
 );
@@ -108,6 +111,8 @@ export function AppShell() {
         return <SpecDetail />;
       case "reviews":
         return <ReviewsList />;
+      case "operations":
+        return <OperationsView />;
       case "debts":
         return <DebtsView />;
       case "dreams":

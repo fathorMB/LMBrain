@@ -10,6 +10,8 @@ dist/
 /target-*/
 src-tauri/target/
 src-tauri/binaries/lmbrain-mcp-*
+bindings/
+**/bindings/
 
 # IDE
 .vscode/

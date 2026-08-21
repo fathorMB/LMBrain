@@ -798,6 +798,18 @@ fn attest_operator_verification(
     .map_err(|error| error.to_string())
 }
 
+#[tauri::command(async)]
+fn list_operator_gates(
+    state: State<'_, AppState>,
+) -> Result<Vec<lmbrain_core::OperatorGate>, String> {
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace root is set".to_string())?;
+    let index = lmbrain_core::scan_workspace(&root).map_err(|e| e.to_string())?;
+    Ok(lmbrain_core::operator_gates(&root, &index))
+}
+
 fn verification_root(state: &State<'_, AppState>) -> Result<PathBuf, String> {
     state
         .path_guard
@@ -991,6 +1003,7 @@ pub fn run() {
             set_artifact_status,
             get_spec_verification,
             attest_operator_verification,
+            list_operator_gates,
             get_verification_manifest_status,
             preview_verification_manifest,
             set_verification_manifest,

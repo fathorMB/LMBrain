@@ -17,6 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "roadmap", icon: "flag", label: "Roadmap", badge: null },
   { key: "insights", icon: "query_stats", label: "Insights", badge: null },
   { key: "reviews", icon: "rate_review", label: "Reviews", badge: null },
+  { key: "operations", icon: "task_alt", label: "Operations", badge: null },
   { key: "debts", icon: "report_problem", label: "Debts", badge: null },
   { key: "dreams", icon: "bedtime", label: "Dream Journal", badge: null },
   { key: "feedback", icon: "feedback", label: "Kit Feedback", badge: null },

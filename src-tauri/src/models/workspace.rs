@@ -93,4 +93,5 @@ pub struct WorkspaceSnapshot {
     pub handoffs: Vec<Handoff>,
     pub diagnostics: Vec<KitDiagnostic>,
     pub project_statistics: ProjectStatistics,
+    pub operator_gates: Vec<lmbrain_core::OperatorGate>,
 }

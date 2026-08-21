@@ -38,8 +38,16 @@ pub struct ProjectDigest {
     pub diagnostics: BoundedDiagnosticList,
     pub debts: DebtDigest,
     pub spec_dependencies: SpecDependencyDigest,
+    pub pending_operator_gates: BoundedOperatorGateList,
     pub branching_strategy: BranchingStrategyDigest,
     pub markdown: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BoundedOperatorGateList {
+    pub total: usize,
+    pub omitted: usize,
+    pub items: Vec<crate::OperatorGate>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -454,6 +462,23 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
             .collect(),
     };
 
+    let all_operator_gates = crate::operator_gates(root, &index);
+    let pending_gates: Vec<crate::OperatorGate> = all_operator_gates
+        .into_iter()
+        .filter(|gate| gate.attested.is_none() || gate.blocker.is_some())
+        .collect();
+    let pending_total = pending_gates.len();
+    let pending_items: Vec<crate::OperatorGate> = pending_gates
+        .into_iter()
+        .take(DIGEST_SPEC_LIMIT)
+        .collect();
+    let pending_omitted = pending_total.saturating_sub(pending_items.len());
+    let pending_operator_gates = BoundedOperatorGateList {
+        total: pending_total,
+        omitted: pending_omitted,
+        items: pending_items,
+    };
+
     let mut markdown = format_project_digest_md(
         &title,
         &status,
@@ -471,6 +496,7 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
         &diagnostics,
         &declared_state,
         &derived_state,
+        &pending_operator_gates,
     );
     append_debts_markdown(&mut markdown, "Active debts", &debts.active.items);
 
@@ -495,6 +521,7 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
         diagnostics,
         debts,
         spec_dependencies,
+        pending_operator_gates,
         branching_strategy: build_branching_strategy_digest(root),
         markdown,
     }
@@ -1752,6 +1779,7 @@ fn format_project_digest_md(
     diagnostic_items: &BoundedDiagnosticList,
     declared: &DeclaredProjectState,
     derived: &DerivedProjectState,
+    pending_operator_gates: &BoundedOperatorGateList,
 ) -> String {
     let mut md = format!("# Project Digest: {title}\n\n**Status:** {status}\n");
     if let Some(ms) = milestone {
@@ -1847,6 +1875,25 @@ fn format_project_digest_md(
             md.push_str(&format!(
                 "- **{}**: {} ({})\n",
                 adr.id, adr.title, adr.status
+            ));
+        }
+        md.push('\n');
+    }
+
+    if pending_operator_gates.total > 0 {
+        md.push_str(&format!(
+            "## Awaiting operator verification ({} total, {} omitted)\n\n",
+            pending_operator_gates.total, pending_operator_gates.omitted
+        ));
+        for gate in &pending_operator_gates.items {
+            let blocker_info = gate
+                .blocker
+                .as_deref()
+                .map(|b| format!(" (blocked: {b})"))
+                .unwrap_or_default();
+            md.push_str(&format!(
+                "- **{}** `{}`: {}{}\n",
+                gate.spec_id, gate.requirement_id, gate.text, blocker_info
             ));
         }
         md.push('\n');
