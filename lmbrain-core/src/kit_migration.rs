@@ -184,10 +184,11 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
         return Err(KitMigrationError::Preflight("Target .lmbrain does not exist".into()));
     }
 
+    let clean_version = |s: String| s.trim_start_matches('\u{feff}').trim().to_string();
+
     let from_version = fs::read_to_string(target_lmbrain.join("VERSION"))
-        .unwrap_or_else(|_| "unknown".into())
-        .trim()
-        .to_string();
+        .map(clean_version)
+        .unwrap_or_else(|_| "unknown".into());
 
     let bundled_lmbrain = if bundled_kit_root.join(".lmbrain").exists() {
         bundled_kit_root.join(".lmbrain")
@@ -196,9 +197,8 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
     };
 
     let to_version = fs::read_to_string(bundled_lmbrain.join("VERSION"))
-        .unwrap_or_else(|_| "5.0.0".into())
-        .trim()
-        .to_string();
+        .map(clean_version)
+        .unwrap_or_else(|_| "5.0.0".into());
 
     let mut writes = Vec::new();
     let mut items = Vec::new();

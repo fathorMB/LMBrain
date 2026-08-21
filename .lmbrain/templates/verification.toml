@@ -1,0 +1,14 @@
+# Copy to .lmbrain/verification.toml only when the project wants kit-executed
+# gates. Repository intent is inert until the operator approves this exact
+# manifest digest for the local workspace.
+schema_version = 1
+
+[[gates]]
+id = "example-tests"
+title = "Example non-interactive test gate"
+program = "cargo"
+args = ["test", "--workspace"]
+cwd = "."
+timeout_seconds = 900
+output_limit_bytes = 131072
+expected_exit_code = 0
