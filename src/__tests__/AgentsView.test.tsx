@@ -3,8 +3,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { AgentsView as AgentsMCPView } from "../components/Agents/AgentsView";
 import type { AgentProfile, AgentProposal } from "../types";
 
-const dispatch = vi.fn();
-
 const activeAgent: AgentProfile = {
   id: "AGENT-001",
   title: "Active Specialist",
@@ -121,7 +119,6 @@ vi.mock("../hooks/useWorkspace", () => ({
       mcpRecords: [],
       mcpProposals: [],
     },
-    dispatch,
     openDetailArtifact: vi.fn(),
   }),
 }));

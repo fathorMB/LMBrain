@@ -7,7 +7,7 @@ import { PageHeader, PageShell } from "../Shared/PageLayout";
 import type { MilestoneOverview, MilestoneDetail } from "../../types";
 
 export function RoadmapView() {
-  const { state, dispatch, openDetailArtifact, navigateTo } = useWorkspace();
+  const { state, openDetailArtifact, navigateTo } = useWorkspace();
   const [overview, setOverview] = useState<MilestoneOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export function RoadmapView() {
         console.error(err);
         setLoading(false);
       });
-  }, [dispatch]);
+  }, []);
 
   if (loading) {
     return (

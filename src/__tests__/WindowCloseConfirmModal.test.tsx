@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WindowCloseConfirmModal } from "../components/Layout/WindowCloseConfirmModal";
 
 const mocks = vi.hoisted(() => ({
-  dispatch: vi.fn(),
+  setShowWindowCloseConfirm: vi.fn(),
   destroy: vi.fn().mockResolvedValue(undefined),
   stopWatcher: vi.fn().mockResolvedValue(undefined),
   sessionKill: vi.fn().mockResolvedValue(undefined),
@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../hooks/useWorkspace", () => ({
   useWorkspace: () => ({
     state: { sessions: mocks.sessions },
-    dispatch: mocks.dispatch,
+    setShowWindowCloseConfirm: mocks.setShowWindowCloseConfirm,
   }),
 }));
 vi.mock("../lib/commands", () => ({
@@ -48,10 +48,7 @@ describe("WindowCloseConfirmModal", () => {
 
     fireEvent.click(screen.getByText("Keep app open"));
 
-    expect(mocks.dispatch).toHaveBeenCalledWith({
-      type: "SET_WINDOW_CLOSE_CONFIRM",
-      show: false,
-    });
+    expect(mocks.setShowWindowCloseConfirm).toHaveBeenCalledWith(false);
     expect(mocks.sessionKill).not.toHaveBeenCalled();
     expect(mocks.destroy).not.toHaveBeenCalled();
   });

@@ -62,14 +62,8 @@ function groupReviews(reviews: Review[]): ReviewGroup[] {
 }
 
 export function ReviewsList() {
-  const { state, dispatch, navigateTo } = useWorkspace();
+  const { state, openDetailArtifact, navigateTo } = useWorkspace();
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(HISTORY_STATUSES));
-
-  useEffect(() => {
-    getReviews()
-      .then((reviews) => dispatch({ type: "SET_REVIEWS", reviews }))
-      .catch(console.error);
-  }, [dispatch]);
 
   const groups = useMemo(() => groupReviews(state.reviews), [state.reviews]);
 
@@ -118,7 +112,7 @@ export function ReviewsList() {
                       const isMalformed = !!review.malformed;
                       const latestEvent = review.events.at(-1);
                       const promoted = (state.debts ?? []).filter((debt) => debt.origin_artifact === review.id || debt.related_reviews.includes(review.id));
-                      const openReview = () => dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: { title: review.title, path: review.path } });
+                      const openReview = () => openDetailArtifact({ title: review.title, path: review.path });
 
                       return (
                         <div

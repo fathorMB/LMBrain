@@ -6,7 +6,7 @@ import { resolveWikilink } from "../../lib/wikilinks";
 import type { WikiNode, WikiPage } from "../../types";
 
 export function WikiView() {
-  const { state, dispatch } = useWorkspace();
+  const { state, setWikiTree, setWikiPage } = useWorkspace();
   const [currentPage, setCurrentPage] = useState<WikiPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [wikilinkIndex, setWikilinkIndex] = useState<Record<string, string[]>>({});
@@ -24,10 +24,10 @@ export function WikiView() {
       getWikiTree(),
       getWikilinkIndex(),
     ]).then(([tree, index]) => {
-      dispatch({ type: "SET_WIKI_TREE", tree });
+      setWikiTree(tree);
       setWikilinkIndex(index);
     }).catch(console.error);
-  }, [dispatch]);
+  }, [setWikiTree]);
 
   const handleNodeClick = async (node: WikiNode) => {
     if (node.kind === "file") {
@@ -38,7 +38,7 @@ export function WikiView() {
           : node.path;
         const page = await getWikiPage(fullPath);
         setCurrentPage(page);
-        dispatch({ type: "SET_WIKI_PAGE", page });
+        setWikiPage(page);
       } catch (err) {
         console.error("Failed to load wiki page:", err);
       } finally {
@@ -197,7 +197,7 @@ export function WikiView() {
                     getWikiPage(fullPath)
                       .then((page) => {
                         setCurrentPage(page);
-                        dispatch({ type: "SET_WIKI_PAGE", page });
+                        setWikiPage(page);
                       })
                       .catch(console.error)
                       .finally(() => setLoading(false));

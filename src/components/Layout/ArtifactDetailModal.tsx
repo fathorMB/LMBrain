@@ -112,7 +112,7 @@ function GovernancePromptCard({ prompt }: { prompt: string }) {
 }
 
 export function ArtifactDetailModal() {
-  const { state, dispatch } = useWorkspace();
+  const { state, openDetailArtifact } = useWorkspace();
   const [content, setContent] = useState<string>("");
   const [loadedPath, setLoadedPath] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -174,7 +174,7 @@ export function ArtifactDetailModal() {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: null });
+        openDetailArtifact(null);
       }
       if (e.key === "Tab" && modalRef.current) {
         const focusableElements = modalRef.current.querySelectorAll(
@@ -203,7 +203,7 @@ export function ArtifactDetailModal() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [path, dispatch]);
+  }, [path, openDetailArtifact]);
 
   if (!artifact || !path) return null;
 
@@ -233,7 +233,7 @@ export function ArtifactDetailModal() {
         zIndex: 1000,
         padding: 24,
       }}
-      onClick={() => dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: null })}
+      onClick={() => openDetailArtifact(null)}
     >
       <div
         ref={modalRef}
@@ -274,7 +274,7 @@ export function ArtifactDetailModal() {
             </span>
           </div>
           <button
-            onClick={() => dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: null })}
+            onClick={() => openDetailArtifact(null)}
             aria-label="Close modal"
             style={{
               background: "transparent",
@@ -453,7 +453,7 @@ export function ArtifactDetailModal() {
         >
           <div>
             <button
-              onClick={() => dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: null })}
+              onClick={() => openDetailArtifact(null)}
               style={{
                 background: "rgba(255,255,255,0.06)",
                 border: "1px solid rgba(255,255,255,0.1)",

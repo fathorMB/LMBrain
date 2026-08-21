@@ -26,12 +26,9 @@ const baseSpec: Spec = {
   related_decisions: [],
 };
 
-const dispatch = vi.fn();
-
 vi.mock("../hooks/useWorkspace", () => ({
   useWorkspace: () => ({
     state: { specs: [baseSpec] },
-    dispatch,
     openSpec: vi.fn(),
   }),
 }));

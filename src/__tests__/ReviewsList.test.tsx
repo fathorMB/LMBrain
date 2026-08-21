@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ReviewsList } from "../components/Reviews/ReviewsList";
 import type { Review } from "../types";
 
-const dispatch = vi.fn();
+const openDetailArtifact = vi.fn();
+const navigateTo = vi.fn();
 
 const review: Review = {
   id: "REVIEW-001",
@@ -85,6 +86,7 @@ const unknownReview: Review = {
 vi.mock("../hooks/useWorkspace", () => ({
   useWorkspace: () => ({
     state: {
+      debts: [],
       reviews: [
         review,
         pendingReview,
@@ -99,7 +101,6 @@ vi.mock("../hooks/useWorkspace", () => ({
             ...review.lifecycle,
             source: "status-only",
             confidence: "low",
-            review_passes: 1,
             remediation_cycles: 0,
             initial_verdict: null,
             warnings: [
@@ -112,7 +113,8 @@ vi.mock("../hooks/useWorkspace", () => ({
         },
       ],
     },
-    dispatch,
+    openDetailArtifact,
+    navigateTo,
   }),
 }));
 
@@ -123,7 +125,7 @@ vi.mock("../lib/commands", () => ({
 describe("ReviewsList", () => {
   afterEach(() => {
     cleanup();
-    dispatch.mockClear();
+    openDetailArtifact.mockClear();
   });
 
   it("surfaces typed lifecycle history and legacy uncertainty", () => {
@@ -169,9 +171,9 @@ describe("ReviewsList", () => {
     const reviewCard = screen.getByRole("button", { name: /Open review REVIEW-003/i });
     expect(reviewCard.getAttribute("type")).toBe("button");
     fireEvent.click(reviewCard);
-    expect(dispatch).toHaveBeenCalledWith({
-      type: "SET_DETAIL_ARTIFACT",
-      artifact: { title: "Historical accepted review", path: ".lmbrain/reviews/accepted/REVIEW-003.md" },
+    expect(openDetailArtifact).toHaveBeenCalledWith({
+      title: "Historical accepted review",
+      path: ".lmbrain/reviews/accepted/REVIEW-003.md",
     });
   });
 

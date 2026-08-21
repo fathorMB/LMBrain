@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DreamsView } from "../components/Dreams/DreamsView";
 
-const dispatch = vi.fn();
+const refreshWorkspaceData = vi.fn().mockResolvedValue(undefined);
 const dreams = [{
   id: "DREAM-001", title: "A long-form observation", status: "captured",
   classification: "design-debt", confidence: "high", area: "journal",
@@ -13,7 +13,7 @@ const dreams = [{
 }];
 
 vi.mock("../hooks/useWorkspace", () => ({
-  useWorkspace: () => ({ state: { dreams }, dispatch }),
+  useWorkspace: () => ({ state: { dreams }, refreshWorkspaceData }),
 }));
 vi.mock("../lib/commands", () => ({ getDreams: vi.fn() }));
 

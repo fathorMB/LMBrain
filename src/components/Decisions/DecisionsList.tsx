@@ -45,15 +45,9 @@ const selectStyle = {
 const STATUSES: AdrStatus[] = ["accepted", "proposed", "superseded", "deprecated", "rejected"];
 
 export function DecisionsList() {
-  const { state, dispatch } = useWorkspace();
+  const { state, openDetailArtifact } = useWorkspace();
   const [filters, setFilters] = useState<DecisionFilters>(EMPTY_DECISION_FILTERS);
   const [historyOpen, setHistoryOpen] = useState(false);
-
-  useEffect(() => {
-    getAdrs()
-      .then((adrs) => dispatch({ type: "SET_ADRS", adrs }))
-      .catch(console.error);
-  }, [dispatch]);
 
   const adrs = state.adrs;
   const byId = useMemo(() => indexById(adrs), [adrs]);
@@ -72,7 +66,7 @@ export function DecisionsList() {
   const groups = useMemo(() => groupDecisions(visible, filters.sort), [visible, filters.sort]);
 
   const open = (adr: { title: string; path: string }) =>
-    dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: { title: adr.title, path: adr.path } });
+    openDetailArtifact({ title: adr.title, path: adr.path });
 
   return (
     <PageShell archetype="dense">

@@ -8,7 +8,7 @@ import { CardGrid, EmptyState, PageHeader, PageShell } from "../Shared/PageLayou
 import { ModalCloseButton } from "../Layout/ModalCloseButton";
 
 export function DreamsView() {
-  const { state, dispatch } = useWorkspace();
+  const { state, refreshWorkspaceData } = useWorkspace();
   const [status, setStatus] = useState("all");
   const [classification, setClassification] = useState("all");
   const [area, setArea] = useState("all");
@@ -30,7 +30,7 @@ export function DreamsView() {
     setLoading(true);
     setError(null);
     try {
-      dispatch({ type: "MERGE_DATA", data: { dreams: await getDreams() } });
+      await refreshWorkspaceData();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Dream Journal could not be refreshed.");
     } finally {

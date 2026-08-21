@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DebtsView } from "../components/Debts/DebtsView";
 import { getDebtContext, getDebts } from "../lib/commands";
 
-const dispatch = vi.fn();
+const refreshWorkspaceData = vi.fn().mockResolvedValue(undefined);
 const openDetailArtifact = vi.fn();
 const debts = [
   {
@@ -28,7 +28,7 @@ const debts = [
 vi.mock("../hooks/useWorkspace", () => ({
   useWorkspace: () => ({
     state: { debts },
-    dispatch,
+    refreshWorkspaceData,
     openDetailArtifact,
   }),
 }));
@@ -143,9 +143,8 @@ describe("DebtsView", () => {
   });
 
   it("refreshes read-only data through the loader", async () => {
-    vi.mocked(getDebts).mockResolvedValue(debts);
     render(<DebtsView />);
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() => expect(dispatch).toHaveBeenCalledWith({ type: "SET_DEBTS", debts }));
+    await waitFor(() => expect(refreshWorkspaceData).toHaveBeenCalled());
   });
 });

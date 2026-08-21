@@ -5,7 +5,7 @@ import { CardGrid, EmptyState, PageHeader, PageShell } from "../Shared/PageLayou
 import type { AgentImprovementInsights, AgentProfile, AgentProposal } from "../../types";
 
 export function AgentsView() {
-  const { state, dispatch } = useWorkspace();
+  const { state } = useWorkspace();
   const [insights, setInsights] = useState<AgentImprovementInsights>({ signals: [], metrics: [] });
   const visibleAgentProposals = state.agentProposals.filter(
     (proposal) =>
@@ -15,18 +15,12 @@ export function AgentsView() {
   );
 
   useEffect(() => {
-    Promise.all([
-      getAgents(),
-      getAgentProposals(),
-      getAgentImprovementInsights(),
-    ])
-      .then(([agents, agentProposals, improvementInsights]) => {
-        dispatch({ type: "SET_AGENTS", agents });
-        dispatch({ type: "SET_AGENT_PROPOSALS", proposals: agentProposals });
+    getAgentImprovementInsights()
+      .then((improvementInsights) => {
         setInsights(improvementInsights);
       })
       .catch(console.error);
-  }, [dispatch]);
+  }, []);
 
   return (
     <PageShell archetype="dense">

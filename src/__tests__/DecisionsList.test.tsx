@@ -11,7 +11,7 @@ vi.mock("../lib/commands", () => commandMocks);
 
 const workspace = vi.hoisted(() => ({
   state: { adrs: [] as Adr[], specs: [] as unknown[], debts: [] as unknown[] },
-  dispatch: vi.fn(),
+  openDetailArtifact: vi.fn(),
 }));
 
 vi.mock("../hooks/useWorkspace", () => ({
@@ -67,16 +67,16 @@ describe("DecisionsList layout", () => {
 
     const card = screen.getByRole("button", { name: /Adopt a shared layout system/ });
     fireEvent.click(card);
-    expect(workspace.dispatch).toHaveBeenCalledWith({
-      type: "SET_DETAIL_ARTIFACT",
-      artifact: { title: "Adopt a shared layout system", path: ".lmbrain/decisions/ADR-001.md" },
+    expect(workspace.openDetailArtifact).toHaveBeenCalledWith({
+      title: "Adopt a shared layout system",
+      path: ".lmbrain/decisions/ADR-001.md",
     });
 
     // Cards are real buttons, so Enter activates them without extra handlers.
-    workspace.dispatch.mockClear();
+    workspace.openDetailArtifact.mockClear();
     fireEvent.keyDown(card, { key: "Enter" });
     fireEvent.click(card);
-    expect(workspace.dispatch).toHaveBeenCalledTimes(1);
+    expect(workspace.openDetailArtifact).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the malformed marker and falls back for unknown statuses", () => {
@@ -90,10 +90,9 @@ describe("DecisionsList layout", () => {
     expect(screen.getByText("INVENTED")).toBeTruthy();
   });
 
-  it("shows the shared empty state and loads decisions on mount", async () => {
+  it("shows the shared empty state when decisions are empty", () => {
     const { container } = render(<DecisionsList />);
     expect(container.querySelector(".lm-empty-state")?.textContent).toBe("No decisions recorded yet.");
-    await waitFor(() => expect(commandMocks.getAdrs).toHaveBeenCalledTimes(1));
   });
 });
 

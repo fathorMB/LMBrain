@@ -4,7 +4,7 @@ import { useWorkspace } from "../../hooks/useWorkspace";
 import * as commands from "../../lib/commands";
 
 export function WindowCloseConfirmModal() {
-  const { state, dispatch } = useWorkspace();
+  const { state, setShowWindowCloseConfirm } = useWorkspace();
   const [status, setStatus] = useState<"idle" | "closing" | "failed">("idle");
   const [failures, setFailures] = useState<string[]>([]);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -14,7 +14,7 @@ export function WindowCloseConfirmModal() {
 
   const dismiss = () => {
     if (status === "closing") return;
-    dispatch({ type: "SET_WINDOW_CLOSE_CONFIRM", show: false });
+    setShowWindowCloseConfirm(false);
   };
 
   useEffect(() => {

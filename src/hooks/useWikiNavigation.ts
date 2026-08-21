@@ -9,14 +9,14 @@ import { resolveWikilink } from "../lib/wikilinks";
  * (Pulse, Roadmap, …).
  */
 export function useWikiNavigation() {
-  const { state, dispatch } = useWorkspace();
+  const { state, setWikiTree, setWikiPage, navigateTo } = useWorkspace();
 
   return async (target: string) => {
     try {
       let tree = state.wikiTree;
       if (!tree) {
         tree = await getWikiTree();
-        dispatch({ type: "SET_WIKI_TREE", tree });
+        setWikiTree(tree);
       }
       const resolved = resolveWikilink(target, tree.root);
       if (resolved) {
@@ -24,9 +24,9 @@ export function useWikiNavigation() {
           ? `${state.currentWorkspace.path}/${resolved}`
           : resolved;
         const page = await getWikiPage(fullPath);
-        dispatch({ type: "SET_WIKI_PAGE", page });
+        setWikiPage(page);
       }
-      dispatch({ type: "SET_VIEW", view: "wiki" });
+      navigateTo("wiki");
     } catch (err) {
       console.error("Failed to open wiki target:", err);
     }

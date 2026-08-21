@@ -61,14 +61,8 @@ const chipButtonStyle = {
 } as const;
 
 export function TaskboardView() {
-  const { state, dispatch, openSpec } = useWorkspace();
+  const { state, openSpec } = useWorkspace();
   const [filters, setFilters] = useState<BoardFilters>(EMPTY_BOARD_FILTERS);
-
-  useEffect(() => {
-    getSpecs()
-      .then((specs) => dispatch({ type: "SET_SPECS", specs }))
-      .catch(console.error);
-  }, [dispatch]);
 
   const tagVocabulary = useMemo(() => collectTagVocabulary(state.specs), [state.specs]);
   const filtersActive = hasActiveBoardFilters(filters);

@@ -917,7 +917,7 @@ function ActionCard({ action }: { action: PulseData["actions"][0] }) {
 }
 
 function HandoffCard({ handoff }: { handoff: Handoff }) {
-  const { dispatch } = useWorkspace();
+  const { openDetailArtifact } = useWorkspace();
   return (
     <div
       style={{
@@ -958,7 +958,7 @@ function HandoffCard({ handoff }: { handoff: Handoff }) {
         {handoff.title}
       </div>
       <button
-        onClick={() => dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: { title: handoff.title, path: handoff.path } })}
+        onClick={() => openDetailArtifact({ title: handoff.title, path: handoff.path })}
         style={{
           width: "100%",
           display: "flex",
@@ -985,7 +985,7 @@ function HandoffCard({ handoff }: { handoff: Handoff }) {
 }
 
 function AdrRow({ adr }: { adr: Adr }) {
-  const { dispatch } = useWorkspace();
+  const { openDetailArtifact } = useWorkspace();
   const statusColors: Record<string, { color: string; bg: string }> = {
     accepted: { color: "#46b07d", bg: "rgba(70,176,125,.12)" },
     proposed: { color: "#8a8d99", bg: "rgba(139,141,152,.12)" },
@@ -996,7 +996,7 @@ function AdrRow({ adr }: { adr: Adr }) {
 
   return (
     <div
-      onClick={() => dispatch({ type: "SET_DETAIL_ARTIFACT", artifact: { title: adr.title, path: adr.path } })}
+      onClick={() => openDetailArtifact({ title: adr.title, path: adr.path })}
       style={{
         display: "flex",
         alignItems: "center",
@@ -1104,15 +1104,12 @@ function QuickLink({
   label: string;
   documentPath?: string;
 }) {
-  const { state, dispatch } = useWorkspace();
+  const { state, openDetailArtifact } = useWorkspace();
   const openDocument = () => {
     if (!state.currentWorkspace || !documentPath) return;
-    dispatch({
-      type: "SET_DETAIL_ARTIFACT",
-      artifact: {
-        title: label,
-        path: `${state.currentWorkspace.path}/${documentPath}`,
-      },
+    openDetailArtifact({
+      title: label,
+      path: `${state.currentWorkspace.path}/${documentPath}`,
     });
   };
 

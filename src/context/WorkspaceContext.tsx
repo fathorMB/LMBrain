@@ -327,7 +327,6 @@ export interface WorkspaceContextValue {
   state: WorkspaceState;
   /** Unread item count per workspace page, keyed by view. */
   unreadCounts: Record<UnreadPage, number>;
-  dispatch: Dispatch<Action>;
   openWorkspace: (path: string) => Promise<void>;
   initializeWorkspaceKit: (path: string) => Promise<void>;
   loadAllData: () => Promise<void>;
@@ -345,6 +344,11 @@ export interface WorkspaceContextValue {
   closeSession: (id: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
   setActiveSession: (id: string | null) => void;
+  setSessions: (sessions: SessionInfo[]) => void;
+  setShowWindowCloseConfirm: (show: boolean) => void;
+  setWorkspaceNotice: (notice: string | null) => void;
+  setWikiPage: (page: WikiPage | null) => void;
+  setWikiTree: (tree: WikiTree) => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -761,12 +765,31 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_ACTIVE_SESSION", id });
   }, []);
 
+  const setSessions = useCallback((sessions: SessionInfo[]) => {
+    dispatch({ type: "SET_SESSIONS", sessions });
+  }, []);
+
+  const setShowWindowCloseConfirm = useCallback((show: boolean) => {
+    dispatch({ type: "SET_WINDOW_CLOSE_CONFIRM", show });
+  }, []);
+
+  const setWorkspaceNotice = useCallback((notice: string | null) => {
+    dispatch({ type: "SET_WORKSPACE_NOTICE", notice });
+  }, []);
+
+  const setWikiPage = useCallback((page: WikiPage | null) => {
+    dispatch({ type: "SET_WIKI_PAGE", page });
+  }, []);
+
+  const setWikiTree = useCallback((tree: WikiTree) => {
+    dispatch({ type: "SET_WIKI_TREE", tree });
+  }, []);
+
   return (
     <WorkspaceContext.Provider
       value={{
         state,
         unreadCounts,
-        dispatch,
         openWorkspace,
         initializeWorkspaceKit,
         loadAllData,
@@ -784,6 +807,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         closeSession,
         refreshSessions,
         setActiveSession,
+        setSessions,
+        setShowWindowCloseConfirm,
+        setWorkspaceNotice,
+        setWikiPage,
+        setWikiTree,
       }}
     >
       {children}
