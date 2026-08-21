@@ -1062,6 +1062,7 @@ impl Lifecycle for DebtLifecycle {
             (DebtStatus::Open, DebtStatus::AcceptedRisk),
             (DebtStatus::Open, DebtStatus::Superseded),
             (DebtStatus::Planned, DebtStatus::Open),
+            (DebtStatus::Planned, DebtStatus::Planned),
             (DebtStatus::Planned, DebtStatus::Deferred),
             (DebtStatus::Planned, DebtStatus::Resolved),
             (DebtStatus::Planned, DebtStatus::AcceptedRisk),
@@ -1083,6 +1084,7 @@ impl Lifecycle for DebtLifecycle {
                 | (DebtStatus::Open, DebtStatus::AcceptedRisk)
                 | (DebtStatus::Open, DebtStatus::Superseded)
                 | (DebtStatus::Planned, DebtStatus::Open)
+                | (DebtStatus::Planned, DebtStatus::Planned)
                 | (DebtStatus::Planned, DebtStatus::Deferred)
                 | (DebtStatus::Planned, DebtStatus::Resolved)
                 | (DebtStatus::Planned, DebtStatus::AcceptedRisk)

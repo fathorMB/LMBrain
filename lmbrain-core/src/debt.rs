@@ -1384,6 +1384,47 @@ mod tests {
     }
 
     #[test]
+    fn planned_debt_can_be_replanned_when_its_target_spec_is_split() {
+        let dir = workspace();
+        let split_targets = ["SPEC-060", "SPEC-061"];
+        for id in split_targets {
+            fs::write(
+                dir.path().join(format!(".lmbrain/specs/backlog/{id}.md")),
+                format!("---\nid: {id}\ntitle: Split target\nstatus: backlog\n---\n"),
+            )
+            .unwrap();
+        }
+
+        let created = create_debt(dir.path(), input()).unwrap();
+        let planned = plan_debt(
+            dir.path(),
+            &created.path,
+            vec!["SPEC-059".into()],
+            "AGENT-LEAD",
+            "Route to the original target.",
+        )
+        .unwrap();
+        let replanned = plan_debt(
+            dir.path(),
+            &planned.path,
+            split_targets.map(str::to_string).to_vec(),
+            "AGENT-LEAD",
+            "The original target was split into two specifications.",
+        )
+        .unwrap();
+
+        let document = Document::parse(&fs::read_to_string(&replanned.path).unwrap()).unwrap();
+        assert_eq!(document.value("status").as_deref(), Some("planned"));
+        assert_eq!(document.string_array("target_specs"), split_targets);
+        let events = document.object_array("debt_events");
+        assert_eq!(events.len(), 3);
+        assert_eq!(events[2]["action"], "planned");
+        assert_eq!(events[2]["from_status"], "planned");
+        assert_eq!(events[2]["to_status"], "planned");
+        assert_eq!(events[2]["evidence_refs"], json!(["SPEC-060", "SPEC-061"]));
+    }
+
+    #[test]
     fn duplicate_active_origin_and_invalid_planning_fail_without_mutation() {
         let dir = workspace();
         let created = create_debt(dir.path(), input()).unwrap();
