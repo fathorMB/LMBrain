@@ -1,4 +1,4 @@
-﻿#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChecklistItem {
     pub position: usize,
     pub marker: String,
@@ -38,11 +38,11 @@ pub fn find_section_any<'a>(body: &'a str, headings: &[&str]) -> Option<&'a str>
     })
 }
 
-fn find_section_with<'a>(
-    body: &'a str,
+fn find_section_with(
+    body: &str,
     target_level: usize,
     matches_heading: impl Fn(&str) -> bool,
-) -> Option<&'a str> {
+) -> Option<&str> {
     let mut fence: Option<(char, usize)> = None;
     let mut start: Option<usize> = None;
     let mut found_level = target_level;
@@ -371,9 +371,9 @@ mod tests {
         let text = "- [x] Done item\n- [ ] Todo item\n- [~] Waived item | waived=DEBT-001\n- [!] Invalid item\n```\n- [x] Inside fence\n```\n";
         let items = parse_checklist(text);
         assert_eq!(items.len(), 4);
-        assert_eq!(items[0].checked, true);
+        assert!(items[0].checked);
         assert_eq!(items[0].text, "Done item");
-        assert_eq!(items[1].checked, false);
+        assert!(!items[1].checked);
         assert_eq!(items[2].waived.as_deref(), Some("DEBT-001"));
         assert_eq!(items[3].marker, "!");
     }

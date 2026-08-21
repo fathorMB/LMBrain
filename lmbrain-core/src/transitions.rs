@@ -18,9 +18,10 @@ use crate::{
     taxonomy::{normalize_finding_category, FINDING_TAXONOMY_VERSION},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum SpecStatus {
+    #[default]
     Backlog,
     Ready,
     Working,
@@ -53,12 +54,6 @@ impl SpecStatus {
     }
 }
 
-impl Default for SpecStatus {
-    fn default() -> Self {
-        Self::Backlog
-    }
-}
-
 impl std::fmt::Display for SpecStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
@@ -80,9 +75,10 @@ impl std::str::FromStr for SpecStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum ReviewStatus {
+    #[default]
     Pending,
     Accepted,
     ChangesRequested,
@@ -112,12 +108,6 @@ impl ReviewStatus {
     }
 }
 
-impl Default for ReviewStatus {
-    fn default() -> Self {
-        Self::Pending
-    }
-}
-
 impl std::fmt::Display for ReviewStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
@@ -138,9 +128,10 @@ impl std::str::FromStr for ReviewStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum AdrStatus {
+    #[default]
     Proposed,
     Accepted,
     Rejected,
@@ -170,12 +161,6 @@ impl AdrStatus {
     }
 }
 
-impl Default for AdrStatus {
-    fn default() -> Self {
-        Self::Proposed
-    }
-}
-
 impl std::fmt::Display for AdrStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
@@ -196,9 +181,10 @@ impl std::str::FromStr for AdrStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentStatus {
+    #[default]
     Proposed,
     Active,
     Inactive,
@@ -225,12 +211,6 @@ impl AgentStatus {
     }
 }
 
-impl Default for AgentStatus {
-    fn default() -> Self {
-        Self::Proposed
-    }
-}
-
 impl std::fmt::Display for AgentStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
@@ -250,9 +230,10 @@ impl std::str::FromStr for AgentStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentProposalStatus {
+    #[default]
     Proposed,
     Approved,
     Rejected,
@@ -269,12 +250,6 @@ impl AgentProposalStatus {
             Self::Approved => "approved",
             Self::Rejected => "rejected",
         }
-    }
-}
-
-impl Default for AgentProposalStatus {
-    fn default() -> Self {
-        Self::Proposed
     }
 }
 
@@ -296,9 +271,10 @@ impl std::str::FromStr for AgentProposalStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum McpStatus {
+    #[default]
     Specified,
     Active,
     Inactive,
@@ -325,12 +301,6 @@ impl McpStatus {
     }
 }
 
-impl Default for McpStatus {
-    fn default() -> Self {
-        Self::Specified
-    }
-}
-
 impl std::fmt::Display for McpStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
@@ -350,9 +320,10 @@ impl std::str::FromStr for McpStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum McpProposalStatus {
+    #[default]
     Proposed,
     Approved,
     Rejected,
@@ -382,12 +353,6 @@ impl McpProposalStatus {
     }
 }
 
-impl Default for McpProposalStatus {
-    fn default() -> Self {
-        Self::Proposed
-    }
-}
-
 impl std::fmt::Display for McpProposalStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
@@ -408,9 +373,10 @@ impl std::str::FromStr for McpProposalStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum HandoffStatus {
+    #[default]
     Ready,
     Consumed,
     Superseded,
@@ -437,12 +403,6 @@ impl HandoffStatus {
     }
 }
 
-impl Default for HandoffStatus {
-    fn default() -> Self {
-        Self::Ready
-    }
-}
-
 impl std::fmt::Display for HandoffStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
@@ -462,9 +422,10 @@ impl std::str::FromStr for HandoffStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum SkillStatus {
+    #[default]
     Proposed,
     Active,
     Retired,
@@ -481,12 +442,6 @@ impl SkillStatus {
             Self::Active => "active",
             Self::Retired => "retired",
         }
-    }
-}
-
-impl Default for SkillStatus {
-    fn default() -> Self {
-        Self::Proposed
     }
 }
 
@@ -508,9 +463,10 @@ impl std::str::FromStr for SkillStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum DebtStatus {
+    #[default]
     Open,
     Planned,
     Deferred,
@@ -540,12 +496,6 @@ impl DebtStatus {
             Self::AcceptedRisk => "accepted-risk",
             Self::Superseded => "superseded",
         }
-    }
-}
-
-impl Default for DebtStatus {
-    fn default() -> Self {
-        Self::Open
     }
 }
 
@@ -1220,43 +1170,43 @@ impl ArtifactKind {
         match self {
             Self::Spec => status
                 .parse::<SpecStatus>()
-                .map_err(|e| TransitionError::Invariant(e))
+                .map_err(TransitionError::Invariant)
                 .and_then(SpecLifecycle::status_dir),
             Self::Review => status
                 .parse::<ReviewStatus>()
-                .map_err(|e| TransitionError::Invariant(e))
+                .map_err(TransitionError::Invariant)
                 .and_then(ReviewLifecycle::status_dir),
             Self::Adr => status
                 .parse::<AdrStatus>()
-                .map_err(|e| TransitionError::Invariant(e))
+                .map_err(TransitionError::Invariant)
                 .and_then(AdrLifecycle::status_dir),
             Self::Agent => status
                 .parse::<AgentStatus>()
-                .map_err(|e| TransitionError::Invariant(e))
+                .map_err(TransitionError::Invariant)
                 .and_then(AgentLifecycle::status_dir),
             Self::AgentProposal => status
                 .parse::<AgentProposalStatus>()
-                .map_err(|e| TransitionError::Invariant(e))
+                .map_err(TransitionError::Invariant)
                 .and_then(AgentProposalLifecycle::status_dir),
             Self::Mcp => status
                 .parse::<McpStatus>()
-                .map_err(|e| TransitionError::Invariant(e))
+                .map_err(TransitionError::Invariant)
                 .and_then(McpLifecycle::status_dir),
             Self::McpProposal => status
                 .parse::<McpProposalStatus>()
-                .map_err(|e| TransitionError::Invariant(e))
+                .map_err(TransitionError::Invariant)
                 .and_then(McpProposalLifecycle::status_dir),
             Self::Handoff => status
                 .parse::<HandoffStatus>()
-                .map_err(|e| TransitionError::Invariant(e))
+                .map_err(TransitionError::Invariant)
                 .and_then(HandoffLifecycle::status_dir),
             Self::Skill => status
                 .parse::<SkillStatus>()
-                .map_err(|e| TransitionError::Invariant(e))
+                .map_err(TransitionError::Invariant)
                 .and_then(SkillLifecycle::status_dir),
             Self::Debt => status
                 .parse::<DebtStatus>()
-                .map_err(|e| TransitionError::Invariant(e))
+                .map_err(TransitionError::Invariant)
                 .and_then(DebtLifecycle::status_dir),
         }
     }
@@ -2671,16 +2621,11 @@ fn invariant_failure(
                 _ => None,
             }
         }
-        ArtifactKind::Review => {
-            if let Err(reason) = invariants::implementation_agent_resolves(
-                root,
-                document.value("implementation_agent").as_deref(),
-            ) {
-                Some(reason)
-            } else {
-                None
-            }
-        }
+        ArtifactKind::Review => invariants::implementation_agent_resolves(
+            root,
+            document.value("implementation_agent").as_deref(),
+        )
+        .err(),
         ArtifactKind::Handoff => {
             let Ok(target_status) = target.parse::<HandoffStatus>() else {
                 return Some(format!("invalid handoff status: {target}"));
