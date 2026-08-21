@@ -1,12 +1,13 @@
 # Dependencies
 node_modules/
+.pnpm-store-local/
 
 # Build output
 dist/
 
 # Rust build
 /target/
-/target-tests/
+/target-*/
 src-tauri/target/
 src-tauri/binaries/lmbrain-mcp-*
 
