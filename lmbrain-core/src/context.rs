@@ -1728,95 +1728,20 @@ fn extract_fenced_commands(body: &str) -> Vec<String> {
     }
     commands
 }
-
-/// Fence delimiters toggle a state in which heading-like lines are content.
-fn is_fence(line: &str) -> bool {
-    let trimmed = line.trim_start();
-    trimmed.starts_with("```") || trimmed.starts_with("~~~")
-}
-
-/// Heading level of a Markdown ATX heading line (1-6), if any.
-fn heading_level_of(line: &str) -> Option<usize> {
-    let trimmed = line.trim();
-    let level = trimmed.chars().take_while(|ch| *ch == '#').count();
-    if !(1..=6).contains(&level) {
-        return None;
-    }
-    let rest = &trimmed[level..];
-    (rest.starts_with(' ') && !rest.trim().is_empty()).then_some(level)
-}
-
-/// Heading level of a line whose text equals `heading` exactly, if any.
-fn matching_heading_level(line: &str, heading: &str) -> Option<usize> {
-    let level = heading_level_of(line)?;
-    (line.trim()[level..].trim() == heading).then_some(level)
-}
-
-/// Collect the lines of the first non-empty section titled `heading`.
-///
-/// Heading-level aware: a match at level N includes nested deeper headings
-/// and stops only at the next heading of level <= N, so a `##` section keeps
-/// its `###` subsections. Heading-like lines inside fenced code blocks are
-/// treated as content, never as boundaries.
-fn section_body_lines<'a>(body: &'a str, heading: &str) -> Option<Vec<&'a str>> {
-    let lines: Vec<&str> = body.lines().collect();
-    let mut in_fence = false;
-    for (i, line) in lines.iter().enumerate() {
-        if is_fence(line) {
-            in_fence = !in_fence;
-            continue;
-        }
-        if in_fence {
-            continue;
-        }
-        let Some(level) = matching_heading_level(line, heading) else {
-            continue;
-        };
-        let mut content = Vec::new();
-        let mut content_fence = false;
-        for next in &lines[i + 1..] {
-            if is_fence(next) {
-                content_fence = !content_fence;
-                content.push(*next);
-                continue;
-            }
-            if !content_fence {
-                if let Some(next_level) = heading_level_of(next) {
-                    if next_level <= level {
-                        break;
-                    }
-                }
-            }
-            content.push(*next);
-        }
-        if content.iter().any(|entry| !entry.trim().is_empty()) {
-            return Some(content);
-        }
-        // An empty match keeps searching so a stray duplicate heading cannot
-        // shadow the real populated section further down.
-    }
-    None
-}
-
 fn has_section_heading(body: &str, heading: &str) -> bool {
-    let mut in_fence = false;
-    body.lines().any(|line| {
-        if is_fence(line) {
-            in_fence = !in_fence;
-            return false;
-        }
-        !in_fence && matching_heading_level(line, heading).is_some()
-    })
+    crate::markdown::has_heading(body, heading)
 }
 
 fn extract_section(body: &str, heading: &str) -> Option<String> {
-    section_body_lines(body, heading).map(|lines| lines.join("\n").trim().to_string())
+    crate::markdown::find_nonempty_section(body, heading).map(|s| s.trim().to_string())
 }
 
 fn extract_section_list(body: &str, heading: &str) -> Vec<String> {
-    section_body_lines(body, heading)
-        .unwrap_or_default()
-        .into_iter()
+    let Some(section) = extract_section(body, heading) else {
+        return Vec::new();
+    };
+    section
+        .lines()
         .filter_map(|line| {
             let trimmed = line.trim();
             trimmed

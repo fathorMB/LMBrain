@@ -13,21 +13,7 @@ pub fn spec_has_accepted_review(root: &Path, spec_id: &str) -> bool {
 }
 
 pub fn extract_waived_debt_id(line: &str) -> Option<&str> {
-    let trimmed = line.trim_start();
-    if !trimmed.starts_with("- [~]") {
-        return None;
-    }
-    let idx = trimmed.find("waived=")?;
-    let rest = &trimmed[idx + "waived=".len()..];
-    let end = rest
-        .find(|c: char| c.is_whitespace() || c == '|' || c == ']' || c == ')')
-        .unwrap_or(rest.len());
-    let debt_id = rest[..end].trim();
-    if debt_id.starts_with("DEBT-") {
-        Some(debt_id)
-    } else {
-        None
-    }
+    crate::markdown::extract_waived_debt_id(line)
 }
 
 /// How a single acceptance criterion reads to the tools.
@@ -171,57 +157,7 @@ pub fn waived_findings_are_valid(root: &Path, body: &str) -> Result<(), String> 
 }
 
 fn markdown_section<'a>(body: &'a str, headings: &[&str]) -> Option<&'a str> {
-    let mut section_start = None;
-    let mut section_level = 0usize;
-
-    for (offset, line) in line_offsets(body) {
-        let Some((level, text)) = heading(line) else {
-            continue;
-        };
-
-        if let Some(start) = section_start {
-            if level <= section_level {
-                return Some(&body[start..offset]);
-            }
-        }
-
-        if section_start.is_none()
-            && headings
-                .iter()
-                .any(|candidate| normalize_heading(text) == *candidate)
-        {
-            section_start = Some(offset + line.len());
-            section_level = level;
-        }
-    }
-
-    section_start.map(|start| &body[start..])
-}
-
-fn line_offsets(body: &str) -> impl Iterator<Item = (usize, &str)> {
-    let mut offset = 0usize;
-    body.split_inclusive('\n').map(move |line| {
-        let current = offset;
-        offset += line.len();
-        (current, line.trim_end_matches(['\r', '\n']))
-    })
-}
-
-fn heading(line: &str) -> Option<(usize, &str)> {
-    let trimmed = line.trim_start();
-    let level = trimmed.chars().take_while(|ch| *ch == '#').count();
-    if level == 0 || level > 6 {
-        return None;
-    }
-    let text = trimmed[level..].trim_start();
-    if text.is_empty() {
-        return None;
-    }
-    Some((level, text.trim_matches('#').trim()))
-}
-
-fn normalize_heading(value: &str) -> String {
-    value.trim().to_ascii_lowercase()
+    crate::markdown::find_section_any(body, headings)
 }
 
 fn has_evidence_content(section: &str) -> bool {
