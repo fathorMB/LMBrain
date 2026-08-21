@@ -272,7 +272,12 @@ pub fn single_ready_handoff(root: &Path, excluding: Option<&Path>) -> bool {
     scan(root.join(".lmbrain/handoffs/active"))
         .into_iter()
         .filter(|path| Some(path.as_path()) != excluding)
-        .filter(|path| read(path, "status").as_deref() == Some("ready"))
+        .filter(|path| {
+            read(path, "status")
+                .as_deref()
+                .and_then(|s| s.parse::<crate::HandoffStatus>().ok())
+                == Some(crate::HandoffStatus::Ready)
+        })
         .count()
         == 0
 }
@@ -389,10 +394,10 @@ pub fn supersession_is_consistent(
     superseded_status: &str,
     superseded_superseded_by: &[String],
 ) -> Result<(), String> {
-    if superseding_status != "accepted" {
+    if superseding_status.parse::<crate::AdrStatus>().ok() != Some(crate::AdrStatus::Accepted) {
         return Ok(());
     }
-    if superseded_status != "superseded" {
+    if superseded_status.parse::<crate::AdrStatus>().ok() != Some(crate::AdrStatus::Superseded) {
         return Err(format!(
             "{superseded_id} is still `{superseded_status}` although {superseding_id} supersedes it"
         ));

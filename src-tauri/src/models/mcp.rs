@@ -1,30 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum McpStatus {
-    #[serde(rename = "specified")]
-    Specified,
-    #[serde(rename = "active")]
-    Active,
-    #[serde(rename = "inactive")]
-    Inactive,
-    #[serde(rename = "deprecated")]
-    Deprecated,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum McpProposalStatus {
-    #[serde(rename = "proposed")]
-    Proposed,
-    #[serde(rename = "approved")]
-    Approved,
-    #[serde(rename = "rejected")]
-    Rejected,
-    #[serde(rename = "implemented")]
-    Implemented,
-    #[serde(rename = "blocked")]
-    Blocked,
-}
+pub use lmbrain_core::{McpProposalStatus, McpStatus};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpRecord {

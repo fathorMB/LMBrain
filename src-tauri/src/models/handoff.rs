@@ -1,16 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum HandoffStatus {
-    #[serde(rename = "ready")]
-    Ready,
-    #[serde(rename = "consumed")]
-    Consumed,
-    #[serde(rename = "superseded")]
-    Superseded,
-    #[serde(rename = "archived")]
-    Archived,
-}
+pub use lmbrain_core::HandoffStatus;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Handoff {

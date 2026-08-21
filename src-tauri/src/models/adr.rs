@@ -1,30 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum AdrStatus {
-    #[serde(rename = "proposed")]
-    Proposed,
-    #[serde(rename = "accepted")]
-    Accepted,
-    #[serde(rename = "rejected")]
-    Rejected,
-    #[serde(rename = "superseded")]
-    Superseded,
-    #[serde(rename = "deprecated")]
-    Deprecated,
-}
-
-impl AdrStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            AdrStatus::Proposed => "proposed",
-            AdrStatus::Accepted => "accepted",
-            AdrStatus::Rejected => "rejected",
-            AdrStatus::Superseded => "superseded",
-            AdrStatus::Deprecated => "deprecated",
-        }
-    }
-}
+pub use lmbrain_core::AdrStatus;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Adr {
