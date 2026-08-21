@@ -22,6 +22,9 @@ pub mod taxonomy;
 pub mod transitions;
 pub mod verification;
 pub mod verification_onboarding;
+pub mod workspace_index;
+
+pub use workspace_index::{scan_workspace, ArtifactEntry, WorkspaceIndex};
 
 pub use attestation::{
     attest_spec_requirement, attest_spec_requirement_delegated,

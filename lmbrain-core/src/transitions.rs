@@ -1171,7 +1171,7 @@ impl Lifecycle for DebtLifecycle {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ArtifactKind {
     Spec,
@@ -2469,12 +2469,13 @@ fn create_locked(
     request: CreateRequest,
     status: String,
 ) -> Result<MutationResult, TransitionError> {
+    let index = crate::scan_workspace(root)?;
     let id = format!(
         "{}-{:03}",
         request.kind.prefix(),
-        next_id(root, request.kind)
+        index.next_id(request.kind)
     );
-    if id_exists(root, &id) {
+    if index.id_exists(&id) {
         return Err(TransitionError::Invariant(format!(
             "allocated ID {id} already exists in the workspace"
         )));
@@ -2563,61 +2564,6 @@ fn create_locked(
         path,
         forced: false,
     })
-}
-
-fn id_exists(root: &Path, id: &str) -> bool {
-    fn scan(dir: &Path, id: &str) -> bool {
-        if let Ok(entries) = fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    if scan(&path, id) {
-                        return true;
-                    }
-                } else if fs::read_to_string(&path)
-                    .ok()
-                    .and_then(|source| Document::parse(&source).ok())
-                    .and_then(|document| document.value("id"))
-                    .as_deref()
-                    == Some(id)
-                {
-                    return true;
-                }
-            }
-        }
-        false
-    }
-    scan(&root.join(".lmbrain"), id)
-}
-
-fn next_id(root: &Path, kind: ArtifactKind) -> u32 {
-    let mut max = 0;
-    scan_ids(&root.join(".lmbrain"), kind.prefix(), &mut max);
-    max + 1
-}
-
-fn scan_ids(dir: &Path, prefix: &str, max: &mut u32) {
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                scan_ids(&path, prefix, max);
-            } else if let Ok(source) = fs::read_to_string(path) {
-                if let Ok(document) = Document::parse(&source) {
-                    if let Some(id) = document.value("id") {
-                        if let Some(number) = numeric_suffix(&id, prefix) {
-                            *max = (*max).max(number);
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn numeric_suffix(id: &str, prefix: &str) -> Option<u32> {
-    let suffix = id.strip_prefix(prefix)?.strip_prefix('-')?;
-    suffix.parse().ok()
 }
 
 fn destination_for(

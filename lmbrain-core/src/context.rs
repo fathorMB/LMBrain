@@ -339,6 +339,7 @@ pub struct ReviewContext {
 /// Build a project digest from the .lmbrain directory.
 pub fn build_project_digest(root: &Path) -> ProjectDigest {
     let lmbrain = root.join(".lmbrain");
+    let index = crate::scan_workspace(root).unwrap_or_default();
 
     // Read STATUS.md
     let (title, status, milestone) = read_status(&lmbrain);
@@ -346,7 +347,7 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
     let version = read_version(&lmbrain);
 
     // Scan specs
-    let mut all_specs = scan_specs(&lmbrain);
+    let mut all_specs = scan_specs_from_index(&index);
     all_specs.sort_by(|left, right| left.id.cmp(&right.id));
     let ready_all: Vec<CompactSpec> = all_specs
         .iter()
@@ -370,10 +371,10 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
         .collect::<Vec<_>>();
 
     // Scan handoffs
-    let ready_handoffs = scan_ready_handoffs(&lmbrain);
+    let ready_handoffs = scan_ready_handoffs_from_index(&index);
 
     // Scan ADRs
-    let active_decisions = scan_active_adrs(&lmbrain);
+    let active_decisions = scan_active_adrs_from_index(&index);
 
     // Scan diagnostics
     let all_diagnostics = crate::diagnostics::build_diagnostics(root);
@@ -1035,47 +1036,30 @@ fn latest_parking(document: &Document) -> Option<SpecParkingSummary> {
 }
 
 fn scan_specs(lmbrain: &Path) -> Vec<CompactSpec> {
+    let root = lmbrain.parent().unwrap_or(lmbrain);
+    let Ok(index) = crate::scan_workspace(root) else {
+        return Vec::new();
+    };
+    scan_specs_from_index(&index)
+}
+
+fn scan_specs_from_index(index: &crate::WorkspaceIndex) -> Vec<CompactSpec> {
     let mut specs = Vec::new();
-    let specs_dir = lmbrain.join("specs");
-    if !specs_dir.exists() {
-        return specs;
-    }
-    if let Ok(entries) = fs::read_dir(&specs_dir) {
-        for entry in entries.flatten() {
-            let status_dir = entry.path();
-            if !status_dir.is_dir() {
-                continue;
-            }
-            if let Ok(files) = fs::read_dir(&status_dir) {
-                for file in files.flatten() {
-                    let path = file.path();
-                    if path.extension().and_then(|e| e.to_str()) != Some("md") {
-                        continue;
-                    }
-                    if let Ok(source) = fs::read_to_string(&path) {
-                        if let Ok(doc) = Document::parse(&source) {
-                            let status_name = status_dir
-                                .file_name()
-                                .and_then(|n| n.to_str())
-                                .map(|n| n.to_string());
-                            specs.push(CompactSpec {
-                                id: doc.value("id").unwrap_or_default(),
-                                title: doc.value("title").unwrap_or_default(),
-                                status: status_name.or_else(|| doc.value("status")),
-                                priority: doc.value("priority"),
-                                area: doc.value("area"),
-                                recommended_agent: doc.value("recommended_agent"),
-                                milestone: doc.value("milestone"),
-                                updated: doc.value("updated"),
-                                forced: !doc.object_array("mutation_overrides").is_empty()
-                                    || doc.body.contains("## Mutation override"),
-                                parking: latest_parking(&doc),
-                            });
-                        }
-                    }
-                }
-            }
-        }
+    for entry in index.by_kind(crate::ArtifactKind::Spec) {
+        let doc = &entry.document;
+        specs.push(CompactSpec {
+            id: entry.id.clone(),
+            title: doc.value("title").unwrap_or_default(),
+            status: Some(entry.status.clone()),
+            priority: doc.value("priority"),
+            area: doc.value("area"),
+            recommended_agent: doc.value("recommended_agent"),
+            milestone: doc.value("milestone"),
+            updated: doc.value("updated"),
+            forced: !doc.object_array("mutation_overrides").is_empty()
+                || doc.body.contains("## Mutation override"),
+            parking: latest_parking(doc),
+        });
     }
     specs
 }
@@ -1204,57 +1188,39 @@ fn derive_project_state(lmbrain: &Path, specs: &[CompactSpec]) -> DerivedProject
 }
 
 fn scan_ready_handoffs(lmbrain: &Path) -> Vec<String> {
-    let handoffs_dir = lmbrain.join("handoffs/active");
-    if !handoffs_dir.exists() {
+    let root = lmbrain.parent().unwrap_or(lmbrain);
+    let Ok(index) = crate::scan_workspace(root) else {
         return Vec::new();
-    }
-    let mut handoffs = Vec::new();
-    if let Ok(entries) = fs::read_dir(&handoffs_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("md") {
-                continue;
-            }
-            if let Ok(source) = fs::read_to_string(&path) {
-                if let Ok(doc) = Document::parse(&source) {
-                    if doc.value("status").as_deref() == Some("ready") {
-                        handoffs.push(doc.value("id").unwrap_or_default());
-                    }
-                }
-            }
-        }
-    }
-    handoffs
+    };
+    scan_ready_handoffs_from_index(&index)
+}
+
+fn scan_ready_handoffs_from_index(index: &crate::WorkspaceIndex) -> Vec<String> {
+    index
+        .by_kind(crate::ArtifactKind::Handoff)
+        .filter(|entry| entry.status == "ready")
+        .map(|entry| entry.id.clone())
+        .collect()
 }
 
 fn scan_active_adrs(lmbrain: &Path) -> Vec<CompactAdr> {
-    let decisions_dir = lmbrain.join("decisions");
-    if !decisions_dir.exists() {
+    let root = lmbrain.parent().unwrap_or(lmbrain);
+    let Ok(index) = crate::scan_workspace(root) else {
         return Vec::new();
-    }
+    };
+    scan_active_adrs_from_index(&index)
+}
+
+fn scan_active_adrs_from_index(index: &crate::WorkspaceIndex) -> Vec<CompactAdr> {
     let mut adrs = Vec::new();
-    if let Ok(entries) = fs::read_dir(&decisions_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("md") {
-                continue;
-            }
-            if let Ok(source) = fs::read_to_string(&path) {
-                if let Ok(doc) = Document::parse(&source) {
-                    let id = doc.value("id").unwrap_or_default();
-                    if id.starts_with("ADR-") {
-                        let status = doc.value("status").unwrap_or_default();
-                        if status == "accepted" || status == "proposed" {
-                            adrs.push(CompactAdr {
-                                id,
-                                title: doc.value("title").unwrap_or_default(),
-                                status,
-                                decision_date: doc.value("decision_date"),
-                            });
-                        }
-                    }
-                }
-            }
+    for entry in index.by_kind(crate::ArtifactKind::Adr) {
+        if entry.status == "accepted" || entry.status == "proposed" {
+            adrs.push(CompactAdr {
+                id: entry.id.clone(),
+                title: entry.document.value("title").unwrap_or_default(),
+                status: entry.status.clone(),
+                decision_date: entry.document.value("decision_date"),
+            });
         }
     }
     adrs.sort_by(|a, b| {
@@ -1267,114 +1233,69 @@ fn scan_active_adrs(lmbrain: &Path) -> Vec<CompactAdr> {
 }
 
 fn resolve_spec_path(lmbrain: &Path, spec_id_or_path: &str) -> Result<PathBuf, String> {
-    // Try as a direct path first (relative to .lmbrain/)
     let direct = lmbrain.join(spec_id_or_path);
     if direct.exists() {
         return Ok(direct);
     }
-
-    // Try as a bare spec ID — search all status subdirectories
-    let specs_dir = lmbrain.join("specs");
-    if specs_dir.exists() {
-        if let Ok(entries) = fs::read_dir(&specs_dir) {
-            for entry in entries.flatten() {
-                let status_dir = entry.path();
-                if !status_dir.is_dir() {
-                    continue;
-                }
-                if let Ok(files) = fs::read_dir(&status_dir) {
-                    for file in files.flatten() {
-                        let path = file.path();
-                        if path.extension().and_then(|e| e.to_str()) != Some("md") {
-                            continue;
-                        }
-                        if let Ok(source) = fs::read_to_string(&path) {
-                            if let Ok(doc) = Document::parse(&source) {
-                                if doc.value("id").as_deref() == Some(spec_id_or_path) {
-                                    return Ok(path);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+    let root = lmbrain.parent().unwrap_or(lmbrain);
+    if let Ok(index) = crate::scan_workspace(root) {
+        if let Some(entry) = index.get(spec_id_or_path) {
+            return Ok(entry.path.clone());
         }
     }
-
     Err(format!("Spec {spec_id_or_path} not found"))
 }
 
 fn resolve_adr(lmbrain: &Path, adr_id: &str) -> Option<CompactAdr> {
-    let decisions_dir = lmbrain.join("decisions");
-    if !decisions_dir.exists() {
+    let root = lmbrain.parent().unwrap_or(lmbrain);
+    let Ok(index) = crate::scan_workspace(root) else {
         return None;
-    }
-    if let Ok(entries) = fs::read_dir(&decisions_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("md") {
-                continue;
-            }
-            if let Ok(source) = fs::read_to_string(&path) {
-                if let Ok(doc) = Document::parse(&source) {
-                    if doc.value("id").as_deref() == Some(adr_id) {
-                        return Some(CompactAdr {
-                            id: adr_id.to_string(),
-                            title: doc.value("title").unwrap_or_default(),
-                            status: doc.value("status").unwrap_or_default(),
-                            decision_date: doc.value("decision_date"),
-                        });
-                    }
-                }
-            }
-        }
-    }
-    None
+    };
+    resolve_adr_from_index(&index, adr_id)
+}
+
+fn resolve_adr_from_index(index: &crate::WorkspaceIndex, adr_id: &str) -> Option<CompactAdr> {
+    index.get(adr_id).map(|entry| CompactAdr {
+        id: adr_id.to_string(),
+        title: entry.document.value("title").unwrap_or_default(),
+        status: entry.status.clone(),
+        decision_date: entry.document.value("decision_date"),
+    })
 }
 
 fn resolve_agent(lmbrain: &Path, agent_id: &str) -> Option<AgentProfileSummary> {
-    let profiles_dir = lmbrain.join("agents/profiles");
-    if !profiles_dir.exists() {
+    let root = lmbrain.parent().unwrap_or(lmbrain);
+    let Ok(index) = crate::scan_workspace(root) else {
         return None;
-    }
-    if let Ok(entries) = fs::read_dir(&profiles_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("md") {
-                continue;
-            }
-            if let Ok(source) = fs::read_to_string(&path) {
-                if let Ok(doc) = Document::parse(&source) {
-                    if doc.value("id").as_deref() == Some(agent_id) {
-                        let rel_path = path
-                            .strip_prefix(lmbrain)
-                            .ok()
-                            .map(|p| format!(".lmbrain/{}", p.to_string_lossy().replace('\\', "/")))
-                            .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"));
-                        return Some(AgentProfileSummary {
-                            id: agent_id.to_string(),
-                            title: doc.value("title").unwrap_or_default(),
-                            mnemonic_name: doc.value("mnemonic_name"),
-                            role: doc.value("role"),
-                            status: doc.value("status").unwrap_or_default(),
-                            can_implement: doc.bool("can_implement"),
-                            can_review: doc.bool("can_review"),
-                            skills: doc.string_array("skills"),
-                            domains: doc.string_array("domains"),
-                            primary_files: doc.string_array("primary_files"),
-                            review_focus: doc.string_array("review_focus"),
-                            constraints: doc.string_array("constraints"),
-                            knowledge: doc.string_array("knowledge"),
-                            path: rel_path,
-                            content_digest: crate::content_digest(source.as_bytes()),
-                            operational_guidance: bounded_guidance(&doc.body),
-                        });
-                    }
-                }
-            }
+    };
+    resolve_agent_from_index(&index, agent_id)
+}
+
+fn resolve_agent_from_index(
+    index: &crate::WorkspaceIndex,
+    agent_id: &str,
+) -> Option<AgentProfileSummary> {
+    index.get(agent_id).map(|entry| {
+        let rel_path = format!(".lmbrain/{}", entry.rel_path.to_string_lossy().replace('\\', "/"));
+        AgentProfileSummary {
+            id: agent_id.to_string(),
+            title: entry.document.value("title").unwrap_or_default(),
+            mnemonic_name: entry.document.value("mnemonic_name"),
+            role: entry.document.value("role"),
+            status: entry.status.clone(),
+            can_implement: entry.document.bool("can_implement"),
+            can_review: entry.document.bool("can_review"),
+            skills: entry.document.string_array("skills"),
+            domains: entry.document.string_array("domains"),
+            primary_files: entry.document.string_array("primary_files"),
+            review_focus: entry.document.string_array("review_focus"),
+            constraints: entry.document.string_array("constraints"),
+            knowledge: entry.document.string_array("knowledge"),
+            path: rel_path,
+            content_digest: crate::content_digest(entry.raw.as_bytes()),
+            operational_guidance: bounded_guidance(&entry.document.body),
         }
-    }
-    None
+    })
 }
 
 fn resolve_applicable_skills(
@@ -1386,7 +1307,7 @@ fn resolve_applicable_skills(
     tags: &[String],
     review_only: bool,
 ) -> Vec<SkillSummary> {
-    let skills = scan_skills(lmbrain);
+    let skills = scan_all_skills(lmbrain);
     let mut result = Vec::new();
     for (summary, applies_to, domains) in skills {
         if summary.status != "active" {
@@ -1433,112 +1354,89 @@ fn resolve_applicable_skills(
     }
     result
 }
+fn scan_all_skills(lmbrain: &Path) -> Vec<(SkillSummary, Vec<String>, Vec<String>)> {
+    let root = lmbrain.parent().unwrap_or(lmbrain);
+    let Ok(index) = crate::scan_workspace(root) else {
+        return Vec::new();
+    };
+    scan_all_skills_from_index(&index)
+}
 
-fn scan_skills(lmbrain: &Path) -> Vec<(SkillSummary, Vec<String>, Vec<String>)> {
-    let skills_dir = lmbrain.join("skills");
+fn scan_all_skills_from_index(
+    index: &crate::WorkspaceIndex,
+) -> Vec<(SkillSummary, Vec<String>, Vec<String>)> {
     let mut skills = Vec::new();
-    for status in ["active", "proposed", "retired"] {
-        let dir = skills_dir.join(status);
-        if !dir.exists() {
-            continue;
+    for entry in index.by_kind(crate::ArtifactKind::Skill) {
+        let doc = &entry.document;
+        let mut commands = doc.string_array("commands");
+        if commands.is_empty() {
+            commands = extract_fenced_commands(&doc.body);
         }
-        if let Ok(entries) = fs::read_dir(&dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) != Some("md") {
-                    continue;
-                }
-                if let Ok(source) = fs::read_to_string(&path) {
-                    if let Ok(doc) = Document::parse(&source) {
-                        let id = doc.value("id").unwrap_or_default();
-                        if !id.starts_with("SKILL-") {
-                            continue;
-                        }
-                        let rel_path = path
-                            .strip_prefix(lmbrain)
-                            .ok()
-                            .map(|p| format!(".lmbrain/{}", p.to_string_lossy().replace('\\', "/")))
-                            .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"));
-                        let mut commands = doc.string_array("commands");
-                        if commands.is_empty() {
-                            commands = extract_fenced_commands(&doc.body);
-                        }
-                        skills.push((
-                            SkillSummary {
-                                id,
-                                title: doc.value("title").unwrap_or_default(),
-                                status: doc.value("status").unwrap_or_else(|| status.to_string()),
-                                kind: doc.value("kind"),
-                                risk: doc.value("risk"),
-                                requires_operator_approval: doc.bool("requires_operator_approval"),
-                                commands,
-                                path: rel_path,
-                                content_digest: crate::content_digest(source.as_bytes()),
-                            },
-                            doc.string_array("applies_to"),
-                            doc.string_array("domains"),
-                        ));
-                    }
-                }
-            }
-        }
+        let rel_path = format!(".lmbrain/{}", entry.rel_path.to_string_lossy().replace('\\', "/"));
+        skills.push((
+            SkillSummary {
+                id: entry.id.clone(),
+                title: doc.value("title").unwrap_or_default(),
+                status: entry.status.clone(),
+                kind: doc.value("kind"),
+                risk: doc.value("risk"),
+                requires_operator_approval: doc.bool("requires_operator_approval"),
+                commands,
+                path: rel_path,
+                content_digest: crate::content_digest(entry.raw.as_bytes()),
+            },
+            doc.string_array("applies_to"),
+            doc.string_array("domains"),
+        ));
     }
     skills
 }
 
 fn resolve_reviews_for_spec(lmbrain: &Path, spec_id: &str) -> Vec<CompactReview> {
-    let reviews_dir = lmbrain.join("reviews");
-    if !reviews_dir.exists() {
+    let root = lmbrain.parent().unwrap_or(lmbrain);
+    let Ok(index) = crate::scan_workspace(root) else {
         return Vec::new();
-    }
+    };
+    resolve_reviews_for_spec_from_index(&index, spec_id)
+}
+
+fn resolve_reviews_for_spec_from_index(
+    index: &crate::WorkspaceIndex,
+    spec_id: &str,
+) -> Vec<CompactReview> {
     let mut reviews = Vec::new();
-    if let Ok(entries) = fs::read_dir(&reviews_dir) {
-        for entry in entries.flatten() {
-            let status_dir = entry.path();
-            if !status_dir.is_dir() {
-                continue;
-            }
-            if let Ok(files) = fs::read_dir(&status_dir) {
-                for file in files.flatten() {
-                    let path = file.path();
-                    if path.extension().and_then(|e| e.to_str()) != Some("md") {
-                        continue;
-                    }
-                    if let Ok(source) = fs::read_to_string(&path) {
-                        if let Ok(doc) = Document::parse(&source) {
-                            if doc.value("spec").as_deref() == Some(spec_id) {
-                                let history = parse_review_event_history(&doc);
-                                let finding_categories = doc
-                                    .string_array("finding_categories")
-                                    .iter()
-                                    .map(|category| normalize_finding_category(category))
-                                    .collect::<Vec<_>>();
-                                let mut lifecycle_warnings = history.warnings;
-                                lifecycle_warnings.extend(
-                                    finding_categories
-                                        .iter()
-                                        .filter(|category| category.canonical.is_none())
-                                        .map(|category| {
-                                            format!(
-                                                "Unknown debt category '{}'; add an alias or use a canonical category.",
-                                                category.raw
-                                            )
-                                        }),
-                                );
-                                reviews.push(CompactReview {
-                                    id: doc.value("id").unwrap_or_default(),
-                                    title: doc.value("title").unwrap_or_default(),
-                                    status: doc.value("status").unwrap_or_default(),
-                                    reviewer: doc.value("reviewer"),
-                                    finding_categories,
-                                    events: history.events,
-                                    lifecycle_warnings,
-                                });
-                            }
-                        }
-                    }
-                }
-            }
+    for entry in index.by_kind(crate::ArtifactKind::Review) {
+        let doc = &entry.document;
+        if doc.value("spec").as_deref() == Some(spec_id)
+            || doc.value("spec_id").as_deref() == Some(spec_id)
+        {
+            let history = parse_review_event_history(doc);
+            let finding_categories = doc
+                .string_array("finding_categories")
+                .iter()
+                .map(|category| normalize_finding_category(category))
+                .collect::<Vec<_>>();
+            let mut lifecycle_warnings = history.warnings;
+            lifecycle_warnings.extend(
+                finding_categories
+                    .iter()
+                    .filter(|category| category.canonical.is_none())
+                    .map(|category| {
+                        format!(
+                            "Unknown debt category '{}'; add an alias or use a canonical category.",
+                            category.raw
+                        )
+                    }),
+            );
+            reviews.push(CompactReview {
+                id: entry.id.clone(),
+                title: doc.value("title").unwrap_or_default(),
+                status: entry.status.clone(),
+                reviewer: doc.value("reviewer"),
+                finding_categories,
+                events: history.events,
+                lifecycle_warnings,
+            });
         }
     }
     reviews
@@ -1546,49 +1444,24 @@ fn resolve_reviews_for_spec(lmbrain: &Path, spec_id: &str) -> Vec<CompactReview>
 
 fn spec_diagnostics(lmbrain: &Path, spec_id: &str) -> Vec<String> {
     let mut result = Vec::new();
-    let entries = scan_md_files(lmbrain);
-
-    for file_path in entries {
-        let source = match fs::read_to_string(&file_path) {
-            Ok(s) => s,
-            Err(_) => continue,
-        };
-
-        // Check for malformed frontmatter in files that reference this spec
-        if let Ok(doc) = Document::parse(&source) {
-            // Check if this file's diagnostics mention the spec
-            if let Some(parent) = file_path.parent() {
-                if let Some(grandparent) = parent.parent() {
-                    let artifact_type = grandparent
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .map(|n| n.to_string())
-                        .unwrap_or_default();
-                    if (artifact_type == "specs" || artifact_type == "reviews")
-                        && !crate::invariants::folder_matches_status(&file_path)
-                    {
-                        let id = doc.value("id").unwrap_or_default();
-                        if id == spec_id {
-                            let status_dir =
-                                parent.file_name().and_then(|n| n.to_str()).unwrap_or("?");
-                            let fm_status = doc.value("status").unwrap_or_else(|| "?".into());
-                            result.push(format!(
-                                "Status mismatch: file is in '{artifact_type}/{status_dir}' but frontmatter status is '{fm_status}'"
-                            ));
-                        }
-                    }
-                }
-            }
-        } else {
-            // File has malformed frontmatter — check if it's the spec itself
-            if let Some(name) = file_path.file_name().and_then(|n| n.to_str()) {
-                if name.contains(spec_id) {
-                    result.push(format!("Malformed frontmatter in {name}"));
-                }
-            }
+    let root = lmbrain.parent().unwrap_or(lmbrain);
+    let Ok(index) = crate::scan_workspace(root) else {
+        return result;
+    };
+    if let Some(entry) = index.get(spec_id) {
+        if !crate::invariants::folder_matches_status(&entry.path) {
+            let status_dir = entry
+                .path
+                .parent()
+                .and_then(|p| p.file_name())
+                .and_then(|n| n.to_str())
+                .unwrap_or("?");
+            result.push(format!(
+                "Status mismatch: file is in 'specs/{status_dir}' but frontmatter status is '{}'",
+                entry.status
+            ));
         }
     }
-
     result
 }
 
@@ -1954,20 +1827,6 @@ fn extract_section_list(body: &str, heading: &str) -> Vec<String> {
         .collect()
 }
 
-fn scan_md_files(dir: &Path) -> Vec<PathBuf> {
-    let mut files = Vec::new();
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                files.extend(scan_md_files(&path));
-            } else if path.extension().and_then(|e| e.to_str()) == Some("md") {
-                files.push(path);
-            }
-        }
-    }
-    files
-}
 
 // ─── Markdown summary formatters ───────────────────────────────────
 
