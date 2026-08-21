@@ -1320,7 +1320,7 @@ pub static TOOLS: &[ToolSpec] = &[
     ToolSpec {
         name: "debt_plan",
         category: "Debt",
-        description: "Project Lead: route an unresolved debt to validated target specs.",
+        description: "Project Lead: route or re-route an unresolved debt to validated target specs.",
         schema_fn: || debt_transition_schema(&[
             ("target_specs", json!({"type":"array","items":{"type":"string"},"minItems":1}))
         ]),
