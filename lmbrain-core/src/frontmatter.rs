@@ -922,10 +922,6 @@ pub fn atomic_write(path: &Path, content: &str) -> Result<(), FrontmatterError> 
 
     let guard = TempCleanup(&temp);
     fs::write(&temp, content)?;
-    #[cfg(windows)]
-    if path.exists() {
-        fs::remove_file(path)?;
-    }
     fs::rename(&temp, path)?;
     std::mem::forget(guard);
     Ok(())
@@ -1183,5 +1179,37 @@ mod tests {
             .filter(|entry| entry.file_name().to_string_lossy().contains(".tmp"))
             .collect();
         assert!(tmp_files.is_empty());
+    }
+
+    #[test]
+    fn preserves_comments_and_key_order() {
+        let source = "---\n# Header comment\nid: SPEC-001\n# Title comment\ntitle: My Spec\nstatus: backlog\n---\n# Body\n";
+        let mut document = parse(source);
+        document.set("status", "ready");
+        let rendered = document.render();
+        assert!(rendered.contains("# Header comment"));
+        assert!(rendered.contains("# Title comment"));
+        assert!(rendered.contains("status: ready"));
+
+        // Check key order is preserved
+        let id_pos = rendered.find("id: SPEC-001").unwrap();
+        let title_pos = rendered.find("title: My Spec").unwrap();
+        let status_pos = rendered.find("status: ready").unwrap();
+        assert!(id_pos < title_pos);
+        assert!(title_pos < status_pos);
+    }
+
+    #[test]
+    fn parses_multiline_block_array() {
+        let source = "---\nid: SPEC-001\ntags:\n  - frontend\n  - ui\n---\n";
+        let document = parse(source);
+        assert_eq!(document.string_array("tags"), vec!["frontend", "ui"]);
+    }
+
+    #[test]
+    fn syntax_errors_include_line_numbers() {
+        let source = "---\nid: SPEC-001\n  invalid_indent: 123\n---\n";
+        let err = Document::parse(source).unwrap_err();
+        assert!(err.to_string().contains("line 3") || err.to_string().contains("indentation"));
     }
 }
