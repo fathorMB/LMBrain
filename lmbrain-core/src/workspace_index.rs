@@ -45,6 +45,7 @@ impl WorkspaceIndex {
 
         let mut files = Vec::new();
         scan_dir(&lmbrain_dir, &mut files)?;
+        files.sort_unstable();
 
         for file_path in files {
             let Ok(source) = fs::read_to_string(&file_path) else {
