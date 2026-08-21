@@ -45,3 +45,16 @@ impl From<serde_json::Error> for AppError {
         AppError::Serialization(e.to_string())
     }
 }
+
+impl From<lmbrain_core::CoreError> for AppError {
+    fn from(e: lmbrain_core::CoreError) -> Self {
+        match e {
+            lmbrain_core::CoreError::Path(p) => AppError::PathSafety(p.to_string()),
+            lmbrain_core::CoreError::NotFound(s) => AppError::FileNotFound(s),
+            lmbrain_core::CoreError::Frontmatter(f) => AppError::ParseError(f.to_string()),
+            lmbrain_core::CoreError::Io(i) => AppError::Io(i.to_string()),
+            other => AppError::ParseError(other.to_string()),
+        }
+    }
+}
+
