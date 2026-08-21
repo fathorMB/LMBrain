@@ -13,7 +13,6 @@ finding_taxonomy_version: 1
 finding_categories: []
 # Managed append-only history. Use semantic review MCP verbs; do not edit events by hand.
 review_events: []
-related_tasks: []
 links: []
 created: YYYY-MM-DD
 updated: YYYY-MM-DD

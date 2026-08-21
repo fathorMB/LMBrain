@@ -21,6 +21,19 @@ The `VERSION` file is the canonical, machine-readable kit version.
 
 - **Real-time refresh after migration.** The desktop watcher now observes the workspace root non-recursively and reattaches its recursive `.lmbrain` watch after a controlled atomic directory replacement. Sidebar unread badges update from subsequent artifact changes without requiring a manual refresh or page navigation, while unrelated repository events remain ignored.
 
+## 4.2.0 - 2026-08-12
+
+### Added
+
+- **First-class Debts system (#110).** Replaced legacy durable findings with a typed Debts subsystem (`DEBT-*` artifacts, `debt_*` verbs, state machine, and dedicated UI view). Includes tool-driven migration (`debt_migrate`) with preview and digest verification.
+- **Duplicate canonical section diagnostics (#112).** Validation detects and flags duplicate canonical Markdown sections in specs.
+- **Verification environment reporting (#109).** Minimal environments now report stripped environment variables as diagnostics.
+
+### Fixed
+
+- **Windows minimal environment (#108).** Preserved `ProgramData` in minimal verification environments on Windows.
+- **Roadmap milestone unification (#114).** Unified milestone parsing and status diagnostics across the roadmap subsystem.
+
 ## 4.1.0 - 2026-08-10
 
 ### Added
@@ -33,6 +46,37 @@ The `VERSION` file is the canonical, machine-readable kit version.
 
 - **Finding supersession shape.** `superseded_by` is now written as the contract's list-valued YAML field.
 - **Multiline acceptance criteria.** Compact spec context retains wrapped checklist text instead of silently truncating it.
+
+## 4.0.3 - 2026-08-04
+
+### Fixed
+
+- **Linux desktop and worktree fixes (#92–#99).** Improved Linux worktree visibility and platform path handling.
+- **PathGuard normalization (#91).** Strip created spec paths against PathGuard-normalized roots in concurrency tests.
+
+## 4.0.2 - 2026-08-03
+
+### Added
+
+- **Frontmatter repair verb (#82).** Added `lmbrain_repair_frontmatter` to repair corrupted frontmatter blocks cleanly.
+- **Lead-managed environment (#82–#88).** Improved environment diagnostics and governed browser capabilities.
+
+### Fixed
+
+- **Frontmatter scalar preservation (#82).** Fixed empty-valued scalar keys corrupting subsequent frontmatter blocks.
+
+## 4.0.1 - 2026-08-01
+
+### Fixed
+
+- **Kit feedback fixes (#66–#80).** Fixed duplicate activity blocks, inline arrays, and review status transition handling.
+
+## 4.0.0 - 2026-08-01
+
+### Added
+
+- **Branching strategies.** Added declarative branching strategy metadata and validation.
+- **Governance lifecycle improvements.** Expanded MCP governance tools and status audit trails.
 
 ## 3.1.4 - 2026-07-31
 

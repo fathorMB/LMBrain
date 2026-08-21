@@ -41,12 +41,12 @@ When the operator has enabled the escalation authority in `AGENT.md`, the Projec
 
 A change is not complete until the relevant LMBrain documentation is accurate.
 
-The specialist updates only the technical evidence and specifically delegated knowledge pages. The Project Lead maintains project-level documentation, specifications, task state, roadmap, decisions, and reviews.
+The specialist updates only the technical evidence and specifically delegated knowledge pages. The Project Lead maintains project-level documentation, specifications, status, roadmap, decisions, and reviews.
 
 At minimum, assess whether the change affects:
 
 - its `SPEC-*` implementation evidence;
-- linked `TASK-*` evidence and status;
+- related debts, dependencies, or handoffs;
 - architecture, codebase map, setup, integrations, or glossary pages;
 - ADRs or the need for a new decision;
 - `STATUS.md`, roadmap, or backlog.

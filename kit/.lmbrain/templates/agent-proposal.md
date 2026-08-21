@@ -9,10 +9,10 @@ reason: recurring-specialized-work
 # V3: proposal type — "new-profile" (default) or "improvement"
 proposal_type: new-profile
 # V3: target profile ID for improvement proposals (required when proposal_type is "improvement")
-target_profile:
+target_profile: null
 # Improvement proposals store the target content digest and an additive bounded patch.
-target_digest:
-finding_category:
+target_digest: null
+finding_category: null
 add_review_focus: []
 add_skills: []
 add_constraints: []

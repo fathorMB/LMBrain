@@ -5,22 +5,21 @@ title: "Feature or work item title"
 status: backlog
 kind: feature
 priority: medium
-area: 
-milestone: 
-# References use IDs only (e.g. [TASK-001]); use [[wikilinks]] in prose
+area: null
+milestone: null
+# References use IDs only (e.g. [SPEC-001]); use [[wikilinks]] in prose
 recommended_agent: AGENT-XXX
 # Implementation estimate. Required before this spec can become `ready`.
 # capability_tier: luna | terra | sol   (expected change footprint)
 # thinking_level: minimal | standard | extended | maximum (defaults from the tier)
-capability_tier: 
-thinking_level: 
+capability_tier: null
+thinking_level: null
 effort_observations: []
 depends_on: []
 dependency_events: []
 parking_events: []
 skills: []
 verification_gates: []
-related_tasks: []
 related_decisions: []
 links: []
 created: YYYY-MM-DD
