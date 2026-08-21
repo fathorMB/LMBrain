@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useWorkspace } from "../../hooks/useWorkspace";
+import { useDialog } from "../../hooks/useDialog";
 import * as commands from "../../lib/commands";
 
 export function WindowCloseConfirmModal() {
   const { state, setShowWindowCloseConfirm } = useWorkspace();
   const [status, setStatus] = useState<"idle" | "closing" | "failed">("idle");
   const [failures, setFailures] = useState<string[]>([]);
-  const modalRef = useRef<HTMLDivElement>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
   const [openSessions] = useState(() => state.sessions);
   const activeSessions = openSessions.filter((session) => session.status === "running");
 
@@ -17,11 +16,10 @@ export function WindowCloseConfirmModal() {
     setShowWindowCloseConfirm(false);
   };
 
-  useEffect(() => {
-    previousFocus.current = document.activeElement as HTMLElement;
-    modalRef.current?.querySelector<HTMLElement>("[data-safe-action]")?.focus();
-    return () => previousFocus.current?.focus();
-  }, []);
+  const { dialogRef, handleKeyDown } = useDialog<HTMLDivElement>({
+    isOpen: true,
+    onClose: dismiss,
+  });
 
   const closeWindow = async (force = false) => {
     setStatus("closing");
@@ -58,27 +56,6 @@ export function WindowCloseConfirmModal() {
     }
   };
 
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === "Escape") {
-      dismiss();
-      return;
-    }
-    if (event.key !== "Tab" || !modalRef.current) return;
-    const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-      'button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
-    );
-    if (focusable.length === 0) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      last.focus();
-      event.preventDefault();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      first.focus();
-      event.preventDefault();
-    }
-  };
-
   return (
     <div
       role="presentation"
@@ -99,7 +76,7 @@ export function WindowCloseConfirmModal() {
       }}
     >
       <div
-        ref={modalRef}
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="window-close-title"

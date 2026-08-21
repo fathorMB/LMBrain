@@ -1,55 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
+import { useDialog } from "../../hooks/useDialog";
 import * as commands from "../../lib/commands";
 
 export function LeaveWorkspaceModal() {
   const { state, goToPicker, cancelLeaveWorkspace } = useWorkspace();
   const [status, setStatus] = useState<"idle" | "leaving" | "failed">("idle");
   const [failures, setFailures] = useState<string[]>([]);
-  
-  const modalRef = useRef<HTMLDivElement>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    // Record current focus to restore on dismissal
-    previousFocus.current = document.activeElement as HTMLElement;
-
-    // Focus safe action button
-    const safeBtn = modalRef.current?.querySelector("[data-safe-action]") as HTMLElement;
-    safeBtn?.focus();
-
-    return () => {
-      // Restore focus to triggering control
-      previousFocus.current?.focus();
-    };
-  }, []);
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      cancelLeaveWorkspace();
-      return;
-    }
-    if (e.key === "Tab" && modalRef.current) {
-      const focusables = modalRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusables.length === 0) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          last.focus();
-          e.preventDefault();
-        }
-      } else {
-        if (document.activeElement === last) {
-          first.focus();
-          e.preventDefault();
-        }
-      }
-    }
-  };
+  const { dialogRef, handleKeyDown } = useDialog<HTMLDivElement>({
+    isOpen: state.showExitConfirm,
+    onClose: cancelLeaveWorkspace,
+  });
 
   const handleLeave = async () => {
     setStatus("leaving");
@@ -112,7 +74,7 @@ export function LeaveWorkspaceModal() {
       }}
     >
       <div
-        ref={modalRef}
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="leave-workspace-title"

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useDialog } from "../../hooks/useDialog";
 import type { GitHubWorkflowRun } from "../../types";
 import { getWorkflowRunStatusStyle } from "../../lib/workflowRunStatus";
 import "./RepositoryView.css";
@@ -38,27 +38,13 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
 }
 
 export function WorkflowRunModal({ run, onClose }: WorkflowRunModalProps) {
-  const modalRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    modalRef.current?.focus();
-    return () => {
-      window.removeEventListener("keydown", closeOnEscape);
-      previousFocus?.focus();
-    };
-  }, [onClose]);
-
+  const { dialogRef, handleKeyDown } = useDialog<HTMLDivElement>({ isOpen: true, onClose });
   const s = getWorkflowRunStatusStyle(run.status, run.conclusion);
 
   return (
-    <div className="repository-diff-overlay" onMouseDown={onClose}>
+    <div className="repository-diff-overlay" onKeyDown={handleKeyDown} onMouseDown={onClose}>
       <div
-        ref={modalRef}
+        ref={dialogRef}
         className="repository-diff-modal repository-run-modal"
         role="dialog"
         aria-modal="true"

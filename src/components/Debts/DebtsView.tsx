@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getDebtContext, getDebts } from "../../lib/commands";
+import { useCallback, useMemo, useState } from "react";
+import { getDebtContext } from "../../lib/commands";
 import type { Debt, DebtContext, DebtRelation } from "../../types";
 import { useWorkspace } from "../../hooks/useWorkspace";
+import { useDialog } from "../../hooks/useDialog";
 import { RefreshButton } from "../RefreshButton";
 import { CardGrid, PageHeader, PageShell } from "../Shared/PageLayout";
+import { FilterBar, FilterSelect, FilterSearchInput } from "../Shared/FilterBar";
 import { MarkdownRenderer } from "../../lib/markdown";
 import { ModalCloseButton } from "../Layout/ModalCloseButton";
 
@@ -93,47 +95,57 @@ export function DebtsView() {
       </div>)}
     </section>
 
-    <section aria-label="Debt filters" style={filters}>
-      <label style={filterLabel}>Scope
-        <select className="app-select" style={filterControl} aria-label="Debt scope" value={scope} onChange={(event) => setScope(event.target.value as typeof scope)}>
-          <option value="active">Active</option>
-          <option value="history">History</option>
-          <option value="all">All</option>
-        </select>
-      </label>
-      <label style={filterLabel}>Status
-        <select className="app-select" style={filterControl} aria-label="Debt status" value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="all">All</option>
-          {["open", "planned", "deferred", "resolved", "accepted-risk", "superseded"].map(option)}
-        </select>
-      </label>
-      <label style={filterLabel}>Severity
-        <select className="app-select" style={filterControl} aria-label="Debt severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
-          <option value="all">All</option>
-          {["critical", "high", "medium", "low", "info"].map(option)}
-        </select>
-      </label>
-      <label style={filterLabel}>Category
-        <select className="app-select" style={filterControl} aria-label="Debt category" value={category} onChange={(event) => setCategory(event.target.value)}>
-          <option value="all">All</option>
-          {categories.map(option)}
-        </select>
-      </label>
-      <label style={filterLabel}>Sort
-        <select className="app-select" style={filterControl} aria-label="Debt sort" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
-          {["severity", "age", "updated", "milestone"].map(option)}
-        </select>
-      </label>
-      <label style={{ ...filterLabel, flex: "1 1 240px" }}>Search
-        <input
-          style={{ ...filterControl, width: "100%" }}
-          aria-label="Search debts"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Owner, area, milestone, target…"
-        />
-      </label>
-    </section>
+    <FilterBar ariaLabel="Debt filters">
+      <FilterSelect
+        label="Scope"
+        ariaLabel="Debt scope"
+        value={scope}
+        onChange={(val) => setScope(val as typeof scope)}
+        options={[
+          { value: "active", label: "Active" },
+          { value: "history", label: "History" },
+          { value: "all", label: "All" },
+        ]}
+      />
+      <FilterSelect
+        label="Status"
+        ariaLabel="Debt status"
+        value={status}
+        allLabel="All"
+        onChange={setStatus}
+        options={["open", "planned", "deferred", "resolved", "accepted-risk", "superseded"]}
+      />
+      <FilterSelect
+        label="Severity"
+        ariaLabel="Debt severity"
+        value={severity}
+        allLabel="All"
+        onChange={setSeverity}
+        options={["critical", "high", "medium", "low", "info"]}
+      />
+      <FilterSelect
+        label="Category"
+        ariaLabel="Debt category"
+        value={category}
+        allLabel="All"
+        onChange={setCategory}
+        options={categories}
+      />
+      <FilterSelect
+        label="Sort"
+        ariaLabel="Debt sort"
+        value={sort}
+        onChange={(val) => setSort(val as typeof sort)}
+        options={["severity", "age", "updated", "milestone"]}
+      />
+      <FilterSearchInput
+        label="Search"
+        ariaLabel="Search debts"
+        value={query}
+        onChange={setQuery}
+        placeholder="Owner, area, milestone, target…"
+      />
+    </FilterBar>
 
     {state.debts.length === 0 && !loading && <div style={empty}>No first-class debts exist. Legacy review entries are not promoted automatically.</div>}
     {state.debts.length > 0 && debts.length === 0 && <div style={empty}>No debts match these filters.</div>}
@@ -185,7 +197,7 @@ function DebtDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
   onOpenRelation: (relation: DebtRelation) => void;
   onOpenMarkdown: () => void;
 }) {
-  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const { dialogRef, handleKeyDown } = useDialog<HTMLDivElement>({ isOpen: true, onClose });
   const groups: Array<[string, DebtRelation[]]> = [
     ["Origin", context.origin ? [context.origin] : []],
     ["Related work", [...context.related_specs, ...context.related_reviews]],
@@ -209,48 +221,10 @@ function DebtDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
     ? "Superseded by newer debt or decision."
     : "Active open debt awaiting triage or assignment.";
 
-  useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab" || !dialogRef.current) return;
-      const focusable = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>(
-          "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
-        ),
-      );
-      if (focusable.length === 0) {
-        event.preventDefault();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const activeElement = document.activeElement;
-      if (!dialogRef.current.contains(activeElement)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-      } else if (event.shiftKey && activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    dialogRef.current?.focus();
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      previousFocus?.focus();
-    };
-  }, [onClose]);
-
   return <div
     role="presentation"
     style={dialogBackdrop}
+    onKeyDown={handleKeyDown}
     onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}

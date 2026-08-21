@@ -1,8 +1,10 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { getKitFeedback, saveTextFile } from "../../lib/commands";
 import type { KitFeedbackReport, KitFeedbackNote, KitFeedbackNoteStatus } from "../../types";
+import { useAsyncResource } from "../../hooks/useAsyncResource";
 import { RefreshButton } from "../RefreshButton";
 import { CardGrid, PageHeader, PageShell } from "../Shared/PageLayout";
+import { FilterBar, FilterSelect, FilterSearchInput } from "../Shared/FilterBar";
 
 const severityRank: Record<string, number> = {
   blocking: 5, critical: 4, high: 3, medium: 2, low: 1, info: 0,
@@ -41,46 +43,15 @@ async function saveFeedbackExport(report: KitFeedbackReport, version: string | n
 }
 
 export function FeedbackView() {
-  const [report, setReport] = useState<KitFeedbackReport | null>(null);
+  const { data: report, loading, error: fetchError, refresh: fetchFeedback } = useAsyncResource(getKitFeedback);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [severity, setSeverity] = useState("all");
   const [category, setCategory] = useState("all");
   const [version, setVersion] = useState("all");
   const [exportOpen, setExportOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchFeedback = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getKitFeedback();
-      setReport(data);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-      setReport(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    let active = true;
-    getKitFeedback()
-      .then((data) => {
-        if (active) setReport(data);
-      })
-      .catch((reason: unknown) => {
-        if (active) {
-          setError(reason instanceof Error ? reason.message : String(reason));
-          setReport(null);
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => { active = false; };
-  }, []);
+  const error = exportError || fetchError;
 
   const filteredNotes = useMemo(() => {
     if (!report) return [];
@@ -109,12 +80,12 @@ export function FeedbackView() {
 
   const handleExport = async (selectedVersion: string | null) => {
     if (!report) return;
-    setError(null);
+    setExportError(null);
     try {
       await saveFeedbackExport(report, selectedVersion);
       setExportOpen(false);
     } catch (reason) {
-      setError(`Unable to export feedback: ${reason instanceof Error ? reason.message : String(reason)}`);
+      setExportError(`Unable to export feedback: ${reason instanceof Error ? reason.message : String(reason)}`);
     }
   };
 
@@ -180,35 +151,39 @@ export function FeedbackView() {
             ))}
           </section>
 
-          <section aria-label="Feedback filters" style={filters}>
-            <label style={filterLabel}>Version
-              <select className="app-select" style={filterControl} aria-label="Feedback version" value={version} onChange={(event) => setVersion(event.target.value)}>
-                <option value="all">All versions</option>
-                {versions.map((item) => <option value={item} key={item}>v{item}</option>)}
-              </select>
-            </label>
-            <label style={filterLabel}>Severity
-              <select className="app-select" style={filterControl} aria-label="Feedback severity" value={severity} onChange={(event) => setSeverity(event.target.value)}>
-                <option value="all">All</option>
-                {severities.map((s) => <option value={s} key={s}>{s}</option>)}
-              </select>
-            </label>
-            <label style={filterLabel}>Category
-              <select className="app-select" style={filterControl} aria-label="Feedback category" value={category} onChange={(event) => setCategory(event.target.value)}>
-                <option value="all">All</option>
-                {categories.map((c) => <option value={c} key={c}>{c}</option>)}
-              </select>
-            </label>
-            <label style={{ ...filterLabel, flex: "1 1 240px" }}>Search
-              <input
-                style={{ ...filterControl, width: "100%" }}
-                aria-label="Search feedback"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search notes…"
-              />
-            </label>
-          </section>
+          <FilterBar ariaLabel="Feedback filters">
+            <FilterSelect
+              label="Version"
+              ariaLabel="Feedback version"
+              value={version}
+              allLabel="All versions"
+              onChange={setVersion}
+              options={versions.map((item) => ({ value: item, label: `v${item}` }))}
+            />
+            <FilterSelect
+              label="Severity"
+              ariaLabel="Feedback severity"
+              value={severity}
+              allLabel="All"
+              onChange={setSeverity}
+              options={severities}
+            />
+            <FilterSelect
+              label="Category"
+              ariaLabel="Feedback category"
+              value={category}
+              allLabel="All"
+              onChange={setCategory}
+              options={categories}
+            />
+            <FilterSearchInput
+              label="Search"
+              ariaLabel="Search feedback"
+              value={query}
+              onChange={setQuery}
+              placeholder="Search notes…"
+            />
+          </FilterBar>
 
           {filteredNotes.length === 0 && <div style={empty}>No feedback matches these filters.</div>}
           

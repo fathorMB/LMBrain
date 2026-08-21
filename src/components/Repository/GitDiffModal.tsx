@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import * as commands from "../../lib/commands";
 import { parseUnifiedDiff } from "../../lib/gitDiff";
 import type { GitFile, GitFileDiff } from "../../types";
 import { ModalCloseButton } from "../Layout/ModalCloseButton";
+import { useDialog } from "../../hooks/useDialog";
 import "./RepositoryView.css";
 
 interface GitDiffModalProps {
@@ -23,7 +24,7 @@ function message(value: unknown): string {
 export function GitDiffModal({ file, worktree, onClose }: GitDiffModalProps) {
   const [result, setResult] = useState<GitFileDiff | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const modalRef = useRef<HTMLDivElement | null>(null);
+  const { dialogRef, handleKeyDown } = useDialog<HTMLDivElement>({ isOpen: true, onClose });
 
   useEffect(() => {
     let active = true;
@@ -40,27 +41,14 @@ export function GitDiffModal({ file, worktree, onClose }: GitDiffModalProps) {
     };
   }, [file.diff_target, file.path, worktree]);
 
-  useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    modalRef.current?.focus();
-    return () => {
-      window.removeEventListener("keydown", closeOnEscape);
-      previousFocus?.focus();
-    };
-  }, [onClose]);
-
   const lines = useMemo(() => parseUnifiedDiff(result?.diff ?? ""), [result?.diff]);
   const visibleLines = lines.slice(0, PREVIEW_LINE_LIMIT);
   const linesTruncated = lines.length > PREVIEW_LINE_LIMIT;
 
   return (
-    <div className="repository-diff-overlay" onMouseDown={onClose}>
+    <div className="repository-diff-overlay" onKeyDown={handleKeyDown} onMouseDown={onClose}>
       <div
-        ref={modalRef}
+        ref={dialogRef}
         className="repository-diff-modal"
         role="dialog"
         aria-modal="true"

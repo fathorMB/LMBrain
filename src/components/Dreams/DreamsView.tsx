@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Dream } from "../../types";
-import { getDreams } from "../../lib/commands";
 import { useWorkspace } from "../../hooks/useWorkspace";
+import { useDialog } from "../../hooks/useDialog";
 import { MarkdownRenderer } from "../../lib/markdown";
 import { RefreshButton } from "../RefreshButton";
 import { CardGrid, EmptyState, PageHeader, PageShell } from "../Shared/PageLayout";
+import { FilterBar, FilterSelect } from "../Shared/FilterBar";
 import { ModalCloseButton } from "../Layout/ModalCloseButton";
 
 export function DreamsView() {
@@ -49,12 +50,12 @@ export function DreamsView() {
       <span>Read-only. Dreams never enter delivery automatically; promotion is always an explicit governed action.</span>
     </div>
     {error && <div role="alert" style={errorStyle}>{error}</div>}
-    <section aria-label="Dream filters" style={filters}>
-      <Filter label="State" value={status} onChange={setStatus} options={options(state.dreams.map((dream) => dream.status))} />
-      <Filter label="Kind" value={classification} onChange={setClassification} options={options(state.dreams.map((dream) => dream.classification))} />
-      <Filter label="Area" value={area} onChange={setArea} options={options(state.dreams.map((dream) => dream.area ?? ""))} />
-      <Filter label="Confidence" value={confidence} onChange={setConfidence} options={options(state.dreams.map((dream) => dream.confidence))} />
-    </section>
+    <FilterBar ariaLabel="Dream filters">
+      <FilterSelect label="State" ariaLabel="Dream state" value={status} allLabel="All" onChange={setStatus} options={options(state.dreams.map((dream) => dream.status))} />
+      <FilterSelect label="Kind" ariaLabel="Dream kind" value={classification} allLabel="All" onChange={setClassification} options={options(state.dreams.map((dream) => dream.classification))} />
+      <FilterSelect label="Area" ariaLabel="Dream area" value={area} allLabel="All" onChange={setArea} options={options(state.dreams.map((dream) => dream.area ?? ""))} />
+      <FilterSelect label="Confidence" ariaLabel="Dream confidence" value={confidence} allLabel="All" onChange={setConfidence} options={options(state.dreams.map((dream) => dream.confidence))} />
+    </FilterBar>
     {loading && <p role="status" style={muted}>Loading Dream Journal…</p>}
     {!loading && state.dreams.length === 0 && <EmptyState>No dreams captured yet. An explicitly invited dreaming session may produce zero or more grounded records.</EmptyState>}
     {!loading && state.dreams.length > 0 && dreams.length === 0 && <EmptyState>No dreams match these filters.</EmptyState>}
@@ -88,33 +89,9 @@ export function DreamsView() {
 }
 
 function DreamDetail({ dream, onClose }: { dream: Dream; onClose: () => void }) {
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab" || !dialogRef.current) return;
-      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
-        "button:not([disabled]), [href], [tabindex]:not([tabindex='-1'])",
-      ));
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault(); last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault(); first.focus();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    dialogRef.current?.focus();
-    return () => { window.removeEventListener("keydown", handleKeyDown); previousFocus?.focus(); };
-  }, [onClose]);
+  const { dialogRef, handleKeyDown } = useDialog<HTMLDivElement>({ isOpen: true, onClose });
   const prompt = `Review ${dream.path} and explicitly choose whether to triage, promote, or discard ${dream.id}.`;
-  return <div role="presentation" style={backdrop} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  return <div role="presentation" style={backdrop} onKeyDown={handleKeyDown} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="dream-detail-title" style={dialog} onMouseDown={(event) => event.stopPropagation()}>
       <header style={dialogHeader}>
         <div style={{ minWidth: 0 }}><span style={idStyle}>{dream.id}</span><h2 id="dream-detail-title" style={dialogTitle}>{dream.title}</h2></div>
