@@ -14,7 +14,7 @@ use crate::{
 
 pub const REVIEW_EVENT_SCHEMA_VERSION: &str = "1";
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct ReviewEventInput {
     pub actor_role: String,
     pub reason: String,
@@ -23,7 +23,7 @@ pub struct ReviewEventInput {
     pub remediation_agent: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct ReviewLifecycleEvent {
     pub schema_version: String,
     pub id: String,
@@ -39,13 +39,13 @@ pub struct ReviewLifecycleEvent {
     pub remediation_agent: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct ReviewEventHistory {
     pub events: Vec<ReviewLifecycleEvent>,
     pub warnings: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum ReviewHistorySource {
     StructuredEvents,
@@ -53,7 +53,7 @@ pub enum ReviewHistorySource {
     StatusOnly,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct ReviewLifecycleAnalysis {
     pub source: ReviewHistorySource,
     pub confidence: String,

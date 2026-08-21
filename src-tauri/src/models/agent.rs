@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 pub use lmbrain_core::{AgentProposalStatus, AgentStatus};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct AgentProfile {
     pub id: String,
     pub title: String,
@@ -28,7 +29,7 @@ pub struct AgentProfile {
     pub malformed: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct AgentProposal {
     pub id: String,
     pub title: String,

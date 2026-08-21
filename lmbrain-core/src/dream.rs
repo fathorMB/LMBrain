@@ -32,7 +32,7 @@ pub struct DreamCreateInput {
     pub actor: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct Dream {
     pub id: String,
     pub title: String,

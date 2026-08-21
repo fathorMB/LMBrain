@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct FileContent {
     pub path: String,
     pub content: String,
@@ -8,7 +9,7 @@ pub struct FileContent {
     pub modified: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct DirEntry {
     pub name: String,
     pub path: String,
@@ -17,13 +18,13 @@ pub struct DirEntry {
     pub modified: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct FileEvent {
     pub kind: FileEventKind,
     pub path: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
 pub enum FileEventKind {
     #[serde(rename = "created")]
     Created,
@@ -33,16 +34,17 @@ pub enum FileEventKind {
     Removed,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct GitInfo {
     pub branch: Option<String>,
     pub is_clean: Option<bool>,
     pub current_commit: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ParsedDocument {
     pub path: String,
+    #[ts(type = "Record<string, unknown>")]
     pub frontmatter: std::collections::HashMap<String, serde_json::Value>,
     pub body: String,
     pub wikilinks: Vec<String>,

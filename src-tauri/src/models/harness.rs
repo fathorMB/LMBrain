@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use super::session::AgentHost;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum HarnessProbeState {
     Installed,
@@ -10,7 +11,7 @@ pub enum HarnessProbeState {
     Error,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct HarnessStatus {
     pub host: AgentHost,
     pub label: String,
@@ -23,13 +24,13 @@ pub struct HarnessStatus {
     pub install_command: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct HarnessUpdateRequest {
     pub host: AgentHost,
     pub codex_bin: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct HarnessUpdateResult {
     pub host: AgentHost,
     pub success: bool,

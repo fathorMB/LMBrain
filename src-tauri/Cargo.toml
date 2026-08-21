@@ -28,6 +28,7 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 toml_edit.workspace = true
+ts-rs.workspace = true
 uuid.workspace = true
 
 tauri = { version = "2.11.3", features = [] }

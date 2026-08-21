@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct SpecParkingEvent {
     pub timestamp: String,
     pub actor: String,
@@ -10,7 +11,7 @@ pub struct SpecParkingEvent {
 
 pub use lmbrain_core::SpecStatus;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct Spec {
     pub id: String,
     pub title: String,

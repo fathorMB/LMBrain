@@ -18,7 +18,7 @@ use crate::{
     taxonomy::{normalize_finding_category, FINDING_TAXONOMY_VERSION},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum SpecStatus {
     #[default]
@@ -75,7 +75,7 @@ impl std::str::FromStr for SpecStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum ReviewStatus {
     #[default]
@@ -128,7 +128,7 @@ impl std::str::FromStr for ReviewStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum AdrStatus {
     #[default]
@@ -181,7 +181,7 @@ impl std::str::FromStr for AdrStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentStatus {
     #[default]
@@ -230,7 +230,7 @@ impl std::str::FromStr for AgentStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentProposalStatus {
     #[default]
@@ -271,7 +271,7 @@ impl std::str::FromStr for AgentProposalStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum McpStatus {
     #[default]
@@ -320,7 +320,7 @@ impl std::str::FromStr for McpStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum McpProposalStatus {
     #[default]
@@ -373,7 +373,7 @@ impl std::str::FromStr for McpProposalStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum HandoffStatus {
     #[default]
@@ -422,7 +422,7 @@ impl std::str::FromStr for HandoffStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum SkillStatus {
     #[default]
@@ -463,7 +463,7 @@ impl std::str::FromStr for SkillStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum DebtStatus {
     #[default]
