@@ -4,6 +4,21 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 5.0.0 - 2026-08-21
+
+### Added
+
+- **Layered kit contract and controlled migration.** The core governance contract is separated from optional capability modules. `kit_migration_preview` and `kit_migrate` provide a digest-bound, staged upgrade path for kit-owned files while retaining a recoverable backup.
+- **Single workspace index and Operations view.** Workspace discovery has a typed index for context consumers, and operator-owned verification gates are collected in a dedicated desktop view.
+
+### Changed
+
+- **Typed lifecycle vocabulary.** The 5.0 lifecycle contract uses only canonical status strings; task artifacts and retired task-board terminology are removed from templates and documentation.
+
+### Fixed
+
+- **Release verification.** CI aligns all release versions, prepares the MCP sidecar before Tauri checks, and fails when generated TypeScript bindings differ from the committed file.
+
 ## 4.2.2 - 2026-08-20
 
 ### Added

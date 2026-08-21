@@ -530,7 +530,8 @@ pub fn build_project_digest(root: &Path) -> ProjectDigest {
 /// Build spec context for a given spec ID or path.
 pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecContext, String> {
     let lmbrain = root.join(".lmbrain");
-    let spec_path = resolve_spec_path(&lmbrain, spec_id_or_path)?;
+    let index = crate::scan_workspace(root).map_err(|error| format!("Failed to scan workspace: {error}"))?;
+    let spec_path = resolve_spec_path_from_index(&lmbrain, &index, spec_id_or_path)?;
     let source = fs::read_to_string(&spec_path).map_err(|e| format!("Failed to read spec: {e}"))?;
     let document = Document::parse(&source).map_err(|e| format!("Failed to parse spec: {e}"))?;
 
@@ -563,7 +564,7 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
     let mut warnings = requirement_warnings;
     warnings.extend(verification_reference_warnings(root, &verification_refs));
     for adr_id in &related_decisions {
-        match resolve_adr(&lmbrain, adr_id) {
+        match resolve_adr_from_index(&index, adr_id) {
             Some(adr) => linked_decisions.push(adr),
             None => warnings.push(format!("Linked ADR {adr_id} not found")),
         }
@@ -572,9 +573,9 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
     // Resolve agent profile
     let agent_profile = recommended_agent
         .as_deref()
-        .and_then(|agent| resolve_agent(&lmbrain, agent));
+        .and_then(|agent| resolve_agent_from_index(&index, agent));
     let applicable_skills = resolve_applicable_skills(
-        &lmbrain,
+        &index,
         &spec_skills,
         recommended_agent.as_deref(),
         agent_profile.as_ref(),
@@ -584,14 +585,14 @@ pub fn build_spec_context(root: &Path, spec_id_or_path: &str) -> Result<SpecCont
     );
 
     // Resolve related reviews
-    let related_reviews = resolve_reviews_for_spec(&lmbrain, &id);
+    let related_reviews = resolve_reviews_for_spec_from_index(&index, &id);
 
     // Extract explicit files/areas from body
     let explicit_files = extract_section_list(&document.body, "Files and areas involved");
     let explicit_areas = extract_section_list(&document.body, "Areas");
 
     // Collect diagnostics affecting this spec
-    let diagnostics = spec_diagnostics(&lmbrain, &id);
+    let diagnostics = spec_diagnostics_from_index(&index, &id);
     let debts = debts_for_spec(root, &id);
     let dependencies = crate::spec_dependency_context(root, &id)
         .map_err(|error| format!("Failed to resolve spec dependencies: {error}"))?;
@@ -700,7 +701,8 @@ fn effort_rationale(tier: Option<&str>, level: Option<&str>) -> Option<String> {
 /// Build review context for a given spec ID or path.
 pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<ReviewContext, String> {
     let lmbrain = root.join(".lmbrain");
-    let spec_path = resolve_spec_path(&lmbrain, spec_id_or_path)?;
+    let index = crate::scan_workspace(root).map_err(|error| format!("Failed to scan workspace: {error}"))?;
+    let spec_path = resolve_spec_path_from_index(&lmbrain, &index, spec_id_or_path)?;
     let source = fs::read_to_string(&spec_path).map_err(|e| format!("Failed to read spec: {e}"))?;
     let document = Document::parse(&source).map_err(|e| format!("Failed to parse spec: {e}"))?;
 
@@ -712,7 +714,7 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
     let recommended_agent = document.value("recommended_agent");
     let agent_profile = recommended_agent
         .as_deref()
-        .and_then(|agent| resolve_agent(&lmbrain, agent));
+        .and_then(|agent| resolve_agent_from_index(&index, agent));
 
     // Parse acceptance criteria and the complete verification contract.
     let criteria = parse_acceptance_criteria(&document.body);
@@ -725,7 +727,7 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         extract_implementation_evidence(&document.body);
 
     // Resolve related reviews
-    let linked_reviews = resolve_reviews_for_spec(&lmbrain, &spec_id);
+    let linked_reviews = resolve_reviews_for_spec_from_index(&index, &spec_id);
 
     // Resolve linked decisions
     let related_decisions: Vec<String> = document.string_array("related_decisions");
@@ -742,7 +744,7 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         );
     }
     for adr_id in &related_decisions {
-        match resolve_adr(&lmbrain, adr_id) {
+        match resolve_adr_from_index(&index, adr_id) {
             Some(adr) => relevant_decisions.push(adr),
             None => warnings.push(format!("Linked ADR {adr_id} not found")),
         }
@@ -760,7 +762,7 @@ pub fn build_review_context(root: &Path, spec_id_or_path: &str) -> Result<Review
         .map(|requirement| requirement.text.clone())
         .collect::<Vec<_>>();
     let applicable_skills = resolve_applicable_skills(
-        &lmbrain,
+        &index,
         &spec_skills,
         recommended_agent.as_deref(),
         agent_profile.as_ref(),
@@ -1238,26 +1240,19 @@ fn scan_active_adrs_from_index(index: &crate::WorkspaceIndex) -> Vec<CompactAdr>
     adrs
 }
 
-fn resolve_spec_path(lmbrain: &Path, spec_id_or_path: &str) -> Result<PathBuf, String> {
+fn resolve_spec_path_from_index(
+    lmbrain: &Path,
+    index: &crate::WorkspaceIndex,
+    spec_id_or_path: &str,
+) -> Result<PathBuf, String> {
     let direct = lmbrain.join(spec_id_or_path);
     if direct.exists() {
         return Ok(direct);
     }
-    let root = lmbrain.parent().unwrap_or(lmbrain);
-    if let Ok(index) = crate::scan_workspace(root) {
-        if let Some(entry) = index.get(spec_id_or_path) {
-            return Ok(entry.path.clone());
-        }
+    if let Some(entry) = index.get(spec_id_or_path) {
+        return Ok(entry.path.clone());
     }
     Err(format!("Spec {spec_id_or_path} not found"))
-}
-
-fn resolve_adr(lmbrain: &Path, adr_id: &str) -> Option<CompactAdr> {
-    let root = lmbrain.parent().unwrap_or(lmbrain);
-    let Ok(index) = crate::scan_workspace(root) else {
-        return None;
-    };
-    resolve_adr_from_index(&index, adr_id)
 }
 
 fn resolve_adr_from_index(index: &crate::WorkspaceIndex, adr_id: &str) -> Option<CompactAdr> {
@@ -1267,14 +1262,6 @@ fn resolve_adr_from_index(index: &crate::WorkspaceIndex, adr_id: &str) -> Option
         status: entry.status.clone(),
         decision_date: entry.document.value("decision_date"),
     })
-}
-
-fn resolve_agent(lmbrain: &Path, agent_id: &str) -> Option<AgentProfileSummary> {
-    let root = lmbrain.parent().unwrap_or(lmbrain);
-    let Ok(index) = crate::scan_workspace(root) else {
-        return None;
-    };
-    resolve_agent_from_index(&index, agent_id)
 }
 
 fn resolve_agent_from_index(
@@ -1305,7 +1292,7 @@ fn resolve_agent_from_index(
 }
 
 fn resolve_applicable_skills(
-    lmbrain: &Path,
+    index: &crate::WorkspaceIndex,
     explicit_skill_ids: &[String],
     recommended_agent: Option<&str>,
     agent_profile: Option<&AgentProfileSummary>,
@@ -1313,7 +1300,7 @@ fn resolve_applicable_skills(
     tags: &[String],
     review_only: bool,
 ) -> Vec<SkillSummary> {
-    let skills = scan_all_skills(lmbrain);
+    let skills = scan_all_skills_from_index(index);
     let mut result = Vec::new();
     for (summary, applies_to, domains) in skills {
         if summary.status != "active" {
@@ -1360,14 +1347,6 @@ fn resolve_applicable_skills(
     }
     result
 }
-fn scan_all_skills(lmbrain: &Path) -> Vec<(SkillSummary, Vec<String>, Vec<String>)> {
-    let root = lmbrain.parent().unwrap_or(lmbrain);
-    let Ok(index) = crate::scan_workspace(root) else {
-        return Vec::new();
-    };
-    scan_all_skills_from_index(&index)
-}
-
 fn scan_all_skills_from_index(
     index: &crate::WorkspaceIndex,
 ) -> Vec<(SkillSummary, Vec<String>, Vec<String>)> {
@@ -1396,14 +1375,6 @@ fn scan_all_skills_from_index(
         ));
     }
     skills
-}
-
-fn resolve_reviews_for_spec(lmbrain: &Path, spec_id: &str) -> Vec<CompactReview> {
-    let root = lmbrain.parent().unwrap_or(lmbrain);
-    let Ok(index) = crate::scan_workspace(root) else {
-        return Vec::new();
-    };
-    resolve_reviews_for_spec_from_index(&index, spec_id)
 }
 
 fn resolve_reviews_for_spec_from_index(
@@ -1448,12 +1419,8 @@ fn resolve_reviews_for_spec_from_index(
     reviews
 }
 
-fn spec_diagnostics(lmbrain: &Path, spec_id: &str) -> Vec<String> {
+fn spec_diagnostics_from_index(index: &crate::WorkspaceIndex, spec_id: &str) -> Vec<String> {
     let mut result = Vec::new();
-    let root = lmbrain.parent().unwrap_or(lmbrain);
-    let Ok(index) = crate::scan_workspace(root) else {
-        return result;
-    };
     if let Some(entry) = index.get(spec_id) {
         if !crate::invariants::folder_matches_status(&entry.path) {
             let status_dir = entry

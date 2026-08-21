@@ -10,6 +10,8 @@ Kit upgrades are automated, verified, and atomic:
 2. **Review:** Inspect the digest-bound plan. Kit-owned governance files (`CONTRACT.md`, `AGENT.md`, `QUALITY.md`, `UPGRADING.md`, `contract/*.md`, `templates/*.md`, `VERSION`) are realigned while project-owned artifacts (`PROJECT.md`, `STATUS.md`, `specs/`, `reviews/`, `decisions/`, `debts/`, `reports/`, `agents/`, etc.) are strictly preserved.
 3. **Execute:** Confirm the upgrade via `kit_migrate` or the desktop application. The migration is validated in staging and swapped atomically.
 
+The 5.0 scope and its compatibility boundaries are recorded in the product repository's [ADR 0001](../docs/decisions/0001-5.0-scope.md).
+
 ## Release Notes & History
 
 Full release notes, migration guides, and historical changelogs are maintained upstream in the LMBrain product repository and documentation:
