@@ -1742,24 +1742,14 @@ fn transition_internal(
     require_force_reason(&options)?;
 
     let guard = PathGuard::new(root)?;
+    let _lock = ArtifactMutationLock::acquire(guard.root(), "transition")?;
     let artifact = artifact.as_ref();
-    let path = guard.resolve_existing(artifact)?;
-    let initial = Document::parse(&fs::read_to_string(&path)?)?;
-    let initial_id = initial
-        .value("id")
-        .ok_or_else(|| TransitionError::Missing("id".into()))?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
     let path = guard.resolve_existing(artifact)?;
     let current_source = fs::read_to_string(&path)?;
     let mut document = Document::parse(&current_source)?;
     let id = document
         .value("id")
         .ok_or_else(|| TransitionError::Missing("id".into()))?;
-    if id != initial_id {
-        return Err(TransitionError::Invariant(format!(
-            "artifact changed identity while waiting for its mutation lock: expected {initial_id}, found {id}"
-        )));
-    }
     let from = document
         .value("status")
         .ok_or_else(|| TransitionError::Missing("status".into()))?;
@@ -2096,20 +2086,15 @@ pub fn set_review_implementation_agent(
     let guard = PathGuard::new(root)?;
     invariants::implementation_agent_resolves(guard.root(), Some(agent))
         .map_err(TransitionError::Invariant)?;
+    let _lock = ArtifactMutationLock::acquire(guard.root(), "review-agent")?;
     let artifact = artifact.as_ref();
-    let path = guard.resolve_existing(artifact)?;
-    let initial = Document::parse(&fs::read_to_string(&path)?)?;
-    let initial_id = initial
-        .value("id")
-        .ok_or_else(|| TransitionError::Missing("id".into()))?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
     let path = guard.resolve_existing(artifact)?;
     let current_source = fs::read_to_string(&path)?;
     let mut document = Document::parse(&current_source)?;
     let id = document
         .value("id")
         .ok_or_else(|| TransitionError::Missing("id".into()))?;
-    if id != initial_id || kind_for_id(&id) != Some(ArtifactKind::Review) {
+    if kind_for_id(&id) != Some(ArtifactKind::Review) {
         return Err(TransitionError::Invariant(
             "attribution correction requires a stable REVIEW-* artifact".into(),
         ));
@@ -2228,24 +2213,14 @@ fn set_field(
     require_force_reason(&options)?;
 
     let guard = PathGuard::new(root)?;
+    let _lock = ArtifactMutationLock::acquire(guard.root(), "governed-field")?;
     let artifact = artifact.as_ref();
-    let path = guard.resolve_existing(artifact)?;
-    let initial = Document::parse(&fs::read_to_string(&path)?)?;
-    let initial_id = initial
-        .value("id")
-        .ok_or_else(|| TransitionError::Missing("id".into()))?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
     let path = guard.resolve_existing(artifact)?;
     let current_source = fs::read_to_string(&path)?;
     let mut document = Document::parse(&current_source)?;
     let id = document
         .value("id")
         .ok_or_else(|| TransitionError::Missing("id".into()))?;
-    if id != initial_id {
-        return Err(TransitionError::Invariant(format!(
-            "artifact changed identity while waiting for its mutation lock: expected {initial_id}, found {id}"
-        )));
-    }
     if let Some(expected_kind) = expected_kind {
         let actual_kind = kind_for_id(&id)
             .ok_or_else(|| TransitionError::Missing("recognized artifact ID".into()))?;
@@ -2893,24 +2868,14 @@ fn set_governed_spec_metadata(
     require_force_reason(&options)?;
 
     let guard = PathGuard::new(root)?;
+    let _lock = ArtifactMutationLock::acquire(guard.root(), "spec-metadata")?;
     let artifact = artifact.as_ref();
-    let path = guard.resolve_existing(artifact)?;
-    let initial = Document::parse(&fs::read_to_string(&path)?)?;
-    let initial_id = initial
-        .value("id")
-        .ok_or_else(|| TransitionError::Missing("id".into()))?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
     let path = guard.resolve_existing(artifact)?;
     let current_source = fs::read_to_string(&path)?;
     let mut document = Document::parse(&current_source)?;
     let id = document
         .value("id")
         .ok_or_else(|| TransitionError::Missing("id".into()))?;
-    if id != initial_id {
-        return Err(TransitionError::Invariant(format!(
-            "artifact changed identity while waiting for its mutation lock: expected {initial_id}, found {id}"
-        )));
-    }
     if kind_for_id(&id) != Some(ArtifactKind::Spec) {
         return Err(TransitionError::Invariant(
             "expected a spec artifact".into(),
