@@ -61,7 +61,7 @@ pub fn build_specs(root: &Path) -> Result<Vec<Spec>, AppError> {
             Ok(Spec {
                 id: common.id,
                 title: common.title,
-                status: status.clone(),
+                status: *status,
                 priority: fm_string(&parsed.frontmatter, "priority"),
                 area: fm_string(&parsed.frontmatter, "area"),
                 milestone: fm_string(&parsed.frontmatter, "milestone"),
@@ -118,7 +118,7 @@ pub fn build_reviews(root: &Path) -> Result<Vec<Review>, AppError> {
             Ok(Review {
                 id: common.id,
                 title: common.title,
-                status: status.clone(),
+                status: *status,
                 spec_id: fm_string(&parsed.frontmatter, "spec"),
                 reviewer: fm_string(&parsed.frontmatter, "reviewer"),
                 implementation_agent: fm_string(&parsed.frontmatter, "implementation_agent"),
@@ -349,7 +349,7 @@ pub fn build_skills(root: &Path) -> Result<Vec<Skill>, AppError> {
             Ok(Skill {
                 id: common.id,
                 title: common.title,
-                status: status.clone(),
+                status: *status,
                 scope: fm_string(&parsed.frontmatter, "scope"),
                 kind: fm_string(&parsed.frontmatter, "kind"),
                 risk: fm_string(&parsed.frontmatter, "risk"),
@@ -1444,7 +1444,7 @@ fn wiki_content_files(lmbrain: &Path) -> Vec<PathBuf> {
             if path.components().any(|c| c.as_os_str() == "debts") {
                 path.file_name()
                     .and_then(|n| n.to_str())
-                    .map_or(false, |name| name.starts_with("DEBT-"))
+                    .is_some_and(|name| name.starts_with("DEBT-"))
             } else {
                 true
             }
