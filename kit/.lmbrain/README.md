@@ -2,7 +2,7 @@
 
 This directory is the portable, versioned source of truth for a project's knowledge, planning, design mockups, agent handoffs, and reviews.
 
-**Kit version:** `4.1.0` (read from `VERSION`)
+**Kit version:** read from `VERSION` (canonical)
 
 ## Quick start
 
@@ -28,4 +28,4 @@ This directory is the portable, versioned source of truth for a project's knowle
 
 Start with `OPERATOR.md` for the human workflow. Read `CONTRACT.md` for the complete data contract, `QUALITY.md` for the mandatory production standard, and `AGENT.md` for the Project Lead's operating rules.
 
-Use `CHANGELOG.md` to understand kit evolution and `MIGRATIONS.md` only when upgrading between released kit versions.
+Use `UPGRADING.md` when upgrading between released kit versions.

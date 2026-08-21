@@ -1,8 +1,8 @@
-﻿# LMBrain Markdown Contract v0.3
+# LMBrain Markdown Contract v0.3
 
 **Kit version:** read from `VERSION` (canonical).
 
-The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable kit version. Breaking contract changes increment the major version; backward-compatible additions increment the minor version; clarifications and fixes increment the patch version. Read `CHANGELOG.md` for released changes and `MIGRATIONS.md` before upgrading.
+The `VERSION` file at the root of `.lmbrain/` is the canonical, machine-readable kit version. Breaking contract changes increment the major version; backward-compatible additions increment the minor version; clarifications and fixes increment the patch version. Read `UPGRADING.md` for upgrade instructions and upstream documentation for released changes.
 
 ## General Rules
 

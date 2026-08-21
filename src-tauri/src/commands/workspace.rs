@@ -244,11 +244,14 @@ impl WorkspaceService {
                     if pv == bv {
                         KitMigrationStatus::UpToDate
                     } else if pv < bv {
-                        // Check if migration guidance exists for the target version in MIGRATIONS.md
+                        // Check if migration guidance or tool-driven upgrade exists
                         let mut guidance_exists = false;
                         if let Some(b_path) = bundled_kit_path {
+                            let upgrading_path = b_path.join("UPGRADING.md");
                             let migrations_path = b_path.join("MIGRATIONS.md");
-                            if migrations_path.exists() {
+                            if upgrading_path.exists() {
+                                guidance_exists = true;
+                            } else if migrations_path.exists() {
                                 if let Ok(content) = std::fs::read_to_string(&migrations_path) {
                                     let heading_prefix = format!("### {}", bundled_kit_version);
                                     if content
@@ -330,6 +333,26 @@ impl WorkspaceService {
         result?;
 
         self.validate_workspace(&root.to_string_lossy(), Some(template))
+    }
+
+    pub fn kit_migration_preview(
+        &self,
+        root: &Path,
+        template: &Path,
+    ) -> Result<lmbrain_core::KitMigrationPreview, AppError> {
+        lmbrain_core::kit_migration_preview(root, template)
+            .map_err(|e| AppError::InvalidKit(e.to_string()))
+    }
+
+    pub fn kit_migrate(
+        &self,
+        root: &Path,
+        template: &Path,
+        expected_preview_digest: &str,
+        confirmed: bool,
+    ) -> Result<lmbrain_core::KitMigrationResult, AppError> {
+        lmbrain_core::kit_migrate(root, template, expected_preview_digest, confirmed)
+            .map_err(|e| AppError::InvalidKit(e.to_string()))
     }
 }
 

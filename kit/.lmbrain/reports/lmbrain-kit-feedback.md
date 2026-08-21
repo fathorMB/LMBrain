@@ -1,8 +1,8 @@
 ---
 id: LMBRAIN-KIT-FEEDBACK
 schema_version: 1
-updated: YYYY-MM-DD
-lmbrain_version: 3.1.0
+updated: 2026-08-21
+lmbrain_version: 5.0.0
 notes: []
 ---
 # LMBrain kit feedback

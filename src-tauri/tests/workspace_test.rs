@@ -75,6 +75,33 @@ fn test_migration_status_available_with_guidance() {
 }
 
 #[test]
+fn test_migration_status_available_with_upgrading_doc() {
+    let workspace_dir = tempfile::tempdir().unwrap();
+    let bundled_dir = tempfile::tempdir().unwrap();
+
+    setup_test_workspace(workspace_dir.path(), Some("4.2.2"));
+    let b_lmbrain = bundled_dir.path().join(".lmbrain");
+    fs::create_dir_all(&b_lmbrain).unwrap();
+    fs::write(b_lmbrain.join("VERSION"), "5.0.0\n").unwrap();
+    fs::write(b_lmbrain.join("UPGRADING.md"), "Upgrading guide\n").unwrap();
+
+    let service = WorkspaceService::new();
+    let info = service
+        .validate_workspace(
+            &workspace_dir.path().to_string_lossy(),
+            Some(&bundled_dir.path().join(".lmbrain")),
+        )
+        .unwrap();
+
+    assert_eq!(info.project_kit_version, "4.2.2");
+    assert_eq!(info.bundled_kit_version, "5.0.0");
+    assert_eq!(
+        info.kit_migration_status,
+        KitMigrationStatus::MigrationAvailable
+    );
+}
+
+#[test]
 fn test_bundled_kit_path_display_strips_windows_extended_prefix() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_workspace(dir.path(), Some("2.1.2"));
