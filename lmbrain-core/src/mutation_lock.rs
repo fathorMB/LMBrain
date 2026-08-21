@@ -1,7 +1,9 @@
 use std::{
+    collections::hash_map::DefaultHasher,
     fs::{self, File, OpenOptions},
     io,
     path::Path,
+    hash::{Hash, Hasher},
     thread,
     time::{Duration, Instant},
 };
@@ -13,7 +15,9 @@ const LOCK_RETRY: Duration = Duration::from_millis(10);
 
 /// Cross-process advisory lock for all mutations in a workspace.
 ///
-/// Lock file is located at `.lmbrain/.mutation.lock`.
+/// Lock files live under the system temporary directory rather than the
+/// workspace. This keeps them out of source control and lets migrations swap
+/// `.lmbrain` while a lock is held (notably on Windows).
 /// The operating system releases advisory locks when a process exits,
 /// so crashes cannot leave a permanently held lock.
 pub struct WorkspaceLock {
@@ -22,9 +26,12 @@ pub struct WorkspaceLock {
 
 impl WorkspaceLock {
     pub fn acquire(root: &Path) -> io::Result<Self> {
-        let lmbrain_dir = root.join(".lmbrain");
-        fs::create_dir_all(&lmbrain_dir)?;
-        let lock_path = lmbrain_dir.join(".mutation.lock");
+        let canonical_root = root.canonicalize()?;
+        let mut hasher = DefaultHasher::new();
+        canonical_root.hash(&mut hasher);
+        let lock_dir = std::env::temp_dir().join("lmbrain-locks");
+        fs::create_dir_all(&lock_dir)?;
+        let lock_path = lock_dir.join(format!("{:016x}.lock", hasher.finish()));
         let file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -77,15 +84,11 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn workspace_lock_creates_single_mutation_lockfile() {
+    fn workspace_lock_does_not_modify_the_workspace() {
         let dir = tempdir().unwrap();
-        let lmbrain = dir.path().join(".lmbrain");
-        fs::create_dir_all(&lmbrain).unwrap();
-
         {
             let _lock = WorkspaceLock::acquire(dir.path()).unwrap();
-            let lock_file = lmbrain.join(".mutation.lock");
-            assert!(lock_file.exists());
+            assert!(!dir.path().join(".lmbrain").exists());
         }
 
         // Lock is released on drop and can be reacquired

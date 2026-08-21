@@ -28,7 +28,7 @@ Thumbs.db
 .env.local
 
 # LMBrain machine-local state and transient files
-.lmbrain/.lmbrain-mutation.lock
+.lmbrain/.mutation.lock
 .lmbrain/*.audit.jsonl
 .lmbrain/approvals/
 .lmbrain/sessions/

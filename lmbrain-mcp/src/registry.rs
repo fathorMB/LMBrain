@@ -54,6 +54,20 @@ pub fn opt_str<'a>(args: &'a Value, key: &str) -> Option<&'a str> {
     args.get(key).and_then(Value::as_str)
 }
 
+fn resolve_bundled_kit_path(root: &Path, args: &Value) -> Result<PathBuf, String> {
+    if let Some(path) = opt_str(args, "bundled_kit_path") {
+        return Ok(PathBuf::from(path));
+    }
+    if let Ok(path) = std::env::var("LMBRAIN_BUNDLED_KIT") {
+        return Ok(PathBuf::from(path));
+    }
+    let adjacent_kit = root.join("kit");
+    if adjacent_kit.exists() {
+        return Ok(adjacent_kit);
+    }
+    Err("no bundled kit is configured; supply bundled_kit_path or set LMBRAIN_BUNDLED_KIT".into())
+}
+
 pub fn opt_bool(args: &Value, key: &str) -> Option<bool> {
     args.get(key).and_then(Value::as_bool)
 }
@@ -1488,17 +1502,7 @@ pub static TOOLS: &[ToolSpec] = &[
             "additionalProperties":false
         }),
         handler: |root, args| {
-            let bundled_path = opt_str(args, "bundled_kit_path")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| {
-                    if let Ok(env_path) = std::env::var("LMBRAIN_BUNDLED_KIT") {
-                        PathBuf::from(env_path)
-                    } else if root.join("kit").exists() {
-                        root.join("kit")
-                    } else {
-                        root.to_path_buf()
-                    }
-                });
+            let bundled_path = resolve_bundled_kit_path(root, args)?;
             kit_migration_preview(root, &bundled_path)
                 .map(|preview| text(json!(preview)))
                 .map_err(|error| error.to_string())
@@ -1519,17 +1523,7 @@ pub static TOOLS: &[ToolSpec] = &[
             "additionalProperties":false
         }),
         handler: |root, args| {
-            let bundled_path = opt_str(args, "bundled_kit_path")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| {
-                    if let Ok(env_path) = std::env::var("LMBRAIN_BUNDLED_KIT") {
-                        PathBuf::from(env_path)
-                    } else if root.join("kit").exists() {
-                        root.join("kit")
-                    } else {
-                        root.to_path_buf()
-                    }
-                });
+            let bundled_path = resolve_bundled_kit_path(root, args)?;
             kit_migrate(
                 root,
                 &bundled_path,

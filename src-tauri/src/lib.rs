@@ -113,12 +113,15 @@ fn initialize_workspace_kit(
 fn preview_kit_migration(
     app: AppHandle,
     state: State<'_, AppState>,
-    path: String,
 ) -> Result<lmbrain_core::KitMigrationPreview, String> {
     let template = bundled_kit_path(&app).map_err(|e| e.to_string())?;
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
     state
         .workspace_service
-        .kit_migration_preview(Path::new(&path), &template)
+        .kit_migration_preview(&root, &template)
         .map_err(|e| e.to_string())
 }
 
@@ -126,14 +129,17 @@ fn preview_kit_migration(
 fn apply_kit_migration(
     app: AppHandle,
     state: State<'_, AppState>,
-    path: String,
     expected_preview_digest: String,
     confirmed: bool,
 ) -> Result<lmbrain_core::KitMigrationResult, String> {
     let template = bundled_kit_path(&app).map_err(|e| e.to_string())?;
+    let root = state
+        .path_guard
+        .get_root()
+        .ok_or_else(|| "No workspace open".to_string())?;
     state
         .workspace_service
-        .kit_migrate(Path::new(&path), &template, &expected_preview_digest, confirmed)
+        .kit_migrate(&root, &template, &expected_preview_digest, confirmed)
         .map_err(|e| e.to_string())
 }
 

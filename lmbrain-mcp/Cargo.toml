@@ -1,6 +1,6 @@
 [package]
 name = "lmbrain-mcp"
-version = "4.2.2"
+version = "5.0.0"
 edition.workspace = true
 rust-version.workspace = true
 
