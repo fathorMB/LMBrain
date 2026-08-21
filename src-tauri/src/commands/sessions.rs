@@ -852,14 +852,16 @@ fn is_cloud_model(name: &str, host: Option<&str>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(windows)]
     use std::io;
     use std::path::Path;
 
+    #[cfg(windows)]
+    use super::kill_error_means_process_absent;
     use super::{
-        default_label, is_cloud_model, kill_error_means_process_absent, launch_spec,
-        newest_desktop_codex_command_in, opencode_ollama_config, parse_ollama_list_output,
-        resolve_codex_command, resolve_opencode_command, resolve_windows_opencode_command,
-        validate_route, LaunchSpec,
+        default_label, is_cloud_model, launch_spec, newest_desktop_codex_command_in,
+        opencode_ollama_config, parse_ollama_list_output, resolve_codex_command,
+        resolve_opencode_command, resolve_windows_opencode_command, validate_route, LaunchSpec,
     };
     use crate::models::session::{AgentHost, ModelRoute, SessionStartRequest};
 
