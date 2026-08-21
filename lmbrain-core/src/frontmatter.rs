@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use chrono::Local;
 use serde_json::{Map, Value};
@@ -887,21 +891,43 @@ fn yaml_value(value: &Value) -> String {
 }
 
 pub fn atomic_write(path: &Path, content: &str) -> Result<(), FrontmatterError> {
-    let parent = path.parent().ok_or(FrontmatterError::Malformed)?;
-    fs::create_dir_all(parent)?;
-    let temp = parent.join(format!(
-        ".{}.{}.tmp",
-        path.file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or("artifact"),
-        std::process::id()
-    ));
+    let parent = path.parent().unwrap_or_else(|| Path::new(""));
+    if !parent.as_os_str().is_empty() {
+        fs::create_dir_all(parent)?;
+    }
+    let temp = if parent.as_os_str().is_empty() {
+        PathBuf::from(format!(
+            ".{}.{}.tmp",
+            path.file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("artifact"),
+            std::process::id()
+        ))
+    } else {
+        parent.join(format!(
+            ".{}.{}.tmp",
+            path.file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("artifact"),
+            std::process::id()
+        ))
+    };
+
+    struct TempCleanup<'a>(&'a Path);
+    impl<'a> Drop for TempCleanup<'a> {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(self.0);
+        }
+    }
+
+    let guard = TempCleanup(&temp);
     fs::write(&temp, content)?;
     #[cfg(windows)]
     if path.exists() {
         fs::remove_file(path)?;
     }
-    fs::rename(temp, path)?;
+    fs::rename(&temp, path)?;
+    std::mem::forget(guard);
     Ok(())
 }
 
@@ -1133,5 +1159,29 @@ mod tests {
     #[test]
     fn unterminated_frontmatter_is_malformed() {
         assert!(Document::parse("---\nid: X\nno closing marker").is_err());
+    }
+
+    #[test]
+    fn atomic_write_creates_missing_parents_and_overwrites() {
+        let dir = tempfile::tempdir().unwrap();
+        let nested = dir.path().join("a/b/c/nested.md");
+
+        // Write to nested path where parent directories do not exist
+        atomic_write(&nested, "---\nid: SPEC-001\n---\nHello").unwrap();
+        assert!(nested.exists());
+        assert_eq!(fs::read_to_string(&nested).unwrap(), "---\nid: SPEC-001\n---\nHello");
+
+        // Overwrite existing file
+        atomic_write(&nested, "---\nid: SPEC-001\n---\nUpdated").unwrap();
+        assert_eq!(fs::read_to_string(&nested).unwrap(), "---\nid: SPEC-001\n---\nUpdated");
+
+        // Verify no .tmp files left in the directory
+        let parent = nested.parent().unwrap();
+        let tmp_files: Vec<_> = fs::read_dir(parent)
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().contains(".tmp"))
+            .collect();
+        assert!(tmp_files.is_empty());
     }
 }
