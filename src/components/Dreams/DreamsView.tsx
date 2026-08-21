@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import type { Dream } from "../../types";
 import { useWorkspace } from "../../hooks/useWorkspace";
+import { useFilteredList } from "../../hooks/useFilteredList";
 import { useDialog } from "../../hooks/useDialog";
 import { MarkdownRenderer } from "../../lib/markdown";
 import { RefreshButton } from "../RefreshButton";
@@ -18,14 +19,14 @@ export function DreamsView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const closeSelected = useCallback(() => setSelected(null), []);
-  const dreams = useMemo(
-    () => state.dreams.filter((dream) =>
-      (status === "all" || dream.status === status)
-      && (classification === "all" || dream.classification === classification)
-      && (area === "all" || dream.area === area)
-      && (confidence === "all" || dream.confidence === confidence)),
-    [state.dreams, status, classification, area, confidence],
-  );
+  const dreams = useFilteredList(state.dreams, {
+    filters: [
+      (dream) => status === "all" || dream.status === status,
+      (dream) => classification === "all" || dream.classification === classification,
+      (dream) => area === "all" || dream.area === area,
+      (dream) => confidence === "all" || dream.confidence === confidence,
+    ],
+  });
   const options = (values: string[]) => [...new Set(values.filter(Boolean))].sort();
   const refresh = async () => {
     setLoading(true);
