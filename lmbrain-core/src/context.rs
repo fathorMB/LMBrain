@@ -1035,13 +1035,6 @@ fn latest_parking(document: &Document) -> Option<SpecParkingSummary> {
     })
 }
 
-fn scan_specs(lmbrain: &Path) -> Vec<CompactSpec> {
-    let root = lmbrain.parent().unwrap_or(lmbrain);
-    let Ok(index) = crate::scan_workspace(root) else {
-        return Vec::new();
-    };
-    scan_specs_from_index(&index)
-}
 
 fn scan_specs_from_index(index: &crate::WorkspaceIndex) -> Vec<CompactSpec> {
     let mut specs = Vec::new();
@@ -1187,13 +1180,7 @@ fn derive_project_state(lmbrain: &Path, specs: &[CompactSpec]) -> DerivedProject
     }
 }
 
-fn scan_ready_handoffs(lmbrain: &Path) -> Vec<String> {
-    let root = lmbrain.parent().unwrap_or(lmbrain);
-    let Ok(index) = crate::scan_workspace(root) else {
-        return Vec::new();
-    };
-    scan_ready_handoffs_from_index(&index)
-}
+
 
 fn scan_ready_handoffs_from_index(index: &crate::WorkspaceIndex) -> Vec<String> {
     index
@@ -1201,14 +1188,6 @@ fn scan_ready_handoffs_from_index(index: &crate::WorkspaceIndex) -> Vec<String> 
         .filter(|entry| entry.status == "ready")
         .map(|entry| entry.id.clone())
         .collect()
-}
-
-fn scan_active_adrs(lmbrain: &Path) -> Vec<CompactAdr> {
-    let root = lmbrain.parent().unwrap_or(lmbrain);
-    let Ok(index) = crate::scan_workspace(root) else {
-        return Vec::new();
-    };
-    scan_active_adrs_from_index(&index)
 }
 
 fn scan_active_adrs_from_index(index: &crate::WorkspaceIndex) -> Vec<CompactAdr> {
