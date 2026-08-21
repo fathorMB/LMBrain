@@ -5,13 +5,12 @@ use std::{
 
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::{
-    frontmatter::{atomic_write, repair_duplicate_top_level_keys, Document, FrontmatterError},
+    frontmatter::{atomic_write, repair_duplicate_top_level_keys, Document},
     invariants,
     mutation_lock::ArtifactMutationLock,
-    path::{PathError, PathGuard},
+    path::PathGuard,
     review::{
         next_review_event_id, parse_review_event_history, ReviewEventInput,
         REVIEW_EVENT_SCHEMA_VERSION,
@@ -1527,37 +1526,7 @@ pub struct CreateRequest {
     pub fields: Vec<(String, String)>,
 }
 
-#[derive(Debug, Error)]
-pub enum TransitionError {
-    #[error(transparent)]
-    Path(#[from] PathError),
-    #[error(transparent)]
-    Frontmatter(#[from] FrontmatterError),
-    #[error("artifact is missing required field '{0}'")]
-    Missing(String),
-    #[error("illegal {kind:?} transition from '{from}' to '{to}'")]
-    Illegal {
-        kind: ArtifactKind,
-        from: String,
-        to: String,
-    },
-    #[error("invariant failed: {0}")]
-    Invariant(String),
-    #[error("invalid creation status '{status}' for {kind:?} artifacts; allowed: {allowed}")]
-    InvalidCreationStatus {
-        kind: ArtifactKind,
-        status: String,
-        allowed: String,
-    },
-    #[error("field '{0}' is core-owned lifecycle metadata and cannot be set at creation")]
-    ReservedField(String),
-    #[error("invalid creation field: {0}")]
-    InvalidField(String),
-    #[error("force requires a non-empty reason")]
-    MissingForceReason,
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-}
+pub use crate::error::CoreError as TransitionError;
 
 pub fn transition(
     root: impl AsRef<Path>,

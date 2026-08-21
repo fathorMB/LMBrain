@@ -6,6 +6,7 @@ pub mod debt;
 pub mod debt_migration;
 pub mod diagnostics;
 pub mod dream;
+pub mod error;
 pub mod frontmatter;
 pub mod harness_environment;
 pub mod harness_manifest;
@@ -24,6 +25,7 @@ pub mod verification;
 pub mod verification_onboarding;
 pub mod workspace_index;
 
+pub use error::{CoreError, ErrorCode};
 pub use workspace_index::{scan_workspace, ArtifactEntry, WorkspaceIndex};
 
 pub use attestation::{
