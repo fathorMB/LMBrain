@@ -4,7 +4,18 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `4.2.2`.
+The current kit is `5.0.0`.
+
+### 5.0.0 (layered contract and controlled kit migration)
+
+Supported source versions are 4.x releases. This release changes kit governance documentation and introduces a controlled migration; it does not rewrite project-owned artifacts.
+
+1. Update the desktop application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together.
+2. Invoke `kit_migration_preview` with the installed bundled-kit path and review its digest-bound inventory. The preview fails closed if no bundle is configured, the bundle resolves to the target workspace, or the target is already at that version.
+3. After explicit operator confirmation, call `kit_migrate` with that exact digest. The operation holds the workspace mutation lock, stages and validates the replacement, atomically swaps `.lmbrain`, and retains the previous directory as the reported backup path.
+4. Run `lmbrain_validate` and inspect the Git diff. Project-owned artifacts and the retained backup are never silently discarded.
+
+Rollback consists of restoring the reported backup directory after stopping workspace mutations. See [ADR 0001](decisions/0001-5.0-scope.md) for the 5.0 scope decision.
 
 ### 4.2.2 (governed verification gates and visible acceptance criteria)
 

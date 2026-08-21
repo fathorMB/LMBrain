@@ -79,8 +79,11 @@ impl WorkspaceIndex {
                 raw: source,
             };
 
-            index.artifacts.insert(id.clone(), entry);
-            index.by_kind.entry(kind).or_default().push(id.clone());
+            if let Some(previous) = index.artifacts.insert(id.clone(), entry) {
+                index.by_path.remove(&previous.path);
+            } else {
+                index.by_kind.entry(kind).or_default().push(id.clone());
+            }
             index.by_path.insert(file_path, id);
         }
 
@@ -192,5 +195,25 @@ mod tests {
         let specs: Vec<_> = index.by_kind(ArtifactKind::Spec).collect();
         assert_eq!(specs.len(), 1);
         assert_eq!(specs[0].id, "SPEC-001");
+    }
+
+    #[test]
+    fn duplicate_ids_are_exposed_once_to_index_consumers() {
+        let dir = tempdir().unwrap();
+        let backlog = dir.path().join(".lmbrain/specs/backlog");
+        let ready = dir.path().join(".lmbrain/specs/ready");
+        fs::create_dir_all(&backlog).unwrap();
+        fs::create_dir_all(&ready).unwrap();
+        for (directory, status) in [(&backlog, "backlog"), (&ready, "ready")] {
+            fs::write(
+                directory.join("SPEC-001.md"),
+                format!("---\nid: SPEC-001\nstatus: {status}\n---\n"),
+            )
+            .unwrap();
+        }
+
+        let index = scan_workspace(dir.path()).unwrap();
+        assert_eq!(index.by_kind(ArtifactKind::Spec).count(), 1);
+        assert_eq!(index.get("SPEC-001").unwrap().status, "ready");
     }
 }

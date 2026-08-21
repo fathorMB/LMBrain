@@ -25,6 +25,11 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(
 
   const dialogRef = useRef<T | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -54,9 +59,9 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(
     }
 
     const handleWindowKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && closeOnEscape && onClose) {
+      if (event.key === "Escape" && closeOnEscape && onCloseRef.current) {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -92,7 +97,7 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(
       window.removeEventListener("keydown", handleWindowKeyDown);
       previousFocusRef.current?.focus();
     };
-  }, [isOpen, onClose, initialFocusRef, closeOnEscape]);
+  }, [isOpen, initialFocusRef, closeOnEscape]);
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === "Escape" && closeOnEscape && onClose) {

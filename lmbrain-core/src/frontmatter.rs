@@ -445,246 +445,29 @@ fn split_frontmatter(
 }
 
 fn parse_mapping(input: &str) -> Result<Map<String, Value>, FrontmatterError> {
-    let lines: Vec<&str> = input.lines().collect();
-    let mut index = 0usize;
-    let mut map = Map::new();
-
-    while index < lines.len() {
-        let line = lines[index];
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            index += 1;
-            continue;
-        }
-        if indent_width(line) != 0 {
-            return Err(FrontmatterError::Invalid(format!(
-                "unexpected indentation at line {}",
-                index + 1
-            )));
-        }
-
-        let (key, rest) = split_key_value(trimmed).ok_or_else(|| {
-            FrontmatterError::Invalid(format!("expected key/value at line {}", index + 1))
-        })?;
-
-        if map.contains_key(key) {
-            return Err(FrontmatterError::Invalid(format!(
-                "duplicate top-level YAML key '{key}' at line {}",
-                index + 1
-            )));
-        }
-
-        let value = if rest.is_empty() {
-            // Only content indented deeper than the key is its nested block. A
-            // following line at indent 0 is the next top-level key: without this
-            // guard an empty-valued key (e.g. the template's `area: `) swallowed
-            // every remaining top-level field as its own nested object.
-            match next_content_indent(&lines, index + 1) {
-                Some(child_indent) if child_indent > 0 => {
-                    parse_nested_block(&lines, &mut index, child_indent)?
-                }
-                _ => Value::Null,
-            }
-        } else if rest == "|" || rest == ">" {
-            parse_block_scalar(&lines, &mut index, 1, rest == ">")?
-        } else {
-            parse_inline_value(rest)?
-        };
-
-        map.insert(key.to_string(), value);
-        index += 1;
-    }
-
-    Ok(map)
+    let fields: Map<String, Value> = serde_saphyr::from_str(input)
+        .map_err(|error| FrontmatterError::Invalid(format!("YAML parse error (check indentation): {error}")))?;
+    Ok(fields
+        .into_iter()
+        .map(|(key, value)| (key, normalize_yaml_value(value)))
+        .collect())
 }
 
-fn parse_nested_block(
-    lines: &[&str],
-    index: &mut usize,
-    indent: usize,
-) -> Result<Value, FrontmatterError> {
-    let next = lines.get(*index + 1).ok_or(FrontmatterError::Malformed)?;
-    let trimmed = next.trim_start();
-    if trimmed.starts_with("- ") || trimmed == "-" {
-        parse_array(lines, index, indent)
-    } else {
-        let map = parse_indented_map(lines, index, indent)?;
-        Ok(Value::Object(map))
-    }
-}
-
-fn parse_indented_map(
-    lines: &[&str],
-    index: &mut usize,
-    indent: usize,
-) -> Result<Map<String, Value>, FrontmatterError> {
-    let mut map = Map::new();
-    let mut cursor = *index + 1;
-
-    while cursor < lines.len() {
-        let line = lines[cursor];
-        if line.trim().is_empty() || line.trim_start().starts_with('#') {
-            cursor += 1;
-            continue;
-        }
-
-        let line_indent = indent_width(line);
-        if line_indent < indent {
-            break;
-        }
-        if line_indent > indent {
-            return Err(FrontmatterError::Invalid(format!(
-                "unexpected indentation at line {}",
-                cursor + 1
-            )));
-        }
-
-        let trimmed = line.trim_start();
-        let (key, rest) = split_key_value(trimmed).ok_or_else(|| {
-            FrontmatterError::Invalid(format!("expected key/value at line {}", cursor + 1))
-        })?;
-
-        // This line is consumed; nested parsers may advance `*index` further. Setting it
-        // up front guarantees `cursor` advances even for inline scalars and empty values,
-        // which would otherwise reset `cursor` to a stale `*index` and loop forever.
-        *index = cursor;
-        let value = if rest.is_empty() {
-            match next_content_indent(lines, cursor + 1) {
-                Some(child_indent) if child_indent > indent => {
-                    parse_nested_block(lines, index, child_indent)?
-                }
-                _ => Value::Null,
-            }
-        } else if rest == "|" || rest == ">" {
-            parse_block_scalar(lines, index, indent + 1, rest == ">")?
-        } else {
-            parse_inline_value(rest)?
-        };
-
-        map.insert(key.to_string(), value);
-        cursor = *index + 1;
-    }
-
-    *index = cursor.saturating_sub(1);
-    Ok(map)
-}
-
-fn parse_array(
-    lines: &[&str],
-    index: &mut usize,
-    indent: usize,
-) -> Result<Value, FrontmatterError> {
-    let mut items = Vec::new();
-    let mut cursor = *index + 1;
-
-    while cursor < lines.len() {
-        let line = lines[cursor];
-        let trimmed_line = line.trim();
-        if trimmed_line.is_empty() || trimmed_line.starts_with('#') {
-            cursor += 1;
-            continue;
-        }
-
-        let line_indent = indent_width(line);
-        if line_indent < indent {
-            break;
-        }
-        if line_indent != indent {
-            return Err(FrontmatterError::Invalid(format!(
-                "unexpected indentation at line {}",
-                cursor + 1
-            )));
-        }
-
-        let trimmed = line.trim_start();
-        if !trimmed.starts_with('-') {
-            break;
-        }
-
-        let rest = trimmed[1..].trim_start();
-        if rest.is_empty() {
-            let child_indent = next_content_indent(lines, cursor + 1).ok_or_else(|| {
-                FrontmatterError::Invalid(format!("missing nested item at line {}", cursor + 1))
-            })?;
-            *index = cursor;
-            items.push(parse_nested_block(lines, index, child_indent)?);
-            cursor = *index + 1;
-            continue;
-        }
-
-        if let Some((key, value)) = split_key_value(rest) {
-            let mut object = Map::new();
-            if value.is_empty() {
-                let child_indent = next_content_indent(lines, cursor + 1);
-                if let Some(child_indent) = child_indent.filter(|child| *child > indent) {
-                    *index = cursor;
-                    object.insert(
-                        key.to_string(),
-                        parse_nested_block(lines, index, child_indent)?,
-                    );
-                    let extra = parse_indented_map(lines, index, indent + 2)?;
-                    for (extra_key, extra_value) in extra {
-                        object.insert(extra_key, extra_value);
-                    }
-                    items.push(Value::Object(object));
-                    cursor = *index + 1;
-                    continue;
-                }
-                object.insert(key.to_string(), Value::Null);
-            } else {
-                object.insert(key.to_string(), parse_inline_value(value)?);
-            }
-
-            let mut map_cursor = cursor;
-            let extra = parse_indented_map(lines, &mut map_cursor, indent + 2)?;
-            for (extra_key, extra_value) in extra {
-                object.insert(extra_key, extra_value);
-            }
-            cursor = map_cursor + 1;
-            items.push(Value::Object(object));
-            continue;
-        }
-
-        items.push(parse_inline_value(rest)?);
-        cursor += 1;
-    }
-
-    *index = cursor.saturating_sub(1);
-    Ok(Value::Array(items))
-}
-
-fn parse_block_scalar(
-    lines: &[&str],
-    index: &mut usize,
-    minimum_indent: usize,
-    folded: bool,
-) -> Result<Value, FrontmatterError> {
-    let indent = next_content_indent(lines, *index + 1).unwrap_or(minimum_indent);
-    let mut cursor = *index + 1;
-    let mut parts = Vec::new();
-
-    while cursor < lines.len() {
-        let line = lines[cursor];
-        if line.trim().is_empty() {
-            parts.push(String::new());
-            cursor += 1;
-            continue;
-        }
-
-        let line_indent = indent_width(line);
-        if line_indent < indent {
-            break;
-        }
-
-        parts.push(line.chars().skip(indent).collect());
-        cursor += 1;
-    }
-
-    *index = cursor.saturating_sub(1);
-    if folded {
-        Ok(Value::String(parts.join(" ").trim().to_string()))
-    } else {
-        Ok(Value::String(parts.join("\n")))
+/// Preserve the document API's historical scalar contract while delegating all
+/// YAML syntax and nesting to the conforming parser. Artifact metadata uses
+/// strings for identifiers, dates, and enumerated values even when YAML could
+/// infer a numeric representation.
+fn normalize_yaml_value(value: Value) -> Value {
+    match value {
+        Value::Number(value) => Value::String(value.to_string()),
+        Value::String(value) => Value::String(value.trim_end_matches('\n').to_string()),
+        Value::Array(items) => Value::Array(items.into_iter().map(normalize_yaml_value).collect()),
+        Value::Object(map) => Value::Object(
+            map.into_iter()
+                .map(|(key, value)| (key, normalize_yaml_value(value)))
+                .collect(),
+        ),
+        value => value,
     }
 }
 
@@ -827,16 +610,6 @@ fn split_key_value(line: &str) -> Option<(&str, &str)> {
 
 fn top_level_key(line: &str) -> Option<&str> {
     split_key_value(line).map(|(key, _)| key)
-}
-
-fn next_content_indent(lines: &[&str], mut start: usize) -> Option<usize> {
-    while let Some(line) = lines.get(start) {
-        if !line.trim().is_empty() && !line.trim_start().starts_with('#') {
-            return Some(indent_width(line));
-        }
-        start += 1;
-    }
-    None
 }
 
 fn indent_width(line: &str) -> usize {
