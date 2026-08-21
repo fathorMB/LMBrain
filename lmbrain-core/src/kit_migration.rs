@@ -5,6 +5,7 @@ use thiserror::Error;
 use ts_rs::TS;
 
 use crate::debt_migration::copy_tree;
+use crate::mutation_lock::WorkspaceLock;
 use crate::path::PathGuard;
 
 #[derive(Debug, Error)]
@@ -89,6 +90,9 @@ pub fn kit_migrate(
     }
     let guard = PathGuard::new(workspace_root)
         .map_err(|e| KitMigrationError::Preflight(e.to_string()))?;
+    // The lock is deliberately outside `.lmbrain`, so it remains held for the
+    // entire staging and swap operation on every platform.
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let plan = build_plan(guard.root(), bundled_kit_root)?;
     if !plan.preview.can_migrate {
         return Err(KitMigrationError::Preflight(
@@ -153,6 +157,11 @@ pub fn kit_migrate(
         return Err(err);
     }
 
+    if let Err(err) = validate_staged_tree(&stage_brain, &plan) {
+        let _ = fs::remove_dir_all(&stage_root);
+        return Err(err);
+    }
+
     // Atomic swap: rename source -> backup, rename stage -> source
     if let Err(err) = fs::rename(&source, &backup) {
         let _ = fs::remove_dir_all(&stage_root);
@@ -166,13 +175,16 @@ pub fn kit_migrate(
     }
 
     let _ = fs::remove_dir_all(&stage_root);
-    let _ = fs::remove_dir_all(&backup);
 
     Ok(KitMigrationResult {
         previous_version: plan.preview.from_version,
         current_version: plan.preview.to_version,
         updated_items,
-        backed_up_to: ".lmbrain".into(),
+        backed_up_to: backup
+            .strip_prefix(guard.root())
+            .unwrap_or(&backup)
+            .to_string_lossy()
+            .into_owned(),
     })
 }
 
@@ -196,9 +208,36 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
         bundled_kit_root.to_path_buf()
     };
 
+    if !bundled_lmbrain.is_dir() {
+        return Err(KitMigrationError::Preflight(
+            "bundled kit directory does not exist".into(),
+        ));
+    }
+
     let to_version = fs::read_to_string(bundled_lmbrain.join("VERSION"))
         .map(clean_version)
-        .unwrap_or_else(|_| "5.0.0".into());
+        .map_err(|_| KitMigrationError::Preflight("bundled kit VERSION does not exist".into()))?;
+
+    let same_directory = target_lmbrain.canonicalize()? == bundled_lmbrain.canonicalize()?;
+    if same_directory || from_version == to_version {
+        let reason = if same_directory {
+            "bundled kit resolves to the target workspace".into()
+        } else {
+            "workspace kit is already at the bundled version".into()
+        };
+        let digest = migration_digest(&from_version, &to_version, &[]);
+        return Ok(MigrationPlan {
+            preview: KitMigrationPreview {
+                from_version,
+                to_version,
+                digest,
+                items: Vec::new(),
+                can_migrate: false,
+                blocker_reason: Some(reason),
+            },
+            writes: Vec::new(),
+        });
+    }
 
     let mut writes = Vec::new();
     let mut items = Vec::new();
@@ -208,6 +247,9 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
         let bundled_file = bundled_lmbrain.join(filename);
         if bundled_file.exists() {
             let content = fs::read(&bundled_file)?;
+            if fs::read(target_lmbrain.join(filename)).ok().as_deref() == Some(content.as_slice()) {
+                continue;
+            }
             let item = KitMigrationItem {
                 path: format!(".lmbrain/{}", filename),
                 action: "update".into(),
@@ -234,6 +276,13 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
                     let fname = entry.file_name();
                     let fname_str = fname.to_string_lossy();
                     let content = fs::read(&p)?;
+                    if fs::read(target_lmbrain.join("contract").join(&*fname_str))
+                        .ok()
+                        .as_deref()
+                        == Some(content.as_slice())
+                    {
+                        continue;
+                    }
                     let item = KitMigrationItem {
                         path: format!(".lmbrain/contract/{}", fname_str),
                         action: "update".into(),
@@ -262,6 +311,13 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
                     let fname = entry.file_name();
                     let fname_str = fname.to_string_lossy();
                     let content = fs::read(&p)?;
+                    if fs::read(target_lmbrain.join("templates").join(&*fname_str))
+                        .ok()
+                        .as_deref()
+                        == Some(content.as_slice())
+                    {
+                        continue;
+                    }
                     let item = KitMigrationItem {
                         path: format!(".lmbrain/templates/{}", fname_str),
                         action: "update".into(),
@@ -301,17 +357,7 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
     }
 
     // Compute canonical digest
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(from_version.as_bytes());
-    hasher.update(b"->");
-    hasher.update(to_version.as_bytes());
-    for item in &items {
-        hasher.update(item.path.as_bytes());
-        hasher.update(item.action.as_bytes());
-        hasher.update(item.classification.as_bytes());
-    }
-    let digest = format!("{:x}", hasher.finalize());
+    let digest = migration_digest(&from_version, &to_version, &items);
 
     let preview = KitMigrationPreview {
         from_version,
@@ -323,6 +369,46 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
     };
 
     Ok(MigrationPlan { preview, writes })
+}
+
+fn migration_digest(from_version: &str, to_version: &str, items: &[KitMigrationItem]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(from_version.as_bytes());
+    hasher.update(b"->");
+    hasher.update(to_version.as_bytes());
+    for item in items {
+        hasher.update(item.path.as_bytes());
+        hasher.update(item.action.as_bytes());
+        hasher.update(item.classification.as_bytes());
+    }
+    format!("{:x}", hasher.finalize())
+}
+
+fn validate_staged_tree(stage_brain: &Path, plan: &MigrationPlan) -> Result<(), KitMigrationError> {
+    for write in &plan.writes {
+        let staged = stage_brain.join(&write.target_relative);
+        if write.is_delete {
+            if staged.exists() {
+                return Err(KitMigrationError::Preflight(format!(
+                    "staging validation failed: {} was not removed", write.item.path
+                )));
+            }
+        } else if fs::read(&staged).ok().as_deref() != write.content.as_deref() {
+            return Err(KitMigrationError::Preflight(format!(
+                "staging validation failed: {} does not match the bundled kit", write.item.path
+            )));
+        }
+    }
+    let version = fs::read_to_string(stage_brain.join("VERSION"))
+        .map(|value| value.trim_start_matches('\u{feff}').trim().to_string())
+        .map_err(|_| KitMigrationError::Preflight("staging validation failed: VERSION is missing".into()))?;
+    if version != plan.preview.to_version {
+        return Err(KitMigrationError::Preflight(format!(
+            "staging validation failed: VERSION is {version}, expected {}", plan.preview.to_version
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -387,6 +473,7 @@ mod tests {
 
         assert_eq!(result.previous_version, "3.1.3");
         assert_eq!(result.current_version, "5.0.0");
+        assert!(workspace.path().join(&result.backed_up_to).exists());
 
         let ws_brain = workspace.path().join(".lmbrain");
         // Kit-owned updated
@@ -416,5 +503,17 @@ mod tests {
         ).unwrap_err();
 
         assert!(matches!(err, KitMigrationError::ConfirmationRequired));
+    }
+
+    #[test]
+    fn kit_migration_refuses_the_target_as_its_own_bundle() {
+        let (workspace, _) = setup_fixture();
+        let preview = kit_migration_preview(workspace.path(), workspace.path()).unwrap();
+
+        assert!(!preview.can_migrate);
+        assert_eq!(
+            preview.blocker_reason.as_deref(),
+            Some("bundled kit resolves to the target workspace")
+        );
     }
 }

@@ -1705,6 +1705,11 @@ fn transition_internal(
         .ok_or_else(|| TransitionError::Missing("status".into()))?;
     let kind = kind_for_id(&id)
         .ok_or_else(|| TransitionError::Missing("recognized artifact ID".into()))?;
+    let target = canonical_status(kind, target).ok_or_else(|| TransitionError::Illegal {
+        kind,
+        from: from.clone(),
+        to: target.into(),
+    })?;
 
     if kind == ArtifactKind::Review && review_event.is_none() {
         return Err(TransitionError::Invariant(
@@ -1727,15 +1732,15 @@ fn transition_internal(
         validate_existing_review_history(&document)?;
     }
 
-    if !allowed(kind, &from, target) && parking_event.is_none() {
+    if !allowed(kind, &from, &target) && parking_event.is_none() {
         return Err(TransitionError::Illegal {
             kind,
             from,
-            to: target.into(),
+            to: target.clone(),
         });
     }
 
-    let invariant_message = invariant_failure(guard.root(), &path, kind, target, &document);
+    let invariant_message = invariant_failure(guard.root(), &path, kind, &target, &document);
     if let Some(message) = invariant_message.as_deref() {
         if !options.force {
             return Err(TransitionError::Invariant(message.into()));
@@ -1779,7 +1784,7 @@ fn transition_internal(
         }
     }
 
-    document.set("status", target);
+    document.set("status", &target);
     document.set("updated", &today());
     document.append_activity(&format!("transitioned {from} -> {target}"));
     if let Some(event) = parking_event.as_ref() {
@@ -1792,12 +1797,12 @@ fn transition_internal(
             let actor_role = review_event
                 .as_ref()
                 .map(|event| event.actor_role.as_str())
-                .unwrap_or_else(|| transition_authority(kind, target));
+                .unwrap_or_else(|| transition_authority(kind, &target));
             append_mutation_override(
                 &mut document,
                 &id,
                 &from,
-                target,
+                &target,
                 actor_role,
                 reason,
                 invariant,
@@ -1811,9 +1816,9 @@ fn transition_internal(
             evidence_refs: Vec::new(),
             remediation_agent: None,
         });
-        append_review_event(&mut document, &id, "verdict", &from, target, &event)?;
+        append_review_event(&mut document, &id, "verdict", &from, &target, &event)?;
     }
-    let destination = destination_for(kind, &path, target)?;
+    let destination = destination_for(kind, &path, &target)?;
     if destination != path && destination.exists() {
         return Err(TransitionError::Invariant(format!(
             "destination already contains an artifact named {}",
@@ -1847,7 +1852,7 @@ fn transition_internal(
 
     Ok(MutationResult {
         id,
-        status: target.into(),
+        status: target,
         path: destination,
         forced: options.force,
     })
@@ -2525,6 +2530,21 @@ pub fn allowed(kind: ArtifactKind, from: &str, to: &str) -> bool {
     kind.is_allowed(from, to)
 }
 
+fn canonical_status(kind: ArtifactKind, value: &str) -> Option<String> {
+    match kind {
+        ArtifactKind::Spec => value.parse::<SpecStatus>().ok().map(|status| status.as_str().into()),
+        ArtifactKind::Review => value.parse::<ReviewStatus>().ok().map(|status| status.as_str().into()),
+        ArtifactKind::Adr => value.parse::<AdrStatus>().ok().map(|status| status.as_str().into()),
+        ArtifactKind::Agent => value.parse::<AgentStatus>().ok().map(|status| status.as_str().into()),
+        ArtifactKind::AgentProposal => value.parse::<AgentProposalStatus>().ok().map(|status| status.as_str().into()),
+        ArtifactKind::Mcp => value.parse::<McpStatus>().ok().map(|status| status.as_str().into()),
+        ArtifactKind::McpProposal => value.parse::<McpProposalStatus>().ok().map(|status| status.as_str().into()),
+        ArtifactKind::Handoff => value.parse::<HandoffStatus>().ok().map(|status| status.as_str().into()),
+        ArtifactKind::Skill => value.parse::<SkillStatus>().ok().map(|status| status.as_str().into()),
+        ArtifactKind::Debt => value.parse::<DebtStatus>().ok().map(|status| status.as_str().into()),
+    }
+}
+
 fn invariant_failure(
     root: &Path,
     path: &Path,
@@ -3047,4 +3067,18 @@ fn decision_path_for_id(root: &Path, id: &str) -> Option<PathBuf> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn canonical_status_normalizes_lifecycle_input() {
+        assert_eq!(
+            canonical_status(ArtifactKind::Spec, " Working ").as_deref(),
+            Some("working")
+        );
+        assert_eq!(canonical_status(ArtifactKind::Spec, "invalid"), None);
+    }
 }

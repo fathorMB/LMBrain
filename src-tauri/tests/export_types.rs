@@ -176,6 +176,7 @@ fn generate_typescript() -> String {
 }
 
 #[test]
+#[ignore = "Regenerates src/types/generated.ts; run explicitly when updating bindings."]
 fn export_typescript_types() {
     let ts_content = generate_typescript();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();

@@ -61,8 +61,17 @@ jobs:
       - name: Test frontend
         run: pnpm test --run
 
+      - name: Build MCP sidecar
+        run: cargo build --release -p lmbrain-mcp
+
+      - name: Prepare MCP sidecar
+        run: node scripts/prepare-sidecar.mjs
+
       - name: Rust clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Rust tests
         run: cargo test --workspace
+
+      - name: Verify generated bindings are committed
+        run: git diff --exit-code -- src/types/generated.ts
