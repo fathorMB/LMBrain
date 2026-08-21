@@ -395,6 +395,289 @@ pub fn build_handoffs(root: &Path) -> Result<Vec<Handoff>, AppError> {
     )
 }
 
+// Snapshot builders consume the core workspace index so a refresh does not
+// rediscover and parse every artifact once per frontend collection.
+fn indexed_common(entry: &lmbrain_core::ArtifactEntry) -> CommonFields {
+    let document = &entry.document;
+    CommonFields {
+        id: entry.id.clone(),
+        title: document.value("title").unwrap_or_default(),
+        body: document.body.clone(),
+        path: entry.path.to_string_lossy().into_owned(),
+        created: document.value("created").unwrap_or_default(),
+        updated: document.value("updated").unwrap_or_default(),
+        tags: document.string_array("tags"),
+        links: document.string_array("links"),
+        malformed: Some(false),
+    }
+}
+
+fn snapshot_specs(index: &lmbrain_core::WorkspaceIndex) -> Vec<Spec> {
+    index
+        .by_kind(lmbrain_core::ArtifactKind::Spec)
+        .map(|entry| {
+            let common = indexed_common(entry);
+            let document = &entry.document;
+            Spec {
+                id: common.id,
+                title: common.title,
+                status: entry.status.parse().unwrap_or_default(),
+                priority: document.value("priority"),
+                area: document.value("area"),
+                milestone: document.value("milestone"),
+                recommended_agent: document.value("recommended_agent"),
+                capability_tier: document.value("capability_tier"),
+                thinking_level: document.value("thinking_level"),
+                depends_on: document.string_array("depends_on"),
+                parking_events: document
+                    .fields()
+                    .get("parking_events")
+                    .cloned()
+                    .and_then(|value| serde_json::from_value(value).ok())
+                    .unwrap_or_default(),
+                skills: document.string_array("skills"),
+                body: common.body,
+                path: common.path,
+                created: common.created,
+                updated: common.updated,
+                tags: common.tags,
+                links: common.links,
+                related_tasks: document.string_array("related_tasks"),
+                related_decisions: document.string_array("related_decisions"),
+                malformed: common.malformed,
+            }
+        })
+        .collect()
+}
+
+fn snapshot_reviews(index: &lmbrain_core::WorkspaceIndex) -> Vec<Review> {
+    index
+        .by_kind(lmbrain_core::ArtifactKind::Review)
+        .map(|entry| {
+            let common = indexed_common(entry);
+            let document = &entry.document;
+            let history = lmbrain_core::parse_review_event_value(
+                &common.id,
+                document.fields().get("review_events"),
+            );
+            let lifecycle = lmbrain_core::analyze_review_lifecycle(document);
+            Review {
+                id: common.id,
+                title: common.title,
+                status: entry.status.parse().unwrap_or_default(),
+                spec_id: document.value("spec"),
+                reviewer: document.value("reviewer"),
+                implementation_agent: document.value("implementation_agent"),
+                finding_categories: document.string_array("finding_categories"),
+                findings: parse_review_findings(&common.body),
+                events: history.events,
+                lifecycle_warnings: lifecycle.warnings.clone(),
+                lifecycle,
+                body: common.body,
+                path: common.path,
+                created: common.created,
+                updated: common.updated,
+                tags: common.tags,
+                links: common.links,
+                malformed: common.malformed,
+            }
+        })
+        .collect()
+}
+
+fn snapshot_adrs(index: &lmbrain_core::WorkspaceIndex) -> Vec<Adr> {
+    let mut records = index
+        .by_kind(lmbrain_core::ArtifactKind::Adr)
+        .map(|entry| {
+            let common = indexed_common(entry);
+            let document = &entry.document;
+            Adr {
+                id: common.id,
+                title: common.title,
+                status: entry.status.parse().unwrap_or_default(),
+                decision_date: document.value("decision_date"),
+                decider: document.value("decider"),
+                body: common.body,
+                path: common.path,
+                created: common.created,
+                updated: common.updated,
+                tags: common.tags,
+                links: common.links,
+                supersedes: document.string_array("supersedes"),
+                superseded_by: document.string_array("superseded_by"),
+                malformed: common.malformed,
+            }
+        })
+        .collect::<Vec<_>>();
+    records.sort_by(|left, right| right.created.cmp(&left.created));
+    records
+}
+
+fn snapshot_agents(index: &lmbrain_core::WorkspaceIndex) -> Vec<AgentProfile> {
+    index
+        .by_kind(lmbrain_core::ArtifactKind::Agent)
+        .map(|entry| {
+            let common = indexed_common(entry);
+            let document = &entry.document;
+            AgentProfile {
+                id: common.id,
+                title: common.title,
+                mnemonic_name: document.value("mnemonic_name"),
+                status: entry.status.parse().unwrap_or_default(),
+                role: document.value("role"),
+                activation: document.value("activation"),
+                can_implement: document.bool("can_implement"),
+                can_review: document.bool("can_review"),
+                domains: document
+                    .fields()
+                    .get("domains")
+                    .map(|_| document.string_array("domains")),
+                primary_files: document
+                    .fields()
+                    .get("primary_files")
+                    .map(|_| document.string_array("primary_files")),
+                review_focus: document
+                    .fields()
+                    .get("review_focus")
+                    .map(|_| document.string_array("review_focus")),
+                context_pack: document.value("context_pack"),
+                constraints: document
+                    .fields()
+                    .get("constraints")
+                    .map(|_| document.string_array("constraints")),
+                skills: document
+                    .fields()
+                    .get("skills")
+                    .map(|_| document.string_array("skills")),
+                body: common.body,
+                path: common.path,
+                created: common.created,
+                updated: common.updated,
+                tags: common.tags,
+                links: common.links,
+                malformed: common.malformed,
+            }
+        })
+        .collect()
+}
+
+fn snapshot_agent_proposals(index: &lmbrain_core::WorkspaceIndex) -> Vec<AgentProposal> {
+    index
+        .by_kind(lmbrain_core::ArtifactKind::AgentProposal)
+        .map(|entry| {
+            let common = indexed_common(entry);
+            let document = &entry.document;
+            AgentProposal {
+                id: common.id,
+                title: common.title,
+                status: entry.status.parse().unwrap_or_default(),
+                proposed_mnemonic_name: document.value("proposed_mnemonic_name"),
+                proposal_type: document.value("proposal_type"),
+                target_profile: document.value("target_profile"),
+                body: common.body,
+                path: common.path,
+                created: common.created,
+                updated: common.updated,
+                tags: common.tags,
+                links: common.links,
+                malformed: common.malformed,
+            }
+        })
+        .collect()
+}
+
+fn snapshot_mcp_records(index: &lmbrain_core::WorkspaceIndex) -> Vec<McpRecord> {
+    index
+        .by_kind(lmbrain_core::ArtifactKind::Mcp)
+        .map(|entry| {
+            let common = indexed_common(entry);
+            McpRecord {
+                id: common.id,
+                title: common.title,
+                status: entry.status.parse().unwrap_or_default(),
+                body: common.body,
+                path: common.path,
+                created: common.created,
+                updated: common.updated,
+                tags: common.tags,
+                links: common.links,
+                malformed: common.malformed,
+            }
+        })
+        .collect()
+}
+
+fn snapshot_mcp_proposals(index: &lmbrain_core::WorkspaceIndex) -> Vec<McpProposal> {
+    index
+        .by_kind(lmbrain_core::ArtifactKind::McpProposal)
+        .map(|entry| {
+            let common = indexed_common(entry);
+            McpProposal {
+                id: common.id,
+                title: common.title,
+                status: entry.status.parse().unwrap_or_default(),
+                body: common.body,
+                path: common.path,
+                created: common.created,
+                updated: common.updated,
+                tags: common.tags,
+                links: common.links,
+                malformed: common.malformed,
+            }
+        })
+        .collect()
+}
+
+fn snapshot_skills(index: &lmbrain_core::WorkspaceIndex) -> Vec<Skill> {
+    index
+        .by_kind(lmbrain_core::ArtifactKind::Skill)
+        .map(|entry| {
+            let common = indexed_common(entry);
+            let document = &entry.document;
+            Skill {
+                id: common.id,
+                title: common.title,
+                status: entry.status.parse().unwrap_or_default(),
+                scope: document.value("scope"),
+                kind: document.value("kind"),
+                risk: document.value("risk"),
+                applies_to: document.string_array("applies_to"),
+                domains: document.string_array("domains"),
+                commands: document.string_array("commands"),
+                requires_operator_approval: document.bool("requires_operator_approval"),
+                body: common.body,
+                path: common.path,
+                created: common.created,
+                updated: common.updated,
+                tags: common.tags,
+                links: common.links,
+                malformed: common.malformed,
+            }
+        })
+        .collect()
+}
+
+fn snapshot_handoffs(index: &lmbrain_core::WorkspaceIndex) -> Vec<Handoff> {
+    index
+        .by_kind(lmbrain_core::ArtifactKind::Handoff)
+        .map(|entry| {
+            let common = indexed_common(entry);
+            Handoff {
+                id: common.id,
+                title: common.title,
+                status: entry.status.parse().unwrap_or_default(),
+                body: common.body,
+                path: common.path,
+                created: common.created,
+                updated: common.updated,
+                tags: common.tags,
+                links: common.links,
+                malformed: common.malformed,
+            }
+        })
+        .collect()
+}
+
 fn build_status_dir_artifacts<TStatus, TArtifact, FStatus, FMap>(
     root: &Path,
     statuses: &[TStatus],
@@ -793,17 +1076,19 @@ pub fn build_project_statistics(root: &Path) -> Result<ProjectStatistics, AppErr
 }
 
 pub fn build_workspace_snapshot(root: &Path) -> Result<WorkspaceSnapshot, AppError> {
-    let specs = build_specs(root)?;
-    let reviews = build_reviews(root)?;
+    let index =
+        lmbrain_core::scan_workspace(root).map_err(|error| AppError::Io(error.to_string()))?;
+    let specs = snapshot_specs(&index);
+    let reviews = snapshot_reviews(&index);
     let debts = lmbrain_core::list_debts(root);
     let dreams = lmbrain_core::list_dreams(root);
-    let adrs = build_adrs(root)?;
-    let agents = build_agents(root)?;
-    let agent_proposals = build_agent_proposals(root)?;
-    let mcp_records = build_mcp_records(root)?;
-    let mcp_proposals = build_mcp_proposals(root)?;
-    let skills = build_skills(root)?;
-    let handoffs = build_handoffs(root)?;
+    let adrs = snapshot_adrs(&index);
+    let agents = snapshot_agents(&index);
+    let agent_proposals = snapshot_agent_proposals(&index);
+    let mcp_records = snapshot_mcp_records(&index);
+    let mcp_proposals = snapshot_mcp_proposals(&index);
+    let skills = snapshot_skills(&index);
+    let handoffs = snapshot_handoffs(&index);
     let design_mockups = design::scan_design_mockups(root).unwrap_or_default();
     let diagnostics = build_diagnostics(root);
     let pulse_data = build_pulse_data(root, &specs, &reviews, &adrs, &handoffs)?;
@@ -822,7 +1107,6 @@ pub fn build_workspace_snapshot(root: &Path) -> Result<WorkspaceSnapshot, AppErr
         &diagnostics,
     );
 
-    let index = lmbrain_core::scan_workspace(root).map_err(|e| AppError::Io(e.to_string()))?;
     let operator_gates = lmbrain_core::operator_gates(root, &index);
 
     Ok(WorkspaceSnapshot {
