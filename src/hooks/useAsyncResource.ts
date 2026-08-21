@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
+import { useCallback, useEffect, useState, type DependencyList } from "react";
 
 export interface AsyncResourceOptions<T> {
   initialData?: T | null;
@@ -32,55 +32,43 @@ export function useAsyncResource<T>(
   const [loading, setLoading] = useState<boolean>(enabled);
   const [error, setError] = useState<string | null>(null);
 
-  const fetcherRef = useRef(fetcher);
-  fetcherRef.current = fetcher;
-
-  const onSuccessRef = useRef(onSuccess);
-  onSuccessRef.current = onSuccess;
-
-  const onErrorRef = useRef(onError);
-  onErrorRef.current = onError;
-
   const refresh = useCallback(async (): Promise<T | null> => {
     setLoading(true);
     setError(null);
     try {
-      const result = await fetcherRef.current();
+      const result = await fetcher();
       setData(result);
-      onSuccessRef.current?.(result);
+      onSuccess?.(result);
       return result;
     } catch (err) {
       const msg = errorMessage(err);
       setError(msg);
-      onErrorRef.current?.(err instanceof Error ? err : new Error(msg));
+      onError?.(err instanceof Error ? err : new Error(msg));
       return null;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetcher, onSuccess, onError]);
 
   useEffect(() => {
     if (!enabled) {
-      setLoading(false);
       return;
     }
 
     let active = true;
-    setLoading(true);
-    setError(null);
 
-    fetcherRef
-      .current()
+    fetcher()
       .then((result) => {
         if (!active) return;
         setData(result);
-        onSuccessRef.current?.(result);
+        setError(null);
+        onSuccess?.(result);
       })
       .catch((err) => {
         if (!active) return;
         const msg = errorMessage(err);
         setError(msg);
-        onErrorRef.current?.(err instanceof Error ? err : new Error(msg));
+        onError?.(err instanceof Error ? err : new Error(msg));
       })
       .finally(() => {
         if (active) setLoading(false);

@@ -47,7 +47,7 @@ interface ArtifactLike {
   status?: string | null;
   updated?: string | null;
   path?: string | null;
-  malformed?: boolean;
+  malformed?: boolean | null;
 }
 
 interface FeedbackNoteLike {

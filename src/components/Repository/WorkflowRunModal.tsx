@@ -42,7 +42,15 @@ export function WorkflowRunModal({ run, onClose }: WorkflowRunModalProps) {
   const s = getWorkflowRunStatusStyle(run.status, run.conclusion);
 
   return (
-    <div className="repository-diff-overlay" onKeyDown={handleKeyDown} onMouseDown={onClose}>
+    <div
+      className="repository-diff-overlay"
+      role="presentation"
+      onKeyDown={handleKeyDown}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <div
         ref={dialogRef}
         className="repository-diff-modal repository-run-modal"

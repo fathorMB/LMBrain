@@ -4,125 +4,14 @@ import { useDialog } from "../../hooks/useDialog";
 import { parseMarkdown } from "../../lib/commands";
 import { MarkdownRenderer } from "../../lib/markdown";
 import type { ParsedDocument } from "../../types";
-
-function generateRejectedPrompt(path: string, id: string): string {
-  return `Please revise the rejected artifact: ${path} (${id})
-This artifact has been rejected by the operator.
-
-Instructions:
-1. Review the artifact structure and contents.
-2. Address the reasons for rejection or make the necessary updates to improve it.
-3. Once the revisions are complete, set its status back to "proposed" so it can be reviewed again.
-4. Do not make any unrelated changes to other files.`;
-}
-
-function generateSpecApprovalPrompt(id: string, title: string, path: string): string {
-  return `Please approve the specification ${id} ("${title}") by transitioning it from backlog to ready.
-
-Artifact path: ${path}
-Current status: backlog
-Requested transition: backlog → ready
-
-This transition is requested by the operator. Perform it only because the operator explicitly asked for it.
-
-Instructions:
-1. Read AGENT.md, CONTRACT.md, and QUALITY.md.
-2. Use the lmbrain-mcp spec_ready tool to transition the spec status.
-3. Report the resulting path, status, and any diagnostics.`;
-}
-
-function generateAgentActivationPrompt(id: string, title: string, path: string): string {
-  return `Please activate the agent profile ${id} ("${title}") by transitioning it from proposed to active.
-
-Artifact path: ${path}
-Current status: proposed
-Requested transition: proposed → active
-
-This activation is requested by the operator. Perform it only because the operator explicitly asked for it.
-
-Instructions:
-1. Read AGENT.md, CONTRACT.md, and QUALITY.md.
-2. Use the lmbrain-mcp agent_activate tool to transition the profile status.
-3. Report the resulting path, status, and any diagnostics.`;
-}
-
-function generateAdrDecisionPrompt(id: string, title: string, path: string, targetStatus: "accepted" | "rejected"): string {
-  const tool = targetStatus === "accepted" ? "adr_accept" : "adr_reject";
-  const action = targetStatus === "accepted" ? "accept" : "reject";
-
-  return `Please ${action} the ADR ${id} ("${title}") by transitioning it from proposed to ${targetStatus}.
-
-Artifact path: ${path}
-Current status: proposed
-Requested transition: proposed -> ${targetStatus}
-
-This decision is requested by the operator. Perform it only because the operator explicitly asked for it.
-
-Instructions:
-1. Read AGENT.md, CONTRACT.md, and QUALITY.md.
-2. Use the lmbrain-mcp ${tool} tool to transition the ADR status.
-3. Report the resulting path, status, and any diagnostics.`;
-}
-
-function GovernancePromptCard({ prompt }: { prompt: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div style={{ position: "relative" }}>
-      <textarea
-        readOnly
-        value={prompt}
-        onClick={(e) => e.currentTarget.select()}
-        style={{
-          width: "100%",
-          height: 120,
-          background: "var(--bg-primary)",
-          border: "1px solid var(--border-primary)",
-          borderRadius: 6,
-          padding: "8px 12px",
-          fontFamily: "var(--font-mono)",
-          fontSize: "var(--text-xs)",
-          color: "var(--text-secondary)",
-          resize: "none",
-          outline: "none",
-        }}
-      />
-      <button
-        onClick={() => {
-          navigator.clipboard.writeText(prompt);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        }}
-        style={{
-          position: "absolute",
-          right: 8,
-          bottom: 12,
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: 6,
-          padding: "4px 10px",
-          fontSize: "var(--text-xs)",
-          color: "#fff",
-          cursor: "pointer",
-          fontWeight: 600,
-        }}
-      >
-        {copied ? "Copied!" : "Copy prompt"}
-      </button>
-    </div>
-  );
-}
+import { GovernancePromptSection } from "./GovernancePromptSection";
 
 export function ArtifactDetailModal() {
   const { state, openDetailArtifact } = useWorkspace();
   const [content, setContent] = useState<string>("");
   const [loadedPath, setLoadedPath] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const modalRef = useRef<HTMLDivElement | null>(null);
-
   const [doc, setDoc] = useState<ParsedDocument | null>(null);
-  const [promptCopied, setPromptCopied] = useState(false);
-
-  const [prevPath, setPrevPath] = useState<string>("");
 
   const artifact = state.detailArtifact;
   const path = artifact?.path;
@@ -134,7 +23,6 @@ export function ArtifactDetailModal() {
     onClose: () => openDetailArtifact(null),
   });
 
-  // Fetch the artifact content on mount, path change, or a successful write.
   useEffect(() => {
     if (!path) return;
 
@@ -189,6 +77,7 @@ export function ArtifactDetailModal() {
       }}
       onClick={() => openDetailArtifact(null)}
     >
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
       <div
         ref={dialogRef}
         tabIndex={-1}
@@ -228,6 +117,7 @@ export function ArtifactDetailModal() {
             </span>
           </div>
           <button
+            type="button"
             onClick={() => openDetailArtifact(null)}
             aria-label="Close modal"
             style={{
@@ -267,127 +157,13 @@ export function ArtifactDetailModal() {
           ) : (
             <>
               <MarkdownRenderer content={content} />
-              {status === "rejected" && id && (
-                <div
-                  style={{
-                    marginTop: 24,
-                    padding: 16,
-                    background: "rgba(224, 88, 74, 0.08)",
-                    border: "1px solid rgba(224, 88, 74, 0.2)",
-                    borderRadius: 10,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                    <i className="material-symbols-outlined" style={{ color: "#e0584a", fontSize: 20 }}>
-                      info
-                    </i>
-                    <span style={{ fontSize: "var(--text-md)", fontWeight: 600, color: "#fff" }}>
-                      Artifact Rejected
-                    </span>
-                  </div>
-                  <p style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)", margin: "0 0 12px" }}>
-                    This proposal was rejected. Copy the corrective prompt below to have an agent revise the file:
-                  </p>
-                  <div style={{ position: "relative" }}>
-                    <textarea
-                      readOnly
-                      value={generateRejectedPrompt(artifact.path, id)}
-                      style={{
-                        width: "100%",
-                        height: 120,
-                        background: "var(--bg-primary)",
-                        border: "1px solid var(--border-primary)",
-                        borderRadius: 6,
-                        padding: "8px 12px",
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "var(--text-xs)",
-                        color: "var(--text-secondary)",
-                        resize: "none",
-                        outline: "none",
-                      }}
-                    />
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(generateRejectedPrompt(artifact.path, id));
-                        setPromptCopied(true);
-                        setTimeout(() => setPromptCopied(false), 2000);
-                      }}
-                      style={{
-                        position: "absolute",
-                        right: 8,
-                        bottom: 12,
-                        background: "rgba(255,255,255,0.06)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        borderRadius: 6,
-                        padding: "4px 10px",
-                        fontSize: "var(--text-xs)",
-                        color: "#fff",
-                        cursor: "pointer",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {promptCopied ? "Copied!" : "Copy prompt"}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Governance notice for artifacts that require Lead action on explicit operator instruction. */}
-              {showGovernancePrompt && id && (
-                <div
-                  style={{
-                    marginTop: 24,
-                    padding: 16,
-                    background: "rgba(91, 141, 239, 0.08)",
-                    border: "1px solid rgba(91, 141, 239, 0.2)",
-                    borderRadius: 10,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                    <i className="material-symbols-outlined" style={{ color: "#7fa8f5", fontSize: 20 }}>
-                      info
-                    </i>
-                    <span style={{ fontSize: "var(--text-md)", fontWeight: 600, color: "#fff" }}>
-                      {id.startsWith("SPEC-")
-                        ? "Spec Approval"
-                        : id.startsWith("ADR-")
-                          ? "ADR Decision"
-                          : "Agent Profile Activation"}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)", margin: "0 0 12px" }}>
-                    {id.startsWith("SPEC-")
-                      ? "Spec approval is performed by the Project Lead on explicit operator instruction. Copy the prompt below and give it to the Project Lead."
-                      : id.startsWith("ADR-")
-                        ? "ADR acceptance or rejection is performed by the Project Lead on explicit operator instruction. Copy the intended decision prompt below and give it to the Project Lead."
-                        : "Agent profile activation is performed through the Project Lead workflow on explicit operator instruction. Copy the prompt below and give it to the Project Lead."}
-                  </p>
-                  {id.startsWith("ADR-") ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      <div>
-                        <div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", marginBottom: 6 }}>
-                          Accept decision prompt
-                        </div>
-                        <GovernancePromptCard prompt={generateAdrDecisionPrompt(id, artifact.title, artifact.path, "accepted")} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: "var(--text-xs)", color: "var(--text-tertiary)", marginBottom: 6 }}>
-                          Reject decision prompt
-                        </div>
-                        <GovernancePromptCard prompt={generateAdrDecisionPrompt(id, artifact.title, artifact.path, "rejected")} />
-                      </div>
-                    </div>
-                  ) : (
-                    <GovernancePromptCard
-                      prompt={
-                        id.startsWith("SPEC-")
-                          ? generateSpecApprovalPrompt(id, artifact.title, artifact.path)
-                          : generateAgentActivationPrompt(id, artifact.title, artifact.path)
-                      }
-                    />
-                  )}
-                </div>
-              )}
+              <GovernancePromptSection
+                id={id ?? ""}
+                title={artifact.title}
+                path={artifact.path}
+                showGovernancePrompt={showGovernancePrompt}
+                status={status}
+              />
             </>
           )}
         </div>
@@ -407,6 +183,7 @@ export function ArtifactDetailModal() {
         >
           <div>
             <button
+              type="button"
               onClick={() => openDetailArtifact(null)}
               style={{
                 background: "rgba(255,255,255,0.06)",

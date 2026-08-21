@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DebtsView } from "../components/Debts/DebtsView";
-import { getDebtContext, getDebts } from "../lib/commands";
+import { getDebtContext } from "../lib/commands";
 
 const refreshWorkspaceData = vi.fn().mockResolvedValue(undefined);
 const openDetailArtifact = vi.fn();

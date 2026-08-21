@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as commands from "../../lib/commands";
 import { parseUnifiedDiff } from "../../lib/gitDiff";
 import type { GitFile, GitFileDiff } from "../../types";
@@ -46,7 +46,15 @@ export function GitDiffModal({ file, worktree, onClose }: GitDiffModalProps) {
   const linesTruncated = lines.length > PREVIEW_LINE_LIMIT;
 
   return (
-    <div className="repository-diff-overlay" onKeyDown={handleKeyDown} onMouseDown={onClose}>
+    <div
+      className="repository-diff-overlay"
+      role="presentation"
+      onKeyDown={handleKeyDown}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <div
         ref={dialogRef}
         className="repository-diff-modal"

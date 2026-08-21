@@ -94,7 +94,7 @@ export function FeedbackView() {
       <PageHeader
         title="Kit Feedback"
         description="Evidence-backed observations about LMBrain itself. This view is read-only."
-        actions={<RefreshButton loading={loading} onClick={fetchFeedback} />}
+        actions={<RefreshButton loading={loading} onClick={() => { void fetchFeedback(); }} />}
       />
 
       {error && <div role="alert" style={errorStyle}>{error}</div>}
@@ -215,10 +215,10 @@ function FeedbackNoteCard({
 
   return (
     <div style={findingCard}>
-      <div
+      <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
-        style={{ cursor: "pointer" }}
-        role="button"
+        style={{ cursor: "pointer", width: "100%", border: "none", background: "transparent", textAlign: "left", fontFamily: "inherit", padding: 0 }}
         aria-expanded={expanded}
       >
         <div style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" }}>
@@ -238,7 +238,7 @@ function FeedbackNoteCard({
           )}
         </div>
         <div style={{ fontWeight: 650, marginTop: 7 }}>{note.summary}</div>
-      </div>
+      </button>
       
       {expanded && (
         <div style={{ marginTop: 12, borderTop: "1px solid var(--border-secondary)", paddingTop: 12, fontSize: "var(--text-md)" }}>
@@ -315,40 +315,6 @@ const muted: React.CSSProperties = { color: "var(--text-tertiary)", fontSize: "v
 const card: React.CSSProperties = { padding: 13, border: "1px solid #2a2631", borderRadius: 9, background: "#121016" };
 const summaryGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 9, margin: "18px 0" };
 const summaryValue: React.CSSProperties = { fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700 };
-const filters: React.CSSProperties = {
-  display: "flex",
-  alignItems: "flex-end",
-  flexWrap: "wrap",
-  gap: 12,
-  padding: 14,
-  marginBottom: 14,
-  border: "1px solid var(--border-secondary)",
-  borderRadius: 9,
-  background: "var(--bg-secondary)",
-};
-const filterLabel: React.CSSProperties = {
-  display: "grid",
-  gap: 6,
-  flex: "1 1 118px",
-  minWidth: 0,
-  color: "var(--text-tertiary)",
-  fontSize: "var(--text-xs)",
-  fontWeight: 650,
-};
-const filterControl: React.CSSProperties = {
-  minWidth: 0,
-  height: 34,
-  boxSizing: "border-box",
-  border: "1px solid var(--border-primary)",
-  borderRadius: 7,
-  outline: "none",
-  background: "var(--bg-tertiary)",
-  color: "var(--text-primary)",
-  colorScheme: "dark",
-  padding: "0 9px",
-  fontFamily: "inherit",
-  fontSize: "var(--text-sm)",
-};
 const findingCard: React.CSSProperties = { ...card, width: "100%", color: "var(--text-primary)", textAlign: "left" };
 const meta: React.CSSProperties = { ...muted, display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: 6 };
 const errorStyle: React.CSSProperties = { padding: 10, margin: "10px 0", borderRadius: 7, background: "rgba(224,88,74,.10)", color: "#e9857b", fontSize: "var(--text-sm)" };

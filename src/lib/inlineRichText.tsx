@@ -35,9 +35,11 @@ export function InlineRichText({
 
         if (part.startsWith("[[") && part.endsWith("]]")) {
           const inner = part.slice(2, -2);
-          const [rawTarget, rawLabel] = inner.split("|");
+          const parts = inner.split("|");
+          const rawTarget = parts[0] ?? "";
+          const rawLabel = parts[1] ?? rawTarget;
           const target = rawTarget.trim();
-          const label = (rawLabel ?? rawTarget).trim();
+          const label = rawLabel.trim();
 
           return (
             <span

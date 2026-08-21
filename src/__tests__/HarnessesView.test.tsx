@@ -102,7 +102,7 @@ describe("HarnessesView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm update" }));
 
     await screen.findByText("2.1.207");
-    expect(updateHarness).toHaveBeenCalledWith({ host: "claude", codex_bin: undefined });
+    expect(updateHarness).toHaveBeenCalledWith({ host: "claude", codex_bin: null });
     expect(screen.getByText("Update verified")).toBeDefined();
   });
 

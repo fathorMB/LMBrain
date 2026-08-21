@@ -170,7 +170,9 @@ export function TopBar({ onViewReload }: { onViewReload: () => void }) {
       </button>
 
       {/* Search bar */}
-      <div
+      <button
+        type="button"
+        aria-label="Search specs, files… (Command/Ctrl + K)"
         onClick={toggleCmdk}
         style={{
           display: "flex",
@@ -181,8 +183,10 @@ export function TopBar({ onViewReload }: { onViewReload: () => void }) {
           border: "1px solid #262330",
           borderRadius: 9,
           padding: "7px 11px",
-          cursor: "text",
+          cursor: "pointer",
           color: "var(--text-tertiary)",
+          textAlign: "left",
+          fontFamily: "inherit",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.borderColor = "#36303f";
@@ -208,7 +212,7 @@ export function TopBar({ onViewReload }: { onViewReload: () => void }) {
         >
           ⌘K
         </span>
-      </div>
+      </button>
 
     </div>
   );

@@ -92,6 +92,7 @@ function DreamDetail({ dream, onClose }: { dream: Dream; onClose: () => void }) 
   const { dialogRef, handleKeyDown } = useDialog<HTMLDivElement>({ isOpen: true, onClose });
   const prompt = `Review ${dream.path} and explicitly choose whether to triage, promote, or discard ${dream.id}.`;
   return <div role="presentation" style={backdrop} onKeyDown={handleKeyDown} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
     <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="dream-detail-title" style={dialog} onMouseDown={(event) => event.stopPropagation()}>
       <header style={dialogHeader}>
         <div style={{ minWidth: 0 }}><span style={idStyle}>{dream.id}</span><h2 id="dream-detail-title" style={dialogTitle}>{dream.title}</h2></div>
@@ -120,9 +121,6 @@ function DreamDetail({ dream, onClose }: { dream: Dream; onClose: () => void }) 
   </div>;
 }
 
-function Filter({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) {
-  return <label style={filterLabel}>{label}<select className="app-select" style={filterControl} aria-label={`Dream ${label.toLowerCase()}`} value={value} onChange={(event) => onChange(event.target.value)}><option value="all">All</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>;
-}
 function Chip({ text }: { text: string }) { return <span style={chip}>{text}</span>; }
 function plainPreview(markdown: string) {
   const text = markdown.replace(/```[\s\S]*?```/g, " ").replace(/[^\w\s:/.()-]/g, " ").replace(/\s+/g, " ").trim();
@@ -131,9 +129,6 @@ function plainPreview(markdown: string) {
 }
 
 const muted = { color: "var(--text-tertiary)", fontSize: "var(--text-sm)" } as const;
-const filters = { display: "flex", alignItems: "flex-end", flexWrap: "wrap", gap: 12, padding: 14, marginBottom: 14, border: "1px solid var(--border-secondary)", borderRadius: 9, background: "var(--bg-secondary)" } as const;
-const filterLabel = { display: "grid", gap: 6, flex: "1 1 118px", minWidth: 0, color: "var(--text-tertiary)", fontSize: "var(--text-xs)", fontWeight: 650 } as const;
-const filterControl = { minWidth: 0, height: 34, boxSizing: "border-box", border: "1px solid var(--border-primary)", borderRadius: 7, outline: "none", background: "var(--bg-tertiary)", color: "var(--text-primary)", colorScheme: "dark", padding: "0 9px", fontFamily: "inherit", fontSize: "var(--text-sm)" } as const;
 const readOnlyNotice = { display: "flex", gap: 8, alignItems: "center", margin: "0 0 16px", padding: "9px 11px", border: "1px solid var(--border-secondary)", borderRadius: 8, color: "var(--text-tertiary)", fontSize: "var(--text-sm)" } as const;
 const dreamCard = { width: "100%", minWidth: 0, border: "1px solid var(--border-primary)", borderLeft: "3px solid #7768d8", background: "var(--bg-secondary)", color: "var(--text-primary)", borderRadius: 11, padding: 15, cursor: "pointer", textAlign: "left" } as const;
 const cardHeading = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 } as const;

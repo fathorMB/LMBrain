@@ -229,6 +229,7 @@ function DebtDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
       if (event.target === event.currentTarget) onClose();
     }}
   >
+    {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
     <div
       ref={dialogRef}
       tabIndex={-1}
@@ -296,7 +297,6 @@ function DebtDetail({ context, onClose, onOpenRelation, onOpenMarkdown }: {
 function Indicator({ text }: { text: string }) {
   return <span style={{ border: "1px solid var(--border-secondary)", borderRadius: 999, padding: "2px 7px", fontSize: "var(--text-xs)" }}>{text}</span>;
 }
-function option(value: string) { return <option value={value} key={value}>{value}</option>; }
 function nextAction(debt: Debt) {
   if (debt.status === "planned") return "Await explicit resolution evidence";
   if (debt.status === "deferred") return "Retained for its declared revisit condition";
@@ -314,40 +314,6 @@ const mono: React.CSSProperties = { fontFamily: "var(--font-mono)", color: "var(
 const card: React.CSSProperties = { padding: 13, border: "1px solid var(--border-secondary)", borderRadius: 9, background: "var(--bg-tertiary)" };
 const summaryGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 9, margin: "18px 0" };
 const summaryValue: React.CSSProperties = { fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700 };
-const filters: React.CSSProperties = {
-  display: "flex",
-  alignItems: "flex-end",
-  flexWrap: "wrap",
-  gap: 12,
-  padding: 14,
-  marginBottom: 14,
-  border: "1px solid var(--border-secondary)",
-  borderRadius: 9,
-  background: "var(--bg-secondary)",
-};
-const filterLabel: React.CSSProperties = {
-  display: "grid",
-  gap: 6,
-  flex: "1 1 118px",
-  minWidth: 0,
-  color: "var(--text-tertiary)",
-  fontSize: "var(--text-xs)",
-  fontWeight: 650,
-};
-const filterControl: React.CSSProperties = {
-  minWidth: 0,
-  height: 34,
-  boxSizing: "border-box",
-  border: "1px solid var(--border-primary)",
-  borderRadius: 7,
-  outline: "none",
-  background: "var(--bg-tertiary)",
-  color: "var(--text-primary)",
-  colorScheme: "dark",
-  padding: "0 9px",
-  fontFamily: "inherit",
-  fontSize: "var(--text-sm)",
-};
 const debtCard: React.CSSProperties = { ...card, width: "100%", color: "var(--text-primary)", textAlign: "left", cursor: "pointer" };
 const meta: React.CSSProperties = { ...muted, display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: 6 };
 const secondary: React.CSSProperties = { border: "1px solid var(--border-secondary)", borderRadius: 7, background: "var(--bg-secondary)", color: "var(--text-secondary)", padding: "7px 11px", cursor: "pointer" };

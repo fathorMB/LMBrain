@@ -312,7 +312,15 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
               return (
                 <div
                   key={line.originalIndex}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleToggleSelect(line.originalIndex)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleToggleSelect(line.originalIndex);
+                    }
+                  }}
                   style={{
                     display: "flex",
                     alignItems: "flex-start",
@@ -379,7 +387,8 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
 
       {/* Autoscroll Floaty Badge */}
       {!autoscroll && searchQuery.trim() === "" && (
-        <div
+        <button
+          type="button"
           onClick={() => {
             setAutoscroll(true);
             if (scrollContainerRef.current) {
@@ -393,6 +402,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
             right: 16,
             background: "#8e7af8",
             color: "#fff",
+            border: "none",
             padding: "6px 12px",
             borderRadius: 20,
             fontSize: "var(--text-xs)",
@@ -409,7 +419,7 @@ export function HistorySearchPanel({ sessionId, onClose }: HistorySearchPanelPro
             arrow_downward
           </i>
           New output available
-        </div>
+        </button>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
-import { getMcpRecords, getMcpProposals } from "../../lib/commands";
+import { getMcpRecords } from "../../lib/commands";
 import { CardGrid, PageHeader, PageShell } from "../Shared/PageLayout";
 import type { McpRecord, McpProposal } from "../../types";
 import { LMBRAIN_MCP_TOOLS } from "../../lib/mcpCatalog";
@@ -8,25 +8,19 @@ import { LMBRAIN_MCP_TOOLS } from "../../lib/mcpCatalog";
 export function McpView() {
   const { state } = useWorkspace();
   const [localRecords, setLocalRecords] = useState<McpRecord[] | null>(null);
-  const [localProposals, setLocalProposals] = useState<McpProposal[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadRevision, setReloadRevision] = useState(0);
 
   const mcpRecords = localRecords ?? state.mcpRecords;
-  const mcpProposals = localProposals ?? state.mcpProposals;
 
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([
-      getMcpRecords(),
-      getMcpProposals(),
-    ])
-      .then(([records, proposals]) => {
+    getMcpRecords()
+      .then((records) => {
         if (cancelled) return;
         setLocalRecords(records);
-        setLocalProposals(proposals);
       })
       .catch((error) => {
         if (cancelled) return;
@@ -238,7 +232,7 @@ function MCPCard({
     blocked: { color: "#e0584a", bg: "rgba(224,88,74,.12)" },
     deprecated: { color: "var(--text-tertiary)", bg: "rgba(108,102,113,.12)" },
   };
-  const sc = statusColors[mcp.status] || statusColors.proposed;
+  const sc = statusColors[mcp.status] ?? { color: "#e0a23a", bg: "rgba(224,162,58,.12)" };
 
   return (
     <div
