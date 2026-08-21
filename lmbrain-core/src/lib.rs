@@ -13,6 +13,7 @@ pub mod harness_manifest;
 pub mod improvement;
 pub mod invariants;
 pub mod kit_feedback;
+pub mod kit_migration;
 pub mod markdown;
 mod mutation_lock;
 pub mod path;
@@ -87,6 +88,10 @@ pub use kit_feedback::{
     KitFeedbackInput, KitFeedbackMutation, KitFeedbackNote, KitFeedbackNoteStatus,
     KitFeedbackReport, KitFeedbackResolution, KitFeedbackResolutionInput,
     KitFeedbackResolutionMutation, KIT_FEEDBACK_REPORT_PATH, KIT_FEEDBACK_SCHEMA_VERSION,
+};
+pub use kit_migration::{
+    kit_migrate, kit_migration_preview, KitMigrationError, KitMigrationItem,
+    KitMigrationPreview, KitMigrationResult,
 };
 pub use path::{read_artifact, ArtifactReadError};
 pub use review::{

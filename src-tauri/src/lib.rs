@@ -109,6 +109,34 @@ fn initialize_workspace_kit(
     Ok(info)
 }
 
+#[tauri::command(async)]
+fn preview_kit_migration(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<lmbrain_core::KitMigrationPreview, String> {
+    let template = bundled_kit_path(&app).map_err(|e| e.to_string())?;
+    state
+        .workspace_service
+        .kit_migration_preview(Path::new(&path), &template)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+fn apply_kit_migration(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+    expected_preview_digest: String,
+    confirmed: bool,
+) -> Result<lmbrain_core::KitMigrationResult, String> {
+    let template = bundled_kit_path(&app).map_err(|e| e.to_string())?;
+    state
+        .workspace_service
+        .kit_migrate(Path::new(&path), &template, &expected_preview_digest, confirmed)
+        .map_err(|e| e.to_string())
+}
+
 fn bundled_kit_path(app: &AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
     if cfg!(debug_assertions) {
         return Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../kit/.lmbrain"));
@@ -1008,6 +1036,8 @@ pub fn run() {
             preview_verification_manifest,
             set_verification_manifest,
             rollback_verification_manifest,
+            preview_kit_migration,
+            apply_kit_migration,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

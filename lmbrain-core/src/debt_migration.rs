@@ -418,7 +418,7 @@ fn regular_files(root: &Path) -> Result<Vec<PathBuf>, DebtMigrationError> {
     Ok(output)
 }
 
-fn copy_tree(source: &Path, destination: &Path) -> Result<(), DebtMigrationError> {
+pub(crate) fn copy_tree(source: &Path, destination: &Path) -> Result<(), DebtMigrationError> {
     fs::create_dir(destination)?;
     for path in regular_files(source)? {
         let relative = path.strip_prefix(source).map_err(|_| {

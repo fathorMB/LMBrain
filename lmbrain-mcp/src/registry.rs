@@ -22,8 +22,8 @@ use lmbrain_core::{
     canonical_verification_manifest_digest, capture_dream, create_debt,
     create_improvement_proposal, debt_candidates, debt_context, debt_migrate,
     debt_migration_preview, default_verification_approval_path, defer_debt,
-    discover_verification_manifest, execute_spec_verification, load_branching_strategy,
-    load_harness_manifest, load_verification_manifest, park_spec, parse_harness_manifest,
+    discover_verification_manifest, execute_spec_verification, kit_migrate, kit_migration_preview,
+    load_branching_strategy, load_harness_manifest, load_verification_manifest, park_spec, parse_harness_manifest,
     plan_debt, read_kit_feedback, record_kit_feedback, record_kit_feedback_resolution, reopen_debt,
     resolve_debt, rollback_verification_manifest, set_branching_strategy, set_harness_manifest,
     set_spec_dependencies, set_spec_verification_gates, set_verification_manifest,
@@ -1467,6 +1467,72 @@ pub static TOOLS: &[ToolSpec] = &[
         handler: |root, args| {
             debt_migrate(
                 root,
+                req_str(args, "expected_preview_digest")?,
+                opt_bool(args, "confirmed").unwrap_or(false),
+            )
+            .map(|result| text(json!(result)))
+            .map_err(|error| error.to_string())
+        },
+    },
+
+    // Kit Migration
+    ToolSpec {
+        name: "kit_migration_preview",
+        category: "Kit",
+        description: "Read-only preview and classification of kit-owned vs project-owned files for upgrading the workspace kit to 5.0.",
+        schema_fn: || json!({
+            "type":"object",
+            "properties":{
+                "bundled_kit_path":{"type":["string","null"],"description":"Optional explicit path to the bundled kit template directory."}
+            },
+            "additionalProperties":false
+        }),
+        handler: |root, args| {
+            let bundled_path = opt_str(args, "bundled_kit_path")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    if let Ok(env_path) = std::env::var("LMBRAIN_BUNDLED_KIT") {
+                        PathBuf::from(env_path)
+                    } else if root.join("kit").exists() {
+                        root.join("kit")
+                    } else {
+                        root.to_path_buf()
+                    }
+                });
+            kit_migration_preview(root, &bundled_path)
+                .map(|preview| text(json!(preview)))
+                .map_err(|error| error.to_string())
+        },
+    },
+    ToolSpec {
+        name: "kit_migrate",
+        category: "Kit",
+        description: "Operator-confirmed, digest-bound atomic migration updating kit-owned files and templates while strictly preserving project-owned artifacts.",
+        schema_fn: || json!({
+            "type":"object",
+            "required":["expected_preview_digest","confirmed"],
+            "properties":{
+                "expected_preview_digest":{"type":"string"},
+                "confirmed":{"type":"boolean","const":true,"description":"Set to true only after the operator explicitly confirms the migration preview."},
+                "bundled_kit_path":{"type":["string","null"],"description":"Optional explicit path to the bundled kit template directory."}
+            },
+            "additionalProperties":false
+        }),
+        handler: |root, args| {
+            let bundled_path = opt_str(args, "bundled_kit_path")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    if let Ok(env_path) = std::env::var("LMBRAIN_BUNDLED_KIT") {
+                        PathBuf::from(env_path)
+                    } else if root.join("kit").exists() {
+                        root.join("kit")
+                    } else {
+                        root.to_path_buf()
+                    }
+                });
+            kit_migrate(
+                root,
+                &bundled_path,
                 req_str(args, "expected_preview_digest")?,
                 opt_bool(args, "confirmed").unwrap_or(false),
             )

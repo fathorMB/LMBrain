@@ -35,6 +35,12 @@ export type KitFeedbackNoteStatus = { note_id: string, status: string, resolved_
 
 export type KitFeedbackReport = { schema_version: string, path: string, updated: string, total: number, open: number, resolved: number, counts_by_category: { [key in string]?: number }, counts_by_severity: { [key in string]?: number }, notes: Array<KitFeedbackNote>, resolutions: Array<KitFeedbackResolution>, note_statuses: Array<KitFeedbackNoteStatus>, };
 
+export type KitMigrationItem = { path: string, action: string, classification: string, description: string, };
+
+export type KitMigrationPreview = { from_version: string, to_version: string, digest: string, items: Array<KitMigrationItem>, can_migrate: boolean, blocker_reason: string | null, };
+
+export type KitMigrationResult = { previous_version: string, current_version: string, updated_items: Array<string>, backed_up_to: string, };
+
 export type Debt = { id: string, title: string, status: string, category: string, severity: string, origin_severity: string | null, area: string | null, milestone: string | null, owner: string | null, origin_artifact: string | null, origin_ref: string | null, related_specs: Array<string>, related_reviews: Array<string>, related_decisions: Array<string>, target_specs: Array<string>, blocked_by: Array<string>, resolution_refs: Array<string>, superseded_by: string | null, created: string, updated: string, tags: Array<string>, body: string, path: string, malformed: boolean, };
 
 export type RelationSummary = { id: string, title: string, status: string, path: string, };

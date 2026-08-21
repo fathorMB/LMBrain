@@ -1,4 +1,4 @@
-﻿export interface McpToolCatalogEntry {
+export interface McpToolCatalogEntry {
   name: string;
   category: string;
   description: string;
@@ -37,6 +37,8 @@ export const LMBRAIN_MCP_TOOLS: McpToolCatalogEntry[] = [
   { name: "debt_supersede", category: "Debt", description: "Supersede a debt with a newer one, writing both sides." },
   { name: "debt_migration_preview", category: "Debt", description: "Preview the versioned legacy durable-ID migration without writing." },
   { name: "debt_migrate", category: "Debt", description: "Apply an operator-confirmed migration bound to the exact preview digest." },
+  { name: "kit_migration_preview", category: "Kit", description: "Preview and classify kit-owned vs project-owned files for kit upgrade." },
+  { name: "kit_migrate", category: "Kit", description: "Apply operator-confirmed atomic kit upgrade to the target version." },
   { name: "dream_capture", category: "Dream", description: "Project Lead: capture a grounded, tentative technical- or design-debt observation after an explicit operator invitation to dream." },
   { name: "spec_set_effort", category: "Spec", description: "Project Lead: set the implementation estimate (capability tier and thinking level)." },
   { name: "spec_set_tags", category: "Spec", description: "Project Lead: replace a spec's tags after taxonomy validation." },

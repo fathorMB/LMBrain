@@ -9,7 +9,8 @@ use lmbrain_core::{
     BranchAuthorityConfig, BranchNamingConfig, BranchingStrategy, BranchingTopology,
     CommitTriggersConfig, Debt, DebtCandidate, DebtCandidateInventory, DebtContext, Diagnostic,
     DiagnosticFixability, DiagnosticSeverity, Dream, KitFeedbackNote, KitFeedbackNoteStatus,
-    KitFeedbackReport, KitFeedbackResolution, OperatorGate, RelationSummary, ReviewEventHistory,
+    KitFeedbackReport, KitFeedbackResolution, KitMigrationItem, KitMigrationPreview,
+    KitMigrationResult, OperatorGate, RelationSummary, ReviewEventHistory,
     ReviewEventInput, ReviewHistorySource, ReviewLifecycleAnalysis, ReviewLifecycleEvent,
     Roadmap, RoadmapMilestone, VerificationAttestation, VerificationGate, VerificationManifest,
 };
@@ -66,11 +67,14 @@ fn generate_typescript() -> String {
         DiagnosticSeverity::decl(),
         DiagnosticFixability::decl(),
         Diagnostic::decl(),
-        // Core Kit Feedback
+        // Core Kit Feedback & Migration
         KitFeedbackNote::decl(),
         KitFeedbackResolution::decl(),
         KitFeedbackNoteStatus::decl(),
         KitFeedbackReport::decl(),
+        KitMigrationItem::decl(),
+        KitMigrationPreview::decl(),
+        KitMigrationResult::decl(),
         // Core Debt & Dream
         Debt::decl(),
         RelationSummary::decl(),
