@@ -13,6 +13,7 @@ pub mod harness_manifest;
 pub mod improvement;
 pub mod invariants;
 pub mod kit_feedback;
+pub mod markdown;
 mod mutation_lock;
 pub mod path;
 pub mod review;

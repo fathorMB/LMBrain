@@ -1056,36 +1056,7 @@ fn is_fence(line: &str) -> bool {
 /// opaque transcript content — it neither starts nor terminates a section, so
 /// pasted report Markdown cannot truncate a verification transcript.
 fn section_at_level<'a>(body: &'a str, heading: &str, level: usize) -> Option<&'a str> {
-    let marker = format!("{} {heading}", "#".repeat(level));
-    let mut in_fence = false;
-    let mut start: Option<usize> = None;
-    let mut offset = 0usize;
-    for raw in body.split_inclusive('\n') {
-        let line_start = offset;
-        offset += raw.len();
-        let line = raw.trim_end_matches(['\n', '\r']);
-        if is_fence(line) {
-            in_fence = !in_fence;
-            continue;
-        }
-        if in_fence {
-            continue;
-        }
-        match start {
-            None => {
-                if line.trim() == marker {
-                    start = Some(offset);
-                }
-            }
-            Some(begin) => {
-                let count = line.bytes().take_while(|byte| *byte == b'#').count();
-                if count > 0 && count <= level && line.as_bytes().get(count) == Some(&b' ') {
-                    return Some(&body[begin..line_start]);
-                }
-            }
-        }
-    }
-    start.map(|begin| &body[begin..])
+    crate::markdown::find_section(body, heading, level)
 }
 
 fn has_nonempty_fence(section: &str) -> bool {

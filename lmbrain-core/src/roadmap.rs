@@ -96,15 +96,7 @@ pub fn is_roadmap_status(status: &str) -> bool {
 }
 
 fn fence_marker(line: &str) -> Option<(char, usize)> {
-    let marker = line.chars().next()?;
-    if !matches!(marker, '`' | '~') {
-        return None;
-    }
-    let length = line
-        .chars()
-        .take_while(|character| *character == marker)
-        .count();
-    (length >= 3).then_some((marker, length))
+    crate::markdown::is_fence_line(line).map(|(marker, length, _)| (marker, length))
 }
 
 fn markdown_heading(line: &str) -> Option<(usize, &str)> {
