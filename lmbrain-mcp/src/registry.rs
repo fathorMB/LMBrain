@@ -599,7 +599,7 @@ pub static TOOLS: &[ToolSpec] = &[
     ToolSpec {
         name: "spec_attest_operator_delegated",
         category: "Verification",
-        description: "Project Lead: record an operator attestation for one owner=operator, phase=before-done requirement when the operator granted approval out of band (e.g. in conversation) instead of through the desktop verification panel. Requires the operator's name, the channel, and the quoted authorization; the gate is satisfied without force and the attestation is auditable as delegated. Never a substitute for the operator's judgement — only for its recording channel.",
+        description: "Project Lead: record an operator attestation for one owner=operator, phase=before-done requirement when the operator granted approval out of band (e.g. in conversation) instead of through the desktop Operations page. Requires the operator's name, the channel, and the quoted authorization; the gate is satisfied without force and the attestation is auditable as delegated. Never a substitute for the operator's judgement — only for its recording channel.",
         schema_fn: || json!({
             "type": "object",
             "required": ["path", "requirement_id", "operator", "channel", "authorization", "evidence_ref"],

@@ -57,7 +57,7 @@ The Project Lead records these outcomes through `review_accept`, `review_changes
 
 The Project Lead reviews; it does not fix the code itself.
 
-For a checked `owner=operator`, `phase=before-done` requirement, open the spec detail verification panel, enter your operator identity and an evidence reference, then choose **Attest evidence**. This records an append-only evidence attestation. It does not accept a review, approve the spec, check the requirement, or move the spec to `done`; closeout remains a separate governed `spec_done` action. Lead-owned requirements have no operator action in the app.
+For a checked `owner=operator`, `phase=before-done` requirement, open the **Operations** page (or follow the link from the spec detail verification summary), enter your operator identity and an evidence reference, then choose **Record Attestation**. This records an append-only evidence attestation. It does not accept a review, approve the spec, check the requirement, or move the spec to `done`; closeout remains a separate governed `spec_done` action. Lead-owned requirements have no operator action in the app.
 
 ## I need to configure project verification
 

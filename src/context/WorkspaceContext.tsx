@@ -22,6 +22,7 @@ import type {
   KitFeedbackNote,
   McpProposal,
   McpRecord,
+  OperatorGate,
   PulseData,
   ProjectStatistics,
   Review,
@@ -75,6 +76,7 @@ export interface WorkspaceState {
   handoffs: Handoff[];
   diagnostics: KitDiagnostic[];
   kitFeedbackNotes: KitFeedbackNote[];
+  operatorGates: OperatorGate[];
   projectStatistics: ProjectStatistics | null;
   wikiTree: WikiTree | null;
   wikiPage: WikiPage | null;
@@ -152,6 +154,7 @@ const initialState: WorkspaceState = {
   handoffs: [],
   diagnostics: [],
   kitFeedbackNotes: [],
+  operatorGates: [],
   projectStatistics: null,
   wikiTree: null,
   wikiPage: null,
@@ -443,6 +446,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           skills: snapshot.skills,
           handoffs: snapshot.handoffs,
           diagnostics: snapshot.diagnostics,
+          operatorGates: snapshot.operator_gates,
           projectStatistics: snapshot.project_statistics,
         };
       }),
@@ -504,6 +508,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         mcpProposals: state.mcpProposals,
         skills: state.skills,
         kitFeedbackNotes: state.kitFeedbackNotes,
+        operatorGates: state.operatorGates,
       }),
     [
       state.specs,
@@ -516,6 +521,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       state.mcpProposals,
       state.skills,
       state.kitFeedbackNotes,
+      state.operatorGates,
     ],
   );
 

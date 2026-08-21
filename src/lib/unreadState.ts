@@ -20,6 +20,7 @@
 export const UNREAD_PAGES = [
   "taskboard",
   "reviews",
+  "operations",
   "debts",
   "feedback",
   "decisions",
@@ -56,6 +57,15 @@ interface FeedbackNoteLike {
   severity?: string | null;
 }
 
+interface OperatorGateLike {
+  spec_id?: string | null;
+  requirement_id?: string | null;
+  spec_status?: string | null;
+  attested?: unknown | null;
+  blocker?: string | null;
+  updated?: string | null;
+}
+
 export interface UnreadSource {
   specs?: ArtifactLike[] | null;
   reviews?: ArtifactLike[] | null;
@@ -67,6 +77,7 @@ export interface UnreadSource {
   mcpProposals?: ArtifactLike[] | null;
   skills?: ArtifactLike[] | null;
   kitFeedbackNotes?: FeedbackNoteLike[] | null;
+  operatorGates?: OperatorGateLike[] | null;
 }
 
 const STORAGE_PREFIX = "lmbrain.readState.v1:";
@@ -79,6 +90,7 @@ function emptyPageItems(): PageItems {
   return {
     taskboard: [],
     reviews: [],
+    operations: [],
     debts: [],
     feedback: [],
     decisions: [],
@@ -129,6 +141,12 @@ export function collectPageItems(source: UnreadSource | null | undefined): PageI
   if (!source) return items;
   items.taskboard = toUnreadItems("spec", source.specs);
   items.reviews = toUnreadItems("review", source.reviews);
+  items.operations = (source.operatorGates ?? [])
+    .filter((gate) => !gate.attested || gate.blocker)
+    .map((gate) => ({
+      id: `gate:${gate.spec_id ?? ""}:${gate.requirement_id ?? ""}`,
+      signature: `${gate.spec_status ?? ""}:${gate.attested ? "attested" : "pending"}:${gate.blocker ?? "none"}:${gate.updated ?? ""}`,
+    }));
   items.debts = toUnreadItems("debt", source.debts);
   items.feedback = toFeedbackItems(source.kitFeedbackNotes);
   items.decisions = toUnreadItems("adr", source.adrs);

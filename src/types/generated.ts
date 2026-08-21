@@ -71,6 +71,17 @@ export type VerificationGate = { id: string, title: string | null, program: stri
 
 export type VerificationManifest = { schema_version: number, gates: Array<VerificationGate>, };
 
+export type VerificationAttestation = { schema_version: string, id: string, requirement_id: string, requirement_digest: string, actor_role: string, actor: string, timestamp: string, result: string, evidence_ref: string, evidence_digest: string | null, 
+/**
+ * Present only on operator attestations recorded by the Lead on the
+ * operator's explicit out-of-band authorization (#94 / KIT-NOTE-011).
+ * Absence means the authority attested directly (desktop panel or
+ * spec_attest_lead).
+ */
+delegated_by: string | null, delegation_channel: string | null, delegation_authorization: string | null, };
+
+export type OperatorGate = { spec_id: string, spec_title: string, spec_status: string, spec_path: string, requirement_id: string, text: string, kind: string, evidence_kind: string, checked: boolean, attested: VerificationAttestation | null, blocker: string | null, milestone: string | null, updated: string, };
+
 export type RoadmapMilestone = { id: string, title: string, status: string, outcome: string, specs: Array<string>, decisions: Array<string>, risks: Array<string>, depends_on: string | null, };
 
 export type Roadmap = { title: string, milestones: Array<RoadmapMilestone>, };
@@ -196,7 +207,7 @@ export type WorkspaceInfo = { path: string, name: string, kit_version: string, h
 
 export type WorkspaceRegistry = { recent: Array<WorkspaceSummary>, pinned: Array<string>, };
 
-export type WorkspaceSnapshot = { pulse_data: PulseData, specs: Array<Spec>, reviews: Array<Review>, debts: Array<Debt>, dreams: Array<Dream>, adrs: Array<Adr>, agents: Array<AgentProfile>, agent_proposals: Array<AgentProposal>, mcp_records: Array<McpRecord>, mcp_proposals: Array<McpProposal>, skills: Array<Skill>, handoffs: Array<Handoff>, diagnostics: Array<Diagnostic>, project_statistics: ProjectStatistics, };
+export type WorkspaceSnapshot = { pulse_data: PulseData, specs: Array<Spec>, reviews: Array<Review>, debts: Array<Debt>, dreams: Array<Dream>, adrs: Array<Adr>, agents: Array<AgentProfile>, agent_proposals: Array<AgentProposal>, mcp_records: Array<McpRecord>, mcp_proposals: Array<McpProposal>, skills: Array<Skill>, handoffs: Array<Handoff>, diagnostics: Array<Diagnostic>, project_statistics: ProjectStatistics, operator_gates: Array<OperatorGate>, };
 
 export type HarnessProbeState = "installed" | "missing" | "error";
 

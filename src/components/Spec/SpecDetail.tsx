@@ -7,7 +7,7 @@ import { SpecLifecycleRail } from "./SpecLifecycleRail";
 import { SpecHandoffCTA } from "./SpecHandoffCTA";
 
 export function SpecDetail() {
-  const { state, closeSpecDetail, loadAllData, navigateTo } = useWorkspace();
+  const { state, closeSpecDetail, navigateTo } = useWorkspace();
   const specs = state.specs;
   const readySpecs = specs.filter((s) => s.status === "ready");
 
@@ -261,7 +261,7 @@ export function SpecDetail() {
       {spec.status === "ready" && <SpecHandoffCTA spec={spec} />}
 
       {(spec.status === "review" || spec.status === "done") && (
-        <OperatorVerificationPanel spec={spec} onAttested={loadAllData} />
+        <OperatorVerificationPanel spec={spec} />
       )}
 
       {/* Body */}

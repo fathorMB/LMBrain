@@ -822,6 +822,9 @@ pub fn build_workspace_snapshot(root: &Path) -> Result<WorkspaceSnapshot, AppErr
         &diagnostics,
     );
 
+    let index = lmbrain_core::scan_workspace(root).map_err(|e| AppError::Io(e.to_string()))?;
+    let operator_gates = lmbrain_core::operator_gates(root, &index);
+
     Ok(WorkspaceSnapshot {
         pulse_data,
         specs,
@@ -837,6 +840,7 @@ pub fn build_workspace_snapshot(root: &Path) -> Result<WorkspaceSnapshot, AppErr
         handoffs,
         diagnostics,
         project_statistics,
+        operator_gates,
     })
 }
 

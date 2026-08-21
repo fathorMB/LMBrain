@@ -32,10 +32,10 @@ pub use workspace_index::{scan_workspace, ArtifactEntry, WorkspaceIndex};
 
 pub use attestation::{
     attest_spec_requirement, attest_spec_requirement_delegated,
-    build_verification_migration_preview, requirement_digest,
+    build_verification_migration_preview, operator_gates, requirement_digest,
     unsupported_verification_requirements, verification_attestations, verification_blockers,
     verification_blockers_for_workspace, verification_requirements, AttestationDelegation,
-    AttestationError, AttestationResult, VerificationAttestation, VerificationBlocker,
+    AttestationError, AttestationResult, OperatorGate, VerificationAttestation, VerificationBlocker,
     VerificationMigrationItem, VerificationMigrationPreview,
     VERIFICATION_ATTESTATION_SCHEMA_VERSION,
 };
@@ -47,10 +47,10 @@ pub use branching_strategy::{
 };
 pub use context::{
     build_project_digest, build_review_context, build_spec_context, AgentProfileSummary,
-    BoundedDebtList, BoundedDiagnosticList, BoundedSpecList, CompactAdr, CompactDebt,
-    CompactReview, CompactSpec, Criterion, DebtDigest, DeclaredProjectState, DerivedProjectState,
-    DiagnosticsSummary, ProjectDigest, ReviewContext, SpecContext, SpecDependencyDigest,
-    SpecDependencyDigestItem, SpecLifecycleView, SpecParkingSummary,
+    BoundedDebtList, BoundedDiagnosticList, BoundedOperatorGateList, BoundedSpecList, CompactAdr,
+    CompactDebt, CompactReview, CompactSpec, Criterion, DebtDigest, DeclaredProjectState,
+    DerivedProjectState, DiagnosticsSummary, ProjectDigest, ReviewContext, SpecContext,
+    SpecDependencyDigest, SpecDependencyDigestItem, SpecLifecycleView, SpecParkingSummary,
 };
 pub use debt::{
     accept_debt_risk, create_debt, debt_candidates, debt_context, defer_debt, list_debts,

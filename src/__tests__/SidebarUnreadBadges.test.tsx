@@ -7,6 +7,7 @@ const workspace = vi.hoisted(() => ({
   unreadCounts: {
     taskboard: 0,
     reviews: 0,
+    operations: 0,
     debts: 0,
     feedback: 0,
     decisions: 0,
@@ -52,7 +53,7 @@ describe("Sidebar unread badges", () => {
     }
     render(<Sidebar />);
 
-    for (const label of ["Board", "Reviews", "Debts", "Kit Feedback", "Decisions", "Agents", "MCP", "Skills"]) {
+    for (const label of ["Board", "Reviews", "Operations", "Debts", "Kit Feedback", "Decisions", "Agents", "MCP", "Skills"]) {
       expect(screen.getByRole("link", { name: `${label}, 1 unread item` })).toBeTruthy();
     }
   });

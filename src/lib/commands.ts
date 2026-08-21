@@ -28,6 +28,7 @@ import type {
   McpProposal,
   McpRecord,
   MilestoneOverview,
+  OperatorGate,
   ParsedDocument,
   PiPreparationResult,
   ProjectStatistics,
@@ -299,6 +300,10 @@ export async function attestOperatorVerification(
     actor,
     evidenceRef,
   });
+}
+
+export async function listOperatorGates(): Promise<OperatorGate[]> {
+  return invoke("list_operator_gates");
 }
 
 export async function getVerificationManifestStatus(): Promise<VerificationManifestStatus> {
