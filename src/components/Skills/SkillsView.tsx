@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
+import { useFilteredList } from "../../hooks/useFilteredList";
 import { CardGrid, EmptyState, PageHeader, PageShell } from "../Shared/PageLayout";
 import type { Skill, SkillStatus } from "../../types";
 
@@ -29,13 +30,12 @@ export function SkillsView() {
     return ["all", ...Array.from(new Set(values)).sort()];
   }, [state.skills]);
 
-  const filteredSkills = useMemo(() => {
-    return state.skills.filter((skill) => {
-      const statusMatches = statusFilter === "all" || skill.status === statusFilter;
-      const kindMatches = kindFilter === "all" || skill.kind === kindFilter;
-      return statusMatches && kindMatches;
-    });
-  }, [kindFilter, state.skills, statusFilter]);
+  const filteredSkills = useFilteredList(state.skills, {
+    filters: [
+      (skill) => statusFilter === "all" || skill.status === statusFilter,
+      (skill) => kindFilter === "all" || skill.kind === kindFilter,
+    ],
+  });
 
   const skillDiagnostics = state.diagnostics.filter((diagnostic) =>
     diagnostic.path?.startsWith("skills/") ||
