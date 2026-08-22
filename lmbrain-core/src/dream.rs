@@ -9,7 +9,7 @@ use thiserror::Error;
 
 use crate::{
     frontmatter::{atomic_write, Document, FrontmatterError},
-    mutation_lock::ArtifactMutationLock,
+    mutation_lock::WorkspaceLock,
     path::{PathError, PathGuard},
     transitions::MutationResult,
 };
@@ -125,7 +125,7 @@ pub fn capture_dream(
 ) -> Result<MutationResult, DreamError> {
     validate_input(&input)?;
     let guard = PathGuard::new(root)?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), "dream-allocation")?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let id = next_id(guard.root());
     let dir = guard.root().join(".lmbrain/dreams/captured");
     fs::create_dir_all(&dir)?;

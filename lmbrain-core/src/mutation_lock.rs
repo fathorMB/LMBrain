@@ -64,15 +64,6 @@ impl Drop for WorkspaceLock {
     }
 }
 
-pub(crate) struct ArtifactMutationLock;
-
-impl ArtifactMutationLock {
-    #[inline]
-    pub(crate) fn acquire(root: &Path, _artifact_id: &str) -> io::Result<WorkspaceLock> {
-        WorkspaceLock::acquire(root)
-    }
-}
-
 fn is_contention(error: &io::Error) -> bool {
     error.kind() == io::ErrorKind::WouldBlock
         || error.raw_os_error() == fs2::lock_contended_error().raw_os_error()

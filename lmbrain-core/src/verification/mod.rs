@@ -15,7 +15,7 @@ use thiserror::Error;
 use crate::{
     frontmatter::{atomic_write, Document},
     harness_manifest::workspace_identity,
-    mutation_lock::ArtifactMutationLock,
+    mutation_lock::WorkspaceLock,
 };
 
 pub use execution::{
@@ -199,7 +199,7 @@ pub fn write_verification_transcript(
     transcript_hash: &str,
     source_fingerprint: &str,
 ) -> Result<(), VerificationError> {
-    let _lock = ArtifactMutationLock::acquire(root, spec_id)?;
+    let _lock = WorkspaceLock::acquire(root)?;
     if !canonical_spec.exists()
         || canonical_spec
             .canonicalize()

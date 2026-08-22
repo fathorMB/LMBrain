@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     frontmatter::{atomic_write, repair_duplicate_top_level_keys, Document},
     invariants,
-    mutation_lock::ArtifactMutationLock,
+    mutation_lock::WorkspaceLock,
     path::PathGuard,
     review::{
         next_review_event_id, parse_review_event_history, ReviewEventInput,
@@ -1604,7 +1604,7 @@ pub fn record_review_event(
     let initial_id = initial
         .value("id")
         .ok_or_else(|| TransitionError::Missing("id".into()))?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let path = guard.resolve_existing(artifact)?;
     let current_source = fs::read_to_string(&path)?;
     let mut document = Document::parse(&current_source)?;
@@ -1694,7 +1694,7 @@ fn transition_internal(
     require_force_reason(&options)?;
 
     let guard = PathGuard::new(root)?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), "transition")?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let artifact = artifact.as_ref();
     let path = guard.resolve_existing(artifact)?;
     let current_source = fs::read_to_string(&path)?;
@@ -2043,7 +2043,7 @@ pub fn set_review_implementation_agent(
     let guard = PathGuard::new(root)?;
     invariants::implementation_agent_resolves(guard.root(), Some(agent))
         .map_err(TransitionError::Invariant)?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), "review-agent")?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let artifact = artifact.as_ref();
     let path = guard.resolve_existing(artifact)?;
     let current_source = fs::read_to_string(&path)?;
@@ -2170,7 +2170,7 @@ fn set_field(
     require_force_reason(&options)?;
 
     let guard = PathGuard::new(root)?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), "governed-field")?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let artifact = artifact.as_ref();
     let path = guard.resolve_existing(artifact)?;
     let current_source = fs::read_to_string(&path)?;
@@ -2265,7 +2265,7 @@ pub fn repair_artifact_frontmatter(
         .value("id")
         .ok_or_else(|| TransitionError::Missing("id".into()))?;
 
-    let _lock = ArtifactMutationLock::acquire(guard.root(), &id)?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     // Re-run the repair on the current content now that the lock is held so a
     // concurrent mutation between the first read and the lock cannot be lost.
     let current = repair_duplicate_top_level_keys(&fs::read_to_string(&path)?)?;
@@ -2342,7 +2342,7 @@ pub fn create(
         dir = dir.join(request.kind.status_dir(&status)?);
     }
 
-    let _lock = ArtifactMutationLock::acquire(guard.root(), "creation-allocation")?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
 
     if request.kind == ArtifactKind::Handoff
         && status == "ready"
@@ -2835,7 +2835,7 @@ fn set_governed_spec_metadata(
     require_force_reason(&options)?;
 
     let guard = PathGuard::new(root)?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), "spec-metadata")?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let artifact = artifact.as_ref();
     let path = guard.resolve_existing(artifact)?;
     let current_source = fs::read_to_string(&path)?;
@@ -2932,7 +2932,7 @@ pub fn supersede_adr(
     })?;
     let superseded_path = guard.resolve_existing(&superseded_path)?;
 
-    let _lock = ArtifactMutationLock::acquire(guard.root(), "supersede")?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
 
     let superseding_source = fs::read_to_string(&superseding_path)?;
     let mut superseding = Document::parse(&superseding_source)?;
