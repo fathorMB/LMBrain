@@ -2,7 +2,9 @@
 
 This is the human entry point for using LMBrain in a project repository.
 
-LMBrain does not automatically start agents. You retain control: you decide when to start a Project Lead or specialist agent, and you pass the relevant document to that agent manually.
+LMBrain does not automatically start agents. You retain control: you decide when to start a Project Lead or specialist agent. You may start a specialist manually, or explicitly authorize the Project Lead to dispatch named specs. Dispatch authorization is bounded to those specs and is separate from approving or moving them to `ready`.
+
+For operator-authorized dispatch, the Lead must use each spec's `capability_tier`: Sol selects Opus (or a harness-native `-sol` equivalent), Terra selects Sonnet (or `-terra`), and Luna selects Haiku (or `-luna`). The Lead must pass the model explicitly and stop if the harness cannot provide an unambiguous equivalent. See `contract/effort_tags.md`.
 
 ## First use in a new repository
 
@@ -10,7 +12,7 @@ LMBrain does not automatically start agents. You retain control: you decide when
 2. Start a Project Lead manually.
 3. Give it [`templates/project-lead-bootstrap-prompt.md`](templates/project-lead-bootstrap-prompt.md).
 4. Read `STATUS.md` and the Project Lead's final report.
-5. If it recommends a handoff, start the proposed specialist and give it the exact `SPEC-*.md` path.
+5. If it recommends a handoff, either start the proposed specialist with the exact `SPEC-*.md` path or explicitly authorize the Lead to dispatch that named spec.
 
 ## I need a new feature, fix, or technical change
 
@@ -23,7 +25,7 @@ LMBrain does not automatically start agents. You retain control: you decide when
    - dependencies, risks, and decisions requiring your approval;
    - any MCP capability that is missing.
 5. Review the spec. Approve or request changes.
-6. Start the specialist manually and give it the spec path.
+6. Start the specialist manually with the spec path, or explicitly authorize the Lead to dispatch that named spec.
 
 Suggested specialist prompt:
 
@@ -60,7 +62,7 @@ The handoff preserves context. It does not replace validation of the actual repo
 3. Read its expected benefit, responsibilities, boundaries, and cost.
 4. Approve, defer, or reject the proposal in the document.
 5. Once approved, ask the Project Lead to prepare the profile under `agents/profiles/` and update `agents/registry.md`.
-6. Start that specialist manually only when a spec recommends it.
+6. Start that specialist manually, or authorize a bounded Lead dispatch, only when a spec recommends it.
 
 Approving a profile makes it available; it never launches an agent.
 

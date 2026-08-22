@@ -10,15 +10,15 @@ This directory is the portable, versioned source of truth for a project's knowle
 2. Open the repository in LMBrain so it can register `lmbrain-mcp` for supported agent hosts.
 3. Give the Project Lead the bootstrap request in `templates/project-lead-bootstrap-prompt.md`.
 4. The Project Lead personalizes the root documents and creates the first specs.
-5. For each approved piece of work, manually start the recommended specialist with its `SPEC-*.md` file.
+5. For each approved piece of work, either start the recommended specialist manually or explicitly authorize the Project Lead to dispatch the named spec using its estimated model tier.
 6. When the work is complete, explicitly ask the Project Lead for a review.
 
 ## Principles
 
 - Markdown files are the source of truth; the app is a read-oriented operational view over them.
 - Durable cross-spec observations live in governed `DEBT-*` artifacts; ordinary review findings remain local.
-- The Project Lead analyzes, specifies, recommends, and reviews. It never implements or spawns agents.
-- Specialist agents are manually started by the user and write implementation evidence only.
+- The Project Lead analyzes, specifies, recommends, and reviews. It never implements or dispatches agents without explicit, bounded operator authorization.
+- Specialist agents are started manually by the user or through an operator-authorized Lead dispatch, and write implementation evidence only.
 - Claude Code and Codex can both use the same repository-scoped `lmbrain-mcp` tools after LMBrain registers the workspace.
 - New agent profiles and MCPs are proposed before they are made active.
 - Design mockups live under `design/` as operator-loaded files; design specialists use the same proposal/profile workflow as every other agent.
