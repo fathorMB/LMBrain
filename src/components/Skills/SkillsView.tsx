@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { useFilteredList } from "../../hooks/useFilteredList";
-import { CardGrid, EmptyState, PageHeader, PageShell } from "../Shared/PageLayout";
+import { ArtifactListView } from "../Shared/ArtifactListView";
 import type { Skill, SkillStatus } from "../../types";
 
 const STATUSES: Array<"all" | SkillStatus> = ["all", "active", "proposed", "retired"];
@@ -43,11 +43,10 @@ export function SkillsView() {
   );
 
   return (
-    <PageShell archetype="dense">
-      <PageHeader
-        title="Skills"
-        description="Project-scoped procedures available to manually started agents."
-        actions={
+    <ArtifactListView
+      title="Skills"
+      description="Project-scoped procedures available to manually started agents."
+      headerActions={
           <>
             <SegmentedFilter
               options={STATUSES}
@@ -75,10 +74,8 @@ export function SkillsView() {
               ))}
             </select>
           </>
-        }
-      />
-
-        {skillDiagnostics.length > 0 && (
+      }
+      summary={skillDiagnostics.length > 0 && (
           <div
             style={{
               border: "1px solid rgba(224,162,58,.28)",
@@ -105,19 +102,13 @@ export function SkillsView() {
             </div>
           </div>
         )}
-
-        {state.skills.length === 0 ? (
-          <EmptySkills />
-        ) : filteredSkills.length === 0 ? (
-          <EmptyState>No skills match the current filters.</EmptyState>
-        ) : (
-          <CardGrid minColumnWidth={280}>
-            {filteredSkills.map((skill) => (
-              <SkillCard key={skill.id} skill={skill} />
-            ))}
-          </CardGrid>
-        )}
-    </PageShell>
+      items={filteredSkills}
+      totalCount={state.skills.length}
+      emptyAllMessage={<EmptySkills />}
+      emptyFilteredMessage="No skills match the current filters."
+      minColumnWidth={280}
+      renderItem={(skill) => <SkillCard key={skill.id} skill={skill} />}
+    />
   );
 }
 
