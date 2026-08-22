@@ -12,7 +12,7 @@ use crate::{
     content_digest,
     context::{parse_verification_requirements, VerificationRequirement},
     frontmatter::{atomic_write, Document, FrontmatterError},
-    mutation_lock::ArtifactMutationLock,
+    mutation_lock::WorkspaceLock,
     path::{PathError, PathGuard},
 };
 
@@ -372,7 +372,7 @@ fn attest_spec_requirement_inner(
         .value("id")
         .filter(|id| id.starts_with("SPEC-"))
         .ok_or_else(|| AttestationError::Invalid("artifact must be a SPEC-*".into()))?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), &spec_id)?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let path = guard.resolve_existing(relative)?;
     let current_source = fs::read_to_string(&path)?;
     let mut document = Document::parse(&current_source)?;

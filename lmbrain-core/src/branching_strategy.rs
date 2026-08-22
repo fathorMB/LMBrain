@@ -7,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::mutation_lock::ArtifactMutationLock;
+use crate::mutation_lock::WorkspaceLock;
 
 pub const BRANCHING_STRATEGY_PATH: &str = ".lmbrain/BRANCHING.json";
 pub const BRANCHING_STRATEGY_SCHEMA_VERSION: u32 = 1;
@@ -207,7 +207,7 @@ pub fn set_branching_strategy(
 
     validate_branching_strategy(strategy)?;
 
-    let _lock = ArtifactMutationLock::acquire(root, "BRANCHING.json");
+    let _lock = WorkspaceLock::acquire(root);
 
     let lmbrain_dir = root.join(".lmbrain");
     if !lmbrain_dir.exists() {

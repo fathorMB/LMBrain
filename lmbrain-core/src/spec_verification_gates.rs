@@ -20,7 +20,7 @@ use thiserror::Error;
 
 use crate::{
     frontmatter::{atomic_write, Document, FrontmatterError},
-    mutation_lock::ArtifactMutationLock,
+    mutation_lock::WorkspaceLock,
     path::{PathError, PathGuard},
     transitions::{kind_for_id, ArtifactKind},
     verification::{load_verification_manifest, VerificationError},
@@ -86,7 +86,7 @@ pub fn set_spec_verification_gates(
     let initial_id = initial
         .value("id")
         .ok_or_else(|| SpecVerificationGatesError::Invalid("artifact is missing id".into()))?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let source = fs::read_to_string(&path)?;
     let mut document = Document::parse(&source)?;
     let id = document.value("id").unwrap_or_default();

@@ -12,7 +12,7 @@ use thiserror::Error;
 
 use crate::{
     frontmatter::{atomic_write, Document, FrontmatterError},
-    mutation_lock::ArtifactMutationLock,
+    mutation_lock::WorkspaceLock,
     path::{PathError, PathGuard},
     transitions::{kind_for_id, ArtifactKind, MutationResult},
 };
@@ -208,7 +208,7 @@ pub fn create_debt(
 ) -> Result<MutationResult, DebtError> {
     let guard = PathGuard::new(root)?;
     validate_create_input(guard.root(), &input)?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), "creation-allocation")?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     validate_unique_origin(
         guard.root(),
         None,
@@ -448,7 +448,7 @@ fn mutate_debt(
             "semantic debt operations require DEBT-*".into(),
         ));
     }
-    let _lock = ArtifactMutationLock::acquire(guard.root(), &initial_id)?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let path = guard.resolve_existing(artifact.as_ref())?;
     let source = fs::read_to_string(&path)?;
     let mut document = Document::parse(&source)?;

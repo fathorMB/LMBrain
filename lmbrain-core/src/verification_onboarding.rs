@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use crate::{
     canonical_verification_manifest_digest, frontmatter::atomic_write, load_verification_manifest,
-    mutation_lock::ArtifactMutationLock, parse_verification_manifest, path::PathGuard,
+    mutation_lock::WorkspaceLock, parse_verification_manifest, path::PathGuard,
     validate_verification_manifest, workspace_identity, VerificationApproval, VerificationError,
     VerificationGate, VerificationManifest, VERIFICATION_MANIFEST_PATH,
 };
@@ -312,7 +312,7 @@ pub fn set_verification_manifest(
     }
     let guard = PathGuard::new(root)
         .map_err(|error| VerificationOnboardingError::Invalid(error.to_string()))?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), "verification-manifest")?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let path = guard.root().join(VERIFICATION_MANIFEST_PATH);
     let current = current_manifest(&path)?;
     let current_digest = current

@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::{
     frontmatter::{atomic_write, Document, FrontmatterError},
-    mutation_lock::ArtifactMutationLock,
+    mutation_lock::WorkspaceLock,
     path::{PathError, PathGuard},
 };
 
@@ -131,7 +131,7 @@ pub fn record_kit_feedback(
 ) -> Result<KitFeedbackMutation, KitFeedbackError> {
     validate_input(&input)?;
     let guard = PathGuard::new(root)?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), "lmbrain-kit-feedback")?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let path = guard.root().join(KIT_FEEDBACK_REPORT_PATH);
     let source_exists = path.exists();
     let source = if source_exists {
@@ -223,7 +223,7 @@ pub fn record_kit_feedback_resolution(
 ) -> Result<KitFeedbackResolutionMutation, KitFeedbackError> {
     validate_resolution_input(&input)?;
     let guard = PathGuard::new(root)?;
-    let _lock = ArtifactMutationLock::acquire(guard.root(), "lmbrain-kit-feedback")?;
+    let _lock = WorkspaceLock::acquire(guard.root())?;
     let path = guard.root().join(KIT_FEEDBACK_REPORT_PATH);
     if !path.exists() {
         return Err(KitFeedbackError::Invalid(
