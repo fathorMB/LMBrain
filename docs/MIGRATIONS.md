@@ -13,7 +13,8 @@ Supported source versions are 4.x releases. This release changes kit governance 
 1. Update the desktop application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together.
 2. Invoke `kit_migration_preview` with the installed bundled-kit path and review its digest-bound inventory. The preview fails closed if no bundle is configured, the bundle resolves to the target workspace, or the target is already at that version.
 3. After explicit operator confirmation, call `kit_migrate` with that exact digest. The operation holds the workspace mutation lock, stages and validates the replacement, atomically swaps `.lmbrain`, and retains the previous directory as the reported backup path.
-4. Run `lmbrain_validate` and inspect the Git diff. Project-owned artifacts and the retained backup are never silently discarded.
+4. Review the classification of each kit-owned item. `kit_migrate` records the digests the kit shipped in `.lmbrain/.kit-baseline.json`, so the preview distinguishes an untouched copy (`kit-owned`) from one edited after installation (`kit-owned-modified`, also listed under `locally_modified`) and from one no baseline covers (`kit-owned-unverified`). A workspace upgraded from 4.x has no baseline yet, so its first 5.0 preview reports every kit-owned file as unverified; the migration writes the baseline, and later upgrades classify precisely. Classification is part of the preview digest, so editing a kit-owned file after previewing invalidates the plan.
+5. Run `lmbrain_validate` and inspect the Git diff. Project-owned artifacts and the retained backup are never silently discarded.
 
 Rollback consists of restoring the reported backup directory after stopping workspace mutations. See [ADR 0001](decisions/0001-5.0-scope.md) for the 5.0 scope decision.
 

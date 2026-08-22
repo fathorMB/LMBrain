@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
@@ -36,6 +37,9 @@ pub struct KitMigrationPreview {
     pub to_version: String,
     pub digest: String,
     pub items: Vec<KitMigrationItem>,
+    /// Kit-owned paths whose current content differs from the content the
+    /// installed kit shipped. Realigning them discards a local edit.
+    pub locally_modified: Vec<String>,
     pub can_migrate: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub blocker_reason: Option<String>,
@@ -71,6 +75,140 @@ const KIT_OWNED_FILES: &[&str] = &[
     "UPGRADING.md",
     "VERSION",
 ];
+
+/// Digests of the kit-owned files as the kit shipped them, recorded at the
+/// installed version. It is the only way to tell an intentional local edit
+/// apart from a file that is simply older than the bundled kit.
+const KIT_BASELINE_FILE: &str = ".kit-baseline.json";
+
+/// The workspace copy matches what the kit shipped; realignment is lossless.
+const CLASS_KIT_OWNED: &str = "kit-owned";
+/// The workspace copy was edited after installation; realignment discards it.
+const CLASS_KIT_OWNED_MODIFIED: &str = "kit-owned-modified";
+/// No baseline covers this file, so a local edit cannot be ruled out.
+const CLASS_KIT_OWNED_UNVERIFIED: &str = "kit-owned-unverified";
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct KitBaseline {
+    version: String,
+    files: BTreeMap<String, String>,
+}
+
+fn content_digest(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+fn load_baseline(target_lmbrain: &Path) -> Option<KitBaseline> {
+    let raw = fs::read(target_lmbrain.join(KIT_BASELINE_FILE)).ok()?;
+    serde_json::from_slice(&raw).ok()
+}
+
+fn kit_owned_relative_paths(bundled_lmbrain: &Path) -> Vec<String> {
+    let mut paths: Vec<String> = KIT_OWNED_FILES
+        .iter()
+        .filter(|name| bundled_lmbrain.join(name).is_file())
+        .map(|name| (*name).to_string())
+        .collect();
+    for directory in ["contract", "templates"] {
+        let Ok(entries) = fs::read_dir(bundled_lmbrain.join(directory)) else {
+            continue;
+        };
+        let mut nested: Vec<String> = entries
+            .flatten()
+            .filter(|entry| entry.path().is_file())
+            .map(|entry| format!("{directory}/{}", entry.file_name().to_string_lossy()))
+            .collect();
+        nested.sort();
+        paths.extend(nested);
+    }
+    paths
+}
+
+/// Digests every kit-owned file the bundled kit ships, so the next migration
+/// classifies the workspace copies instead of guessing.
+fn build_baseline(
+    bundled_lmbrain: &Path,
+    to_version: &str,
+) -> Result<KitBaseline, KitMigrationError> {
+    let mut files = BTreeMap::new();
+    for relative in kit_owned_relative_paths(bundled_lmbrain) {
+        let content = fs::read(bundled_lmbrain.join(&relative))?;
+        files.insert(relative, content_digest(&content));
+    }
+    Ok(KitBaseline {
+        version: to_version.to_string(),
+        files,
+    })
+}
+
+/// Returns the action, the classification, and a description suffix naming the
+/// consequence, for one kit-owned file the bundled kit would replace.
+fn classify_kit_owned(
+    target_file: &Path,
+    relative: &str,
+    baseline: Option<&KitBaseline>,
+) -> (&'static str, &'static str, String) {
+    let Ok(current) = fs::read(target_file) else {
+        return ("create", CLASS_KIT_OWNED, String::new());
+    };
+    match baseline.and_then(|base| base.files.get(relative)) {
+        Some(recorded) if *recorded == content_digest(&current) => {
+            ("update", CLASS_KIT_OWNED, String::new())
+        }
+        Some(_) => (
+            "update",
+            CLASS_KIT_OWNED_MODIFIED,
+            " (locally modified since installation; the current content is replaced and recoverable only from the migration backup)"
+                .into(),
+        ),
+        None => (
+            "update",
+            CLASS_KIT_OWNED_UNVERIFIED,
+            " (no baseline recorded for the installed kit; a local edit cannot be ruled out)".into(),
+        ),
+    }
+}
+
+fn action_verb(action: &str) -> &'static str {
+    if action == "create" {
+        "Add"
+    } else {
+        "Update"
+    }
+}
+
+/// Records, for a freshly installed kit, the digests it shipped. Without this
+/// a new workspace would report every kit-owned file as unverified on its first
+/// upgrade, because nothing states what the kit originally wrote.
+pub fn record_kit_baseline(
+    workspace_root: &Path,
+    bundled_kit_root: &Path,
+) -> Result<(), KitMigrationError> {
+    let guard = PathGuard::new(workspace_root)
+        .map_err(|e| KitMigrationError::Preflight(e.to_string()))?;
+    let target_lmbrain = guard.root().join(".lmbrain");
+    if !target_lmbrain.is_dir() {
+        return Err(KitMigrationError::Preflight(
+            "Target .lmbrain does not exist".into(),
+        ));
+    }
+    let bundled_lmbrain = if bundled_kit_root.join(".lmbrain").exists() {
+        bundled_kit_root.join(".lmbrain")
+    } else {
+        bundled_kit_root.to_path_buf()
+    };
+    let version = fs::read_to_string(bundled_lmbrain.join("VERSION"))
+        .map(|value| value.trim_start_matches('\u{feff}').trim().to_string())
+        .map_err(|_| KitMigrationError::Preflight("bundled kit VERSION does not exist".into()))?;
+    let baseline = build_baseline(&bundled_lmbrain, &version)?;
+    let content = serde_json::to_vec_pretty(&baseline)
+        .map_err(|error| KitMigrationError::Preflight(error.to_string()))?;
+    fs::write(target_lmbrain.join(KIT_BASELINE_FILE), content)?;
+    Ok(())
+}
 
 pub fn kit_migration_preview(
     workspace_root: &Path,
@@ -232,12 +370,15 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
                 to_version,
                 digest,
                 items: Vec::new(),
+                locally_modified: Vec::new(),
                 can_migrate: false,
                 blocker_reason: Some(reason),
             },
             writes: Vec::new(),
         });
     }
+
+    let baseline = load_baseline(&target_lmbrain);
 
     let mut writes = Vec::new();
     let mut items = Vec::new();
@@ -250,11 +391,13 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
             if fs::read(target_lmbrain.join(filename)).ok().as_deref() == Some(content.as_slice()) {
                 continue;
             }
+            let (action, classification, note) =
+                classify_kit_owned(&target_lmbrain.join(filename), filename, baseline.as_ref());
             let item = KitMigrationItem {
                 path: format!(".lmbrain/{}", filename),
-                action: "update".into(),
-                classification: "kit-owned".into(),
-                description: format!("Update kit-owned {}", filename),
+                action: action.into(),
+                classification: classification.into(),
+                description: format!("{} kit-owned {}{}", action_verb(action), filename, note),
             };
             writes.push(PlannedWrite {
                 item: item.clone(),
@@ -283,11 +426,22 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
                     {
                         continue;
                     }
+                    let relative = format!("contract/{}", fname_str);
+                    let (action, classification, note) = classify_kit_owned(
+                        &target_lmbrain.join("contract").join(&*fname_str),
+                        &relative,
+                        baseline.as_ref(),
+                    );
                     let item = KitMigrationItem {
-                        path: format!(".lmbrain/contract/{}", fname_str),
-                        action: "update".into(),
-                        classification: "kit-owned".into(),
-                        description: format!("Update contract capability module {}", fname_str),
+                        path: format!(".lmbrain/{}", relative),
+                        action: action.into(),
+                        classification: classification.into(),
+                        description: format!(
+                            "{} contract capability module {}{}",
+                            action_verb(action),
+                            fname_str,
+                            note
+                        ),
                     };
                     writes.push(PlannedWrite {
                         item: item.clone(),
@@ -318,11 +472,17 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
                     {
                         continue;
                     }
+                    let relative = format!("templates/{}", fname_str);
+                    let (action, classification, note) = classify_kit_owned(
+                        &target_lmbrain.join("templates").join(&*fname_str),
+                        &relative,
+                        baseline.as_ref(),
+                    );
                     let item = KitMigrationItem {
-                        path: format!(".lmbrain/templates/{}", fname_str),
-                        action: "update".into(),
-                        classification: "kit-owned".into(),
-                        description: format!("Update template {}", fname_str),
+                        path: format!(".lmbrain/{}", relative),
+                        action: action.into(),
+                        classification: classification.into(),
+                        description: format!("{} template {}{}", action_verb(action), fname_str, note),
                     };
                     writes.push(PlannedWrite {
                         item: item.clone(),
@@ -343,7 +503,7 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
             let item = KitMigrationItem {
                 path: format!(".lmbrain/{}", retired),
                 action: "delete".into(),
-                classification: "kit-owned".into(),
+                classification: CLASS_KIT_OWNED.into(),
                 description: format!("Remove retired {}", retired),
             };
             writes.push(PlannedWrite {
@@ -356,6 +516,38 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
         }
     }
 
+    // 5. Record the baseline so the next migration can classify local edits.
+    let new_baseline = build_baseline(&bundled_lmbrain, &to_version)?;
+    let baseline_content = serde_json::to_vec_pretty(&new_baseline)
+        .map_err(|error| KitMigrationError::Preflight(error.to_string()))?;
+    if fs::read(target_lmbrain.join(KIT_BASELINE_FILE)).ok().as_deref()
+        != Some(baseline_content.as_slice())
+    {
+        let item = KitMigrationItem {
+            path: format!(".lmbrain/{}", KIT_BASELINE_FILE),
+            action: if target_lmbrain.join(KIT_BASELINE_FILE).exists() {
+                "update".into()
+            } else {
+                "create".into()
+            },
+            classification: CLASS_KIT_OWNED.into(),
+            description: format!("Record kit baseline digests for {}", to_version),
+        };
+        writes.push(PlannedWrite {
+            item: item.clone(),
+            target_relative: PathBuf::from(KIT_BASELINE_FILE),
+            content: Some(baseline_content),
+            is_delete: false,
+        });
+        items.push(item);
+    }
+
+    let locally_modified = items
+        .iter()
+        .filter(|item| item.classification == CLASS_KIT_OWNED_MODIFIED)
+        .map(|item| item.path.clone())
+        .collect();
+
     // Compute canonical digest
     let digest = migration_digest(&from_version, &to_version, &items);
 
@@ -364,6 +556,7 @@ fn build_plan(workspace_root: &Path, bundled_kit_root: &Path) -> Result<Migratio
         to_version,
         digest,
         items,
+        locally_modified,
         can_migrate: true,
         blocker_reason: None,
     };
@@ -488,6 +681,107 @@ mod tests {
 
         // Project-owned strictly preserved
         assert_eq!(fs::read_to_string(ws_brain.join("PROJECT.md")).unwrap(), "my project");
+    }
+
+    #[test]
+    fn migration_records_a_baseline_and_reports_no_local_modification() {
+        let (workspace, bundled) = setup_fixture();
+        let preview = kit_migration_preview(workspace.path(), bundled.path()).unwrap();
+        // Nothing can be claimed about a workspace installed before baselines existed.
+        assert!(preview.locally_modified.is_empty());
+        assert!(preview
+            .items
+            .iter()
+            .any(|item| item.path == ".lmbrain/CONTRACT.md"
+                && item.classification == CLASS_KIT_OWNED_UNVERIFIED));
+
+        kit_migrate(workspace.path(), bundled.path(), &preview.digest, true).unwrap();
+
+        let baseline: KitBaseline = serde_json::from_slice(
+            &fs::read(workspace.path().join(".lmbrain").join(KIT_BASELINE_FILE)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(baseline.version, "5.0.0");
+        assert_eq!(
+            baseline.files.get("CONTRACT.md"),
+            Some(&content_digest(b"new contract"))
+        );
+        assert!(baseline.files.contains_key("contract/verification.md"));
+        assert!(baseline.files.contains_key("templates/spec.md"));
+    }
+
+    #[test]
+    fn a_kit_owned_file_edited_after_installation_is_reported_as_locally_modified() {
+        let (workspace, bundled) = setup_fixture();
+        let ws_brain = workspace.path().join(".lmbrain");
+        let b_brain = bundled.path().join(".lmbrain");
+
+        // Install the bundled kit so a baseline exists.
+        let first = kit_migration_preview(workspace.path(), bundled.path()).unwrap();
+        kit_migrate(workspace.path(), bundled.path(), &first.digest, true).unwrap();
+
+        // The operator adapts AGENT.md; a later kit revision would replace it.
+        fs::write(ws_brain.join("AGENT.md"), "new agent\n\nProject rule: ask first.").unwrap();
+        fs::write(b_brain.join("VERSION"), "5.1.0\n").unwrap();
+        fs::write(b_brain.join("AGENT.md"), "agent v5.1").unwrap();
+
+        let preview = kit_migration_preview(workspace.path(), bundled.path()).unwrap();
+        assert_eq!(preview.locally_modified, vec![".lmbrain/AGENT.md".to_string()]);
+        let agent = preview
+            .items
+            .iter()
+            .find(|item| item.path == ".lmbrain/AGENT.md")
+            .unwrap();
+        assert_eq!(agent.classification, CLASS_KIT_OWNED_MODIFIED);
+        assert!(agent.description.contains("locally modified"));
+
+        // An untouched kit-owned file stays a lossless realignment.
+        let quality = preview
+            .items
+            .iter()
+            .find(|item| item.path == ".lmbrain/QUALITY.md");
+        assert!(quality.is_none_or(|item| item.classification == CLASS_KIT_OWNED));
+
+        // The digest is classification-bound, so editing after a preview invalidates it.
+        let stale = preview.digest.clone();
+        fs::write(ws_brain.join("AGENT.md"), "new agent").unwrap();
+        let refreshed = kit_migration_preview(workspace.path(), bundled.path()).unwrap();
+        assert_ne!(refreshed.digest, stale);
+        assert!(refreshed.locally_modified.is_empty());
+    }
+
+    #[test]
+    fn a_freshly_initialized_kit_records_its_baseline_so_the_first_upgrade_is_precise() {
+        let (workspace, bundled) = setup_fixture();
+        let ws_brain = workspace.path().join(".lmbrain");
+        let b_brain = bundled.path().join(".lmbrain");
+
+        // Simulate `initialize_kit`: the bundled kit is copied in as-is.
+        for name in ["VERSION", "CONTRACT.md", "AGENT.md", "QUALITY.md", "UPGRADING.md"] {
+            fs::write(ws_brain.join(name), fs::read(b_brain.join(name)).unwrap()).unwrap();
+        }
+        record_kit_baseline(workspace.path(), bundled.path()).unwrap();
+        assert!(ws_brain.join(KIT_BASELINE_FILE).is_file());
+
+        // A later kit revision arrives, and the operator has adapted QUALITY.md.
+        fs::write(ws_brain.join("QUALITY.md"), "new quality + project rule").unwrap();
+        fs::write(b_brain.join("VERSION"), "5.1.0\n").unwrap();
+        fs::write(b_brain.join("CONTRACT.md"), "contract v5.1").unwrap();
+        fs::write(b_brain.join("QUALITY.md"), "quality v5.1").unwrap();
+
+        let preview = kit_migration_preview(workspace.path(), bundled.path()).unwrap();
+        assert_eq!(
+            preview.locally_modified,
+            vec![".lmbrain/QUALITY.md".to_string()]
+        );
+        let contract = preview
+            .items
+            .iter()
+            .find(|item| item.path == ".lmbrain/CONTRACT.md")
+            .unwrap();
+        // Untouched since installation, so it is a lossless realignment rather
+        // than the blanket "unverified" a baseline-less workspace would report.
+        assert_eq!(contract.classification, CLASS_KIT_OWNED);
     }
 
     #[test]

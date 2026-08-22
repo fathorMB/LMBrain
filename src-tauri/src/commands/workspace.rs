@@ -332,6 +332,13 @@ impl WorkspaceService {
         }
         result?;
 
+        // Best effort: without it the first upgrade cannot tell an edited
+        // kit-owned file from an older one, which degrades the migration
+        // preview but must not fail an otherwise complete initialization.
+        if let Err(error) = lmbrain_core::record_kit_baseline(&root, template) {
+            log::warn!("Could not record the kit baseline: {error}");
+        }
+
         self.validate_workspace(&root.to_string_lossy(), Some(template))
     }
 
