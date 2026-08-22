@@ -45,8 +45,19 @@ const FULL_BLEED_PAGES = [
 const ALL_PAGES = [...DENSE_PAGES, ...READING_PAGES, ...FULL_BLEED_PAGES];
 
 describe("page archetypes", () => {
+  it("routes the shared list view through the dense archetype", () => {
+    // Pages that delegate their shell to ArtifactListView inherit the
+    // archetype from here, so this is the assertion that keeps them honest.
+    expect(source("components/Shared/ArtifactListView.tsx")).toContain(
+      '<PageShell archetype="dense">',
+    );
+  });
+
   it.each(DENSE_PAGES)("%s renders through the dense archetype", (path) => {
-    expect(source(path)).toContain('<PageShell archetype="dense">');
+    const text = source(path);
+    const rendersDenseShell = text.includes('<PageShell archetype="dense">');
+    const delegatesToSharedListView = text.includes("<ArtifactListView");
+    expect(rendersDenseShell || delegatesToSharedListView).toBe(true);
   });
 
   it.each(READING_PAGES)("%s renders through the reading archetype", (path) => {

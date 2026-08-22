@@ -5,7 +5,7 @@ import { useFilteredList } from "../../hooks/useFilteredList";
 import { useDialog } from "../../hooks/useDialog";
 import { MarkdownRenderer } from "../../lib/markdown";
 import { RefreshButton } from "../RefreshButton";
-import { CardGrid, EmptyState, PageHeader, PageShell } from "../Shared/PageLayout";
+import { ArtifactListView } from "../Shared/ArtifactListView";
 import { FilterBar, FilterSelect } from "../Shared/FilterBar";
 import { ModalCloseButton } from "../Layout/ModalCloseButton";
 
@@ -40,28 +40,32 @@ export function DreamsView() {
     }
   };
 
-  return <PageShell archetype="dense">
-    <PageHeader
+  return <>
+    <ArtifactListView
       title="Dream Journal"
       description="Tentative, grounded technical and design debt captured during explicitly invited Project Lead dreaming sessions."
-      actions={<RefreshButton onClick={refresh} loading={loading} />}
-    />
-    <div style={readOnlyNotice}>
-      <i className="material-symbols-outlined" aria-hidden="true">visibility</i>
-      <span>Read-only. Dreams never enter delivery automatically; promotion is always an explicit governed action.</span>
-    </div>
-    {error && <div role="alert" style={errorStyle}>{error}</div>}
-    <FilterBar ariaLabel="Dream filters">
-      <FilterSelect label="State" ariaLabel="Dream state" value={status} allLabel="All" onChange={setStatus} options={options(state.dreams.map((dream) => dream.status))} />
-      <FilterSelect label="Kind" ariaLabel="Dream kind" value={classification} allLabel="All" onChange={setClassification} options={options(state.dreams.map((dream) => dream.classification))} />
-      <FilterSelect label="Area" ariaLabel="Dream area" value={area} allLabel="All" onChange={setArea} options={options(state.dreams.map((dream) => dream.area ?? ""))} />
-      <FilterSelect label="Confidence" ariaLabel="Dream confidence" value={confidence} allLabel="All" onChange={setConfidence} options={options(state.dreams.map((dream) => dream.confidence))} />
-    </FilterBar>
-    {loading && <p role="status" style={muted}>Loading Dream Journal…</p>}
-    {!loading && state.dreams.length === 0 && <EmptyState>No dreams captured yet. An explicitly invited dreaming session may produce zero or more grounded records.</EmptyState>}
-    {!loading && state.dreams.length > 0 && dreams.length === 0 && <EmptyState>No dreams match these filters.</EmptyState>}
-    <CardGrid minColumnWidth={320}>
-      {dreams.map((dream) => <button
+      headerActions={<RefreshButton onClick={refresh} loading={loading} />}
+      summary={<>
+        <div style={readOnlyNotice}>
+          <i className="material-symbols-outlined" aria-hidden="true">visibility</i>
+          <span>Read-only. Dreams never enter delivery automatically; promotion is always an explicit governed action.</span>
+        </div>
+      </>}
+      filterBar={<FilterBar ariaLabel="Dream filters">
+        <FilterSelect label="State" ariaLabel="Dream state" value={status} allLabel="All" onChange={setStatus} options={options(state.dreams.map((dream) => dream.status))} />
+        <FilterSelect label="Kind" ariaLabel="Dream kind" value={classification} allLabel="All" onChange={setClassification} options={options(state.dreams.map((dream) => dream.classification))} />
+        <FilterSelect label="Area" ariaLabel="Dream area" value={area} allLabel="All" onChange={setArea} options={options(state.dreams.map((dream) => dream.area ?? ""))} />
+        <FilterSelect label="Confidence" ariaLabel="Dream confidence" value={confidence} allLabel="All" onChange={setConfidence} options={options(state.dreams.map((dream) => dream.confidence))} />
+      </FilterBar>}
+      items={dreams}
+      totalCount={state.dreams.length}
+      loading={loading}
+      loadingMessage="Loading Dream Journal…"
+      error={error}
+      emptyAllMessage="No dreams captured yet. An explicitly invited dreaming session may produce zero or more grounded records."
+      emptyFilteredMessage="No dreams match these filters."
+      minColumnWidth={320}
+      renderItem={(dream) => <button
         key={dream.path}
         type="button"
         aria-label={`Open ${dream.id}: ${dream.title}`}
@@ -83,10 +87,10 @@ export function DreamsView() {
         </div>
         <p style={preview}>{plainPreview(dream.body)}</p>
         <span style={openHint}>Open full record</span>
-      </button>)}
-    </CardGrid>
+      </button>}
+    />
     {selected && <DreamDetail dream={selected} onClose={closeSelected} />}
-  </PageShell>;
+  </>;
 }
 
 function DreamDetail({ dream, onClose }: { dream: Dream; onClose: () => void }) {
@@ -129,7 +133,6 @@ function plainPreview(markdown: string) {
   return text.length > 180 ? `${text.slice(0, 177).trimEnd()}…` : text;
 }
 
-const muted = { color: "var(--text-tertiary)", fontSize: "var(--text-sm)" } as const;
 const readOnlyNotice = { display: "flex", gap: 8, alignItems: "center", margin: "0 0 16px", padding: "9px 11px", border: "1px solid var(--border-secondary)", borderRadius: 8, color: "var(--text-tertiary)", fontSize: "var(--text-sm)" } as const;
 const dreamCard = { width: "100%", minWidth: 0, border: "1px solid var(--border-primary)", borderLeft: "3px solid #7768d8", background: "var(--bg-secondary)", color: "var(--text-primary)", borderRadius: 11, padding: 15, cursor: "pointer", textAlign: "left" } as const;
 const cardHeading = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 } as const;
@@ -148,4 +151,3 @@ const metadataPanel = { marginTop: 16, padding: 13, border: "1px solid var(--bor
 const summary = { cursor: "pointer", color: "var(--text-secondary)", fontWeight: 650 } as const;
 const metadataGrid = { display: "grid", gridTemplateColumns: "minmax(120px, auto) minmax(0, 1fr)", gap: "8px 14px", margin: "14px 0", color: "var(--text-tertiary)", fontSize: "var(--text-sm)", overflowWrap: "anywhere" } as const;
 const secondaryButton = { border: "1px solid var(--border-secondary)", borderRadius: 7, background: "var(--bg-secondary)", color: "var(--text-secondary)", padding: "7px 11px", cursor: "pointer" } as const;
-const errorStyle = { padding: 10, margin: "10px 0", borderRadius: 7, background: "rgba(224,88,74,.10)", color: "#e9857b", fontSize: "var(--text-sm)" } as const;

@@ -12,8 +12,9 @@ export interface ArtifactListViewProps<T> {
   loading?: boolean;
   loadingMessage?: string;
   error?: string | null;
-  emptyAllMessage?: string;
-  emptyFilteredMessage?: string;
+  emptyAllMessage?: ReactNode;
+  emptyFilteredMessage?: ReactNode;
+  minColumnWidth?: number;
   renderItem?: (item: T, index: number) => ReactNode;
   children?: ReactNode;
 }
@@ -31,6 +32,7 @@ export function ArtifactListView<T>({
   error = null,
   emptyAllMessage = "No items recorded yet.",
   emptyFilteredMessage = "No items match these filters.",
+  minColumnWidth,
   renderItem,
   children,
 }: ArtifactListViewProps<T>) {
@@ -77,7 +79,11 @@ export function ArtifactListView<T>({
       {filterBar}
 
       {totalCount === 0 && !loading && (
-        <EmptyState>{emptyAllMessage}</EmptyState>
+        typeof emptyAllMessage === "string" ? (
+          <EmptyState>{emptyAllMessage}</EmptyState>
+        ) : (
+          emptyAllMessage
+        )
       )}
 
       {totalCount > 0 && items.length === 0 && !loading && (
@@ -86,7 +92,7 @@ export function ArtifactListView<T>({
 
       {items.length > 0 && (
         renderItem ? (
-          <CardGrid>
+          <CardGrid minColumnWidth={minColumnWidth}>
             {items.map((item, index) => renderItem(item, index))}
           </CardGrid>
         ) : (
