@@ -5,7 +5,7 @@ updated: 2026-07-07
 
 # Skills
 
-Skills are project-scoped operational procedures that manually started agents can read and follow during implementation or review.
+Skills are project-scoped operational procedures that manually started or operator-authorized dispatched agents can read and follow during implementation or review.
 
 They are Markdown knowledge artifacts, not executable tools. LMBrain does not run skill commands automatically.
 

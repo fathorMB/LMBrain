@@ -11,8 +11,8 @@ The reusable kit lives at [`kit/.lmbrain/`](../kit/.lmbrain/README.md). Copy tha
 ## Principles
 
 - Markdown files are the source of truth; a future app is only a view and editor over them.
-- The Project Lead analyzes, specifies, recommends, and reviews. It never implements or spawns agents.
-- Specialist agents are manually started by the user and write implementation evidence only.
+- The Project Lead analyzes, specifies, recommends, and reviews. It never implements or dispatches agents without explicit, bounded operator authorization.
+- Specialist agents are started manually by the user or through an operator-authorized Lead dispatch, and write implementation evidence only.
 - New agent profiles and MCPs are proposed before they are made active.
 - A Project Lead can write a validated session handoff for the next Project Lead session.
 

@@ -1016,4 +1016,37 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn bundled_kit_declares_harness_agnostic_dispatch_model_selection() {
+        let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap();
+        let kit_root = repository.join("kit/.lmbrain");
+        if !kit_root.exists() {
+            return;
+        }
+
+        let agent = std::fs::read_to_string(kit_root.join("AGENT.md")).unwrap();
+        let effort =
+            std::fs::read_to_string(kit_root.join("contract/effort_tags.md")).unwrap();
+        let operator = std::fs::read_to_string(kit_root.join("OPERATOR.md")).unwrap();
+
+        assert!(agent.contains("never omit the model and never inherit the Lead's model"));
+        assert!(agent.contains("mixed Sol, Terra, and Luna specs must use different models"));
+        assert!(effort.contains("`sol` | highest-capability | `opus`"));
+        assert!(effort.contains("`terra` | balanced | `sonnet`"));
+        assert!(effort.contains("`luna` | fast, economical | `haiku`"));
+        assert!(effort.contains("dispatch fails closed"));
+        assert!(operator.contains("Dispatch authorization is bounded to those specs"));
+
+        assert_eq!(
+            agent,
+            std::fs::read_to_string(repository.join(".lmbrain/AGENT.md")).unwrap()
+        );
+        assert_eq!(
+            effort,
+            std::fs::read_to_string(repository.join(".lmbrain/contract/effort_tags.md")).unwrap()
+        );
+    }
 }
