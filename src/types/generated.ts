@@ -37,7 +37,12 @@ export type KitFeedbackReport = { schema_version: string, path: string, updated:
 
 export type KitMigrationItem = { path: string, action: string, classification: string, description: string, };
 
-export type KitMigrationPreview = { from_version: string, to_version: string, digest: string, items: Array<KitMigrationItem>, can_migrate: boolean, blocker_reason: string | null, };
+export type KitMigrationPreview = { from_version: string, to_version: string, digest: string, items: Array<KitMigrationItem>, 
+/**
+ * Kit-owned paths whose current content differs from the content the
+ * installed kit shipped. Realigning them discards a local edit.
+ */
+locally_modified: Array<string>, can_migrate: boolean, blocker_reason: string | null, };
 
 export type KitMigrationResult = { previous_version: string, current_version: string, updated_items: Array<string>, backed_up_to: string, };
 

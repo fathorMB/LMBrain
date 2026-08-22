@@ -1,0 +1,31 @@
+{
+  "version": "5.0.0",
+  "files": {
+    "AGENT.md": "b1c932e459729d61664aeb709578aee5b7cc83f5a6c1745302c7e42ab3fc8845",
+    "CONTRACT.md": "d660fc2bba21cba0ff6e05e420fd0f2820733caaec98965f2e3b1d7a1468eeb2",
+    "QUALITY.md": "47b155ee08433411fa5635e0add8d7aeec239621655a54e7d7bb98245c79db02",
+    "UPGRADING.md": "a5484d8b588cee38d368e94aed2f8d8d0453364d86eb0e3cc9b617a45d877093",
+    "VERSION": "429cc44daee45e4f5575f3c10cd5d509b3bbf2f0225e0cc2af1665f80b1f3fbb",
+    "contract/branching.md": "beb6d8b8445db9261879d1ab9cdfb47775698813a7af0e1781afae3eff921c32",
+    "contract/debts.md": "263545cd23900969f920208af5eb10e0e7f05be4cb4cfe37e7d276bb0cf798e4",
+    "contract/dependencies.md": "060001997030866b54621b0dd0b4bdcedccca6f56609319bc1dcdd9284b9e623",
+    "contract/dreams.md": "e57de0fbff7a36c317650609e0ba9e4f595bab2d965e207a13eb73bc86b1bf05",
+    "contract/effort_tags.md": "bca74e97ed8fd27c340af911bbc6685b3495df5b43fb463b3d03fa9ccda10772",
+    "contract/feedback.md": "f39d587817711eefa155ff647ae2721bfd3f6800532559d8a3eb59c244494b82",
+    "contract/harness.md": "effe9d6c0b7647434b85c063465a1f0e99fefd041f2cd89f96606efdb68b421f",
+    "contract/verification.md": "a1aded7dc8cc8a16aa77cfc935762e2f0aea128a8c2dcf3595a13439aa5b27a2",
+    "templates/adr.md": "473b65058d41c282c5f122bff0cb907a9c013a947ba57e96eed2d9fe07265de5",
+    "templates/agent-profile.md": "e2796dbf3d0671cbbc196dd5767f34e8fc94d752aa80e3ae160d508fe963bf9b",
+    "templates/agent-proposal.md": "ce6984f3c1dc1a3c8f2f623aa45dff4d937f71d2d0c0ab4bcfbd6fd1a9a4cf74",
+    "templates/debt.md": "197569695599632f840b363fe9465f3a231714b927a20038c39084ef651c702e",
+    "templates/improvement-example.md": "4ad2cb9f1152bfd4d1b9b1b60f428bdc15804eb7686cd6ce3639f16bc48fdddb",
+    "templates/mcp-proposal.md": "a3531e13ee19c51cc6accf52dace123cf93574d75b1b9592aa93b4fd734c5e49",
+    "templates/mcp-spec.md": "443f2a9ed9b8d14b3de0db056ca2245c7c48b81732e6a0ad490afd4864a3b23c",
+    "templates/project-lead-bootstrap-prompt.md": "962fb2b4e234a042555d2f16d9e3ac50b7ebbadf247000a33434c58987b3acf5",
+    "templates/review.md": "1a2d3273de1e46bd0fabbf3836f9b34f55e4b66570528e1f2f001a7dfcc0c716",
+    "templates/session-handoff.md": "b1583b516c8b285f26a4d04ff506c61785c2387e821b688cd0a5bb7a2cb6cd83",
+    "templates/skill.md": "36b2df81f0a69905fb15abe67cf56281335e52b9026a9e11d92929f6402c74e6",
+    "templates/spec.md": "58c9f80bd296cade74984b01ffe486e6447ce943f5e6e516341f0e86480645bd",
+    "templates/verification.toml": "4fcf2e9712f40a7ed9a16ae680b37e709f349aaffb2b6fd8c02a8f0450fb1739"
+  }
+}

@@ -6,6 +6,10 @@ The `VERSION` file is the canonical, machine-readable kit version.
 
 ## 5.0.0 - 2026-08-21
 
+### Kit migration conflict policy
+
+- **Baseline-aware kit realignment.** `kit_migrate` records the digests the kit shipped in `.lmbrain/.kit-baseline.json`. The preview classifies every kit-owned file as `kit-owned`, `kit-owned-modified`, or `kit-owned-unverified`, lists confirmed local edits under `locally_modified`, and binds the classification into the preview digest so an edit made after previewing invalidates the plan instead of being silently overwritten.
+
 ### Added
 
 - **Layered kit contract and controlled migration.** The core governance contract is separated from optional capability modules. `kit_migration_preview` and `kit_migrate` provide a digest-bound, staged upgrade path for kit-owned files while retaining a recoverable backup.

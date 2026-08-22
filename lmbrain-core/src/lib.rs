@@ -90,8 +90,8 @@ pub use kit_feedback::{
     KitFeedbackResolutionMutation, KIT_FEEDBACK_REPORT_PATH, KIT_FEEDBACK_SCHEMA_VERSION,
 };
 pub use kit_migration::{
-    kit_migrate, kit_migration_preview, KitMigrationError, KitMigrationItem,
-    KitMigrationPreview, KitMigrationResult,
+    kit_migrate, kit_migration_preview, record_kit_baseline, KitMigrationError,
+    KitMigrationItem, KitMigrationPreview, KitMigrationResult,
 };
 pub use path::{read_artifact, ArtifactReadError};
 pub use review::{
