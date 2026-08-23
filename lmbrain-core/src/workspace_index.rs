@@ -44,7 +44,7 @@ impl WorkspaceIndex {
         }
 
         let mut files = Vec::new();
-        scan_dir(&lmbrain_dir, &mut files)?;
+        scan_dir(&lmbrain_dir, &lmbrain_dir, &mut files)?;
         files.sort_unstable();
 
         for file_path in files {
@@ -132,17 +132,39 @@ impl WorkspaceIndex {
     }
 }
 
-fn scan_dir(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), std::io::Error> {
+pub(crate) fn is_artifact_scaffolding_path(lmbrain_dir: &Path, path: &Path) -> bool {
+    let relative = path.strip_prefix(lmbrain_dir).unwrap_or(path);
+    relative.components().any(|component| {
+        component
+            .as_os_str()
+            .to_str()
+            .is_some_and(|value| value.eq_ignore_ascii_case("templates"))
+    }) || path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("README.md"))
+}
+
+pub(crate) fn is_artifact_markdown_path(lmbrain_dir: &Path, path: &Path) -> bool {
+    path.extension().and_then(|ext| ext.to_str()) == Some("md")
+        && !is_artifact_scaffolding_path(lmbrain_dir, path)
+}
+
+fn scan_dir(
+    lmbrain_dir: &Path,
+    dir: &Path,
+    files: &mut Vec<PathBuf>,
+) -> Result<(), std::io::Error> {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
                 let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if name == "templates" || name.starts_with('.') {
+                if name.starts_with('.') || is_artifact_scaffolding_path(lmbrain_dir, &path) {
                     continue;
                 }
-                scan_dir(&path, files)?;
-            } else if path.extension().and_then(|ext| ext.to_str()) == Some("md") {
+                scan_dir(lmbrain_dir, &path, files)?;
+            } else if is_artifact_markdown_path(lmbrain_dir, &path) {
                 files.push(path);
             }
         }
@@ -216,5 +238,34 @@ mod tests {
         let index = scan_workspace(dir.path()).unwrap();
         assert_eq!(index.by_kind(ArtifactKind::Spec).count(), 1);
         assert_eq!(index.get("SPEC-001").unwrap().status, "ready");
+    }
+
+    #[test]
+    fn artifact_discovery_excludes_scaffolding_but_keeps_malformed_candidates() {
+        let dir = tempdir().unwrap();
+        let lmbrain = dir.path().join(".lmbrain");
+        let open = lmbrain.join("findings/open");
+        let templates = lmbrain.join("templates");
+        fs::create_dir_all(&open).unwrap();
+        fs::create_dir_all(&templates).unwrap();
+        fs::write(lmbrain.join("findings/README.md"), "# Findings\n").unwrap();
+        fs::write(open.join("README.md"), "# Open\n").unwrap();
+        fs::write(templates.join("finding.md"), "id: FINDING-XXX\n").unwrap();
+        let candidate = open.join("FINDING-001-broken.md");
+        fs::write(&candidate, "broken\n").unwrap();
+
+        assert!(is_artifact_scaffolding_path(
+            &lmbrain,
+            &lmbrain.join("findings/README.md")
+        ));
+        assert!(is_artifact_scaffolding_path(
+            &lmbrain,
+            &templates.join("finding.md")
+        ));
+        assert!(is_artifact_markdown_path(&lmbrain, &candidate));
+        assert!(!is_artifact_markdown_path(
+            &lmbrain,
+            &open.join("README.md")
+        ));
     }
 }

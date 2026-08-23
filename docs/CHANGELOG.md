@@ -4,6 +4,14 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 5.0.1 - 2026-08-23
+
+### Fixed
+
+- **Debt migration source discovery.** `debt_migration_preview` now shares the artifact-discovery scaffolding exclusions, so kit-shipped `findings/**/README.md` files and templates are not parsed or listed as durable sources. Their path operations are reported separately as `scaffolding_items`; artifact-shaped files remain strictly validated, and identical kit-installed debt scaffolding destinations are reconciled only when their bytes match.
+- **Explicit review-reference classification.** Qualified `REVIEW-NNN-FINDING-MMM` tokens are consumed atomically as review-local references. Bare `FINDING-NNN` tokens resolve against the durable artifact index first and against the containing review's own findings section independently; genuine collisions and unresolved references still fail closed.
+- **Complete, auditable preflight.** Malformed sources and ambiguous or unresolved review references are reported together in deterministic order. The preview exposes every durable/review-local token mapping and binds that inventory into its digest before the confirmed atomic migration.
+
 ## 5.0.0 - 2026-08-21
 
 ### Kit migration conflict policy

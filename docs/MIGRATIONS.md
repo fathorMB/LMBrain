@@ -4,7 +4,19 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `5.0.0`.
+The current kit is `5.0.1`.
+
+### 5.0.1 (debt migration preflight correctness)
+
+Supported source versions are `4.1.0` workspaces whose 5.0.0 kit realignment has already completed, and unchanged 5.0.0 workspaces still awaiting the debt conversion. This patch changes no target artifact schema; it repairs the read-only preflight that gates the existing atomic migration.
+
+1. Update the desktop application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together. Keep the complete workspace committed or backed up.
+2. Call `debt_migration_preview`. Kit-shipped `findings/**/README.md` files and content under `templates/` are excluded from durable `items` and reported separately under `scaffolding_items`; artifact-shaped Markdown remains strictly parsed and malformed sources still block migration.
+3. Audit the preview's `reference_mappings`. Classification uses this precedence: a complete `REVIEW-NNN-FINDING-MMM` token is review-local and is consumed atomically; a bare `FINDING-NNN` resolving to an existing durable artifact is durable; a bare ID declared in that review's own findings section is review-local. A bare ID matching both sets, an unresolved ID, or a qualified token naming another review remains a blocking error.
+4. If preflight fails, resolve every item in the single aggregated report and preview again. The preview never edits review prose and never silently chooses a side for a collision.
+5. After explicit operator confirmation, call `debt_migrate` with `confirmed: true` and the exact preview digest. Digest binding, staged validation, atomic swap, and rollback behavior are unchanged.
+
+Rollback remains restoration of the pre-migration commit or backup. Do not run an older binary against a workspace already converted to `DEBT-*`/`RF-*`.
 
 ### 5.0.0 (layered contract and controlled kit migration)
 
