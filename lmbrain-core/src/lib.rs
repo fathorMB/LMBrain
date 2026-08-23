@@ -61,7 +61,7 @@ pub use debt::{
 };
 pub use debt_migration::{
     debt_migrate, debt_migration_preview, DebtMigrationError, DebtMigrationItem,
-    DebtMigrationPreview, DebtMigrationResult,
+    DebtMigrationPreview, DebtMigrationReference, DebtMigrationResult,
 };
 pub use diagnostics::{
     build_diagnostics, Diagnostic, DiagnosticFixability, DiagnosticSeverity,

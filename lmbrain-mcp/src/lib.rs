@@ -216,6 +216,18 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
+        assert_eq!(
+            preview.get("schema_version").and_then(Value::as_str),
+            Some("2")
+        );
+        assert!(preview
+            .get("reference_mappings")
+            .and_then(Value::as_array)
+            .is_some_and(|mappings| !mappings.is_empty()));
+        assert!(preview
+            .get("scaffolding_items")
+            .and_then(Value::as_array)
+            .is_some());
         let digest = preview.get("digest").and_then(Value::as_str).unwrap();
 
         let migrated = super::call(

@@ -1985,7 +1985,7 @@ checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
 
 [[package]]
 name = "lmbrain"
-version = "5.0.0"
+version = "5.0.1"
 dependencies = [
  "chrono",
  "glob",
@@ -2015,7 +2015,7 @@ dependencies = [
 
 [[package]]
 name = "lmbrain-core"
-version = "5.0.0"
+version = "5.0.1"
 dependencies = [
  "chrono",
  "fs2",
@@ -2034,7 +2034,7 @@ dependencies = [
 
 [[package]]
 name = "lmbrain-mcp"
-version = "5.0.0"
+version = "5.0.1"
 dependencies = [
  "lmbrain-core",
  "serde",
