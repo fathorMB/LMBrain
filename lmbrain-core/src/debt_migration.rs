@@ -80,6 +80,13 @@ struct MigrationPlan {
     writes: Vec<PlannedWrite>,
 }
 
+#[derive(Debug, Default)]
+struct ReviewMigrationAnalysis {
+    id_mappings: BTreeMap<String, BTreeMap<String, String>>,
+    references: Vec<DebtMigrationReference>,
+    issues: Vec<String>,
+}
+
 pub fn debt_migration_preview(root: &Path) -> Result<DebtMigrationPreview, DebtMigrationError> {
     Ok(build_plan(root)?.preview)
 }
@@ -189,9 +196,8 @@ fn build_plan(root: &Path) -> Result<MigrationPlan, DebtMigrationError> {
         .map(|value| value.trim().to_string());
     let files = regular_files(&brain)?;
     let (durable_ids, mut preflight_issues) = collect_durable_ids(root, &brain, &files);
-    let (review_id_mappings, mut reference_mappings, review_issues) =
-        collect_review_id_mappings(root, &brain, &files, &durable_ids);
-    preflight_issues.extend(review_issues);
+    let review_analysis = collect_review_id_mappings(root, &brain, &files, &durable_ids);
+    preflight_issues.extend(review_analysis.issues);
     if !preflight_issues.is_empty() {
         preflight_issues.sort();
         preflight_issues.dedup();
@@ -201,6 +207,8 @@ fn build_plan(root: &Path) -> Result<MigrationPlan, DebtMigrationError> {
             preflight_issues.join("\n- ")
         )));
     }
+    let review_id_mappings = review_analysis.id_mappings;
+    let mut reference_mappings = review_analysis.references;
     let mut writes = Vec::new();
 
     for path in files {
@@ -376,11 +384,7 @@ fn collect_review_id_mappings(
     brain: &Path,
     files: &[PathBuf],
     durable_ids: &BTreeMap<String, String>,
-) -> (
-    BTreeMap<String, BTreeMap<String, String>>,
-    Vec<DebtMigrationReference>,
-    Vec<String>,
-) {
+) -> ReviewMigrationAnalysis {
     let token = migration_token_regex();
     let qualified = Regex::new(r"^REVIEW-(\d+)-FINDING-(\d+)$").unwrap();
     let mut output = BTreeMap::new();
@@ -484,7 +488,11 @@ fn collect_review_id_mappings(
             output.insert(relative, mapping);
         }
     }
-    (output, references, issues)
+    ReviewMigrationAnalysis {
+        id_mappings: output,
+        references,
+        issues,
+    }
 }
 
 fn collect_durable_ids(
