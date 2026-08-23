@@ -4,7 +4,23 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `5.0.2`.
+The current kit is `5.0.3`.
+
+### 5.0.3 (cross-document qualified reference resolution)
+
+Supported source versions are unchanged from 5.0.2. This patch changes no target artifact schema and leaves the preview schema at `3`; it corrects where a qualified review-local reference is resolved, and it fixes the target form that reference is rewritten to.
+
+1. Update the desktop application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together. Keep the complete workspace committed or backed up.
+2. Call `debt_migration_preview`. The five ordered classification rules of 5.0.2 are unchanged except for rule 2, which now reads: a qualified `REVIEW-NNN-FINDING-MMM` token is resolved against `REVIEW-NNN`'s local symbol table regardless of which file it appears in, and is rewritten to `REVIEW-NNN-RF-MMM`. The qualifier is preserved so the reference keeps meaning the same finding after it leaves its home document.
+3. A qualified reference is never reduced to a bare `RF-MMM` outside its declaring review. Doing so would rebind it to the citing review's own finding of that number. Rule 5 still fails closed for a qualified reference naming a review that declares no findings in this workspace, and for a number the named review never declared.
+4. The rewrite covers managed frontmatter. Qualified references inside `review_events` `reason:` values are migrated with the rest of the document; only the identifier changes, so the surrounding YAML is byte-identical and still parses.
+5. Documents outside `.lmbrain/reviews/` also have their decidable qualified references carried into the `REVIEW-NNN-RF-MMM` form. An undecidable qualified reference there is left as written rather than raised as a new blocking issue.
+6. Audit the preview's `reference_mappings` before confirming. Every rewritten token is listed once per file with its source token, its target form, its `occurrences` count, and its classification, which is now one of `durable`, `review-local`, or `cross-review-local`.
+7. After explicit operator confirmation, call `debt_migrate` with `confirmed: true` and the exact preview digest. Digest binding, staged validation, atomic swap, and rollback behavior are unchanged.
+
+A review may now declare its own finding as either `RF-MMM` or the qualifier-preserving `REVIEW-NNN-RF-MMM`. Both are read as the same local finding. A durable debt promoted from a review finding still records the bare `RF-MMM` in `origin_ref`, scoped by its `origin_artifact`.
+
+Rollback remains restoration of the pre-migration commit or backup. Do not run an older binary against a workspace already converted to `DEBT-*`/`RF-*`.
 
 ### 5.0.2 (debt migration classification correctness)
 

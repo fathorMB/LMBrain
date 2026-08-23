@@ -1585,6 +1585,24 @@ fn reviews_parse_only_rf_identifiers_from_the_canonical_review_findings_section(
 }
 
 #[test]
+fn reviews_accept_the_qualifier_preserving_declaration_form() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_test_kit(dir.path());
+    fs::create_dir_all(dir.path().join(".lmbrain/reviews/accepted")).unwrap();
+    fs::write(
+        dir.path().join(".lmbrain/reviews/accepted/REVIEW-009.md"),
+        "---\nid: REVIEW-009\ntitle: Review\nstatus: accepted\ncreated: 2026-08-13\nupdated: 2026-08-13\ntags: []\nlinks: []\n---\n## Review findings\n- REVIEW-009-RF-004 | category=usability | severity=medium | remediation=Fix it\n- REVIEW-009-DENSITY not a numbered local id\n",
+    )
+    .unwrap();
+
+    let reviews = contract::build_reviews(dir.path()).unwrap();
+    assert_eq!(reviews.len(), 1);
+    assert_eq!(reviews[0].findings.len(), 1);
+    assert_eq!(reviews[0].findings[0].id, "RF-004");
+    assert_eq!(reviews[0].findings[0].severity, "medium");
+}
+
+#[test]
 fn debts_are_visible_in_statistics_but_generic_status_mutation_is_rejected() {
     let dir = tempfile::tempdir().unwrap();
     setup_test_kit(dir.path());
