@@ -4,6 +4,19 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 5.0.3 - 2026-08-23
+
+### Fixed
+
+- **A qualified reference resolves against the review that declares it.** `REVIEW-NNN-FINDING-MMM` names its own scope, so it is now resolved against `REVIEW-NNN`'s local symbol table no matter which document cites it. Previously any such reference outside its home review was refused solely because the citing file was a different review, which turned the least ambiguous reference form in the corpus into a blocker.
+- **Qualified references keep their qualifier.** The target form is `REVIEW-NNN-RF-MMM`, in the declaring review and in every citing document alike. A cross-review citation is never emitted as a bare `RF-MMM`: that would rebind the reference to the citing review's own finding of that number and corrupt the record, which is precisely what the old guard existed to prevent.
+- **Managed lifecycle frontmatter is rewritten too.** Qualified references inside `review_events` `reason:` values are migrated with the rest of the document. Only the identifier changes, so quoted strings carrying punctuation, escaped quotes, and embedded newlines survive byte-identically around the rewrite and the frontmatter still parses. An operator cannot lawfully hand-edit immutable managed fields, so the governed migration is the only path for these.
+- **Qualified references outside reviews are carried across.** Specs, handoffs, reports, and other Markdown no longer keep a stale `REVIEW-NNN-FINDING-MMM` token after migration when the corpus can decide it. An undecidable qualified reference in a non-review document is left untouched rather than raised as a new blocker, so no previously migratable workspace becomes blocked.
+- **`origin_ref` stays in the bare contract form.** A durable debt promoted from a qualified review finding records `origin_ref: RF-MMM`; its sibling `origin_artifact` already carries the review, and the debt contract requires the bare form there.
+- **The desktop review reader accepts the qualifier-preserving declaration.** `## Review findings` entries declared as `REVIEW-NNN-RF-MMM` are surfaced under their bare local id.
+
+Failure is now reserved for a qualified reference naming a review that declares nothing in the workspace, or a number that the named review never declared. Everything 5.0.1 and 5.0.2 fixed is unchanged: scaffolding exclusion, one aggregated preflight report, the five ordered classification rules, local-before-durable resolution, and the same-number-both-forms collision guard. `debt_migrate` remains digest-bound, operator-confirmed, and atomic, and the preview schema stays at version `3` with a new `cross-review-local` classification on the mapping rows.
+
 ## 5.0.2 - 2026-08-23
 
 ### Fixed

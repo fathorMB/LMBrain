@@ -84,6 +84,10 @@ struct MigrationPlan {
 #[derive(Debug, Default)]
 struct ReviewMigrationAnalysis {
     id_mappings: BTreeMap<String, BTreeMap<String, String>>,
+    /// Corpus-wide symbol table: every review id mapped to the finding numbers that review
+    /// declares in qualified form. A qualified reference names its own scope, so it stays
+    /// decidable from this table no matter which document it appears in.
+    qualified_declarations: BTreeMap<String, BTreeSet<u64>>,
     references: Vec<DebtMigrationReference>,
     issues: Vec<String>,
 }
@@ -209,6 +213,7 @@ fn build_plan(root: &Path) -> Result<MigrationPlan, DebtMigrationError> {
         )));
     }
     let review_id_mappings = review_analysis.id_mappings;
+    let qualified_declarations = review_analysis.qualified_declarations;
     let mut reference_mappings = review_analysis.references;
     let mut writes = Vec::new();
 
@@ -277,9 +282,31 @@ fn build_plan(root: &Path) -> Result<MigrationPlan, DebtMigrationError> {
                                     "unresolved review-local origin {review}/{local} in {relative_text}"
                                 ))
                             })?;
-                        content = replace_token(&content, &local, replacement);
+                        let replacement = bare_review_local_identifier(replacement);
+                        content = replace_token(&content, &local, &replacement);
                         changes.push("review-origin RF reference".into());
                     }
+                }
+            }
+            // Review artifacts already had every qualified token classified and rewritten above.
+            // Everywhere else the qualifier is still the least ambiguous form in the corpus, so a
+            // decidable qualified reference is carried into its `REVIEW-NNN-RF-MMM` target form
+            // instead of being left behind as a stale `FINDING-*` token.
+            if !relative_text.starts_with(".lmbrain/reviews/") {
+                let (qualified_content, qualified_references) =
+                    replace_qualified_review_references(&content, &qualified_declarations);
+                if qualified_content != content {
+                    changes.push("qualified review-local references".into());
+                    for (token, replacement, occurrences) in qualified_references {
+                        reference_mappings.push(DebtMigrationReference {
+                            path: relative_text.clone(),
+                            token,
+                            replacement,
+                            classification: "cross-review-local".into(),
+                            occurrences,
+                        });
+                    }
+                    content = qualified_content;
                 }
             }
             let (durable_content, durable_references) =
@@ -393,10 +420,16 @@ fn collect_review_id_mappings(
     durable_ids: &BTreeMap<String, String>,
 ) -> ReviewMigrationAnalysis {
     let token = migration_token_regex();
-    let qualified = Regex::new(r"^REVIEW-(\d+)-FINDING-(\d+)$").unwrap();
+    let qualified = qualified_token_regex();
     let mut output = BTreeMap::new();
     let mut references = Vec::new();
     let mut issues = Vec::new();
+
+    // Pass one builds the corpus-wide symbol table. A qualified reference carries its own scope,
+    // so it has to be resolvable against the review that declares it rather than against whatever
+    // document happens to cite it.
+    let mut reviews: Vec<(String, String, String, ReviewLocalDeclarations)> = Vec::new();
+    let mut qualified_declarations: BTreeMap<String, BTreeSet<u64>> = BTreeMap::new();
     for path in files {
         let Ok(stripped) = path.strip_prefix(root) else {
             issues.push(format!("unsafe review path: {}", path.display()));
@@ -425,27 +458,52 @@ fn collect_review_id_mappings(
             continue;
         };
         let declarations = review_local_declarations(&content, &document.body, &review_id);
+        qualified_declarations
+            .entry(review_id.clone())
+            .or_default()
+            .extend(declarations.qualified_numbers.iter().copied());
+        reviews.push((relative, content, review_id, declarations));
+    }
+
+    for (relative, content, review_id, declarations) in &reviews {
+        let (relative, content, review_id) =
+            (relative.clone(), content.as_str(), review_id.clone());
         let mut classified = Vec::new();
 
-        for value in token.find_iter(&content) {
+        for value in token.find_iter(content) {
             let legacy = value.as_str().to_string();
             if let Some(captures) = qualified.captures(&legacy) {
                 let qualifier = format!("REVIEW-{}", &captures[1]);
-                if qualifier != review_id {
+                let Some(number) = token_number(&legacy) else {
                     issues.push(format!(
-                        "qualified review-local reference {legacy} in {relative} belongs to {qualifier}, not {review_id}"
+                        "unreadable review-local finding number in {legacy} in {relative}"
                     ));
                     continue;
-                }
-                // Rule 2: a qualified token is this review's own finding. It was consumed as one
-                // token, so its numeric tail is never re-matched as a bare reference.
-                match token_number(&legacy) {
-                    Some(number) => {
-                        classified.push((legacy, review_local_identifier(number), "review-local"))
-                    }
+                };
+                // Rule 2: a qualified token names its own scope, so it resolves against the
+                // review that declares it whether or not that is the citing review. The qualifier
+                // is preserved in the target form so the reference keeps surviving the move out
+                // of its home document; emitting a bare `RF-MMM` here would silently rebind the
+                // reference to the citing review's own finding of that number.
+                match qualified_declarations.get(&qualifier) {
                     None => issues.push(format!(
-                        "unreadable review-local finding number in {legacy} in {relative}"
+                        "qualified review-local reference {legacy} in {relative} names {qualifier}, which declares no findings in this workspace"
                     )),
+                    Some(numbers) if !numbers.contains(&number) => issues.push(format!(
+                        "qualified review-local reference {legacy} in {relative} names a finding {qualifier} never declares"
+                    )),
+                    Some(_) => {
+                        let classification = if qualifier == review_id {
+                            "review-local"
+                        } else {
+                            "cross-review-local"
+                        };
+                        classified.push((
+                            legacy,
+                            qualified_review_local_identifier(&qualifier, number),
+                            classification,
+                        ))
+                    }
                 }
                 continue;
             }
@@ -487,7 +545,7 @@ fn collect_review_id_mappings(
         let mut mapping = BTreeMap::new();
         let mut occurrences: BTreeMap<(String, String, &'static str), usize> = BTreeMap::new();
         for (legacy, replacement, classification) in classified {
-            if classification == "review-local" {
+            if classification != "durable" {
                 mapping.insert(legacy.clone(), replacement.clone());
             }
             *occurrences
@@ -509,6 +567,7 @@ fn collect_review_id_mappings(
     }
     ReviewMigrationAnalysis {
         id_mappings: output,
+        qualified_declarations,
         references,
         issues,
     }
@@ -571,6 +630,10 @@ fn migration_token_regex() -> Regex {
     Regex::new(r"\bREVIEW-\d+-FINDING-\d+\b|\b(?:FINDING|F)-\d+\b").unwrap()
 }
 
+fn qualified_token_regex() -> Regex {
+    Regex::new(r"^REVIEW-(\d+)-FINDING-(\d+)$").unwrap()
+}
+
 /// The finding numbers a single review declares, split by declaration form.
 ///
 /// `qualified_numbers` is the review's local symbol table: bare references to those numbers
@@ -590,7 +653,7 @@ fn review_local_declarations(
     review_id: &str,
 ) -> ReviewLocalDeclarations {
     let token = migration_token_regex();
-    let qualified = Regex::new(r"^REVIEW-(\d+)-FINDING-(\d+)$").unwrap();
+    let qualified = qualified_token_regex();
     let mut output = ReviewLocalDeclarations::default();
 
     for value in token.find_iter(content) {
@@ -639,6 +702,71 @@ fn token_number(token: &str) -> Option<u64> {
 
 fn review_local_identifier(number: u64) -> String {
     format!("RF-{number:03}")
+}
+
+/// The qualifier-preserving target form for a reference that names its own review scope.
+///
+/// A qualified reference stays qualified through the migration so that it keeps meaning the same
+/// finding wherever it is cited. Reducing it to a bare `RF-MMM` outside its home review would
+/// rebind it to the citing review's own finding of that number, which is the corruption the
+/// preflight guard exists to prevent.
+fn qualified_review_local_identifier(review_id: &str, number: u64) -> String {
+    format!("{review_id}-{}", review_local_identifier(number))
+}
+
+/// Strip the review qualifier from a review-local identifier.
+///
+/// `origin_ref` on a durable debt is already scoped by its sibling `origin_artifact`, and the debt
+/// contract requires the bare `RF-*` form there, so a qualified replacement is normalised back.
+fn bare_review_local_identifier(value: &str) -> String {
+    Regex::new(r"^REVIEW-\d+-(RF-\d+)$")
+        .unwrap()
+        .captures(value)
+        .map(|captures| captures[1].to_string())
+        .unwrap_or_else(|| value.to_string())
+}
+
+/// Rewrite qualified review-local references that the corpus can decide, leaving the rest alone.
+///
+/// This runs over documents that are not themselves reviews. Those files are not subject to the
+/// review preflight, so an undecidable qualified reference there is left untouched rather than
+/// turned into a new blocking issue.
+fn replace_qualified_review_references(
+    source: &str,
+    declarations: &BTreeMap<String, BTreeSet<u64>>,
+) -> (String, Vec<DurableReplacement>) {
+    let qualified = qualified_token_regex();
+    let mut references: BTreeMap<(String, String), usize> = BTreeMap::new();
+    let replaced = migration_token_regex()
+        .replace_all(source, |captures: &regex::Captures<'_>| {
+            let legacy = &captures[0];
+            let Some(parts) = qualified.captures(legacy) else {
+                return legacy.to_string();
+            };
+            let review_id = format!("REVIEW-{}", &parts[1]);
+            let Some(number) = token_number(legacy) else {
+                return legacy.to_string();
+            };
+            if !declarations
+                .get(&review_id)
+                .is_some_and(|numbers| numbers.contains(&number))
+            {
+                return legacy.to_string();
+            }
+            let replacement = qualified_review_local_identifier(&review_id, number);
+            *references
+                .entry((legacy.to_string(), replacement.clone()))
+                .or_default() += 1;
+            replacement
+        })
+        .into_owned();
+    (
+        replaced,
+        references
+            .into_iter()
+            .map(|((legacy, replacement), occurrences)| (legacy, replacement, occurrences))
+            .collect(),
+    )
 }
 
 fn aggregate_references(references: Vec<DebtMigrationReference>) -> Vec<DebtMigrationReference> {
@@ -1077,11 +1205,11 @@ mod tests {
 
         let preview = debt_migration_preview(directory.path()).unwrap();
         let mappings = &preview.review_id_mappings[".lmbrain/reviews/accepted/REVIEW-007.md"];
-        assert_eq!(mappings["REVIEW-007-FINDING-003"], "RF-003");
+        assert_eq!(mappings["REVIEW-007-FINDING-003"], "REVIEW-007-RF-003");
         assert!(!mappings.contains_key("FINDING-003"));
         assert!(preview.reference_mappings.iter().any(|reference| {
             reference.token == "REVIEW-007-FINDING-003"
-                && reference.replacement == "RF-003"
+                && reference.replacement == "REVIEW-007-RF-003"
                 && reference.classification == "review-local"
                 && reference.occurrences == 2
         }));
@@ -1109,9 +1237,9 @@ mod tests {
 
         let preview = debt_migration_preview(directory.path()).unwrap();
         let mappings = &preview.review_id_mappings[".lmbrain/reviews/accepted/REVIEW-002.md"];
-        assert_eq!(mappings["REVIEW-002-FINDING-001"], "RF-001");
+        assert_eq!(mappings["REVIEW-002-FINDING-001"], "REVIEW-002-RF-001");
         assert_eq!(mappings["FINDING-001"], "RF-001");
-        assert_eq!(mappings["REVIEW-002-FINDING-002"], "RF-002");
+        assert_eq!(mappings["REVIEW-002-FINDING-002"], "REVIEW-002-RF-002");
         assert_eq!(mappings["FINDING-002"], "RF-002");
         assert!(preview
             .reference_mappings
@@ -1188,7 +1316,7 @@ mod tests {
 
         let preview = debt_migration_preview(directory.path()).unwrap();
         let mappings = &preview.review_id_mappings[".lmbrain/reviews/accepted/REVIEW-030.md"];
-        assert_eq!(mappings["REVIEW-030-FINDING-003"], "RF-003");
+        assert_eq!(mappings["REVIEW-030-FINDING-003"], "REVIEW-030-RF-003");
         assert_eq!(mappings["FINDING-003"], "RF-003");
         assert!(preview
             .reference_mappings
@@ -1230,6 +1358,288 @@ mod tests {
         assert!(
             error.contains("unresolved durable/local finding reference FINDING-099"),
             "unexpected error: {error}"
+        );
+    }
+
+    fn write_review_with_events(root: &Path, id: &str, events: &str, body: &str) {
+        let directory = root.join(".lmbrain/reviews/accepted");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(
+            directory.join(format!("{id}.md")),
+            format!(
+                "---\nid: {id}\ntitle: Review\nstatus: accepted\ncreated: 2026-08-13\nupdated: 2026-08-13\ntags: []\nlinks: []\nreview_events:\n{events}---\n{body}\n"
+            ),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn qualified_cross_review_references_resolve_against_the_declaring_review() {
+        let directory = tempdir().unwrap();
+        legacy_review_workspace(directory.path());
+        write_review(
+            directory.path(),
+            "REVIEW-009",
+            "## Findings\n\n- REVIEW-009-FINDING-003 | category=usability | severity=medium\n",
+        );
+        write_review(
+            directory.path(),
+            "REVIEW-010",
+            "## Findings\n\nNone.\n\n## Context\nREVIEW-009-FINDING-003, carried into this spec, is closed.",
+        );
+
+        let preview = debt_migration_preview(directory.path()).unwrap();
+        assert_eq!(
+            preview.review_id_mappings[".lmbrain/reviews/accepted/REVIEW-010.md"]
+                ["REVIEW-009-FINDING-003"],
+            "REVIEW-009-RF-003"
+        );
+        let reference = preview
+            .reference_mappings
+            .iter()
+            .find(|reference| reference.path.ends_with("REVIEW-010.md"))
+            .expect("citing review is inventoried");
+        assert_eq!(reference.token, "REVIEW-009-FINDING-003");
+        assert_eq!(reference.replacement, "REVIEW-009-RF-003");
+        assert_eq!(reference.classification, "cross-review-local");
+
+        debt_migrate(directory.path(), &preview.digest, true).unwrap();
+        let citing = fs::read_to_string(
+            directory
+                .path()
+                .join(".lmbrain/reviews/accepted/REVIEW-010.md"),
+        )
+        .unwrap();
+        assert!(citing.contains("REVIEW-009-RF-003, carried into this spec, is closed."));
+        assert!(!citing.contains("FINDING"));
+    }
+
+    #[test]
+    fn cross_review_citations_never_collapse_to_a_bare_local_identifier() {
+        let directory = tempdir().unwrap();
+        legacy_review_workspace(directory.path());
+        write_review(
+            directory.path(),
+            "REVIEW-009",
+            "## Findings\n\n- REVIEW-009-FINDING-004 | category=usability\n",
+        );
+        // REVIEW-010 declares a finding 004 of its own. A bare `RF-004` in this file would rebind
+        // the citation to that finding, which is exactly the corruption the guard prevents.
+        write_review(
+            directory.path(),
+            "REVIEW-010",
+            "## Findings\n\n- REVIEW-010-FINDING-004 | category=process\n\n## Context\nSee REVIEW-009-FINDING-004.",
+        );
+
+        let preview = debt_migration_preview(directory.path()).unwrap();
+        let cross = preview
+            .reference_mappings
+            .iter()
+            .filter(|reference| reference.token == "REVIEW-009-FINDING-004")
+            .collect::<Vec<_>>();
+        assert!(!cross.is_empty());
+        for reference in cross {
+            assert_eq!(
+                reference.replacement, "REVIEW-009-RF-004",
+                "cross-review citation must keep its qualifier"
+            );
+            assert!(!reference.replacement.starts_with("RF-"));
+        }
+
+        debt_migrate(directory.path(), &preview.digest, true).unwrap();
+        let citing = fs::read_to_string(
+            directory
+                .path()
+                .join(".lmbrain/reviews/accepted/REVIEW-010.md"),
+        )
+        .unwrap();
+        assert!(citing.contains("- REVIEW-010-RF-004 | category=process"));
+        assert!(citing.contains("See REVIEW-009-RF-004."));
+    }
+
+    #[test]
+    fn qualified_references_inside_managed_frontmatter_are_rewritten_without_corrupting_yaml() {
+        let directory = tempdir().unwrap();
+        legacy_review_workspace(directory.path());
+        write_review(
+            directory.path(),
+            "REVIEW-009",
+            "## Findings\n\n- REVIEW-009-FINDING-004 | category=usability\n",
+        );
+        let events = concat!(
+            "  - event: accepted\n",
+            "    at: 2026-08-14T09:00:00Z\n",
+            "    actor: project-lead\n",
+            "    reason: \"la regola flex che chiude REVIEW-009-FINDING-004, viewport a 1920x1080\"\n",
+            "  - event: superseded\n",
+            "    at: 2026-08-15T09:00:00Z\n",
+            "    actor: project-lead\n",
+            "    reason: \"the dead region is REVIEW-009-FINDING-004's shape rotated.</reason>\\n<parameter name=\\\"evidence_refs\\\">[\\\"SPEC-029\\\"]\"\n",
+        );
+        write_review_with_events(
+            directory.path(),
+            "REVIEW-012",
+            events,
+            "## Findings\n\nNone.\n\n## Context\nREVIEW-009-FINDING-004 cannot reopen through that path.",
+        );
+
+        let preview = debt_migration_preview(directory.path()).unwrap();
+        let reference = preview
+            .reference_mappings
+            .iter()
+            .find(|reference| reference.path.ends_with("REVIEW-012.md"))
+            .unwrap();
+        assert_eq!(reference.token, "REVIEW-009-FINDING-004");
+        assert_eq!(reference.replacement, "REVIEW-009-RF-004");
+        assert_eq!(reference.classification, "cross-review-local");
+        assert_eq!(reference.occurrences, 3);
+
+        let before = fs::read_to_string(
+            directory
+                .path()
+                .join(".lmbrain/reviews/accepted/REVIEW-012.md"),
+        )
+        .unwrap();
+        let before_document = Document::parse(&before).unwrap();
+        debt_migrate(directory.path(), &preview.digest, true).unwrap();
+        let after = fs::read_to_string(
+            directory
+                .path()
+                .join(".lmbrain/reviews/accepted/REVIEW-012.md"),
+        )
+        .unwrap();
+
+        // The rewrite is the identifier and nothing else. Normalising the token on the "before"
+        // side and the canonical heading on the "after" side leaves two byte-identical files.
+        assert_ne!(before, after);
+        assert_eq!(
+            before
+                .replace("REVIEW-009-FINDING-004", "REVIEW-009-RF-004")
+                .replace("## Findings", "## Review findings"),
+            after
+        );
+        assert!(!after.contains("FINDING-004"));
+
+        let document = Document::parse(&after).expect("frontmatter still parses");
+        assert_eq!(document.value("id").as_deref(), Some("REVIEW-012"));
+        let events_before = before_document.string_array("review_events");
+        let events_after = document.string_array("review_events");
+        assert_eq!(events_before.len(), events_after.len());
+    }
+
+    #[test]
+    fn qualified_reference_to_an_unknown_review_fails_closed() {
+        let directory = tempdir().unwrap();
+        legacy_review_workspace(directory.path());
+        write_review(
+            directory.path(),
+            "REVIEW-010",
+            "## Findings\n\nNone.\n\n## Context\nSee REVIEW-999-FINDING-001.",
+        );
+
+        let error = debt_migration_preview(directory.path())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains(
+                "qualified review-local reference REVIEW-999-FINDING-001 in .lmbrain/reviews/accepted/REVIEW-010.md names REVIEW-999, which declares no findings in this workspace"
+            ),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn qualified_reference_to_an_undeclared_number_fails_closed() {
+        let directory = tempdir().unwrap();
+        legacy_review_workspace(directory.path());
+        write_review(
+            directory.path(),
+            "REVIEW-009",
+            "## Findings\n\n- REVIEW-009-FINDING-001 | category=usability\n- REVIEW-009-FINDING-008 | category=process\n",
+        );
+        write_review(
+            directory.path(),
+            "REVIEW-010",
+            "## Findings\n\nNone.\n\n## Context\nSee REVIEW-009-FINDING-099.",
+        );
+
+        let error = debt_migration_preview(directory.path())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains(
+                "qualified review-local reference REVIEW-009-FINDING-099 in .lmbrain/reviews/accepted/REVIEW-010.md names a finding REVIEW-009 never declares"
+            ),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn qualified_references_outside_reviews_follow_the_corpus_without_new_blockers() {
+        let directory = tempdir().unwrap();
+        legacy_review_workspace(directory.path());
+        write_review(
+            directory.path(),
+            "REVIEW-009",
+            "## Findings\n\n- REVIEW-009-FINDING-004 | category=usability\n",
+        );
+        let specs = directory.path().join(".lmbrain/specs/done");
+        fs::create_dir_all(&specs).unwrap();
+        fs::write(
+            specs.join("SPEC-012-sample.md"),
+            "---\nid: SPEC-012\ntitle: Sample\nstatus: done\n---\n## Scope\nREVIEW-009-FINDING-004 remains open. REVIEW-404-FINDING-001 is not decidable here.\n",
+        )
+        .unwrap();
+
+        let preview = debt_migration_preview(directory.path()).unwrap();
+        assert!(preview.reference_mappings.iter().any(|reference| {
+            reference.path.ends_with("SPEC-012-sample.md")
+                && reference.token == "REVIEW-009-FINDING-004"
+                && reference.replacement == "REVIEW-009-RF-004"
+                && reference.classification == "cross-review-local"
+        }));
+
+        debt_migrate(directory.path(), &preview.digest, true).unwrap();
+        let spec = fs::read_to_string(
+            directory
+                .path()
+                .join(".lmbrain/specs/done/SPEC-012-sample.md"),
+        )
+        .unwrap();
+        assert!(spec.contains("REVIEW-009-RF-004 remains open."));
+        // An undecidable qualified reference outside a review is left alone rather than turned
+        // into a new blocking issue.
+        assert!(spec.contains("REVIEW-404-FINDING-001 is not decidable here."));
+    }
+
+    #[test]
+    fn review_origin_refs_stay_in_the_bare_contract_form() {
+        let directory = tempdir().unwrap();
+        legacy_review_workspace(directory.path());
+        write_review(
+            directory.path(),
+            "REVIEW-009",
+            "## Findings\n\n- REVIEW-009-FINDING-004 | category=usability\n",
+        );
+        let findings = directory.path().join(".lmbrain/findings/open");
+        fs::create_dir_all(&findings).unwrap();
+        fs::write(
+            findings.join("FINDING-001-sample.md"),
+            "---\nid: FINDING-001\ntitle: Sample\nstatus: open\ncategory: correctness\nseverity: medium\ncreated: 2026-08-13\nupdated: 2026-08-13\norigin_artifact: REVIEW-009\norigin_ref: REVIEW-009-FINDING-004\nrelated_specs: []\nrelated_reviews: [REVIEW-009]\nrelated_decisions: []\ntarget_specs: []\nblocked_by: []\nresolution_refs: []\nfinding_events: []\n---\n## Statement\nSample\n",
+        )
+        .unwrap();
+
+        let preview = debt_migration_preview(directory.path()).unwrap();
+        debt_migrate(directory.path(), &preview.digest, true).unwrap();
+        let debt = fs::read_to_string(
+            directory
+                .path()
+                .join(".lmbrain/debts/open/DEBT-001-sample.md"),
+        )
+        .unwrap();
+        assert!(
+            debt.contains("origin_ref: RF-004"),
+            "unexpected debt: {debt}"
         );
     }
 

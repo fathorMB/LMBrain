@@ -142,6 +142,17 @@ pub fn build_reviews(root: &Path) -> Result<Vec<Review>, AppError> {
     )
 }
 
+/// Drop a leading `REVIEW-NNN-` qualifier from a review finding identifier.
+fn strip_review_qualifier(id: &str) -> &str {
+    id.strip_prefix("REVIEW-")
+        .and_then(|rest| rest.split_once('-'))
+        .filter(|(number, _)| {
+            !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit())
+        })
+        .map(|(_, rest)| rest)
+        .unwrap_or(id)
+}
+
 fn parse_review_findings(body: &str) -> Vec<ReviewFinding> {
     let mut in_findings = false;
     let mut findings = Vec::new();
@@ -164,6 +175,10 @@ fn parse_review_findings(body: &str) -> Vec<ReviewFinding> {
         let Some((id, rest)) = candidate.split_once(char::is_whitespace) else {
             continue;
         };
+        // A review may declare its own finding in the qualifier-preserving `REVIEW-NNN-RF-MMM`
+        // form. The qualifier is redundant inside the declaring review, so it is stripped and the
+        // finding is surfaced under its bare local id.
+        let id = strip_review_qualifier(id);
         if !id.starts_with("RF-") {
             continue;
         }
