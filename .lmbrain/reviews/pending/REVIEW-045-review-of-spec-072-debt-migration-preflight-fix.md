@@ -39,6 +39,8 @@ The shared discovery predicates eliminate the previous drift between ordinary in
 
 Independent reruns passed: 253 `lmbrain-core` tests, 33 `lmbrain-mcp` tests, 9 focused debt-migration tests, Rust formatting checks, ESLint, version alignment, `git diff --check`, and `lmbrain_validate`.
 
+The first PR run exposed one Clippy `type_complexity` finding in an internal three-part return tuple on both operating systems. Remediation replaced the tuple with a named `ReviewMigrationAnalysis` structure; core and MCP Clippy now pass with `--all-targets -- -D warnings`, and all 9 migration regressions still pass.
+
 ## Production quality and documentation compliance
 
 The change is production-scoped, dependency-free, documented in `docs/MIGRATIONS.md` and `docs/CHANGELOG.md`, and version-aligned at 5.0.1 across application, crates, kit, and lockfile.

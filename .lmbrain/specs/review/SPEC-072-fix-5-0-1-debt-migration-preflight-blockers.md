@@ -146,6 +146,7 @@ The rewrite surface includes historical Markdown and source comments, so false c
 - Full `lmbrain-mcp` suite: 33 tests passed (30 library, 3 protocol), plus doc tests.
 - Targeted migration suite: 9 tests passed, covering scaffolding, durable wikilinks, qualified-local precedence, collisions, complete issue aggregation, confirmation/digest binding, and atomic destination handling.
 - Rust formatting check, ESLint, version alignment, `git diff --check`, and `lmbrain_validate` passed.
+- CI remediation reran Clippy for all core/MCP targets with `-D warnings`; the original `type_complexity` failure is resolved by a named internal analysis structure rather than a lint suppression.
 - Manual diff audit confirmed that confirmation, digest comparison, staging validation, backup/swap, and rollback paths were not weakened.
 
 ### Verification transcript
@@ -166,6 +167,9 @@ $ cargo test -p lmbrain-core debt_migration -- --nocapture
 test result: ok. 9 passed; 0 failed
 
 $ rustfmt --check --edition 2021 lmbrain-core/src/debt_migration.rs lmbrain-core/src/workspace_index.rs
+passed
+
+$ cargo clippy -p lmbrain-core -p lmbrain-mcp --all-targets -- -D warnings
 passed
 
 $ pnpm lint
