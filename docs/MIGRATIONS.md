@@ -4,7 +4,25 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `5.0.1`.
+The current kit is `5.0.2`.
+
+### 5.0.2 (debt migration classification correctness)
+
+Supported source versions are unchanged from 5.0.1. This patch changes no target artifact schema; it corrects how the read-only preflight classifies legacy `FINDING-*` tokens, and it raises the preview schema version to `3`.
+
+1. Update the desktop application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together. Keep the complete workspace committed or backed up.
+2. Call `debt_migration_preview`. Each review artifact is classified independently, in this order:
+   1. The review's local symbol table is built from its qualified `REVIEW-NNN-FINDING-MMM` declarations; each declares `RF-MMM` scoped to that review.
+   2. A qualified `REVIEW-NNN-FINDING-MMM` token is review-local and maps to that review's `RF-MMM`. It is consumed as a single token, so its numeric tail is never re-matched as a bare reference.
+   3. A bare `FINDING-MMM` whose number is in that review's local symbol table is review-local and maps to `RF-MMM`.
+   4. A bare `FINDING-NNN` that resolves to an existing durable artifact is durable and maps to `DEBT-NNN`. This holds for declarations, prose references, and `[[wikilinks]]` alike.
+   5. Anything else fails closed: a reference that resolves to nothing, a qualified token naming another review, or a number declared both qualified and bare in the same review while a durable artifact of that number exists.
+3. Step 3 is deliberately attempted before step 4. When a workspace's review-local and durable number ranges overlap, the declaring review wins, so a review-local reference is never silently bound to an unrelated durable artifact.
+4. Audit the preview's `reference_mappings` before confirming. Every rewritten token is listed once per file with its replacement, its classification, and an `occurrences` count, so the inventory can be reconciled against the rewrite volume. `items` and `scaffolding_items` list the file operations.
+5. If preflight fails, resolve every item in the single aggregated report and preview again. The preview never edits review prose and never silently chooses a side for a genuine collision.
+6. After explicit operator confirmation, call `debt_migrate` with `confirmed: true` and the exact preview digest. Digest binding, staged validation, atomic swap, and rollback behavior are unchanged.
+
+Rollback remains restoration of the pre-migration commit or backup. Do not run an older binary against a workspace already converted to `DEBT-*`/`RF-*`.
 
 ### 5.0.1 (debt migration preflight correctness)
 

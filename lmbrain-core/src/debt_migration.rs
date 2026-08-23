@@ -15,7 +15,7 @@ use crate::{
     workspace_index::{is_artifact_markdown_path, is_artifact_scaffolding_path},
 };
 
-pub const DEBT_MIGRATION_SCHEMA_VERSION: &str = "2";
+pub const DEBT_MIGRATION_SCHEMA_VERSION: &str = "3";
 pub const DEBT_CONTRACT_VERSION: &str = "4.2.0";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -44,6 +44,7 @@ pub struct DebtMigrationReference {
     pub token: String,
     pub replacement: String,
     pub classification: String,
+    pub occurrences: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -236,6 +237,8 @@ fn build_plan(root: &Path) -> Result<MigrationPlan, DebtMigrationError> {
             })?;
         }
 
+        let inventoried_by_review_analysis = relative_text.starts_with(".lmbrain/reviews/")
+            && is_artifact_markdown_path(&brain, &path);
         if relative_text.starts_with(".lmbrain/reviews/") && is_markdown {
             let mapping = review_id_mappings
                 .get(&relative_text)
@@ -283,13 +286,18 @@ fn build_plan(root: &Path) -> Result<MigrationPlan, DebtMigrationError> {
                 replace_durable_references(&content, &durable_ids);
             if durable_content != content {
                 changes.push("durable artifact references".into());
-                for (token, replacement) in durable_references {
-                    reference_mappings.push(DebtMigrationReference {
-                        path: relative_text.clone(),
-                        token,
-                        replacement,
-                        classification: "durable".into(),
-                    });
+                // Review artifacts are inventoried once, by the review analysis, which already
+                // classified every token in the file. Re-recording them here would double count.
+                if !inventoried_by_review_analysis {
+                    for (token, replacement, occurrences) in durable_references {
+                        reference_mappings.push(DebtMigrationReference {
+                            path: relative_text.clone(),
+                            token,
+                            replacement,
+                            classification: "durable".into(),
+                            occurrences,
+                        });
+                    }
                 }
                 content = durable_content;
             }
@@ -339,8 +347,7 @@ fn build_plan(root: &Path) -> Result<MigrationPlan, DebtMigrationError> {
         }
     }
     writes.sort_by(|left, right| left.item.path.cmp(&right.item.path));
-    reference_mappings.sort();
-    reference_mappings.dedup();
+    let reference_mappings = aggregate_references(reference_mappings);
     let items = writes
         .iter()
         .filter(|write| !write.scaffolding)
@@ -417,10 +424,8 @@ fn collect_review_id_mappings(
             issues.push(format!("missing review id in {relative}"));
             continue;
         };
-        let local_bare_tokens = review_local_bare_tokens(&document.body);
+        let declarations = review_local_declarations(&content, &document.body, &review_id);
         let mut classified = Vec::new();
-        let mut local_keys = BTreeMap::new();
-        let mut next_local = 1usize;
 
         for value in token.find_iter(&content) {
             let legacy = value.as_str().to_string();
@@ -432,56 +437,70 @@ fn collect_review_id_mappings(
                     ));
                     continue;
                 }
-                let key = local_identity(&legacy);
-                let replacement = local_keys
-                    .entry(key)
-                    .or_insert_with(|| {
-                        let replacement = format!("RF-{next_local:03}");
-                        next_local += 1;
-                        replacement
-                    })
-                    .clone();
-                classified.push((legacy, replacement, "review-local"));
+                // Rule 2: a qualified token is this review's own finding. It was consumed as one
+                // token, so its numeric tail is never re-matched as a bare reference.
+                match token_number(&legacy) {
+                    Some(number) => {
+                        classified.push((legacy, review_local_identifier(number), "review-local"))
+                    }
+                    None => issues.push(format!(
+                        "unreadable review-local finding number in {legacy} in {relative}"
+                    )),
+                }
                 continue;
             }
 
+            let number = token_number(&legacy);
+            let declared_qualified =
+                number.is_some_and(|number| declarations.qualified_numbers.contains(&number));
+            let declared_bare =
+                number.is_some_and(|number| declarations.bare_declared_numbers.contains(&number));
             let durable = durable_ids.get(&legacy);
-            let local = local_bare_tokens.contains(&legacy);
-            match (durable, local) {
-                (Some(_), true) => issues.push(format!(
-                    "ambiguous durable/local finding reference {legacy} in {relative}: it resolves to a durable artifact and is declared in this review's findings section"
+
+            match (number, declared_qualified, declared_bare, durable) {
+                // Rule 5 guard: the same number declared in both forms while a durable artifact of
+                // that number exists is genuinely two objects. Fail closed.
+                (Some(_), true, true, Some(_)) => issues.push(format!(
+                    "ambiguous durable/local finding reference {legacy} in {relative}: this review declares the same number in both the qualified {review_id}-{legacy} form and the bare form while a durable artifact of that number exists"
                 )),
-                (Some(replacement), false) => {
-                    classified.push((legacy, replacement.clone(), "durable"));
+                // Rule 3: the declaring review's local symbol table wins over durable resolution,
+                // so an overlapping durable range can never silently capture a local reference.
+                (Some(number), true, _, _) => {
+                    classified.push((legacy, review_local_identifier(number), "review-local"))
                 }
-                (None, true) => {
-                    let key = local_identity(&legacy);
-                    let replacement = local_keys
-                        .entry(key)
-                        .or_insert_with(|| {
-                            let replacement = format!("RF-{next_local:03}");
-                            next_local += 1;
-                            replacement
-                        })
-                        .clone();
-                    classified.push((legacy, replacement, "review-local"));
+                // Rule 4: a bare token backed by a durable artifact is that durable artifact,
+                // whether it appears as a declaration, in prose, or inside a wikilink.
+                (_, _, _, Some(replacement)) => {
+                    classified.push((legacy, replacement.clone(), "durable"))
                 }
-                (None, false) => issues.push(format!(
+                // A bare declaration with no durable artifact is this review's own local finding.
+                (Some(number), _, true, None) => {
+                    classified.push((legacy, review_local_identifier(number), "review-local"))
+                }
+                // Rule 5: resolves to nothing.
+                _ => issues.push(format!(
                     "unresolved durable/local finding reference {legacy} in {relative}"
                 )),
             }
         }
 
         let mut mapping = BTreeMap::new();
+        let mut occurrences: BTreeMap<(String, String, &'static str), usize> = BTreeMap::new();
         for (legacy, replacement, classification) in classified {
             if classification == "review-local" {
                 mapping.insert(legacy.clone(), replacement.clone());
             }
+            *occurrences
+                .entry((legacy, replacement, classification))
+                .or_default() += 1;
+        }
+        for ((legacy, replacement, classification), occurrences) in occurrences {
             references.push(DebtMigrationReference {
                 path: relative.clone(),
                 token: legacy,
                 replacement,
                 classification: classification.into(),
+                occurrences,
             });
         }
         if !mapping.is_empty() {
@@ -552,9 +571,41 @@ fn migration_token_regex() -> Regex {
     Regex::new(r"\bREVIEW-\d+-FINDING-\d+\b|\b(?:FINDING|F)-\d+\b").unwrap()
 }
 
-fn review_local_bare_tokens(body: &str) -> BTreeSet<String> {
+/// The finding numbers a single review declares, split by declaration form.
+///
+/// `qualified_numbers` is the review's local symbol table: bare references to those numbers
+/// inside this review resolve to the review's own findings before any durable resolution is
+/// attempted. `bare_declared_numbers` records the numbers declared bare in the review's findings
+/// section, which is what distinguishes the ordinary promotion convention (bare declaration backed
+/// by a durable artifact) from a genuine two-object collision (both forms plus a durable artifact).
+#[derive(Debug, Default)]
+struct ReviewLocalDeclarations {
+    qualified_numbers: BTreeSet<u64>,
+    bare_declared_numbers: BTreeSet<u64>,
+}
+
+fn review_local_declarations(
+    content: &str,
+    body: &str,
+    review_id: &str,
+) -> ReviewLocalDeclarations {
     let token = migration_token_regex();
-    let mut output = BTreeSet::new();
+    let qualified = Regex::new(r"^REVIEW-(\d+)-FINDING-(\d+)$").unwrap();
+    let mut output = ReviewLocalDeclarations::default();
+
+    for value in token.find_iter(content) {
+        let candidate = value.as_str();
+        let Some(captures) = qualified.captures(candidate) else {
+            continue;
+        };
+        if format!("REVIEW-{}", &captures[1]) != review_id {
+            continue;
+        }
+        if let Some(number) = token_number(candidate) {
+            output.qualified_numbers.insert(number);
+        }
+    }
+
     let mut in_findings = false;
     for line in body.lines() {
         let trimmed = line.trim();
@@ -567,30 +618,63 @@ fn review_local_bare_tokens(body: &str) -> BTreeSet<String> {
         }
         for value in token.find_iter(line) {
             let candidate = value.as_str();
-            if !candidate.starts_with("REVIEW-") {
-                output.insert(candidate.to_string());
+            if candidate.starts_with("REVIEW-") {
+                continue;
+            }
+            if let Some(number) = token_number(candidate) {
+                output.bare_declared_numbers.insert(number);
             }
         }
     }
+
     output
 }
 
-fn local_identity(token: &str) -> String {
-    let suffix = token
+fn token_number(token: &str) -> Option<u64> {
+    token
         .rsplit('-')
         .next()
-        .and_then(|value| value.parse::<u64>().ok())
-        .map(|value| value.to_string())
-        .unwrap_or_else(|| token.to_string());
-    format!("local-{suffix}")
+        .and_then(|value| value.parse().ok())
 }
+
+fn review_local_identifier(number: u64) -> String {
+    format!("RF-{number:03}")
+}
+
+fn aggregate_references(references: Vec<DebtMigrationReference>) -> Vec<DebtMigrationReference> {
+    let mut totals: BTreeMap<(String, String, String, String), usize> = BTreeMap::new();
+    for reference in references {
+        *totals
+            .entry((
+                reference.path,
+                reference.token,
+                reference.replacement,
+                reference.classification,
+            ))
+            .or_default() += reference.occurrences;
+    }
+    totals
+        .into_iter()
+        .map(
+            |((path, token, replacement, classification), occurrences)| DebtMigrationReference {
+                path,
+                token,
+                replacement,
+                classification,
+                occurrences,
+            },
+        )
+        .collect()
+}
+
+type DurableReplacement = (String, String, usize);
 
 fn replace_durable_references(
     source: &str,
     ids: &BTreeMap<String, String>,
-) -> (String, Vec<(String, String)>) {
+) -> (String, Vec<DurableReplacement>) {
     let token = migration_token_regex();
-    let mut references = BTreeSet::new();
+    let mut references: BTreeMap<(String, String), usize> = BTreeMap::new();
     let replaced = token
         .replace_all(source, |captures: &regex::Captures<'_>| {
             let legacy = &captures[0];
@@ -598,14 +682,22 @@ fn replace_durable_references(
                 return legacy.to_string();
             }
             if let Some(replacement) = ids.get(legacy) {
-                references.insert((legacy.to_string(), replacement.clone()));
+                *references
+                    .entry((legacy.to_string(), replacement.clone()))
+                    .or_default() += 1;
                 replacement.clone()
             } else {
                 legacy.to_string()
             }
         })
         .into_owned();
-    (replaced, references.into_iter().collect())
+    (
+        replaced,
+        references
+            .into_iter()
+            .map(|((legacy, replacement), occurrences)| (legacy, replacement, occurrences))
+            .collect(),
+    )
 }
 
 fn replace_classified_references(source: &str, mappings: &BTreeMap<String, String>) -> String {
@@ -756,12 +848,12 @@ mod tests {
     }
 
     fn write_durable(root: &Path, id: &str) {
-        let directory = root.join(".lmbrain/findings/resolved");
+        let directory = root.join(".lmbrain/findings/open");
         fs::create_dir_all(&directory).unwrap();
         fs::write(
             directory.join(format!("{id}-sample.md")),
             format!(
-                "---\nid: {id}\ntitle: Sample {id}\nstatus: resolved\ncategory: correctness\nseverity: medium\ncreated: 2026-08-13\nupdated: 2026-08-13\norigin_artifact: null\norigin_ref: null\nrelated_specs: []\nrelated_reviews: []\nrelated_decisions: []\ntarget_specs: []\nblocked_by: []\nresolution_refs: []\nfinding_events: []\n---\n## Statement\nSample\n"
+                "---\nid: {id}\ntitle: Sample {id}\nstatus: open\ncategory: correctness\nseverity: medium\ncreated: 2026-08-13\nupdated: 2026-08-13\norigin_artifact: null\norigin_ref: null\nrelated_specs: []\nrelated_reviews: []\nrelated_decisions: []\ntarget_specs: []\nblocked_by: []\nresolution_refs: []\nfinding_events: []\n---\n## Statement\nSample\n"
             ),
         )
         .unwrap();
@@ -793,7 +885,7 @@ mod tests {
             .exists());
         assert_eq!(
             first.review_id_mappings[".lmbrain/reviews/accepted/REVIEW-001.md"]["FINDING-07"],
-            "RF-001"
+            "RF-007"
         );
     }
 
@@ -816,7 +908,7 @@ mod tests {
         .unwrap();
         assert!(debt.contains("id: DEBT-001"));
         assert!(debt.contains("debt_events"));
-        assert!(debt.contains("origin_ref: RF-001"));
+        assert!(debt.contains("origin_ref: RF-007"));
         let review = fs::read_to_string(
             directory
                 .path()
@@ -824,7 +916,7 @@ mod tests {
         )
         .unwrap();
         assert!(review.contains("## Review findings"));
-        assert!(review.contains("RF-001 local issue"));
+        assert!(review.contains("RF-007 local issue"));
         assert!(!directory.path().join(".lmbrain/findings").exists());
         assert_eq!(
             fs::read_to_string(directory.path().join(".lmbrain/VERSION"))
@@ -854,10 +946,16 @@ mod tests {
             ambiguous
                 .path()
                 .join(".lmbrain/reviews/accepted/REVIEW-001.md"),
-            "---\nid: REVIEW-001\ntitle: Review\nstatus: accepted\ncreated: 2026-08-13\nupdated: 2026-08-13\ntags: []\nlinks: []\n---\n## Review findings\n[[FINDING-001]]\n",
+            "---\nid: REVIEW-001\ntitle: Review\nstatus: accepted\ncreated: 2026-08-13\nupdated: 2026-08-13\ntags: []\nlinks: []\n---\n## Review findings\n- REVIEW-001-FINDING-001 declared qualified\n- FINDING-001 declared bare\n- FINDING-07 local issue\n",
         )
         .unwrap();
-        assert!(debt_migration_preview(ambiguous.path()).is_err());
+        let error = debt_migration_preview(ambiguous.path())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("ambiguous durable/local finding reference FINDING-001"),
+            "unexpected error: {error}"
+        );
         assert!(ambiguous.path().join(".lmbrain/findings").exists());
     }
 
@@ -979,12 +1077,13 @@ mod tests {
 
         let preview = debt_migration_preview(directory.path()).unwrap();
         let mappings = &preview.review_id_mappings[".lmbrain/reviews/accepted/REVIEW-007.md"];
-        assert_eq!(mappings["REVIEW-007-FINDING-003"], "RF-001");
+        assert_eq!(mappings["REVIEW-007-FINDING-003"], "RF-003");
         assert!(!mappings.contains_key("FINDING-003"));
         assert!(preview.reference_mappings.iter().any(|reference| {
             reference.token == "REVIEW-007-FINDING-003"
-                && reference.replacement == "RF-001"
+                && reference.replacement == "RF-003"
                 && reference.classification == "review-local"
+                && reference.occurrences == 2
         }));
         assert!(preview.reference_mappings.iter().any(|reference| {
             reference.token == "FINDING-042"
@@ -993,23 +1092,145 @@ mod tests {
         }));
     }
 
+    fn legacy_review_workspace(root: &Path) {
+        fs::create_dir_all(root.join(".lmbrain")).unwrap();
+        fs::write(root.join(".lmbrain/VERSION"), "4.1.0\n").unwrap();
+    }
+
     #[test]
-    fn genuine_bare_collision_still_fails_closed() {
+    fn bare_prose_references_resolve_against_the_declaring_review() {
         let directory = tempdir().unwrap();
-        fs::create_dir_all(directory.path().join(".lmbrain")).unwrap();
-        fs::write(directory.path().join(".lmbrain/VERSION"), "4.1.0\n").unwrap();
-        write_durable(directory.path(), "FINDING-005");
+        legacy_review_workspace(directory.path());
         write_review(
             directory.path(),
-            "REVIEW-005",
-            "## Findings\n\n- FINDING-005 local issue\n",
+            "REVIEW-002",
+            "## Findings\n\n- REVIEW-002-FINDING-001 | category=correctness\n- REVIEW-002-FINDING-002 | category=correctness\n\n## Context\nFINDING-001 remains open; FINDING-002 was fixed. FINDING-001 again.",
+        );
+
+        let preview = debt_migration_preview(directory.path()).unwrap();
+        let mappings = &preview.review_id_mappings[".lmbrain/reviews/accepted/REVIEW-002.md"];
+        assert_eq!(mappings["REVIEW-002-FINDING-001"], "RF-001");
+        assert_eq!(mappings["FINDING-001"], "RF-001");
+        assert_eq!(mappings["REVIEW-002-FINDING-002"], "RF-002");
+        assert_eq!(mappings["FINDING-002"], "RF-002");
+        assert!(preview
+            .reference_mappings
+            .iter()
+            .all(|reference| reference.classification == "review-local"));
+        assert!(preview.reference_mappings.iter().any(|reference| {
+            reference.token == "FINDING-001"
+                && reference.replacement == "RF-001"
+                && reference.occurrences == 2
+        }));
+    }
+
+    #[test]
+    fn bare_declarations_backed_by_durable_artifacts_are_durable() {
+        let directory = tempdir().unwrap();
+        legacy_review_workspace(directory.path());
+        write_durable(directory.path(), "FINDING-013");
+        write_durable(directory.path(), "FINDING-014");
+        write_review(
+            directory.path(),
+            "REVIEW-021",
+            "## Findings\n\n- FINDING-013 | category=correctness\n- FINDING-014 | category=process\n",
+        );
+
+        let preview = debt_migration_preview(directory.path()).unwrap();
+        assert!(!preview
+            .review_id_mappings
+            .contains_key(".lmbrain/reviews/accepted/REVIEW-021.md"));
+        for (legacy, replacement) in [("FINDING-013", "DEBT-013"), ("FINDING-014", "DEBT-014")] {
+            assert!(
+                preview.reference_mappings.iter().any(|reference| {
+                    reference.path.ends_with("REVIEW-021.md")
+                        && reference.token == legacy
+                        && reference.replacement == replacement
+                        && reference.classification == "durable"
+                        && reference.occurrences == 1
+                }),
+                "missing durable mapping for {legacy}"
+            );
+        }
+    }
+
+    #[test]
+    fn same_number_declared_in_both_forms_still_fails_closed() {
+        let directory = tempdir().unwrap();
+        legacy_review_workspace(directory.path());
+        write_durable(directory.path(), "FINDING-013");
+        write_review(
+            directory.path(),
+            "REVIEW-021",
+            "## Findings\n\n- REVIEW-021-FINDING-013 | category=correctness\n- FINDING-013 | category=correctness\n",
         );
 
         let error = debt_migration_preview(directory.path())
             .unwrap_err()
             .to_string();
-        assert!(error.contains("ambiguous durable/local finding reference FINDING-005"));
+        assert!(
+            error.contains("ambiguous durable/local finding reference FINDING-013"),
+            "unexpected error: {error}"
+        );
         assert!(directory.path().join(".lmbrain/findings").exists());
+    }
+
+    #[test]
+    fn overlapping_local_and_durable_ranges_bind_local_first() {
+        let directory = tempdir().unwrap();
+        legacy_review_workspace(directory.path());
+        write_durable(directory.path(), "FINDING-003");
+        write_review(
+            directory.path(),
+            "REVIEW-030",
+            "## Findings\n\n- REVIEW-030-FINDING-003 | category=correctness\n\n## Context\nFINDING-003 is still open in this review.",
+        );
+
+        let preview = debt_migration_preview(directory.path()).unwrap();
+        let mappings = &preview.review_id_mappings[".lmbrain/reviews/accepted/REVIEW-030.md"];
+        assert_eq!(mappings["REVIEW-030-FINDING-003"], "RF-003");
+        assert_eq!(mappings["FINDING-003"], "RF-003");
+        assert!(preview
+            .reference_mappings
+            .iter()
+            .filter(|reference| reference.path.ends_with("REVIEW-030.md"))
+            .all(|reference| reference.classification == "review-local"));
+
+        let review = fs::read_to_string(
+            directory
+                .path()
+                .join(".lmbrain/reviews/accepted/REVIEW-030.md"),
+        )
+        .unwrap();
+        assert!(review.contains("FINDING-003"));
+        debt_migrate(directory.path(), &preview.digest, true).unwrap();
+        let migrated = fs::read_to_string(
+            directory
+                .path()
+                .join(".lmbrain/reviews/accepted/REVIEW-030.md"),
+        )
+        .unwrap();
+        assert!(migrated.contains("RF-003 is still open"));
+        assert!(!migrated.contains("DEBT-003 is still open"));
+    }
+
+    #[test]
+    fn unresolved_bare_references_still_fail_closed() {
+        let directory = tempdir().unwrap();
+        legacy_review_workspace(directory.path());
+        write_review(
+            directory.path(),
+            "REVIEW-031",
+            "## Findings\n\nNone.\n\n## Context\nSee [[FINDING-099]].",
+        );
+
+        let error = debt_migration_preview(directory.path())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("unresolved durable/local finding reference FINDING-099"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]

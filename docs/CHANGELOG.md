@@ -4,6 +4,15 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 5.0.2 - 2026-08-23
+
+### Fixed
+
+- **Bare declarations backed by a durable artifact are durable.** A review that declares a bare `FINDING-NNN` in its findings section while a durable `FINDING-NNN` artifact exists is stating the promotion it made, not a collision. It now maps to `DEBT-NNN`. The 5.0.1 acceptance criterion that called this shape ambiguous was itself wrong; the only shape still refused as a genuine collision is a review that declares the same number in both the qualified and the bare form while a durable artifact of that number exists.
+- **Bare prose references resolve against the declaring review.** Reviews that declare qualified `REVIEW-NNN-FINDING-MMM` findings and then write the bare `FINDING-MMM` in their own prose no longer fail durable resolution. Each review's qualified declarations form a local symbol table that is consulted before the durable index, so an overlapping durable number range can never silently capture a review-local reference.
+- **Review-scoped identifiers preserve the declared number.** `REVIEW-NNN-FINDING-MMM` and the review's own bare `FINDING-MMM` both map to `RF-MMM` instead of an encounter-order counter, so a preview row can be matched to its source declaration directly.
+- **Auditable preview inventory.** `reference_mappings` now carries an `occurrences` count per token per file (preview schema version `3`), and each review artifact is inventoried exactly once. Unresolved references, cross-review qualified references, and genuine collisions still fail closed in one aggregated report, and `debt_migrate` remains digest-bound, explicitly confirmed, and atomic.
+
 ## 5.0.1 - 2026-08-23
 
 ### Fixed
