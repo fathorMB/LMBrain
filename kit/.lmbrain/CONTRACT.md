@@ -95,9 +95,9 @@ New reviews use canonical finding categories: `accessibility`, `compatibility`, 
 | Session handoffs | create / consume | no | inspect / edit |
 | Code & Configuration | no (except escalation) | only assigned scope | full authority |
 
-## Optional Capability Modules
+## Capability Modules
 
-Workspaces may activate specialized capabilities documented in modular contract files:
+Specialized capabilities are documented in modular contract files. The modules are part of this contract's mandatory read: agents read all of them together with `CONTRACT.md`. A module applies whenever its configuration or artifacts exist in the workspace; an absent trigger makes the module dormant, never unread:
 
 - [[contract/verification.md|Verification Gates]]: Manifest-driven gate execution, transcripts, and attestations.
 - [[contract/harness.md|Harness Manifest]]: Host environment configuration and drift tracking.
