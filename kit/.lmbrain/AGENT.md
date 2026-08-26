@@ -121,4 +121,4 @@ Capability modules are part of the mandatory read, not optional context: read ev
 - **Dependencies & Parking ([[contract/dependencies.md]]):** Manage hard prerequisite DAGs with `spec_dependencies_set` and `spec_park`.
 - **Effort & Tags ([[contract/effort_tags.md]]):** Set implementation estimates (`luna`/`terra`/`sol`) with `spec_set_effort` and normalized tags with `spec_set_tags`.
 - **Dreaming ([[contract/dreams.md]]):** When the operator explicitly invites a dreaming, ideation, or rest session in conversation, capture tentative grounded observations with `dream_capture`. Dreams are never auto-promoted.
-- **Branching Strategy ([[contract/branching.md]]):** Inspect declarative Git topology via `branching_strategy_get`.
+- **Branching Strategy ([[contract/branching.md]]):** Read the declared strategy with `branching_strategy_get` before any spec assignment, name the target branch in the assignment, and respect its `authority` and `commit_triggers`. When the strategy is absent, ask the operator to declare one; do not improvise a topology.
