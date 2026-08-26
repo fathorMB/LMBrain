@@ -19,6 +19,7 @@ mod mutation_lock;
 pub mod path;
 pub mod review;
 pub mod roadmap;
+pub mod skill_registry;
 pub mod spec_dependencies;
 pub mod spec_verification_gates;
 pub mod taxonomy;
@@ -101,6 +102,7 @@ pub use review::{
     REVIEW_EVENT_SCHEMA_VERSION,
 };
 pub use roadmap::{is_roadmap_status, parse_roadmap, Roadmap, RoadmapMilestone, ROADMAP_STATUSES};
+pub use skill_registry::{sync_skill_registry, SkillRegistrySync};
 pub use spec_dependencies::{
     set_spec_dependencies, spec_dependency_blockers, spec_dependency_candidates,
     spec_dependency_context, validate_spec_dependency_graph, MalformedSpec, SpecDependency,

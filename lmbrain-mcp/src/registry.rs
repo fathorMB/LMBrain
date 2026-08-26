@@ -239,8 +239,35 @@ transition_fn!(handle_agent_activate, "active");
 transition_fn!(handle_agent_deactivate, "inactive");
 transition_fn!(handle_agent_proposal_approve, "approved");
 transition_fn!(handle_agent_proposal_reject, "rejected");
-transition_fn!(handle_skill_activate, "active");
-transition_fn!(handle_skill_retire, "retired");
+// Skill transitions also upsert the skills/registry.md row: the registry is
+// the surface agents read to find procedures, and a moved artifact without its
+// row is an active skill nobody applies (KIT-NOTE-001).
+fn skill_transition_with_registry_sync(
+    root: &Path,
+    args: &Value,
+    target: &str,
+) -> Result<Value, String> {
+    let result = transition(root, req_str(args, "path")?, target, opts(args))
+        .map_err(|error| error.to_string())?;
+    let sync = lmbrain_core::sync_skill_registry(root, &result.id).map_err(|error| {
+        format!(
+            "skill transitioned to '{}' but skills/registry.md could not be synced: {error}. \
+             Re-run the sync or repair the registry; lmbrain_validate reports the divergence.",
+            result.status
+        )
+    })?;
+    let mut payload = json!(result);
+    payload["registry_sync"] = json!(sync);
+    Ok(text(payload))
+}
+
+fn handle_skill_activate(root: &Path, args: &Value) -> Result<Value, String> {
+    skill_transition_with_registry_sync(root, args, "active")
+}
+
+fn handle_skill_retire(root: &Path, args: &Value) -> Result<Value, String> {
+    skill_transition_with_registry_sync(root, args, "retired")
+}
 transition_fn!(handle_handoff_consume, "consumed");
 transition_fn!(handle_handoff_supersede, "superseded");
 transition_fn!(handle_handoff_archive, "archived");
