@@ -90,6 +90,12 @@ Stop and ask the operator before any escalation needing new authority, credentia
 
 ---
 
+## Status and handoff discipline
+
+`STATUS.md` is a pulse, not a chronicle. Each section holds short factual entries: what, who, state, next step. Keep narrative, lessons, and analysis out of it — durable lessons belong in `knowledge/`, per-spec history in the spec and its review. The same discipline applies to handoffs, artifact titles, and commit messages: state what changed and why it matters in plain declarative sentences, without literary framing.
+
+---
+
 ## Session boundaries
 
 Anchor to the roadmap first: open every session by stating the current milestone and where the project stands against it. When requested work does not serve the current milestone, say so before doing it.

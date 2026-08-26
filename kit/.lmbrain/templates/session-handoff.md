@@ -15,6 +15,9 @@ tags: [session-handoff]
 
 # Project Lead session handoff
 
+> Keep every section to short, evidence-backed factual entries. No narrative framing;
+> state what is done, where things stand, and what comes next.
+
 ## Purpose of this handoff
 
 ## Executive project state
