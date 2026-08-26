@@ -760,6 +760,104 @@ mod tests {
     }
 
     #[test]
+    fn skill_activation_moves_the_artifact_and_writes_its_registry_row() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain/skills/proposed")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain/skills/active")).unwrap();
+        std::fs::write(
+            dir.path().join(".lmbrain/skills/proposed/SKILL-001-negative-gate-proof.md"),
+            "---\nid: SKILL-001\ntitle: \"Negative gate proof\"\nstatus: proposed\nkind: verification\nrisk: low\napplies_to: [AGENT-001]\ncreated: 2026-08-26\nupdated: 2026-08-26\ntags: [verification]\nlinks: []\n---\n# Negative gate proof\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join(".lmbrain/skills/registry.md"),
+            "---\ntitle: Skill registry\nupdated: 2026-07-07\n---\n\n# Skill Registry\n\n| ID | Skill | Status | Kind | Risk | Applies to | Definition |\n| --- | --- | --- | --- | --- | --- | --- |\n",
+        )
+        .unwrap();
+        let root = dir.path().to_path_buf();
+        let response = super::call(
+            &root,
+            &serde_json::json!({
+                "name":"skill_activate",
+                "arguments":{"path":".lmbrain/skills/proposed/SKILL-001-negative-gate-proof.md"}
+            }),
+        )
+        .unwrap();
+        let payload: Value = serde_json::from_str(
+            response
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            payload.pointer("/registry_sync/action").and_then(Value::as_str),
+            Some("inserted")
+        );
+        let registry =
+            std::fs::read_to_string(dir.path().join(".lmbrain/skills/registry.md")).unwrap();
+        assert!(registry.contains("| SKILL-001 | Negative gate proof | active | verification | low | AGENT-001 | `skills/active/SKILL-001-negative-gate-proof.md` |"));
+        // The registry row and the moved artifact agree, so validate reports
+        // no skill-registry divergence.
+        let validation = super::call(
+            &root,
+            &serde_json::json!({"name":"lmbrain_validate","arguments":{}}),
+        )
+        .unwrap();
+        let validation: Value = serde_json::from_str(
+            validation
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(!validation["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["code"]
+                .as_str()
+                .is_some_and(|code| code.starts_with("skill-registry"))));
+    }
+
+    #[test]
+    fn an_active_skill_missing_its_registry_row_fails_validation() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".lmbrain/skills/active")).unwrap();
+        std::fs::write(
+            dir.path().join(".lmbrain/skills/active/SKILL-004-converge-derivations.md"),
+            "---\nid: SKILL-004\ntitle: \"Converge derivations\"\nstatus: active\nkind: verification\nrisk: low\napplies_to: [AGENT-001]\ncreated: 2026-08-26\nupdated: 2026-08-26\ntags: [verification]\nlinks: []\n---\n# Converge derivations\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join(".lmbrain/skills/registry.md"),
+            "---\ntitle: Skill registry\nupdated: 2026-07-07\n---\n\n# Skill Registry\n\n| ID | Skill | Status | Kind | Risk | Applies to | Definition |\n| --- | --- | --- | --- | --- | --- | --- |\n",
+        )
+        .unwrap();
+        let root = dir.path().to_path_buf();
+        let validation = super::call(
+            &root,
+            &serde_json::json!({"name":"lmbrain_validate","arguments":{}}),
+        )
+        .unwrap();
+        let validation: Value = serde_json::from_str(
+            validation
+                .pointer("/content/0/text")
+                .and_then(Value::as_str)
+                .unwrap(),
+        )
+        .unwrap();
+        let diagnostic = validation["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["code"].as_str() == Some("skill-registry-row-missing"))
+            .expect("missing registry row must be diagnosed");
+        assert_eq!(diagnostic["severity"].as_str(), Some("error"));
+        assert_eq!(diagnostic["artifact_id"].as_str(), Some("SKILL-004"));
+    }
+
+    #[test]
     fn project_lead_can_record_and_read_kit_feedback_without_project_lifecycle_changes() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".lmbrain/specs/backlog")).unwrap();

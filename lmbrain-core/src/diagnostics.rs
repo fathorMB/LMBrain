@@ -166,6 +166,7 @@ pub fn build_diagnostics(root: &Path) -> Vec<Diagnostic> {
     diagnose_acceptance_criteria(root, &artifacts, &mut diagnostics);
     diagnose_roadmap(root, &artifacts, &mut diagnostics);
     diagnose_kit_feedback(root, &mut diagnostics);
+    diagnose_skill_registry(root, &mut diagnostics);
     diagnose_spec_metadata(&artifacts, &mut diagnostics);
     diagnose_duplicate_spec_sections(&artifacts, &mut diagnostics);
     diagnose_decisions(&artifacts, &mut diagnostics);
@@ -282,6 +283,107 @@ fn diagnose_duplicate_spec_sections(artifacts: &[Artifact], diagnostics: &mut Ve
                 "Inspect the duplicated body manually and remove only a confirmed empty template tail; do not truncate or deduplicate content automatically.",
                 DiagnosticFixability::Manual,
                 &normalized,
+            ));
+        }
+    }
+}
+
+/// Compares the skill artifacts on disk with the rows of `skills/registry.md`.
+///
+/// The registry is the surface agents read to learn which procedures exist, so
+/// the check fails in both directions: an artifact without a row leaves an
+/// active skill invisible (the observed harm of KIT-NOTE-001), and a row
+/// without an artifact — or with a stale status cell — makes the registry lie.
+fn diagnose_skill_registry(root: &Path, diagnostics: &mut Vec<Diagnostic>) {
+    let lmbrain = root.join(".lmbrain");
+    let registry_path = lmbrain.join("skills").join("registry.md");
+    let Ok(registry_source) = fs::read_to_string(&registry_path) else {
+        return;
+    };
+    let mut registry_rows: BTreeMap<String, String> = BTreeMap::new();
+    for line in registry_source.lines() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with('|') {
+            continue;
+        }
+        let mut cells = trimmed.trim_start_matches('|').split('|');
+        let id = cells.next().map(str::trim).unwrap_or_default();
+        if id.is_empty() || id == "ID" || id.starts_with("---") {
+            continue;
+        }
+        let status = cells.nth(1).map(str::trim).unwrap_or_default();
+        registry_rows.insert(id.to_string(), status.to_string());
+    }
+
+    let mut artifact_statuses: BTreeMap<String, (String, String)> = BTreeMap::new();
+    for status_dir in ["proposed", "active", "retired"] {
+        let directory = lmbrain.join("skills").join(status_dir);
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() || path.extension().and_then(|ext| ext.to_str()) != Some("md") {
+                continue;
+            }
+            let Ok(source) = fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(document) = Document::parse(&source) else {
+                continue;
+            };
+            let Some(id) = document.value("id").filter(|id| id.starts_with("SKILL-")) else {
+                continue;
+            };
+            let status = document
+                .value("status")
+                .unwrap_or_else(|| status_dir.to_string());
+            artifact_statuses.insert(id, (status, relative_path(&lmbrain, &path)));
+        }
+    }
+
+    for (id, (status, relative)) in &artifact_statuses {
+        match registry_rows.get(id) {
+            None => diagnostics.push(diagnostic(
+                "skill-registry-row-missing",
+                DiagnosticSeverity::Error,
+                Some(id.clone()),
+                Some(relative.clone()),
+                format!(
+                    "Skill {id} is '{status}' on disk but has no row in skills/registry.md; agents reading the registry cannot find it"
+                ),
+                "Re-run the governed skill transition (or sync) so the registry row is written from the artifact.",
+                DiagnosticFixability::GovernedMutation,
+                "row-missing",
+            )),
+            Some(row_status) if row_status != status => diagnostics.push(diagnostic(
+                "skill-registry-status-stale",
+                DiagnosticSeverity::Warning,
+                Some(id.clone()),
+                Some(relative.clone()),
+                format!(
+                    "Skill {id} is '{status}' on disk but skills/registry.md records '{row_status}'"
+                ),
+                "Re-run the governed skill transition (or sync) so the registry row matches the artifact.",
+                DiagnosticFixability::GovernedMutation,
+                "status-stale",
+            )),
+            Some(_) => {}
+        }
+    }
+    for id in registry_rows.keys() {
+        if !artifact_statuses.contains_key(id) {
+            diagnostics.push(diagnostic(
+                "skill-registry-row-orphaned",
+                DiagnosticSeverity::Warning,
+                Some(id.clone()),
+                Some("skills/registry.md".into()),
+                format!(
+                    "skills/registry.md lists {id} but no matching skill artifact exists under skills/"
+                ),
+                "Remove the stale row or restore the skill artifact it points to.",
+                DiagnosticFixability::Manual,
+                "row-orphaned",
             ));
         }
     }
