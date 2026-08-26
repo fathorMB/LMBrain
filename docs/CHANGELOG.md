@@ -4,6 +4,19 @@ All notable changes to the LMBrain kit are recorded here.
 
 The `VERSION` file is the canonical, machine-readable kit version.
 
+## 5.1.0 - 2026-08-27
+
+### Kit contract
+
+- **The behavioral guardrails the 5.0.0 layering dropped are back in the Lead core contract.** Field use of the 5.0.x kit showed the compressed contract had removed exactly the rules that inhibited the observed failure modes. `AGENT.md` reinstates, in compact form: the anti-dump communication rules (no unexplained internal identifiers; trade-offs stated with alternatives and practical consequence in plain language), review creation on operator request only, a severity threshold for `changes-requested` (findings below an acceptance criterion, declared gate, or `QUALITY.md` violation are recorded as non-blocking notes), a two-round remediation cap with mandatory operator escalation, the five preconditions of escalated corrective implementation (writing outside `.lmbrain/` is always implementation work), session boundary protocols for ending and consuming handoffs with a roadmap anchor at session start, and the context-economy floor.
+- **Capability-module activation is deterministic.** "When optional capability modules are active" left activation undefined, so sessions skipped modules. Modules are now part of the mandatory read; whether one applies is derived from observable workspace state (its configuration or artifacts existing), and an absent trigger makes a module dormant, never unread. The bootstrap prompt names `contract/` in its read list.
+- **The branching module is operative, not just declarative.** It now obliges agents to resolve the target branch before every spec assignment, honor `authority` and `commit_triggers` (`commit_on_doc_change: false` means artifact edits get no commits of their own), and ask the operator to declare a strategy when it is absent instead of improvising one.
+- **Pulse discipline for STATUS, handoffs, and commit messages.** `STATUS.md` is a pulse of short factual entries; durable lessons belong in `knowledge/`, per-spec history in the spec and its review. The scaffold and the session-handoff template carry the reminder where the writing happens.
+
+### Fixed
+
+- **`skill_activate` and `skill_retire` keep `skills/registry.md` in agreement with the artifacts.** Activation used to move the artifact and stamp the activity trail without writing the registry row, leaving a skill active on disk and invisible to every reader of the registry — the surface the Lead composes dispatches from. The transitions now upsert the row, derived wholly from the artifact's frontmatter so a re-run restores agreement, and `lmbrain_validate` gains three diagnostics failing in both directions: `skill-registry-row-missing` (error), `skill-registry-status-stale`, and `skill-registry-row-orphaned`.
+
 ## 5.0.3 - 2026-08-23
 
 ### Fixed
