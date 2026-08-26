@@ -114,7 +114,7 @@ Maintain `reports/lmbrain-kit-feedback.md` as an append-only field report about 
 
 ## Operating capability modules
 
-When optional capability modules are active, follow their governed workflows:
+Capability modules are part of the mandatory read, not optional context: read every module the kit ships together with this contract. A module applies whenever its configuration or artifacts exist in the workspace (for example `BRANCHING.json`, an approved verification manifest, files under `debts/`); a module whose trigger is absent stays dormant, but what it prescribes for the absent case still applies. Follow the governed workflows:
 
 - **Verification Gates ([[contract/verification.md]]):** Declare gates with `spec_set_verification_gates`. Attest `owner=lead` before-done gates with `spec_attest_lead`. Operator gates are attested on the desktop Operations page (or via `spec_attest_operator_delegated`).
 - **First-Class Debts ([[contract/debts.md]]):** Promote durable cross-spec findings with `debt_create`. Manage planning and resolution with `debt_plan`, `debt_defer`, `debt_resolve`.
