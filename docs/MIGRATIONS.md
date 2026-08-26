@@ -4,7 +4,16 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `5.0.3`.
+The current kit is `5.1.0`.
+
+### 5.1.0 (Lead guardrails, deterministic modules, skill registry sync)
+
+Supported source versions are any `5.0.x` workspace. This release changes no artifact schema and requires no data migration; it updates kit-owned contract documents and adds registry maintenance to the skill transitions.
+
+1. Update the desktop application, `lmbrain-core`, `lmbrain-mcp`, and bundled kit together.
+2. Run `kit_migration_preview` and `kit_migrate` to realign the kit-owned files (`AGENT.md`, `CONTRACT.md`, `contract/branching.md`, the bootstrap-prompt and session-handoff templates). The baseline-aware classification of 5.0.0 applies: intentional local edits to kit-owned files surface as `locally_modified` before anything is overwritten.
+3. Run `lmbrain_validate`. Workspaces that activated skills under 5.0.x may report `skill-registry-row-missing` for skills whose registry row was never written. Restore each missing row once, guided by the diagnostic; from this release on, every governed skill transition writes its own row.
+4. No preview schema, debt, review, or spec change is involved. Rollback is restoration of the pre-migration commit or backup, as always.
 
 ### 5.0.3 (cross-document qualified reference resolution)
 
