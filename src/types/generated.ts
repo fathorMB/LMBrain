@@ -232,3 +232,15 @@ export type HarnessUpdateRequest = { host: AgentHost, codex_bin: string | null, 
 
 export type HarnessUpdateResult = { host: AgentHost, success: boolean, already_current: boolean, before: HarnessStatus, after: HarnessStatus, exit_code: number | null, timed_out: boolean, stdout: string, stderr: string, };
 
+export type WayfinderFog = { id: string, summary: string, provenance: string, state: string, graduated_to: string | null, };
+
+export type WayfinderMap = { id: string, title: string, status: string, destination: string, fog: Array<WayfinderFog>, path: string, updated: string, malformed: boolean, };
+
+export type WayfinderMapSummary = { id: string, title: string, status: string, destination: string, frontier_count: number, claimed_count: number, blocked_count: number, fog_count: number, resolved_count: number, updated: string, };
+
+export type WayfinderOverview = { maps: Array<WayfinderMapSummary>, };
+
+export type WayfinderTicket = { id: string, map: string, title: string, status: string, ticket_type: string, question: string, blockers: Array<string>, claimed_by: string | null, claimed_at: string | null, resolution_summary: string | null, path: string, malformed: boolean, };
+
+export type WayfinderMapContext = { map: WayfinderMap, frontier: Array<WayfinderTicket>, blocked: Array<WayfinderTicket>, claimed: Array<WayfinderTicket>, resolved: Array<WayfinderTicket>, diagnostics: Array<string>, omitted_ticket_count: number, };
+

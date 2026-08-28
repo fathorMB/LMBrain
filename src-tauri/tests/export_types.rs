@@ -13,6 +13,8 @@ use lmbrain_core::{
     KitMigrationResult, OperatorGate, RelationSummary, ReviewEventHistory,
     ReviewEventInput, ReviewHistorySource, ReviewLifecycleAnalysis, ReviewLifecycleEvent,
     Roadmap, RoadmapMilestone, VerificationAttestation, VerificationGate, VerificationManifest,
+    WayfinderFog, WayfinderMap, WayfinderMapContext, WayfinderMapSummary, WayfinderOverview,
+    WayfinderTicket,
 };
 
 use lmbrain_lib::models::{
@@ -165,6 +167,13 @@ fn generate_typescript() -> String {
         HarnessStatus::decl(),
         HarnessUpdateRequest::decl(),
         HarnessUpdateResult::decl(),
+        // Wayfinder
+        WayfinderFog::decl(),
+        WayfinderMap::decl(),
+        WayfinderMapSummary::decl(),
+        WayfinderOverview::decl(),
+        WayfinderTicket::decl(),
+        WayfinderMapContext::decl(),
     ];
 
     for decl in decls {
