@@ -85,10 +85,9 @@ pub fn activate(root: &Path) -> Result<(), String> {
     let settings_path = root.join(SETTINGS_LOCAL);
     let mut settings = read_json_object(&settings_path, ".claude/settings.local.json")?;
     settings.insert("outputStyle".into(), Value::String("ELI5".into()));
-    atomic_write(
-        &settings_path,
-        &serde_json::to_string_pretty(&Value::Object(settings)),
-    )?;
+    let serialized = serde_json::to_string_pretty(&Value::Object(settings))
+        .map_err(|error| format!("Cannot serialize .claude/settings.local.json: {error}"))?;
+    atomic_write(&settings_path, &serialized)?;
     add_worktree_include(root)
 }
 
@@ -98,10 +97,11 @@ pub fn deactivate(root: &Path) -> Result<(), String> {
         let mut settings = read_json_object(&settings_path, ".claude/settings.local.json")?;
         if settings.get("outputStyle") == Some(&Value::String("ELI5".into())) {
             settings.remove("outputStyle");
-            atomic_write(
-                &settings_path,
-                &serde_json::to_string_pretty(&Value::Object(settings)),
-            )?;
+            let serialized =
+                serde_json::to_string_pretty(&Value::Object(settings)).map_err(|error| {
+                    format!("Cannot serialize .claude/settings.local.json: {error}")
+                })?;
+            atomic_write(&settings_path, &serialized)?;
         }
     }
     remove_worktree_include(root)
