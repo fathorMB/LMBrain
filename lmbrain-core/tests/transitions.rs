@@ -160,6 +160,8 @@ fn artifact(kind: ArtifactKind, status: &str) -> (&'static str, String) {
         ArtifactKind::Handoff => ("HANDOFF-001", "handoffs/active"),
         ArtifactKind::Skill => ("SKILL-001", "skills"),
         ArtifactKind::Debt => ("DEBT-001", "debts"),
+        ArtifactKind::WayfinderMap => ("MAP-001", "wayfinder/maps"),
+        ArtifactKind::WayfinderTicket => ("WAY-001", "wayfinder/tickets"),
     };
     let relative = if matches!(
         kind,
