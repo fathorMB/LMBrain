@@ -44,6 +44,7 @@ export const LMBRAIN_MCP_TOOLS: McpToolCatalogEntry[] = [
   { name: "wayfinder_map_create", category: "Wayfinder", description: "Project Lead: create an opt-in decision map only after the operator agrees that a multi-session uncertain route needs charting. Does not authorize implementation." },
   { name: "wayfinder_ticket_create", category: "Wayfinder", description: "Project Lead: create one bounded decision, research, prototype, or prerequisite ticket. A ticket is not production implementation work." },
   { name: "wayfinder_ticket_claim", category: "Wayfinder", description: "Project Lead: claim one frontier ticket to avoid concurrent duplicate decision work." },
+  { name: "wayfinder_ticket_release", category: "Wayfinder", description: "Project Lead: release a claimed ticket back to the frontier when its decision work stops." },
   { name: "wayfinder_ticket_resolve", category: "Wayfinder", description: "Project Lead: resolve a bounded ticket with evidence. Conversation/prototype tickets additionally require explicit operator evidence." },
   { name: "wayfinder_map_clear", category: "Wayfinder", description: "Project Lead: clear a map only when all fog and tickets are resolved and diagnostics are empty. Clearing recommends normal SPEC creation; it never starts implementation." },
   { name: "dream_capture", category: "Dream", description: "Project Lead: capture a grounded, tentative technical- or design-debt observation after an explicit operator invitation to dream." },
