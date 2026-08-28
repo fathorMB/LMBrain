@@ -231,3 +231,4 @@ export type HarnessStatus = { host: AgentHost, label: string, state: HarnessProb
 export type HarnessUpdateRequest = { host: AgentHost, codex_bin: string | null, };
 
 export type HarnessUpdateResult = { host: AgentHost, success: boolean, already_current: boolean, before: HarnessStatus, after: HarnessStatus, exit_code: number | null, timed_out: boolean, stdout: string, stderr: string, };
+
