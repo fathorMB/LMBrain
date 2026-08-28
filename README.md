@@ -15,7 +15,7 @@ No hosted LMBrain account or remote database is required. You choose the reposit
 - A desktop view of project status, specs, reviews, durable cross-spec debts, decisions, milestones, knowledge, and design artifacts.
 - A governed spec lifecycle: `backlog → ready → working → review → done`.
 - Repository-scoped MCP tools for controlled artifact creation, transitions, context packs, verification, and agent-profile improvements.
-- Manual interactive sessions for Claude Code, Codex, Pi, and OpenCode when their CLIs are installed locally.
+- Manual interactive sessions for Claude Code, Codex, and Pi when their CLIs are installed locally.
 - Local diagnostics, review-quality metrics, verification transcripts, and migration guidance.
 - No automatic agent launch, profile activation, command execution, or project migration.
 
@@ -67,7 +67,7 @@ There is currently no prebuilt macOS installer. Build from source using the plat
 
 Initialization copies the bundled kit into a new `.lmbrain/` directory. It refuses to overwrite an existing brain and does not copy or upload your repository.
 
-LMBrain may also create or update machine-oriented integration files such as `AGENTS.md`, `.mcp.json`, `.codex/config.toml`, `.pi/mcp.json`, and `opencode.json`. Review these files and your repository ignore policy before committing them; credentials never belong in LMBrain project manifests.
+LMBrain may also create or update machine-oriented integration files such as `AGENTS.md`, `.mcp.json`, `.codex/config.toml`, and `.pi/mcp.json`. Review these files and your repository ignore policy before committing them; credentials never belong in LMBrain project manifests. LMBrain no longer creates or changes existing `opencode.json` files.
 
 ## Using LMBrain
 
@@ -91,7 +91,6 @@ The desktop app works as a project browser without an agent CLI. Interactive age
 | Claude Code | Native or Ollama | `claude`; Ollama for the local route |
 | Codex | Native | `codex` |
 | Pi | Ollama | `pi`, Ollama, and a tool-capable model |
-| OpenCode | Ollama | `opencode`, Ollama, and a tool-capable model |
 
 LMBrain detects these executables and reports their exact paths and versions under **Settings → Harnesses**. It does not install agent CLIs, models, or credentials. Updates are always explicitly initiated by the operator.
 
@@ -160,7 +159,7 @@ node scripts/check-version.mjs
 | --- | --- |
 | [Product](docs/product.md) | Product model, views, and local-first boundaries |
 | [Kit](docs/kit.md) | `.lmbrain/` structure, lifecycle, migration, and agent taxonomy |
-| [Agent Hosts](docs/agent-hosts.md) | Claude Code, Codex, Pi, OpenCode, and MCP registration |
+| [Agent Hosts](docs/agent-hosts.md) | Claude Code, Codex, Pi, and MCP registration |
 | [Sessions](docs/sessions.md) | Interactive terminal routes and prerequisites |
 | [Repository](docs/repository.md) | Read-only Git/GitHub dashboard and file diff inspection |
 | [Architecture](docs/architecture.md) | React, Tauri, Rust core, and MCP internals |

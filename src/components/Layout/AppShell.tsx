@@ -30,6 +30,9 @@ const DebtsView = lazy(() =>
 const DreamsView = lazy(() =>
   import("../Dreams/DreamsView").then((m) => ({ default: m.DreamsView }))
 );
+const WayfinderView = lazy(() =>
+  import("../Wayfinder/WayfinderView").then((m) => ({ default: m.WayfinderView }))
+);
 const FeedbackView = lazy(() =>
   import("../Feedback/FeedbackView").then((m) => ({ default: m.FeedbackView }))
 );
@@ -117,6 +120,8 @@ export function AppShell() {
         return <DebtsView />;
       case "dreams":
         return <DreamsView />;
+      case "wayfinder":
+        return <WayfinderView />;
       case "feedback":
         return <FeedbackView />;
       case "decisions":

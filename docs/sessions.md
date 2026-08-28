@@ -8,11 +8,10 @@ Supported host/connection combinations:
 - Claude through Ollama: `ollama launch claude --model <model>`;
 - native Codex: `codex`.
 - Pi through Ollama: `ollama launch pi --model <model>`.
-- OpenCode through Ollama: `opencode <workspace> --model ollama/<model>` with a session-scoped provider for the local Ollama API.
 
-The session contract separates the agent host (`claude`, `codex`, `pi`, or `opencode`)
+The session contract separates the agent host (`claude`, `codex`, or `pi`)
 from the connection route (`native` or `ollama`). Claude supports both,
-Codex supports native only, while Pi and OpenCode support Ollama only. Unsupported
+Codex supports native only, while Pi supports Ollama only. Unsupported
 combinations are rejected before a PTY is opened.
 
 Pi requires the audited project-local package pin
@@ -23,16 +22,6 @@ offline/non-mutating readiness checks for the `ollama` and `pi` executables,
 the Ollama API and selected tool-capable model, and the exact Pi MCP extension
 version. The modal stays open and displays an actionable error when a check
 fails.
-
-OpenCode needs no extension. It consumes LMBrain's native local MCP entry from
-project `opencode.json`; preflight requires both OpenCode and the local Ollama API.
-LMBrain starts OpenCode directly with the absolute workspace positional and
-`ollama/<model>`, while `OPENCODE_CONFIG_CONTENT` provides the official
-OpenAI-compatible provider at `http://localhost:11434/v1`. Project file search
-and LSP roots therefore no longer depend on a nested Windows launcher.
-Generated OpenCode configuration includes `@workspace/` as an explicit local
-reference, providing deterministic project-file completion independently of the
-ordering used by OpenCode's bare `@` suggestion popup.
 
 ## Backend
 
@@ -75,10 +64,6 @@ tracking to xterm or sends the harness's documented wheel binding. Modifier-
 assisted wheel gestures are left to xterm/the host.
 
 LMBrain uses xterm 6 for corrected alternate-buffer wheel and viewport handling.
-Embedded OpenCode sessions disable OpenCode mouse capture so xterm remains the
-single owner of wheel and selection behavior. OpenCode uses its documented
-alternate message bindings (`Ctrl+Alt+Y/E`) because wheel events are not handled
-reliably through Windows ConPTY.
 
 Each terminal shows Copy and Paste controls plus shortcut guidance:
 
@@ -127,8 +112,7 @@ assumption:
 - Normal buffer: native xterm wheel scrolling for every host.
 - Alternate buffer with mouse tracking enabled: wheel events delegate to
   xterm's native mouse reports so the TUI scrolls itself.
-- Alternate buffer without tracking: Pi uses Page Up/Down; OpenCode uses its
-  documented Ctrl+Alt line bindings; Codex delegates to xterm's
+- Alternate buffer without tracking: Pi uses Page Up/Down; Codex delegates to xterm's
   alternate-screen arrow emulation; Claude Code and unknown hosts degrade
   visibly with a hint instead of swallowing the gesture.
 
@@ -141,7 +125,7 @@ panel.
 ### Manual harness verification checklist
 
 Run before release on Windows for each supported harness (Claude Code, Codex,
-Pi, OpenCode):
+Pi):
 
 - [ ] Mouse wheel up/down scrolls (or visibly explains why not).
 - [ ] Shift+drag selects while the TUI tracks the mouse.

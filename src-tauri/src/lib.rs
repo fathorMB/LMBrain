@@ -4,6 +4,7 @@ pub mod models;
 
 use std::path::{Path, PathBuf};
 
+use commands::claude_eli5::{ClaudeEli5Preference, ClaudeEli5Service};
 use commands::contract;
 use commands::design;
 use commands::filesystem::PathGuard;
@@ -33,6 +34,7 @@ pub struct AppState {
     pub sessions: SessionManager,
     pub harnesses: HarnessManager,
     pub harness_approvals: HarnessApprovalStore,
+    pub claude_eli5: ClaudeEli5Service,
 }
 
 // ─── Tauri Commands ───────────────────────────────────────────────
@@ -59,6 +61,7 @@ fn open_workspace(
 
     // Set the path guard root after successful validation
     state.path_guard.set_root(root);
+    state.claude_eli5.apply_if_enabled(root)?;
 
     // Register the repository-scoped lmbrain-mcp server so agents working in this
     // workspace receive the controlled-mutation tools. Best-effort: never block
@@ -67,7 +70,6 @@ fn open_workspace(
     let _ = commands::mcp_registration::register_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
     let _ = commands::pi_registration::register_pi_mcp_server(root, &mcp_command);
-    let _ = commands::opencode_registration::register_opencode_mcp_server(root, &mcp_command);
     let _ = commands::antigravity_registration::register_antigravity_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::ensure_codex_workspace_trusted(root);
     let _ = commands::codex_registration::scaffold_agents_md(root);
@@ -98,11 +100,11 @@ fn initialize_workspace_kit(
         .initialize_kit(Path::new(&path), &template)
         .map_err(|e| e.to_string())?;
     let root = Path::new(&path);
+    state.claude_eli5.apply_if_enabled(root)?;
     let mcp_command = commands::mcp_registration::resolve_mcp_command_for_root(root);
     let _ = commands::mcp_registration::register_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
     let _ = commands::pi_registration::register_pi_mcp_server(root, &mcp_command);
-    let _ = commands::opencode_registration::register_opencode_mcp_server(root, &mcp_command);
     let _ = commands::antigravity_registration::register_antigravity_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::ensure_codex_workspace_trusted(root);
     let _ = commands::codex_registration::scaffold_agents_md(root);
@@ -153,6 +155,20 @@ fn bundled_kit_path(app: &AppHandle) -> Result<PathBuf, Box<dyn std::error::Erro
 #[tauri::command(async)]
 fn list_recent_workspaces(state: State<'_, AppState>) -> Vec<WorkspaceSummary> {
     state.workspace_service.list_recent()
+}
+
+#[tauri::command(async)]
+fn get_claude_eli5_preference(state: State<'_, AppState>) -> ClaudeEli5Preference {
+    state.claude_eli5.preference()
+}
+
+#[tauri::command(async)]
+fn set_claude_eli5_preference(
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<ClaudeEli5Preference, String> {
+    let root = state.path_guard.get_root();
+    state.claude_eli5.set_enabled(enabled, root.as_deref())
 }
 
 #[tauri::command]
@@ -298,6 +314,12 @@ fn get_dreams(state: State<'_, AppState>) -> Result<Vec<lmbrain_core::Dream>, St
         .get_root()
         .ok_or_else(|| "No workspace open".to_string())?;
     Ok(lmbrain_core::list_dreams(&root))
+}
+
+#[tauri::command(async)]
+fn get_wayfinder_overview(state: State<'_, AppState>) -> Result<lmbrain_core::WayfinderOverview, String> {
+    let root = state.path_guard.get_root().ok_or_else(|| "No workspace open".to_string())?;
+    Ok(lmbrain_core::wayfinder_overview(&root))
 }
 
 #[tauri::command(async)]
@@ -652,11 +674,6 @@ fn session_start(
         commands::pi_registration::register_pi_mcp_server(&root, &mcp_command)
             .map_err(|err| format!("Unable to register LMBrain tools for Pi: {err}"))?;
     }
-    if matches!(request.host, models::session::AgentHost::Opencode) {
-        let mcp_command = commands::mcp_registration::resolve_mcp_command_for_root(&root);
-        commands::opencode_registration::register_opencode_mcp_server(&root, &mcp_command)
-            .map_err(|err| format!("Unable to register LMBrain tools for OpenCode: {err}"))?;
-    }
     if matches!(
         (&request.host, &request.route),
         (
@@ -960,6 +977,8 @@ pub fn run() {
                 .expect("Failed to initialize workspace service");
             let harness_approvals = HarnessApprovalStore::initialize(&app_data_dir)
                 .expect("Failed to initialize harness approval store");
+            let claude_eli5 = ClaudeEli5Service::initialize(&app_data_dir)
+                .expect("Failed to initialize Claude ELI5 preference");
 
             // Store application state
             app.manage(AppState {
@@ -969,6 +988,7 @@ pub fn run() {
                 sessions: SessionManager::new(),
                 harnesses: HarnessManager::new(),
                 harness_approvals,
+                claude_eli5,
             });
 
             Ok(())
@@ -977,6 +997,8 @@ pub fn run() {
             open_workspace,
             initialize_workspace_kit,
             list_recent_workspaces,
+            get_claude_eli5_preference,
+            set_claude_eli5_preference,
             prepare_pi_integration,
             remove_recent_workspace,
             read_file,
@@ -991,6 +1013,7 @@ pub fn run() {
             get_reviews,
             get_debts,
             get_dreams,
+            get_wayfinder_overview,
             get_kit_feedback,
             write_export_file,
             get_debt_context,

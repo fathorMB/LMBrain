@@ -79,6 +79,11 @@ function snapshot(totalSpecs: number): WorkspaceSnapshot {
         first_pass_eligible_specs: 0,
         first_pass_accepted_specs: 0,
         first_pass_acceptance_rate: 0,
+        outcome_balance: {
+          done_specs: 0, eligible_specs: 0, first_pass_specs: 0, remediation_required_specs: 0,
+          excluded_specs: 0, excluded_no_review: 0, excluded_unknown_history: 0,
+          excluded_inconsistent_history: 0, entries: [], entries_truncated: false,
+        },
         average_reviews_per_reviewed_spec: 0,
         by_area: [],
         by_agent: [],

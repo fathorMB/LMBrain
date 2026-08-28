@@ -166,7 +166,7 @@ export type RecentActivity = { action: string, path: string, description: string
 
 export type PulseData = { focus: string | null, milestone: string | null, milestone_progress: number | null, milestone_due: string | null, metrics: Array<MetricCard>, actions: Array<ActionItem>, blockers: Array<ActionItem>, recent_activity: Array<RecentActivity>, ready_handoffs: Array<Handoff>, active_handoff: Handoff | null, };
 
-export type AgentHost = "claude" | "codex" | "pi" | "opencode";
+export type AgentHost = "claude" | "codex" | "pi";
 
 export type ModelRoute = "native" | "ollama";
 
@@ -194,7 +194,11 @@ export type ReviewTrendPoint = { period: string, total_reviews: number, accepted
 
 export type ReviewCycleRankingEntry = { spec_id: string, title: string, path: string, status: string, review_count: number, review_passes: number, remediation_cycles: number, history_source: string, confidence: string, warnings: Array<string>, };
 
-export type ReviewQualityStats = { total_reviews: number, total_review_passes: number, remediation_cycles: number, escalation_count: number, takeover_count: number, lifecycle_known_reviews: number, lifecycle_coverage: number, reviewed_specs: number, accepted_reviews: number, changes_requested_reviews: number, blocked_reviews: number, superseded_reviews: number, reviews_without_spec: number, reviews_without_created: number, specs_with_changes_requested: number, specs_with_multiple_changes_requested: number, change_request_rate: number, first_pass_eligible_specs: number, first_pass_accepted_specs: number, first_pass_acceptance_rate: number, average_reviews_per_reviewed_spec: number, review_cycle_ranking: Array<ReviewCycleRankingEntry>, review_cycle_ranking_coverage: number, by_area: Array<ReviewDimensionStat>, by_agent: Array<ReviewDimensionStat>, trend: Array<ReviewTrendPoint>, };
+export type ReviewOutcomeEntry = { spec_id: string, title: string, path: string, classification: string, };
+
+export type ReviewOutcomeBalance = { done_specs: number, eligible_specs: number, first_pass_specs: number, remediation_required_specs: number, excluded_specs: number, excluded_no_review: number, excluded_unknown_history: number, excluded_inconsistent_history: number, entries: Array<ReviewOutcomeEntry>, entries_truncated: boolean, };
+
+export type ReviewQualityStats = { total_reviews: number, total_review_passes: number, remediation_cycles: number, escalation_count: number, takeover_count: number, lifecycle_known_reviews: number, lifecycle_coverage: number, reviewed_specs: number, accepted_reviews: number, changes_requested_reviews: number, blocked_reviews: number, superseded_reviews: number, reviews_without_spec: number, reviews_without_created: number, specs_with_changes_requested: number, specs_with_multiple_changes_requested: number, change_request_rate: number, first_pass_eligible_specs: number, first_pass_accepted_specs: number, first_pass_acceptance_rate: number, outcome_balance: ReviewOutcomeBalance, average_reviews_per_reviewed_spec: number, review_cycle_ranking: Array<ReviewCycleRankingEntry>, review_cycle_ranking_coverage: number, by_area: Array<ReviewDimensionStat>, by_agent: Array<ReviewDimensionStat>, trend: Array<ReviewTrendPoint>, };
 
 export type DiagnosticStats = { total: number, warnings: number, errors: number, by_family: Array<StatusCount>, };
 
@@ -227,4 +231,3 @@ export type HarnessStatus = { host: AgentHost, label: string, state: HarnessProb
 export type HarnessUpdateRequest = { host: AgentHost, codex_bin: string | null, };
 
 export type HarnessUpdateResult = { host: AgentHost, success: boolean, already_current: boolean, before: HarnessStatus, after: HarnessStatus, exit_code: number | null, timed_out: boolean, stdout: string, stderr: string, };
-

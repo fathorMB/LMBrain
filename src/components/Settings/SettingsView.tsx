@@ -1,4 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { HarnessesView } from "../Harnesses/HarnessesView";
 import { useWorkspace } from "../../hooks/useWorkspace";
@@ -37,7 +38,12 @@ export function SettingsView({ initialTab }: { initialTab?: SettingsTab }) {
 }
 
 function GeneralPanel() {
-  return <Panel><h2>General</h2><p style={muted}>There are currently no application-wide preferences. Machine-local harness selection lives under Harnesses. The governed project environment and verification manifest are consultable read-only from the Environment page in the sidebar; the Project Lead manages them through the LMBrain MCP verbs.</p></Panel>;
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { let cancelled = false; invoke<{ enabled: boolean }>("get_claude_eli5_preference").then((preference) => { if (!cancelled) setEnabled(preference.enabled); }).catch((reason) => { if (!cancelled) setError(String(reason)); }).finally(() => { if (!cancelled) setLoading(false); }); return () => { cancelled = true; }; }, []);
+  const change = async (next: boolean) => { setError(null); setLoading(true); try { const preference = await invoke<{ enabled: boolean }>("set_claude_eli5_preference", { enabled: next }); setEnabled(preference.enabled); } catch (reason) { setError(String(reason)); } finally { setLoading(false); } };
+  return <Panel><h2>General</h2><Card><h3 style={{ marginTop: 0 }}>Claude Code ELI5 output</h3><p style={muted}>Use LMBrain’s local ELI5 communication style for new Claude Code sessions in this workspace. It is stored only on this machine, is off by default, and does not change shared project settings or other harnesses.</p><label style={{ display: "flex", gap: 10, alignItems: "center", cursor: loading ? "wait" : "pointer" }}><input type="checkbox" checked={enabled} disabled={loading} onChange={(event) => void change(event.target.checked)} /> Enable ELI5 for Claude Code</label><p style={{ ...muted, marginBottom: 0 }}>Enabling installs or verifies a user-level style and merges only <code>outputStyle: ELI5</code> into <code>.claude/settings.local.json</code>. New Claude sessions pick it up; disabling removes only unchanged LMBrain-managed entries.</p>{error && <p role="alert" style={{ color: "var(--danger-primary, #d9534f)", marginBottom: 0 }}>{error}</p>}</Card><p style={muted}>Machine-local harness selection lives under Harnesses. The governed project environment and verification manifest are consultable read-only from the Environment page in the sidebar; the Project Lead manages them through the LMBrain MCP verbs.</p></Panel>;
 }
 
 function AboutPanel() {

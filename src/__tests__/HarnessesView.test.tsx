@@ -4,7 +4,7 @@ import { HarnessesView } from "../components/Harnesses/HarnessesView";
 import { probeHarnesses, updateHarness } from "../lib/commands";
 import type { HarnessStatus } from "../types";
 
-const workspace = vi.hoisted(() => ({ state: { sessions: [] as Array<{ host: "claude" | "codex" | "pi" | "opencode"; status: "running" | "exited"; label: string }> } }));
+const workspace = vi.hoisted(() => ({ state: { sessions: [] as Array<{ host: "claude" | "codex" | "pi"; status: "running" | "exited"; label: string }> } }));
 
 vi.mock("../hooks/useWorkspace", () => ({ useWorkspace: () => workspace }));
 vi.mock("../lib/commands", () => ({ probeHarnesses: vi.fn(), updateHarness: vi.fn() }));
@@ -46,17 +46,6 @@ const statuses: HarnessStatus[] = [
     install_url: "https://example.com/pi",
     install_command: "npm install -g @earendil-works/pi-coding-agent",
   },
-  {
-    host: "opencode",
-    label: "OpenCode",
-    state: "installed",
-    executable: "C:\\Tools\\opencode.exe",
-    version: "1.15.11",
-    detail: null,
-    probed_at: "2026-07-11T10:00:00+02:00",
-    install_url: "https://opencode.ai/docs/",
-    install_command: "npm install -g opencode-ai",
-  },
 ];
 
 describe("HarnessesView", () => {
@@ -72,7 +61,6 @@ describe("HarnessesView", () => {
 
     await screen.findByText("2.1.206");
     expect(screen.getByText("0.144.1")).toBeDefined();
-    expect(screen.getByText("1.15.11")).toBeDefined();
     expect(screen.getByTitle("C:\\Tools\\claude.exe")).toBeDefined();
     expect(screen.getByText("Not installed")).toBeDefined();
 

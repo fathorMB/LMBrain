@@ -62,7 +62,6 @@ pub fn probe_all(codex_bin: Option<&str>) -> Vec<HarnessStatus> {
         AgentHost::Claude,
         AgentHost::Codex,
         AgentHost::Pi,
-        AgentHost::Opencode,
     ]
     .into_iter()
     .map(|host| probe_harness(&host, codex_bin))
@@ -332,7 +331,6 @@ fn resolve_harness(host: &AgentHost, codex_bin: Option<&str>) -> Option<PathBuf>
     match host {
         AgentHost::Claude => command_on_path("claude"),
         AgentHost::Pi => command_on_path("pi"),
-        AgentHost::Opencode => command_on_path("opencode"),
         AgentHost::Codex => {
             let resolved = resolve_codex_command(codex_bin);
             let path = PathBuf::from(&resolved);
@@ -351,7 +349,6 @@ fn update_args(host: &AgentHost) -> &'static [&'static str] {
     match host {
         AgentHost::Claude | AgentHost::Codex => &["update"],
         AgentHost::Pi => &["update", "--self", "--no-approve"],
-        AgentHost::Opencode => &["upgrade"],
     }
 }
 
@@ -360,7 +357,6 @@ fn harness_label(host: &AgentHost) -> &'static str {
         AgentHost::Claude => "Claude Code",
         AgentHost::Codex => "Codex",
         AgentHost::Pi => "Pi",
-        AgentHost::Opencode => "OpenCode",
     }
 }
 
@@ -378,7 +374,6 @@ fn install_guidance(host: &AgentHost) -> (&'static str, &'static str) {
             "https://github.com/badlogic/pi-mono",
             "npm install -g @earendil-works/pi-coding-agent",
         ),
-        AgentHost::Opencode => ("https://opencode.ai/docs/", "npm install -g opencode-ai"),
     }
 }
 
@@ -462,7 +457,6 @@ mod tests {
             update_args(&AgentHost::Pi),
             &["update", "--self", "--no-approve"]
         );
-        assert_eq!(update_args(&AgentHost::Opencode), &["upgrade"]);
     }
 
     #[test]
@@ -480,7 +474,6 @@ mod tests {
             AgentHost::Claude,
             AgentHost::Codex,
             AgentHost::Pi,
-            AgentHost::Opencode,
         ] {
             let (_, command) = install_guidance(&host);
             assert!(!command.contains("sudo"));
@@ -595,7 +588,7 @@ mod tests {
     #[ignore = "manual read-only smoke test for operator-installed harnesses"]
     fn probes_operator_installed_harnesses() {
         let statuses = super::probe_all(None);
-        assert_eq!(statuses.len(), 4);
+        assert_eq!(statuses.len(), 3);
         for status in statuses {
             eprintln!(
                 "{}: {:?} {:?} {:?}",

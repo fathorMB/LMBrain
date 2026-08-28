@@ -310,11 +310,6 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
         }}
       >
         <span style={{ flex: 1, minWidth: 0 }}>{hint}</span>
-        {host === "opencode" && (
-          <span style={{ color: "var(--text-secondary)", flexShrink: 0 }}>
-            Files: @workspace/
-          </span>
-        )}
         {feedback && (
           <span role="status" aria-live="polite" style={{ color: "var(--text-secondary)" }}>
             {feedback}

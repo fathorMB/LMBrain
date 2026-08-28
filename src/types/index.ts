@@ -206,7 +206,7 @@ export interface HarnessBrowserMcpReadiness {
 }
 
 export interface HarnessHostPlan {
-  host: "claude-code" | "codex" | "pi" | "open-code";
+  host: "claude-code" | "codex" | "pi";
   effective: {
     enabled: boolean;
     required_tools: string[];
@@ -260,6 +260,7 @@ export type AppView =
   | "operations"
   | "debts"
   | "dreams"
+  | "wayfinder"
   | "feedback"
   | "decisions"
   | "agents"

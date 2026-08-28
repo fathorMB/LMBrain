@@ -577,13 +577,14 @@ fn test_build_project_statistics_counts_changes_requested_by_spec() {
     fs::create_dir_all(lmbrain.join("reviews/accepted")).unwrap();
     fs::create_dir_all(lmbrain.join("reviews/changes-requested")).unwrap();
     fs::create_dir_all(lmbrain.join("reviews/pending")).unwrap();
+    fs::create_dir_all(lmbrain.join("specs/done")).unwrap();
 
     fs::write(
-        lmbrain.join("specs/ready/SPEC-FIRST.md"),
+        lmbrain.join("specs/done/SPEC-FIRST.md"),
         r#"---
 id: SPEC-FIRST
 title: First pass
-status: ready
+status: done
 area: frontend
 recommended_agent: AGENT-FRONTEND
 created: 2026-07-01
@@ -596,11 +597,11 @@ links: []
     )
     .unwrap();
     fs::write(
-        lmbrain.join("specs/ready/SPEC-LOOP.md"),
+        lmbrain.join("specs/done/SPEC-LOOP.md"),
         r#"---
 id: SPEC-LOOP
 title: Review loop
-status: ready
+status: done
 area: backend
 recommended_agent: AGENT-BACKEND
 created: 2026-07-01
@@ -609,6 +610,21 @@ tags: []
 links: []
 ---
 # Review loop
+"#,
+    )
+    .unwrap();
+    fs::write(
+        lmbrain.join("specs/done/SPEC-NO-REVIEW.md"),
+        r#"---
+id: SPEC-NO-REVIEW
+title: No review
+status: done
+created: 2026-07-01
+updated: 2026-07-01
+tags: []
+links: []
+---
+# No review
 "#,
     )
     .unwrap();
@@ -622,6 +638,7 @@ status: accepted
 spec: SPEC-FIRST
 created: 2026-07-02
 updated: 2026-07-02
+review_cycles: 1
 tags: []
 links: []
 ---
@@ -638,6 +655,8 @@ status: changes-requested
 spec: SPEC-LOOP
 created: 2026-07-03
 updated: 2026-07-03
+review_cycles: 1
+remediation_cycles: 0
 tags: []
 links: []
 ---
@@ -654,6 +673,8 @@ status: accepted
 spec: SPEC-LOOP
 created: 2026-07-04
 updated: 2026-07-04
+review_cycles: 2
+remediation_cycles: 1
 tags: []
 links: []
 ---
@@ -681,18 +702,24 @@ links: []
     let review = stats.review_quality;
 
     assert_eq!(review.total_reviews, 4);
-    assert_eq!(review.total_review_passes, 4);
-    assert_eq!(review.remediation_cycles, 0);
-    assert_eq!(review.lifecycle_known_reviews, 0);
-    assert_eq!(review.lifecycle_coverage, 0.0);
+    assert_eq!(review.total_review_passes, 5);
+    assert_eq!(review.remediation_cycles, 1);
+    assert_eq!(review.lifecycle_known_reviews, 3);
+    assert_eq!(review.lifecycle_coverage, 0.75);
     assert_eq!(review.reviewed_specs, 2);
     assert_eq!(review.reviews_without_spec, 1);
     assert_eq!(review.specs_with_changes_requested, 1);
     assert_eq!(review.changes_requested_reviews, 1);
-    assert_eq!(review.first_pass_eligible_specs, 1);
-    assert_eq!(review.first_pass_accepted_specs, 0);
+    assert_eq!(review.first_pass_eligible_specs, 2);
+    assert_eq!(review.first_pass_accepted_specs, 1);
     assert_eq!(review.change_request_rate, 0.5);
-    assert_eq!(review.first_pass_acceptance_rate, 0.0);
+    assert_eq!(review.first_pass_acceptance_rate, 0.5);
+    assert_eq!(review.outcome_balance.done_specs, 3);
+    assert_eq!(review.outcome_balance.eligible_specs, 2);
+    assert_eq!(review.outcome_balance.first_pass_specs, 1);
+    assert_eq!(review.outcome_balance.remediation_required_specs, 1);
+    assert_eq!(review.outcome_balance.excluded_specs, 1);
+    assert_eq!(review.outcome_balance.excluded_no_review, 1);
     assert_eq!(review.trend.len(), 1);
     assert_eq!(review.trend[0].period, "2026-07");
     assert_eq!(review.trend[0].specs_with_changes_requested, 1);

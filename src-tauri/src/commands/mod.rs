@@ -1,4 +1,5 @@
 pub mod antigravity_registration;
+pub mod claude_eli5;
 pub mod codex_registration;
 pub mod contract;
 pub mod design;
@@ -11,7 +12,6 @@ pub mod harness_materializer;
 pub mod harness_planner;
 pub mod harnesses;
 pub mod mcp_registration;
-pub mod opencode_registration;
 pub mod parser;
 pub mod pi_registration;
 pub mod process;

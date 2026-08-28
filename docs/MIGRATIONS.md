@@ -4,7 +4,19 @@ This document describes how to update an existing LMBrain kit between released v
 
 ## Current policy
 
-The current kit is `5.1.0`.
+The current kit is `5.2.0`.
+
+### 5.2.0 (OpenCode host removal)
+
+LMBrain no longer supports OpenCode. It no longer launches, probes, updates, or
+registers the host, and it does not create or modify `opencode.json`.
+
+If your repository already contains `opencode.json`, LMBrain leaves it untouched.
+You may manually remove LMBrain's former `mcp.lmbrain` entry when appropriate;
+review the rest of the file first because it is user-owned. The repository ignore
+rule was removed, so an existing file can appear as untracked. Remove any
+`open-code` host from `.lmbrain/HARNESSES.json`; LMBrain reports an actionable
+migration diagnostic until you do.
 
 ### 5.1.0 (Lead guardrails, deterministic modules, skill registry sync)
 

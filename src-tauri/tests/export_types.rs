@@ -37,7 +37,8 @@ use lmbrain_lib::models::{
     spec::{Spec, SpecParkingEvent},
     statistics::{
         ArtifactFamilyStats, DiagnosticStats, ProjectStatistics, ReviewCycleRankingEntry,
-        ReviewDimensionStat, ReviewQualityStats, ReviewTrendPoint, SpecFlowStats, StatusCount,
+        ReviewDimensionStat, ReviewOutcomeBalance, ReviewOutcomeEntry, ReviewQualityStats,
+        ReviewTrendPoint, SpecFlowStats, StatusCount,
     },
     wiki::{WikiNode, WikiNodeKind, WikiPage, WikiTree},
     workspace::{
@@ -145,6 +146,8 @@ fn generate_typescript() -> String {
         ReviewDimensionStat::decl(),
         ReviewTrendPoint::decl(),
         ReviewCycleRankingEntry::decl(),
+        ReviewOutcomeEntry::decl(),
+        ReviewOutcomeBalance::decl(),
         ReviewQualityStats::decl(),
         DiagnosticStats::decl(),
         ProjectStatistics::decl(),

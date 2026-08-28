@@ -32,6 +32,7 @@ use lmbrain_core::{
     BranchingStrategy, DebtCreateInput, DreamCreateInput, HarnessManifestError,
     ImprovementProposalRequest, KitFeedbackInput, KitFeedbackResolutionInput, ReviewEventInput,
     SpecParkingInput, VerificationManifest, VerificationManifestState,
+    WayfinderMapCreate, WayfinderTicketCreate,
 };
 
 pub struct ToolSpec {
@@ -1563,6 +1564,55 @@ pub static TOOLS: &[ToolSpec] = &[
     },
 
     // Dreams
+    ToolSpec {
+        name: "wayfinder_overview",
+        category: "Wayfinder",
+        description: "Read-only experimental decision-map summaries. Wayfinder is opt-in shaping, never an implementation board.",
+        schema_fn: || json!({"type":"object","properties":{},"additionalProperties":false}),
+        handler: |root, _| Ok(text(json!(lmbrain_core::wayfinder_overview(root)))),
+    },
+    ToolSpec {
+        name: "wayfinder_map_context",
+        category: "Wayfinder",
+        description: "Read-only bounded map context: destination, fog, frontier, claimed/blocked tickets, resolved decisions and diagnostics.",
+        schema_fn: || json!({"type":"object","required":["map"],"properties":{"map":{"type":"string"}},"additionalProperties":false}),
+        handler: |root, args| lmbrain_core::wayfinder_map_context(root, req_str(args, "map")?).map(|v| text(json!(v))).map_err(|e| e.to_string()),
+    },
+    ToolSpec {
+        name: "wayfinder_map_create",
+        category: "Wayfinder",
+        description: "Project Lead: create an opt-in decision map only after the operator agrees that a multi-session uncertain route needs charting. Does not authorize implementation.",
+        schema_fn: || json!({"type":"object","required":["title","destination","notes","out_of_scope","actor"],"properties":{"title":{"type":"string"},"destination":{"type":"string"},"notes":{"type":"string"},"out_of_scope":{"type":"string"},"actor":{"type":"string"}},"additionalProperties":false}),
+        handler: |root, args| serde_json::from_value::<WayfinderMapCreate>(args.clone()).map_err(|e| e.to_string()).and_then(|input| lmbrain_core::wayfinder_map_create(root, input).map(|v| text(json!(v))).map_err(|e| e.to_string())),
+    },
+    ToolSpec {
+        name: "wayfinder_ticket_create",
+        category: "Wayfinder",
+        description: "Project Lead: create one bounded decision, research, prototype, or prerequisite ticket. A ticket is not production implementation work.",
+        schema_fn: || json!({"type":"object","required":["map","title","ticket_type","question","bounded_context","actor"],"properties":{"map":{"type":"string"},"title":{"type":"string"},"ticket_type":{"enum":["conversation","prototype","research","prerequisite"]},"question":{"type":"string"},"blockers":{"type":"array","items":{"type":"string"}},"bounded_context":{"type":"string"},"actor":{"type":"string"}},"additionalProperties":false}),
+        handler: |root, args| serde_json::from_value::<WayfinderTicketCreate>(args.clone()).map_err(|e| e.to_string()).and_then(|input| lmbrain_core::wayfinder_ticket_create(root, input).map(|v| text(json!(v))).map_err(|e| e.to_string())),
+    },
+    ToolSpec {
+        name: "wayfinder_ticket_claim",
+        category: "Wayfinder",
+        description: "Project Lead: claim one frontier ticket to avoid concurrent duplicate decision work.",
+        schema_fn: || json!({"type":"object","required":["ticket","claimant"],"properties":{"ticket":{"type":"string"},"claimant":{"type":"string"}},"additionalProperties":false}),
+        handler: |root, args| lmbrain_core::wayfinder_ticket_claim(root, req_str(args,"ticket")?,req_str(args,"claimant")?).map(|v| text(json!(v))).map_err(|e| e.to_string()),
+    },
+    ToolSpec {
+        name: "wayfinder_ticket_resolve",
+        category: "Wayfinder",
+        description: "Project Lead: resolve a bounded ticket with evidence. Conversation/prototype tickets additionally require explicit operator evidence.",
+        schema_fn: || json!({"type":"object","required":["ticket","actor","summary","evidence"],"properties":{"ticket":{"type":"string"},"actor":{"type":"string"},"summary":{"type":"string"},"evidence":{"type":"string"},"operator_evidence":{"type":["string","null"]}},"additionalProperties":false}),
+        handler: |root,args| lmbrain_core::wayfinder_ticket_resolve(root,req_str(args,"ticket")?,req_str(args,"actor")?,req_str(args,"summary")?,req_str(args,"evidence")?,opt_str(args,"operator_evidence")).map(|v| text(json!(v))).map_err(|e| e.to_string()),
+    },
+    ToolSpec {
+        name: "wayfinder_map_clear",
+        category: "Wayfinder",
+        description: "Project Lead: clear a map only when all fog and tickets are resolved and diagnostics are empty. Clearing recommends normal SPEC creation; it never starts implementation.",
+        schema_fn: || json!({"type":"object","required":["map","actor"],"properties":{"map":{"type":"string"},"actor":{"type":"string"}},"additionalProperties":false}),
+        handler: |root,args| lmbrain_core::wayfinder_map_clear(root,req_str(args,"map")?,req_str(args,"actor")?).map(|v| text(json!(v))).map_err(|e| e.to_string()),
+    },
     ToolSpec {
         name: "dream_capture",
         category: "Dream",

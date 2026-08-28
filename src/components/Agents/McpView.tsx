@@ -147,8 +147,7 @@ export function McpView() {
             <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>.mcp.json</span>{" "}
             and for Codex via{" "}
             <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>.codex/config.toml</span>,
-            Pi via its pinned MCP extension, and OpenCode via{" "}
-            <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>opencode.json</span>.
+            and Pi via its pinned MCP extension.
             Agents call these per-verb tools instead of editing Markdown by hand.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>

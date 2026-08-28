@@ -8,7 +8,6 @@ use std::thread;
 
 use portable_pty::{native_pty_system, Child, ChildKiller, CommandBuilder, MasterPty, PtySize};
 use serde::Deserialize;
-use serde_json::json;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
@@ -331,15 +330,6 @@ pub fn preflight_session(cwd: &Path, request: &SessionStartRequest) -> Result<()
         }
     }
 
-    if matches!(request.host, AgentHost::Opencode) {
-        resolve_opencode_command().ok_or_else(|| {
-            AppError::Session(
-                "Required executable `opencode` was not found on PATH. Install it outside LMBrain and retry."
-                    .into(),
-            )
-        })?;
-    }
-
     Ok(())
 }
 
@@ -363,24 +353,11 @@ fn build_command(request: &SessionStartRequest, cwd: &Path) -> Result<CommandBui
         builder.env("PI_SKIP_VERSION_CHECK", "1");
         builder.env("PI_TELEMETRY", "0");
     }
-    if matches!(
-        (&request.host, &request.route),
-        (AgentHost::Opencode, ModelRoute::Ollama)
-    ) {
-        // LMBrain owns wheel/selection behavior in its embedded xterm. OpenCode's
-        // mouse capture otherwise makes scrolling dependent on nested terminal
-        // mouse protocols, which is unreliable in packaged Windows WebView2.
-        builder.env("OPENCODE_DISABLE_MOUSE", "true");
-        builder.env(
-            "OPENCODE_CONFIG_CONTENT",
-            opencode_ollama_config(required_ollama_model(request)?)?,
-        );
-    }
     builder.cwd(cwd);
     Ok(builder)
 }
 
-fn launch_spec(request: &SessionStartRequest, cwd: &Path) -> Result<LaunchSpec, AppError> {
+fn launch_spec(request: &SessionStartRequest, _cwd: &Path) -> Result<LaunchSpec, AppError> {
     validate_route(request)?;
     let spec = match (&request.host, &request.route) {
         (AgentHost::Claude, ModelRoute::Native) => LaunchSpec {
@@ -405,16 +382,6 @@ fn launch_spec(request: &SessionStartRequest, cwd: &Path) -> Result<LaunchSpec, 
                 required_ollama_model(request)?.to_string(),
             ],
         },
-        (AgentHost::Opencode, ModelRoute::Ollama) => LaunchSpec {
-            program: resolve_opencode_command()
-                .map(|path| path.to_string_lossy().into_owned())
-                .unwrap_or_else(|| "opencode".into()),
-            args: vec![
-                cwd.to_string_lossy().into_owned(),
-                "--model".into(),
-                format!("ollama/{}", required_ollama_model(request)?),
-            ],
-        },
         (AgentHost::Codex, ModelRoute::Native) => LaunchSpec {
             program: resolve_codex_command(request.codex_bin.as_deref()),
             args: vec!["--no-alt-screen".into()],
@@ -424,20 +391,6 @@ fn launch_spec(request: &SessionStartRequest, cwd: &Path) -> Result<LaunchSpec, 
     Ok(spec)
 }
 
-fn opencode_ollama_config(model: &str) -> Result<String, AppError> {
-    serde_json::to_string(&json!({
-        "provider": {
-            "ollama": {
-                "npm": "@ai-sdk/openai-compatible",
-                "name": "Ollama",
-                "options": { "baseURL": "http://localhost:11434/v1" },
-                "models": { (model): { "name": model } }
-            }
-        }
-    }))
-    .map_err(AppError::from)
-}
-
 fn required_ollama_model(request: &SessionStartRequest) -> Result<&str, AppError> {
     request
         .model
@@ -445,46 +398,6 @@ fn required_ollama_model(request: &SessionStartRequest) -> Result<&str, AppError
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::Session("An Ollama model is required".into()))
-}
-
-fn resolve_opencode_command() -> Option<PathBuf> {
-    let resolved = command_on_path("opencode")?;
-
-    #[cfg(windows)]
-    let resolved = resolve_windows_opencode_command(resolved, std::env::consts::ARCH);
-
-    Some(resolved)
-}
-
-#[cfg(any(windows, test))]
-fn resolve_windows_opencode_command(resolved: PathBuf, arch: &str) -> PathBuf {
-    let is_npm_shim = resolved
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| matches!(extension.to_ascii_lowercase().as_str(), "cmd" | "bat"));
-    if !is_npm_shim {
-        return resolved;
-    }
-
-    let Some(parent) = resolved.parent() else {
-        return resolved;
-    };
-    let package_root = parent.join("node_modules").join("opencode-ai");
-    let platform_package = match arch {
-        "aarch64" => "opencode-windows-arm64",
-        _ => "opencode-windows-x64",
-    };
-    for package in [platform_package, "opencode-windows-x64-baseline"] {
-        let native = package_root
-            .join("node_modules")
-            .join(package)
-            .join("bin")
-            .join("opencode.exe");
-        if native.is_file() {
-            return native;
-        }
-    }
-    resolved
 }
 
 fn require_command_on_path(command: &str) -> Result<PathBuf, AppError> {
@@ -519,7 +432,6 @@ fn validate_route(request: &SessionStartRequest) -> Result<(), AppError> {
             | (AgentHost::Claude, ModelRoute::Ollama)
             | (AgentHost::Codex, ModelRoute::Native)
             | (AgentHost::Pi, ModelRoute::Ollama)
-            | (AgentHost::Opencode, ModelRoute::Ollama)
     );
     if valid {
         Ok(())
@@ -576,13 +488,6 @@ fn default_label(request: &SessionStartRequest) -> String {
                 .filter(|value| !value.is_empty())
                 .map(|model| format!("Pi via {model}"))
                 .unwrap_or_else(|| "Pi via Ollama".to_string()),
-            (AgentHost::Opencode, ModelRoute::Ollama) => request
-                .model
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(|model| format!("OpenCode via {model}"))
-                .unwrap_or_else(|| "OpenCode via Ollama".to_string()),
             _ => "Agent session".to_string(),
         })
 }
@@ -860,8 +765,7 @@ mod tests {
     use super::kill_error_means_process_absent;
     use super::{
         default_label, is_cloud_model, launch_spec, newest_desktop_codex_command_in,
-        opencode_ollama_config, parse_ollama_list_output, resolve_codex_command,
-        resolve_opencode_command, resolve_windows_opencode_command, validate_route, LaunchSpec,
+        parse_ollama_list_output, resolve_codex_command, validate_route, LaunchSpec,
     };
     use crate::models::session::{AgentHost, ModelRoute, SessionStartRequest};
 
@@ -919,19 +823,11 @@ mod tests {
             label: None,
             codex_bin: None,
         };
-        let opencode = SessionStartRequest {
-            host: AgentHost::Opencode,
-            route: ModelRoute::Ollama,
-            model: Some("qwen3-coder:cloud".into()),
-            label: None,
-            codex_bin: None,
-        };
 
         assert_eq!(default_label(&native), "Claude");
         assert_eq!(default_label(&ollama), "Claude via glm-5.1:cloud");
         assert_eq!(default_label(&codex), "Codex");
         assert_eq!(default_label(&pi), "Pi via qwen3.5:cloud");
-        assert_eq!(default_label(&opencode), "OpenCode via qwen3-coder:cloud");
     }
 
     #[test]
@@ -954,101 +850,6 @@ mod tests {
                     "qwen3.5:cloud".into(),
                 ],
             }
-        );
-    }
-
-    #[test]
-    fn builds_opencode_ollama_launch_spec_with_discrete_arguments() {
-        let request = SessionStartRequest {
-            host: AgentHost::Opencode,
-            route: ModelRoute::Ollama,
-            model: Some(" qwen3-coder:cloud ".into()),
-            label: None,
-            codex_bin: None,
-        };
-        assert_eq!(
-            launch_spec(&request, Path::new("/workspace")).unwrap(),
-            LaunchSpec {
-                program: resolve_opencode_command()
-                    .map(|path| path.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| "opencode".into()),
-                args: vec![
-                    "/workspace".into(),
-                    "--model".into(),
-                    "ollama/qwen3-coder:cloud".into(),
-                ],
-            }
-        );
-    }
-
-    #[test]
-    fn forwards_windows_workspace_as_direct_opencode_project_argument() {
-        let request = SessionStartRequest {
-            host: AgentHost::Opencode,
-            route: ModelRoute::Ollama,
-            model: Some("qwen3-coder:cloud".into()),
-            label: None,
-            codex_bin: None,
-        };
-        let workspace = r"C:\Work Space\Prøject";
-        let spec = launch_spec(&request, Path::new(workspace)).unwrap();
-        assert_eq!(spec.args[0], workspace);
-        assert_eq!(spec.args[1], "--model");
-        assert_eq!(spec.args[2], "ollama/qwen3-coder:cloud");
-        assert_eq!(spec.args.len(), 3);
-    }
-
-    #[test]
-    fn builds_scoped_inline_ollama_provider_for_opencode() {
-        let config = opencode_ollama_config("deepseek-v4-flash:cloud").unwrap();
-        let value: serde_json::Value = serde_json::from_str(&config).unwrap();
-        assert_eq!(
-            value["provider"]["ollama"]["options"]["baseURL"],
-            "http://localhost:11434/v1"
-        );
-        assert_eq!(
-            value["provider"]["ollama"]["models"]["deepseek-v4-flash:cloud"]["name"],
-            "deepseek-v4-flash:cloud"
-        );
-    }
-
-    #[test]
-    fn resolves_native_opencode_binary_behind_windows_npm_shim() {
-        let temp = tempfile::tempdir().unwrap();
-        let shim = temp.path().join("opencode.cmd");
-        std::fs::write(&shim, "@echo off").unwrap();
-        let native = temp
-            .path()
-            .join("node_modules/opencode-ai/node_modules/opencode-windows-x64/bin/opencode.exe");
-        std::fs::create_dir_all(native.parent().unwrap()).unwrap();
-        std::fs::write(&native, []).unwrap();
-
-        assert_eq!(resolve_windows_opencode_command(shim, "x86_64"), native);
-    }
-
-    #[test]
-    fn resolves_baseline_opencode_binary_when_arch_package_is_absent() {
-        let temp = tempfile::tempdir().unwrap();
-        let shim = temp.path().join("opencode.bat");
-        std::fs::write(&shim, "@echo off").unwrap();
-        let native = temp.path().join(
-            "node_modules/opencode-ai/node_modules/opencode-windows-x64-baseline/bin/opencode.exe",
-        );
-        std::fs::create_dir_all(native.parent().unwrap()).unwrap();
-        std::fs::write(&native, []).unwrap();
-
-        assert_eq!(resolve_windows_opencode_command(shim, "aarch64"), native);
-    }
-
-    #[test]
-    fn preserves_opencode_shim_when_native_binary_is_absent() {
-        let temp = tempfile::tempdir().unwrap();
-        let shim = temp.path().join("opencode.cmd");
-        std::fs::write(&shim, "@echo off").unwrap();
-
-        assert_eq!(
-            resolve_windows_opencode_command(shim.clone(), "x86_64"),
-            shim
         );
     }
 
@@ -1093,18 +894,10 @@ mod tests {
             label: None,
             codex_bin: None,
         };
-        let opencode_native = SessionStartRequest {
-            host: AgentHost::Opencode,
-            route: ModelRoute::Native,
-            model: None,
-            label: None,
-            codex_bin: None,
-        };
 
         assert!(validate_route(&pi_native).is_err());
         assert!(validate_route(&codex_ollama).is_err());
         assert!(launch_spec(&pi_without_model, Path::new("/workspace")).is_err());
-        assert!(validate_route(&opencode_native).is_err());
     }
 
     #[test]

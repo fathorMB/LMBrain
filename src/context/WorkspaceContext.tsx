@@ -714,8 +714,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           request.label?.trim() ||
           (request.host === "claude" && request.route === "ollama" && request.model
             ? `Claude via ${request.model}`
-            : (request.host === "pi" || request.host === "opencode") && request.model
-              ? `${request.host === "pi" ? "Pi" : "OpenCode"} via ${request.model}`
+            : request.host === "pi" && request.model
+              ? `Pi via ${request.model}`
               : request.host === "codex"
               ? "Codex"
               : "Claude"),

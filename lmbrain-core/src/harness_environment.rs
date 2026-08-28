@@ -152,54 +152,6 @@ pub fn build_pi_mcp_config(
     serde_json::to_string_pretty(&value).map_err(|error| error.to_string())
 }
 
-/// Build the `opencode.json` content registering LMBrain's MCP server.
-pub fn build_opencode_config(
-    existing: Option<&str>,
-    command: &str,
-    root: &str,
-) -> Result<String, String> {
-    let mut value: Value = match existing {
-        Some(text) if !text.trim().is_empty() => {
-            serde_json::from_str(text).map_err(|error| error.to_string())?
-        }
-        _ => json!({}),
-    };
-    let object = value
-        .as_object_mut()
-        .ok_or_else(|| "opencode.json must contain a JSON object".to_string())?;
-    // OpenCode disables every built-in LSP when this key is absent. Enable its
-    // built-ins for LMBrain workspaces, but never override an explicit operator
-    // choice (`false`) or custom per-server object.
-    object.entry("lsp").or_insert(Value::Bool(true));
-    let references = object.entry("references").or_insert_with(|| json!({}));
-    if !references.is_object() {
-        return Err("opencode.json references must be a JSON object".into());
-    }
-    references
-        .as_object_mut()
-        .expect("references is an object")
-        .entry("workspace")
-        .or_insert_with(|| {
-            json!({
-                "path": ".",
-                "description": "LMBrain project workspace"
-            })
-        });
-    let mcp = object.entry("mcp").or_insert_with(|| json!({}));
-    if !mcp.is_object() {
-        return Err("opencode.json mcp must be a JSON object".into());
-    }
-    mcp.as_object_mut().expect("mcp is an object").insert(
-        "lmbrain".into(),
-        json!({
-            "type": "local",
-            "command": [command, "--root", root],
-            "enabled": true
-        }),
-    );
-    serde_json::to_string_pretty(&value).map_err(|error| error.to_string())
-}
-
 // ---------------------------------------------------------------------------
 // Machine-local approval store
 // ---------------------------------------------------------------------------
@@ -575,8 +527,6 @@ fn plan_harness_configuration_with_browser_path(
                 CapabilityState::Configured
             } else if !prerequisite_ready {
                 CapabilityState::Failed
-            } else if host == HarnessHost::OpenCode {
-                CapabilityState::InactiveLazy
             } else {
                 CapabilityState::Unknown
             };
@@ -669,19 +619,6 @@ fn plan_native_file(
                 build_pi_mcp_config(existing.as_deref(), command, &root_text),
             )
         }
-        HarnessHost::OpenCode => {
-            let path = "opencode.json";
-            let existing = read_optional(root.join(path));
-            (
-                path,
-                vec![
-                    "mcp.lmbrain",
-                    "references.workspace",
-                    "lsp (only when absent)",
-                ],
-                build_opencode_config(existing.as_deref(), command, &root_text),
-            )
-        }
     };
     let existing = read_optional(root.join(relative));
     match proposed {
@@ -769,7 +706,7 @@ fn semantically_equal(path: &str, left: &str, right: &str) -> bool {
 
 fn supported_capabilities(host: HarnessHost) -> Vec<String> {
     let mut values = vec!["enabled", "required-tools", "environment"];
-    if matches!(host, HarnessHost::ClaudeCode | HarnessHost::OpenCode) {
+    if matches!(host, HarnessHost::ClaudeCode) {
         values.push("lsp");
     }
     if matches!(host, HarnessHost::ClaudeCode) {
@@ -1185,14 +1122,6 @@ fn render(
             ".pi/mcp.json",
             build_pi_mcp_config(
                 read_optional(root.join(".pi/mcp.json")).as_deref(),
-                command,
-                &root_text,
-            ),
-        ),
-        HarnessHost::OpenCode => (
-            "opencode.json",
-            build_opencode_config(
-                read_optional(root.join("opencode.json")).as_deref(),
                 command,
                 &root_text,
             ),

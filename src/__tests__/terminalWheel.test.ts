@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { terminalWheelAction, terminalWheelRows } from "../lib/terminalWheel";
 import type { AgentHost } from "../types";
 
-const HOSTS: AgentHost[] = ["claude", "codex", "pi", "opencode"];
+const HOSTS: AgentHost[] = ["claude", "codex", "pi"];
 
 describe("terminal wheel policy", () => {
   it("converts wheel delta to at least one scrollback row", () => {
@@ -36,14 +36,6 @@ describe("terminal wheel policy", () => {
     expect(terminalWheelAction("pi", "alternate", "none", 1, 1)).toEqual({
       kind: "input",
       data: "\u001b[6~",
-    });
-    expect(terminalWheelAction("opencode", "alternate", "none", -1, 2)).toEqual({
-      kind: "input",
-      data: "\u001b\u0019\u001b\u0019",
-    });
-    expect(terminalWheelAction("opencode", "alternate", "none", 1, 99)).toEqual({
-      kind: "input",
-      data: "\u001b\u0005".repeat(6),
     });
     expect(terminalWheelAction("codex", "alternate", "none", 1, 1)).toEqual({
       kind: "delegate",
