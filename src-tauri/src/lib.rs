@@ -61,7 +61,10 @@ fn open_workspace(
 
     // Set the path guard root after successful validation
     state.path_guard.set_root(root);
-    state.claude_eli5.apply_if_enabled(root)?;
+    // Best-effort: never block opening a workspace over ELI5 activation failures
+    // (e.g. a user-owned output style that differs from the bundled one, or
+    // invalid JSON in .claude/settings.local.json).
+    let _ = state.claude_eli5.apply_if_enabled(root);
 
     // Register the repository-scoped lmbrain-mcp server so agents working in this
     // workspace receive the controlled-mutation tools. Best-effort: never block
@@ -100,7 +103,8 @@ fn initialize_workspace_kit(
         .initialize_kit(Path::new(&path), &template)
         .map_err(|e| e.to_string())?;
     let root = Path::new(&path);
-    state.claude_eli5.apply_if_enabled(root)?;
+    // Best-effort: never block kit initialization over ELI5 activation failures.
+    let _ = state.claude_eli5.apply_if_enabled(root);
     let mcp_command = commands::mcp_registration::resolve_mcp_command_for_root(root);
     let _ = commands::mcp_registration::register_mcp_server(root, &mcp_command);
     let _ = commands::codex_registration::register_codex_mcp_server(root, &mcp_command);
