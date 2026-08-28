@@ -1563,7 +1563,7 @@ pub static TOOLS: &[ToolSpec] = &[
         },
     },
 
-    // Dreams
+    // Wayfinder
     ToolSpec {
         name: "wayfinder_overview",
         category: "Wayfinder",
@@ -1600,6 +1600,13 @@ pub static TOOLS: &[ToolSpec] = &[
         handler: |root, args| lmbrain_core::wayfinder_ticket_claim(root, req_str(args,"ticket")?,req_str(args,"claimant")?).map(|v| text(json!(v))).map_err(|e| e.to_string()),
     },
     ToolSpec {
+        name: "wayfinder_ticket_release",
+        category: "Wayfinder",
+        description: "Project Lead: release a claimed ticket back to the frontier when its decision work stops.",
+        schema_fn: || json!({"type":"object","required":["ticket","actor"],"properties":{"ticket":{"type":"string"},"actor":{"type":"string"}},"additionalProperties":false}),
+        handler: |root, args| lmbrain_core::wayfinder_ticket_release(root, req_str(args,"ticket")?,req_str(args,"actor")?).map(|v| text(json!(v))).map_err(|e| e.to_string()),
+    },
+    ToolSpec {
         name: "wayfinder_ticket_resolve",
         category: "Wayfinder",
         description: "Project Lead: resolve a bounded ticket with evidence. Conversation/prototype tickets additionally require explicit operator evidence.",
@@ -1613,6 +1620,7 @@ pub static TOOLS: &[ToolSpec] = &[
         schema_fn: || json!({"type":"object","required":["map","actor"],"properties":{"map":{"type":"string"},"actor":{"type":"string"}},"additionalProperties":false}),
         handler: |root,args| lmbrain_core::wayfinder_map_clear(root,req_str(args,"map")?,req_str(args,"actor")?).map(|v| text(json!(v))).map_err(|e| e.to_string()),
     },
+    // Dreams
     ToolSpec {
         name: "dream_capture",
         category: "Dream",
