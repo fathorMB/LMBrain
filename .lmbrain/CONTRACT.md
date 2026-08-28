@@ -107,3 +107,4 @@ Specialized capabilities are documented in modular contract files. The modules a
 - [[contract/feedback.md|Kit Feedback]]: Upstream LMBrain feedback notes and resolution.
 - [[contract/dreams.md|Dreaming]]: Operator-invited grounded ideation.
 - [[contract/branching.md|Branching Strategy]]: Declarative Git branching policies.
+- [[contract/wayfinder.md|Experimental Wayfinder]]: Opt-in decision maps that hand off to ordinary specifications.
