@@ -152,7 +152,7 @@ pub use wayfinder::{
     list_tickets as list_wayfinder_tickets, map_context as wayfinder_map_context,
     overview as wayfinder_overview, release_ticket as wayfinder_ticket_release,
     resolve_ticket as wayfinder_ticket_resolve, clear_map as wayfinder_map_clear,
-    WayfinderError, WayfinderMap, WayfinderMapContext, WayfinderMapCreate,
+    WayfinderError, WayfinderFog, WayfinderMap, WayfinderMapContext, WayfinderMapCreate,
     WayfinderMapSummary, WayfinderOverview, WayfinderTicket, WayfinderTicketCreate,
     WAYFINDER_EVENT_SCHEMA_VERSION,
 };
