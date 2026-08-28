@@ -6,7 +6,7 @@ import "@xterm/xterm/css/xterm.css";
 import { sessionAttach, sessionResize, sessionWrite } from "../../lib/commands";
 import { HistorySearchPanel } from "./HistorySearchPanel";
 import { terminalClipboardAction } from "../../lib/terminalClipboard";
-import { terminalWheelAction, terminalWheelRows } from "../../lib/terminalWheel";
+import { terminalWheelAction } from "../../lib/terminalWheel";
 import type { MouseTrackingMode } from "../../lib/terminalWheel";
 import type { AgentHost } from "../../types";
 
@@ -168,13 +168,11 @@ export function SessionTerminal({ sessionId, active, host }: SessionTerminalProp
       if (event.ctrlKey || event.metaKey) {
         return true;
       }
-      const rows = terminalWheelRows(event.deltaY);
       const action = terminalWheelAction(
         host,
         term.buffer.active.type,
         trackingMode(term),
-        event.deltaY > 0 ? 1 : -1,
-        rows
+        event.deltaY > 0 ? 1 : -1
       );
       if (action.kind === "delegate") {
         return true;

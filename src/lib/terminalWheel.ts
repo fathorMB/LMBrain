@@ -35,8 +35,7 @@ export function terminalWheelAction(
   host: AgentHost,
   bufferType: TerminalBufferType,
   mouseTracking: MouseTrackingMode,
-  direction: -1 | 1,
-  _rows: number
+  direction: -1 | 1
 ): TerminalScrollAction {
   if (bufferType === "normal") {
     // Codex runs with --no-alt-screen, so its conversation lives in xterm's

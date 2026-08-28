@@ -13,15 +13,15 @@ describe("terminal wheel policy", () => {
 
   it("delegates normal-buffer wheel events to xterm's native scrollback", () => {
     for (const host of HOSTS) {
-      expect(terminalWheelAction(host, "normal", "none", 1, 1)).toEqual({ kind: "delegate" });
-      expect(terminalWheelAction(host, "normal", "any", -1, 1)).toEqual({ kind: "delegate" });
+      expect(terminalWheelAction(host, "normal", "none", 1)).toEqual({ kind: "delegate" });
+      expect(terminalWheelAction(host, "normal", "any", -1)).toEqual({ kind: "delegate" });
     }
   });
 
   it("delegates alternate-buffer wheel to xterm whenever the TUI tracks the mouse", () => {
     for (const host of HOSTS) {
       for (const tracking of ["x10", "vt200", "drag", "any"] as const) {
-        expect(terminalWheelAction(host, "alternate", tracking, 1, 1)).toEqual({
+        expect(terminalWheelAction(host, "alternate", tracking, 1)).toEqual({
           kind: "delegate",
         });
       }
@@ -29,24 +29,24 @@ describe("terminal wheel policy", () => {
   });
 
   it("maps untracked alternate-buffer wheel per documented host bindings", () => {
-    expect(terminalWheelAction("pi", "alternate", "none", -1, 1)).toEqual({
+    expect(terminalWheelAction("pi", "alternate", "none", -1)).toEqual({
       kind: "input",
       data: "\u001b[5~",
     });
-    expect(terminalWheelAction("pi", "alternate", "none", 1, 1)).toEqual({
+    expect(terminalWheelAction("pi", "alternate", "none", 1)).toEqual({
       kind: "input",
       data: "\u001b[6~",
     });
-    expect(terminalWheelAction("codex", "alternate", "none", 1, 1)).toEqual({
+    expect(terminalWheelAction("codex", "alternate", "none", 1)).toEqual({
       kind: "delegate",
     });
   });
 
   it("degrades visibly instead of swallowing wheel input without a mapping", () => {
-    const claude = terminalWheelAction("claude", "alternate", "none", 1, 1);
+    const claude = terminalWheelAction("claude", "alternate", "none", 1);
     expect(claude.kind).toBe("unsupported");
     if (claude.kind === "unsupported") expect(claude.hint).toContain("Claude Code");
-    const unknown = terminalWheelAction("future-tui" as AgentHost, "alternate", "none", 1, 1);
+    const unknown = terminalWheelAction("future-tui" as AgentHost, "alternate", "none", 1);
     expect(unknown.kind).toBe("unsupported");
   });
 });
