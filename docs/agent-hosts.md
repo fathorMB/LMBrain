@@ -77,26 +77,6 @@ pi install npm:pi-mcp-extension@1.5.0 -l --approve
 
 The command never targets global settings and never selects an unpinned version.
 
-## OpenCode through Ollama
-
-OpenCode sessions run `opencode <workspace> --model ollama/<model>` with a
-session-scoped inline provider pointing to `http://localhost:11434/v1`. LMBrain requires
-the `opencode` executable to already be present, preventing session startup from
-becoming an implicit installation flow. OpenCode supports MCP natively; LMBrain
-safely merges only `mcp.lmbrain` into project-local `opencode.json`, preserving
-unrelated provider, permission, agent, and MCP configuration. No OpenCode
-package, credential, global config, or permission policy is installed or changed.
-
-LMBrain passes the absolute workspace as OpenCode's project positional and also
-sets the child cwd, avoiding nested-launcher process-state ambiguity. Generated
-configuration also adds `lsp: true` when the key is absent. Explicit `lsp: false`
-and custom LSP objects remain operator-owned and are never overwritten. Built-in
-OpenCode LSPs may download supported servers into the OpenCode user cache;
-operators can disable that upstream behavior with `OPENCODE_DISABLE_LSP_DOWNLOAD`.
-LMBrain also adds a non-destructive `references.workspace` entry when absent, so
-`@workspace/` provides deterministic project-file autocomplete even when the
-OpenCode TUI prioritizes agent mentions in its bare `@` popup.
-
 ## Antigravity
 
 Antigravity discovers MCP servers only through a user-global `mcp_config.json`;
@@ -154,7 +134,6 @@ The Settings → Harnesses tab manages only the agent CLI itself, not project pa
 - Claude Code: `claude update`
 - Codex: `codex update`
 - Pi: `pi update --self --no-approve`
-- OpenCode: `opencode upgrade`
 
 LMBrain passes fixed argv directly to the resolved executable, runs outside the workspace, never elevates privileges, and never guesses npm/Homebrew/native ownership. Only one update may run at a time, and sessions using the selected host must be closed first. A zero updater exit is not sufficient: LMBrain probes the executable again and reports the verified before/after version and path. Missing harnesses receive official installation guidance but are not installed automatically.
 
@@ -218,7 +197,7 @@ LMBrain scaffolds a concise managed block in root `AGENTS.md` so Codex can disco
 
 ## V3 context-pack tools
 
-All MCP-enabled agent hosts (Claude Code, Codex, OpenCode, Antigravity, and a
+All MCP-enabled agent hosts (Claude Code, Codex, Antigravity, and a
 correctly provisioned Pi session) can use the new context-pack MCP tools:
 
 - `lmbrain_project_digest` — project overview (no parameters)
@@ -241,7 +220,6 @@ These files are machine-specific and should not be committed:
 - `.mcp.json`
 - `.codex/`
 - `.claude/`
-- `opencode.json`
 - `AGENTS.md`
 - root `.lmbrain/` dogfooding state
 

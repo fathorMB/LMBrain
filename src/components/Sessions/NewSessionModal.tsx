@@ -157,7 +157,7 @@ export function NewSessionModal({ isOpen, onClose, onSubmit }: NewSessionModalPr
 
   const selectHost = (next: AgentHost) => {
     setHost(next);
-    if (next === "pi" || next === "opencode") {
+    if (next === "pi") {
       setRoute("ollama");
       ensureModelsLoaded();
       return;
@@ -231,12 +231,11 @@ export function NewSessionModal({ isOpen, onClose, onSubmit }: NewSessionModalPr
           <ModeButton label="Claude" selected={host === "claude"} onClick={() => selectHost("claude")} />
           <ModeButton label="Codex" selected={host === "codex"} onClick={() => selectHost("codex")} />
           <ModeButton label="Pi" selected={host === "pi"} onClick={() => selectHost("pi")} />
-          <ModeButton label="OpenCode" selected={host === "opencode"} onClick={() => selectHost("opencode")} />
         </div>
 
         <div style={fieldLabelStyle}>Connection</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          {host !== "pi" && host !== "opencode" && (
+          {host !== "pi" && (
             <ModeButton label="Native" selected={route === "native"} onClick={() => setRoute("native")} />
           )}
           {host !== "codex" && (

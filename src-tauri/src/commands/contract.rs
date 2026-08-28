@@ -25,7 +25,8 @@ use crate::models::skill::{Skill, SkillStatus};
 use crate::models::spec::{Spec, SpecParkingEvent, SpecStatus};
 use crate::models::statistics::{
     ArtifactFamilyStats, DiagnosticStats, ProjectStatistics, ReviewCycleRankingEntry,
-    ReviewDimensionStat, ReviewQualityStats, ReviewTrendPoint, SpecFlowStats, StatusCount,
+    ReviewDimensionStat, ReviewOutcomeBalance, ReviewOutcomeEntry, ReviewQualityStats,
+    ReviewTrendPoint, SpecFlowStats, StatusCount,
 };
 use crate::models::wiki::{WikiNode, WikiNodeKind, WikiTree};
 use crate::models::workspace::{DiagnosticSeverity, KitDiagnostic, WorkspaceSnapshot};
@@ -1506,6 +1507,7 @@ fn build_review_quality_stats(specs: &[Spec], reviews: &[Review]) -> ReviewQuali
         first_pass_eligible_specs,
         first_pass_accepted_specs,
         first_pass_acceptance_rate: ratio(first_pass_accepted_specs, first_pass_eligible_specs),
+        outcome_balance: build_review_outcome_balance(specs, &reviews_by_spec),
         average_reviews_per_reviewed_spec: ratio_f64(
             reviews_by_spec
                 .values()
@@ -1529,6 +1531,128 @@ fn build_review_quality_stats(specs: &[Spec], reviews: &[Review]) -> ReviewQuali
                 specs_with_changes_requested: entry.specs_with_changes_requested.len(),
             })
             .collect(),
+    }
+}
+
+const REVIEW_OUTCOME_ENTRY_LIMIT: usize = 100;
+
+fn build_review_outcome_balance(
+    specs: &[Spec],
+    reviews_by_spec: &HashMap<&str, Vec<&Review>>,
+) -> ReviewOutcomeBalance {
+    let mut balance = ReviewOutcomeBalance {
+        done_specs: 0,
+        eligible_specs: 0,
+        first_pass_specs: 0,
+        remediation_required_specs: 0,
+        excluded_specs: 0,
+        excluded_no_review: 0,
+        excluded_unknown_history: 0,
+        excluded_inconsistent_history: 0,
+        entries: Vec::new(),
+        entries_truncated: false,
+    };
+
+    for spec in specs.iter().filter(|spec| spec.status == SpecStatus::Done) {
+        balance.done_specs += 1;
+        let classification = match reviews_by_spec.get(spec.id.as_str()) {
+            None => "excluded-no-review",
+            Some(spec_reviews) if spec_reviews.iter().any(|review| {
+                review.lifecycle.source == lmbrain_core::ReviewHistorySource::StatusOnly
+            }) => "excluded-unknown-history",
+            Some(spec_reviews) if spec_reviews.iter().any(|review| {
+                !review.lifecycle.warnings.is_empty() || review.malformed == Some(true)
+            }) => "excluded-inconsistent-history",
+            Some(spec_reviews) if !reviews_are_reliably_ordered(spec_reviews) => {
+                "excluded-unknown-history"
+            }
+            Some(spec_reviews) => classify_completed_review_outcome(spec_reviews),
+        };
+
+        match classification {
+            "first-pass" => {
+                balance.eligible_specs += 1;
+                balance.first_pass_specs += 1;
+            }
+            "remediation-required" => {
+                balance.eligible_specs += 1;
+                balance.remediation_required_specs += 1;
+            }
+            "excluded-no-review" => balance.excluded_no_review += 1,
+            "excluded-inconsistent-history" => balance.excluded_inconsistent_history += 1,
+            _ => balance.excluded_unknown_history += 1,
+        }
+
+        if balance.entries.len() < REVIEW_OUTCOME_ENTRY_LIMIT {
+            balance.entries.push(ReviewOutcomeEntry {
+                spec_id: spec.id.clone(),
+                title: spec.title.clone(),
+                path: spec.path.clone(),
+                classification: classification.into(),
+            });
+        } else {
+            balance.entries_truncated = true;
+        }
+    }
+
+    balance.excluded_specs = balance.done_specs.saturating_sub(balance.eligible_specs);
+    debug_assert_eq!(
+        balance.eligible_specs,
+        balance.first_pass_specs + balance.remediation_required_specs
+    );
+    debug_assert_eq!(
+        balance.excluded_specs,
+        balance.excluded_no_review
+            + balance.excluded_unknown_history
+            + balance.excluded_inconsistent_history
+    );
+    balance
+}
+
+fn reviews_are_reliably_ordered(reviews: &[&Review]) -> bool {
+    if reviews.len() <= 1 {
+        return true;
+    }
+    let mut dates = reviews
+        .iter()
+        .filter_map(|review| parse_artifact_date(&review.created))
+        .collect::<Vec<_>>();
+    dates.len() == reviews.len() && {
+        dates.sort_unstable();
+        dates.windows(2).all(|pair| pair[0] != pair[1])
+    }
+}
+
+fn classify_completed_review_outcome(reviews: &[&Review]) -> &'static str {
+    let first = if reviews.len() == 1 {
+        reviews[0]
+    } else {
+        *reviews
+            .iter()
+            .min_by_key(|review| {
+                (
+                    parse_artifact_date(&review.created)
+                        .expect("ordered reviews have valid dates"),
+                    review.id.as_str(),
+                )
+            })
+            .expect("a linked review set is non-empty")
+    };
+    let remediation_cycles = reviews
+        .iter()
+        .map(|review| review.lifecycle.remediation_cycles)
+        .sum::<usize>();
+    let has_changes_requested = reviews.iter().any(|review| {
+        review.status == ReviewStatus::ChangesRequested
+            || review.lifecycle.initial_verdict.as_deref() == Some("changes-requested")
+    });
+    if remediation_cycles > 0 || has_changes_requested {
+        return "remediation-required";
+    }
+    if first.lifecycle.initial_verdict.as_deref() == Some("accepted") {
+        "first-pass"
+    } else {
+        "excluded-unknown-history"
     }
 }
 

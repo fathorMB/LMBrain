@@ -6,6 +6,7 @@ import type {
   ArtifactFamilyStats,
   ReviewCycleRankingEntry,
   ReviewDimensionStat,
+  ReviewOutcomeBalance,
   StatusCount,
 } from "../../types";
 
@@ -54,10 +55,16 @@ export function InsightsView() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "var(--space-3)", marginBottom: "var(--space-5)" }}>
           <Kpi label="Artifacts" value={totalArtifacts.toString()} detail={`${stats.spec_flow.total_specs} specs`} accent="#7c6cf6" />
           <Kpi label="Done ratio" value={formatPercent(stats.spec_flow.done_ratio)} detail={`${stats.spec_flow.done_specs}/${stats.spec_flow.total_specs} specs`} accent="#46b07d" />
-          <Kpi label="Change-request rate" value={formatPercent(review.change_request_rate)} detail={`${review.specs_with_changes_requested}/${review.reviewed_specs} reviewed specs`} accent="#e0584a" />
-          <Kpi label="First-pass accepted" value={formatPercent(review.first_pass_acceptance_rate)} detail={`${review.first_pass_accepted_specs}/${review.first_pass_eligible_specs} eligible histories`} accent="#5b8def" />
           <Kpi label="Diagnostics" value={stats.diagnostics.total.toString()} detail={`${stats.diagnostics.errors} errors, ${stats.diagnostics.warnings} warnings`} accent={stats.diagnostics.errors > 0 ? "#e0584a" : "#e0a23a"} />
         </div>
+
+        <ReviewOutcomeBalanceCard
+          balance={review.outcome_balance}
+          onOpen={(id) => {
+            const spec = workspaceState.specs.find((candidate) => candidate.id === id);
+            if (spec) openSpec(spec);
+          }}
+        />
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: 16, marginBottom: 18 }}>
           <section style={panelStyle}>
@@ -70,18 +77,6 @@ export function InsightsView() {
               <MiniStat label="Escalations" value={review.escalation_count} />
               <MiniStat label="Takeovers" value={review.takeover_count} />
             </div>
-            <MetricBar
-              label="Specs receiving changes requested"
-              value={review.specs_with_changes_requested}
-              total={review.reviewed_specs}
-              color="#e0584a"
-            />
-            <MetricBar
-              label="First-pass accepted specs"
-              value={review.first_pass_accepted_specs}
-              total={review.first_pass_eligible_specs}
-              color="#46b07d"
-            />
             <div style={{ marginTop: 14, fontSize: "var(--text-sm)", color: "var(--text-tertiary)", lineHeight: 1.5 }}>
               Average review iterations:{" "}
               <span style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
@@ -168,20 +163,69 @@ function MiniStat({ label, value }: { label: string; value: number }) {
   );
 }
 
-function MetricBar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
-  const pct = total === 0 ? 0 : value / total;
+function ReviewOutcomeBalanceCard({ balance, onOpen }: { balance: ReviewOutcomeBalance; onOpen: (id: string) => void }) {
+  if (balance.eligible_specs === 0) {
+    return (
+      <section style={{ ...panelStyle, marginBottom: 18 }} aria-labelledby="review-outcome-title">
+        <SectionTitle icon="balance" title="Review outcome balance" />
+        <div id="review-outcome-title" style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)" }}>
+          Insufficient classifiable review history for completed specs.
+        </div>
+        <CalculationBasis balance={balance} />
+      </section>
+    );
+  }
+
+  const firstPassPercent = Math.round((balance.first_pass_specs / balance.eligible_specs) * 100);
+  const remediationPercent = 100 - firstPassPercent;
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)", color: "var(--text-secondary)", marginBottom: 6 }}>
-        <span>{label}</span>
-        <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>
-          {value}/{total} · {formatPercent(pct)}
-        </span>
+    <section style={{ ...panelStyle, marginBottom: 18 }} aria-labelledby="review-outcome-title">
+      <SectionTitle icon="balance" title="Review outcome balance" />
+      <p id="review-outcome-title" style={{ margin: "-4px 0 12px", fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>
+        Completed specs with classifiable review history
+      </p>
+      <div
+        role="img"
+        aria-label={`Accepted first pass ${firstPassPercent}% (${balance.first_pass_specs} specs); required remediation ${remediationPercent}% (${balance.remediation_required_specs} specs)`}
+        style={{ display: "flex", height: 22, borderRadius: 6, overflow: "hidden", background: "#211d27" }}
+      >
+        <div style={{ width: `${firstPassPercent}%`, background: "#46b07d" }} />
+        <div style={{ width: `${remediationPercent}%`, background: "#e0584a" }} />
       </div>
-      <div style={{ height: 8, background: "#211d27", borderRadius: 5, overflow: "hidden" }}>
-        <div style={{ width: `${Math.round(pct * 100)}%`, height: "100%", background: color, borderRadius: 5 }} />
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-4)", marginTop: 10, fontSize: "var(--text-sm)" }}>
+        <strong style={{ color: "#6fd39a" }}>Accepted first pass: {firstPassPercent}% · {balance.first_pass_specs}</strong>
+        <strong style={{ color: "#ef8b80" }}>Required remediation: {remediationPercent}% · {balance.remediation_required_specs}</strong>
       </div>
+      <CalculationBasis balance={balance} />
+      <OutcomeEntries balance={balance} onOpen={onOpen} />
+    </section>
+  );
+}
+
+function CalculationBasis({ balance }: { balance: ReviewOutcomeBalance }) {
+  return (
+    <div style={{ marginTop: 13, fontSize: "var(--text-xs)", color: "var(--text-tertiary)", lineHeight: 1.6 }}>
+      <strong style={{ color: "var(--text-secondary)" }}>Calculation basis</strong>
+      {` · ${balance.done_specs} done · ${balance.eligible_specs} eligible · ${balance.excluded_specs} excluded`}
+      {` · no review ${balance.excluded_no_review} · unknown history ${balance.excluded_unknown_history} · inconsistent history ${balance.excluded_inconsistent_history}`}
+      {` · check: ${balance.eligible_specs} = ${balance.first_pass_specs} + ${balance.remediation_required_specs}`}
     </div>
+  );
+}
+
+function OutcomeEntries({ balance, onOpen }: { balance: ReviewOutcomeBalance; onOpen: (id: string) => void }) {
+  if (balance.entries.length === 0) return null;
+  return (
+    <details style={{ marginTop: 12 }}>
+      <summary style={{ cursor: "pointer", fontSize: "var(--text-sm)", color: "var(--accent-light)" }}>Inspect classified specs ({balance.entries.length}{balance.entries_truncated ? "+" : ""})</summary>
+      <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 8 }}>
+        {balance.entries.map((entry) => (
+          <button key={entry.spec_id} type="button" onClick={() => onOpen(entry.spec_id)} style={{ border: 0, background: "transparent", color: "var(--text-secondary)", cursor: "pointer", padding: 0, textAlign: "left", fontSize: "var(--text-xs)" }}>
+            {entry.spec_id} · {entry.classification}
+          </button>
+        ))}
+      </div>
+    </details>
   );
 }
 

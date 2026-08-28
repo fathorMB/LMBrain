@@ -59,6 +59,28 @@ pub struct ReviewCycleRankingEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ReviewOutcomeEntry {
+    pub spec_id: String,
+    pub title: String,
+    pub path: String,
+    pub classification: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ReviewOutcomeBalance {
+    pub done_specs: usize,
+    pub eligible_specs: usize,
+    pub first_pass_specs: usize,
+    pub remediation_required_specs: usize,
+    pub excluded_specs: usize,
+    pub excluded_no_review: usize,
+    pub excluded_unknown_history: usize,
+    pub excluded_inconsistent_history: usize,
+    pub entries: Vec<ReviewOutcomeEntry>,
+    pub entries_truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ReviewQualityStats {
     pub total_reviews: usize,
     pub total_review_passes: usize,
@@ -80,6 +102,7 @@ pub struct ReviewQualityStats {
     pub first_pass_eligible_specs: usize,
     pub first_pass_accepted_specs: usize,
     pub first_pass_acceptance_rate: f64,
+    pub outcome_balance: ReviewOutcomeBalance,
     pub average_reviews_per_reviewed_spec: f64,
     pub review_cycle_ranking: Vec<ReviewCycleRankingEntry>,
     pub review_cycle_ranking_coverage: usize,

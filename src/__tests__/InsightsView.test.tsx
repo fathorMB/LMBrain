@@ -57,6 +57,20 @@ const stats: ProjectStatistics = {
     first_pass_eligible_specs: 2,
     first_pass_accepted_specs: 1,
     first_pass_acceptance_rate: 0.5,
+    outcome_balance: {
+      done_specs: 3,
+      eligible_specs: 2,
+      first_pass_specs: 1,
+      remediation_required_specs: 1,
+      excluded_specs: 1,
+      excluded_no_review: 1,
+      excluded_unknown_history: 0,
+      excluded_inconsistent_history: 0,
+      entries: [
+        { spec_id: "SPEC-001", title: "Reliable review history", path: ".lmbrain/specs/done/SPEC-001.md", classification: "first-pass" },
+      ],
+      entries_truncated: false,
+    },
     average_reviews_per_reviewed_spec: 1.5,
     review_cycle_ranking: [{
       spec_id: "SPEC-001", title: "Reliable review history", path: ".lmbrain/specs/done/SPEC-001.md",
@@ -127,10 +141,10 @@ describe("InsightsView", () => {
 
     await waitFor(() => expect(screen.getByText("Insights")).toBeDefined());
 
-    expect(screen.getByText("Change-request rate")).toBeDefined();
-    expect(screen.getByText("1/2 reviewed specs")).toBeDefined();
-    expect(screen.getByText("First-pass accepted")).toBeDefined();
-    expect(screen.getByText("1/2 eligible histories")).toBeDefined();
+    expect(screen.getByText("Review outcome balance")).toBeDefined();
+    expect(screen.getByText("Accepted first pass: 50% · 1")).toBeDefined();
+    expect(screen.getByText("Required remediation: 50% · 1")).toBeDefined();
+    expect(screen.getByText(/3 done · 2 eligible · 1 excluded/)).toBeDefined();
     expect(screen.getByText("Review passes")).toBeDefined();
     expect(screen.getByText(/lifecycle coverage 67%/)).toBeDefined();
     expect(screen.getByText("Review Quality")).toBeDefined();

@@ -1135,6 +1135,11 @@ pub enum ArtifactKind {
     Handoff,
     Skill,
     Debt,
+    /// Experimental Wayfinder decision map. Map and ticket files keep stable
+    /// paths; their lifecycle is governed by `wayfinder` mutations, not the
+    /// directory-moving artifact transition engine.
+    WayfinderMap,
+    WayfinderTicket,
 }
 
 impl ArtifactKind {
@@ -1150,6 +1155,8 @@ impl ArtifactKind {
             Self::Handoff => "HANDOFF",
             Self::Skill => "SKILL",
             Self::Debt => "DEBT",
+            Self::WayfinderMap => "MAP",
+            Self::WayfinderTicket => "WAY",
         }
     }
 
@@ -1165,6 +1172,8 @@ impl ArtifactKind {
             Self::Handoff => "handoffs",
             Self::Skill => "skills",
             Self::Debt => "debts",
+            Self::WayfinderMap => "wayfinder/maps",
+            Self::WayfinderTicket => "wayfinder/tickets",
         }
     }
 
@@ -1210,6 +1219,7 @@ impl ArtifactKind {
                 .parse::<DebtStatus>()
                 .map_err(TransitionError::Invariant)
                 .and_then(DebtLifecycle::status_dir),
+            Self::WayfinderMap | Self::WayfinderTicket => Ok(String::new()),
         }
     }
 
@@ -1225,6 +1235,7 @@ impl ArtifactKind {
             Self::Handoff => HandoffLifecycle::moves_for_status(),
             Self::Skill => SkillLifecycle::moves_for_status(),
             Self::Debt => DebtLifecycle::moves_for_status(),
+            Self::WayfinderMap | Self::WayfinderTicket => false,
         }
     }
 
@@ -1240,6 +1251,8 @@ impl ArtifactKind {
             Self::Mcp => &["specified"],
             Self::Handoff => &["ready"],
             Self::Debt => &["open"],
+            Self::WayfinderMap => &["draft"],
+            Self::WayfinderTicket => &["open"],
         }
     }
 
@@ -1255,6 +1268,8 @@ impl ArtifactKind {
             Self::Handoff => HandoffLifecycle::default_status().as_str(),
             Self::Skill => SkillLifecycle::default_status().as_str(),
             Self::Debt => DebtLifecycle::default_status().as_str(),
+            Self::WayfinderMap => "draft",
+            Self::WayfinderTicket => "open",
         }
     }
 
@@ -1270,6 +1285,8 @@ impl ArtifactKind {
             Self::Handoff => HandoffLifecycle::template_name(),
             Self::Skill => SkillLifecycle::template_name(),
             Self::Debt => DebtLifecycle::template_name(),
+            Self::WayfinderMap => "wayfinder-map.md",
+            Self::WayfinderTicket => "wayfinder-ticket.md",
         }
     }
 
@@ -1315,6 +1332,7 @@ impl ArtifactKind {
                 .parse::<DebtStatus>()
                 .map(DebtLifecycle::authority)
                 .unwrap_or("controlled-mutation"),
+            Self::WayfinderMap | Self::WayfinderTicket => "project-lead",
         }
     }
 
@@ -1366,6 +1384,7 @@ impl ArtifactKind {
                 (Ok(f), Ok(t)) => DebtLifecycle::is_transition_allowed(f, t),
                 _ => false,
             },
+            Self::WayfinderMap | Self::WayfinderTicket => false,
         }
     }
 }
@@ -2523,6 +2542,10 @@ pub fn kind_for_id(id: &str) -> Option<ArtifactKind> {
         Some(ArtifactKind::Skill)
     } else if id.starts_with("DEBT-") {
         Some(ArtifactKind::Debt)
+    } else if id.starts_with("MAP-") {
+        Some(ArtifactKind::WayfinderMap)
+    } else if id.starts_with("WAY-") {
+        Some(ArtifactKind::WayfinderTicket)
     } else {
         None
     }
@@ -2544,6 +2567,7 @@ fn canonical_status(kind: ArtifactKind, value: &str) -> Option<String> {
         ArtifactKind::Handoff => value.parse::<HandoffStatus>().ok().map(|status| status.as_str().into()),
         ArtifactKind::Skill => value.parse::<SkillStatus>().ok().map(|status| status.as_str().into()),
         ArtifactKind::Debt => value.parse::<DebtStatus>().ok().map(|status| status.as_str().into()),
+        ArtifactKind::WayfinderMap | ArtifactKind::WayfinderTicket => None,
     }
 }
 

@@ -69,7 +69,7 @@ export function EmptySessionsState({
             color: "var(--text-tertiary)",
           }}
         >
-          Start Claude Code, Codex, Pi, or OpenCode through Ollama with a tools-capable model.
+          Start Claude Code, Codex, or Pi through Ollama with a tools-capable model.
         </div>
         <div style={{ marginTop: 22 }}>
           <button

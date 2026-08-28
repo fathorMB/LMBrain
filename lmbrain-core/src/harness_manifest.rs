@@ -31,7 +31,6 @@ pub enum HarnessHost {
     ClaudeCode,
     Codex,
     Pi,
-    OpenCode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -152,7 +151,7 @@ pub fn load_harness_manifest(root: &Path) -> Result<HarnessManifest, HarnessMani
         ]));
     }
     let source = fs::read_to_string(canonical_path)?;
-    let manifest: HarnessManifest = serde_json::from_str(&source)?;
+    let manifest = deserialize_harness_manifest(&source)?;
     let issues = validate_harness_manifest(&manifest);
     if issues.is_empty() {
         Ok(manifest)
@@ -170,7 +169,7 @@ pub fn parse_harness_manifest(source: &str) -> Result<HarnessManifest, HarnessMa
             },
         ]));
     }
-    let manifest: HarnessManifest = serde_json::from_str(source)?;
+    let manifest = deserialize_harness_manifest(source)?;
     let issues = validate_harness_manifest(&manifest);
     if issues.is_empty() {
         Ok(manifest)
@@ -224,7 +223,7 @@ pub fn validate_harness_manifest(manifest: &HarnessManifest) -> Vec<HarnessValid
     }
     for (host, config) in &manifest.hosts {
         let base = format!("hosts.{}", host_name(*host));
-        if config.lsp.is_some() && !matches!(host, HarnessHost::ClaudeCode | HarnessHost::OpenCode)
+        if config.lsp.is_some() && !matches!(host, HarnessHost::ClaudeCode)
         {
             issue(
                 &mut issues,
@@ -326,8 +325,22 @@ fn host_name(host: HarnessHost) -> &'static str {
         HarnessHost::ClaudeCode => "claude-code",
         HarnessHost::Codex => "codex",
         HarnessHost::Pi => "pi",
-        HarnessHost::OpenCode => "open-code",
     }
+}
+
+fn deserialize_harness_manifest(source: &str) -> Result<HarnessManifest, HarnessManifestError> {
+    let value: serde_json::Value = serde_json::from_str(source)?;
+    if value
+        .get("hosts")
+        .and_then(serde_json::Value::as_object)
+        .is_some_and(|hosts| hosts.contains_key("open-code"))
+    {
+        return Err(HarnessManifestError::Validation(vec![HarnessValidationIssue {
+            path: "hosts.open-code".into(),
+            message: "'open-code' is no longer supported. Remove this host and its configuration; LMBrain will not modify any existing opencode.json file.".into(),
+        }]));
+    }
+    serde_json::from_value(value).map_err(HarnessManifestError::Json)
 }
 
 fn valid_identifier(value: &str) -> bool {
@@ -432,7 +445,7 @@ mod tests {
         HarnessManifest {
             schema_version: 1,
             hosts: BTreeMap::from([(
-                HarnessHost::OpenCode,
+                HarnessHost::ClaudeCode,
                 HostConfiguration {
                     enabled: true,
                     required_tools: BTreeSet::from(["rust-analyzer".into()]),
@@ -458,7 +471,7 @@ mod tests {
         let unknown = r#"{"schema_version":1,"hosts":{},"command":"pwsh"}"#;
         assert!(serde_json::from_str::<HarnessManifest>(unknown).is_err());
         let mut candidate = manifest();
-        let lsp = candidate.hosts.remove(&HarnessHost::OpenCode).unwrap();
+        let lsp = candidate.hosts.remove(&HarnessHost::ClaudeCode).unwrap();
         candidate.hosts.insert(HarnessHost::Pi, lsp);
         assert!(validate_harness_manifest(&candidate)
             .iter()
@@ -466,9 +479,25 @@ mod tests {
     }
 
     #[test]
+    fn reports_actionable_guidance_for_removed_open_code_host() {
+        let error = parse_harness_manifest(
+            r#"{"schema_version":1,"hosts":{"open-code":{"enabled":true}}}"#,
+        )
+        .unwrap_err();
+        match error {
+            HarnessManifestError::Validation(issues) => {
+                assert_eq!(issues[0].path, "hosts.open-code");
+                assert!(issues[0].message.contains("no longer supported"));
+                assert!(issues[0].message.contains("opencode.json"));
+            }
+            other => panic!("expected migration diagnostic, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn rejects_secrets_paths_commands_and_traversal() {
         let mut candidate = manifest();
-        let host = candidate.hosts.get_mut(&HarnessHost::OpenCode).unwrap();
+        let host = candidate.hosts.get_mut(&HarnessHost::ClaudeCode).unwrap();
         host.required_tools.insert("cargo test".into());
         host.environment.insert("API_TOKEN".into(), "hidden".into());
         host.environment
@@ -562,7 +591,7 @@ mod tests {
         let mut candidate = manifest();
         candidate
             .hosts
-            .get_mut(&HarnessHost::OpenCode)
+            .get_mut(&HarnessHost::ClaudeCode)
             .unwrap()
             .environment
             .insert("VALUE".into(), "x".repeat(MAX_VALUE_BYTES + 1));

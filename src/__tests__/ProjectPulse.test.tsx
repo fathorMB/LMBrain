@@ -67,6 +67,11 @@ vi.mock("../hooks/useWorkspace", () => ({
           specs_with_multiple_changes_requested: 0,
           change_request_rate: 0,
           first_pass_acceptance_rate: 0,
+          outcome_balance: {
+            done_specs: 0, eligible_specs: 0, first_pass_specs: 0, remediation_required_specs: 0,
+            excluded_specs: 0, excluded_no_review: 0, excluded_unknown_history: 0,
+            excluded_inconsistent_history: 0, entries: [], entries_truncated: false,
+          },
           by_area: [],
           by_agent: [],
           trend: [],

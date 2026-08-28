@@ -1147,7 +1147,6 @@ verification_gates: []
                 || response.to_string().contains("digest")
         );
         assert!(dir.path().join(".lmbrain/HARNESSES.json").exists());
-        assert!(!dir.path().join("opencode.json").exists());
         assert!(!dir.path().join(".mcp.json").exists());
     }
 

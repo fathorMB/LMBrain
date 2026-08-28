@@ -65,4 +65,4 @@ src-tauri/        Tauri backend and app configuration
 
 ## Ignored Local State
 
-The repository ignores generated local state such as `dist/`, `target/`, `node_modules/`, `.lmbrain/`, `.mcp.json`, the exact Pi MCP files `.pi/mcp.json*`, project-local Pi package cache `.pi/npm/`, `.codex/`, `.claude/`, generated `opencode.json*`, and `AGENTS.md`. `.pi/settings.json` remains visible/versionable because it may contain user-owned project configuration alongside LMBrain's approved pin.
+The repository ignores generated local state such as `dist/`, `target/`, `node_modules/`, `.lmbrain/`, `.mcp.json`, the exact Pi MCP files `.pi/mcp.json*`, project-local Pi package cache `.pi/npm/`, `.codex/`, `.claude/`, and `AGENTS.md`. Existing `opencode.json` files are no longer ignored or modified by LMBrain and may therefore appear as untracked. `.pi/settings.json` remains visible/versionable because it may contain user-owned project configuration alongside LMBrain's approved pin.

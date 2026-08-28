@@ -26,6 +26,7 @@ pub mod taxonomy;
 pub mod transitions;
 pub mod verification;
 pub mod verification_onboarding;
+pub mod wayfinder;
 pub mod workspace_index;
 
 pub use error::{CoreError, ErrorCode};
@@ -144,4 +145,14 @@ pub use verification_onboarding::{
     validate_verification_manifest_source, verification_manifest_status, VerificationGateCandidate,
     VerificationManifestPreview, VerificationManifestPreviewValidation, VerificationManifestState,
     VerificationManifestStatus, VerificationManifestWriteResult, VerificationOnboardingError,
+};
+pub use wayfinder::{
+    claim_ticket as wayfinder_ticket_claim, create_map as wayfinder_map_create,
+    create_ticket as wayfinder_ticket_create, list_maps as list_wayfinder_maps,
+    list_tickets as list_wayfinder_tickets, map_context as wayfinder_map_context,
+    overview as wayfinder_overview, release_ticket as wayfinder_ticket_release,
+    resolve_ticket as wayfinder_ticket_resolve, clear_map as wayfinder_map_clear,
+    WayfinderError, WayfinderMap, WayfinderMapContext, WayfinderMapCreate,
+    WayfinderMapSummary, WayfinderOverview, WayfinderTicket, WayfinderTicketCreate,
+    WAYFINDER_EVENT_SCHEMA_VERSION,
 };

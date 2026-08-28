@@ -69,9 +69,11 @@ operator has not seen yet. One shared policy applies everywhere:
 - Agents & MCP: agent profiles, proposals, MCP records, and built-in MCP tools.
 - Sessions: floating interactive terminals for supported agent CLIs.
 - Session terminals expose consistent wheel and page navigation across normal and full-screen buffers, including packaged Windows builds.
-- Local Harnesses: user-level Claude Code, Codex, Pi, and OpenCode installation status, exact paths/versions, and explicitly confirmed self-updates with logs and post-update verification.
+- Local Harnesses: user-level Claude Code, Codex, and Pi installation status, exact paths/versions, and explicitly confirmed self-updates with logs and post-update verification.
 - Settings: local preferences and agent binary paths.
 
 ## Local-First Boundaries
 
-LMBrain reads and writes local files selected by the user. Repository state remains versionable Markdown. Generated host configuration such as `.mcp.json`, `.codex/`, `opencode.json`, and `AGENTS.md` is workspace-local and machine-specific, so it is ignored in this repository.
+LMBrain reads and writes local files selected by the user. Repository state remains versionable Markdown. Generated host configuration such as `.mcp.json`, `.codex/`, and `AGENTS.md` is workspace-local and machine-specific, so it is ignored in this repository. LMBrain does not modify existing `opencode.json` files.
+
+When enabled in Settings → General, the machine-local Claude Code ELI5 preference installs or verifies LMBrain's user-level output style and activates it only through `.claude/settings.local.json`. It preserves shared `.claude/settings.json`, unrelated local settings, and other harnesses. New native, Ollama-backed, manually started, and Claude Desktop Local worktree sessions read the same project-local selection; existing sessions do not change.

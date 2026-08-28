@@ -81,14 +81,6 @@ The Insights page is backed by `get_project_statistics`, while Agents & MCP also
 
 Local Harnesses is backed by `commands::harnesses`. Read-only probes resolve the same executables used by Sessions and execute only `--version`. Mutating updates are fixed per host, serialized by `HarnessManager`, rejected while matching sessions run, executed off the command thread with bounded time/output, and followed by an authoritative re-probe. No updater is run through an interpolated shell command.
 
-OpenCode uses the same `AgentHost`/`ModelRoute` boundary as Pi and is launched
-through Ollama. `commands::opencode_registration` owns the idempotent,
-structure-preserving merge of the native local MCP entry in project
-`opencode.json` plus a default-on LSP policy when no operator policy exists;
-provider selection is supplied as session-scoped inline configuration for the
-local Ollama OpenAI-compatible API. LMBrain starts OpenCode directly with the
-selected workspace positional, avoiding nested-process cwd ambiguity on Windows.
-
 Review-quality metrics are spec-centric where possible and cycle-aware. Valid structured lifecycle events are authoritative; explicit legacy cycle/count fields provide medium-confidence fallback, while status-only histories are excluded from first-pass claims unless separate dated review artifacts establish ordering. Metrics expose lifecycle and canonical-taxonomy coverage, confidence, remediation/escalation/takeover counts, and original-implementation-agent attribution. Taxonomy-v1 aliases normalize at read time with raw values retained; unknown categories remain diagnostics and never silently enter recurrence thresholds.
 
 ### Milestone intelligence (v3)

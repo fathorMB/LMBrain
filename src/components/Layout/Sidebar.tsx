@@ -20,6 +20,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "operations", icon: "task_alt", label: "Operations", badge: null },
   { key: "debts", icon: "report_problem", label: "Debts", badge: null },
   { key: "dreams", icon: "bedtime", label: "Dream Journal", badge: null },
+  { key: "wayfinder", icon: "explore", label: "Wayfinder", badge: null },
   { key: "feedback", icon: "feedback", label: "Kit Feedback", badge: null },
   { key: "decisions", icon: "account_balance", label: "Decisions", badge: null },
   { key: "design", icon: "design_services", label: "Design", badge: null },
